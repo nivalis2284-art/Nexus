@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexus</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <button id="new" class="primary" type="button">新建会话</button>
+    <ul id="sessions" aria-label="会话列表"></ul>
+    <div class="side-foot">
+      <div id="workspace" class="mono small"></div>
+      <button id="settings" class="link" type="button">设置</button>
+    </div>
+  </aside>
+
+  <main id="main">
+    <header id="topbar">
+      <span id="title">未选择会话</span>
+      <span id="status" class="small"></span>
+    </header>
+    <div id="transcript" aria-live="polite"></div>
+    <form id="composer">
+      <textarea id="input" rows="3" placeholder="说点什么，回车发送，Shift+回车换行"></textarea>
+      <div class="composer-row">
+        <span id="hint" class="small"></span>
+        <button id="send" class="primary" type="submit">发送</button>
+      </div>
+    </form>
+  </main>
+</div>
+
+<dialog id="settings-dialog">
+  <form method="dialog" class="dialog-body">
+    <h2>设置</h2>
+    <label>接口类型
+      <select id="api_family">
+        <option value="openai_chat_completions">OpenAI Chat Completions</option>
+        <option value="openai_responses">OpenAI Responses</option>
+        <option value="anthropic_messages">Anthropic Messages</option>
+      </select>
+    </label>
+    <label>Base URL
+      <input id="base_url" type="url" placeholder="https://api.deepseek.com/v1">
+    </label>
+    <label>模型名
+      <input id="model" type="text" placeholder="deepseek-chat">
+    </label>
+    <label>API Key
+      <input id="api_key" type="password" autocomplete="off" placeholder="留空则不修改">
+    </label>
+    <label>上下文窗口（tokens）
+      <input id="context_window" type="number" min="1000" step="1000" placeholder="65536">
+    </label>
+    <label>权限
+      <select id="permission">
+        <option value="ask">写文件和跑命令前询问</option>
+        <option value="yolo">全部放行</option>
+      </select>
+    </label>
+    <label>工作目录
+      <input id="workspace_input" type="text" placeholder="C:\path\to\project">
+    </label>
+    <p id="settings-error" class="error small"></p>
+    <menu>
+      <button value="cancel" class="link" type="submit">取消</button>
+      <button id="save-settings" value="save" class="primary" type="submit">保存</button>
+    </menu>
+  </form>
+</dialog>
+
+<dialog id="approval-dialog">
+  <div class="dialog-body">
+    <h2>需要确认</h2>
+    <p id="approval-what" class="mono"></p>
+    <pre id="approval-detail" class="code"></pre>
+    <menu>
+      <button id="deny" class="link" type="button">拒绝</button>
+      <button id="allow" class="primary" type="button">允许</button>
+    </menu>
+  </div>
+</dialog>
+
+<script src="/app.js"></script>
+</body>
+</html>
