@@ -106,9 +106,10 @@ class StdioServer:
     def start(self) -> None:
         if self._process is not None:
             return
+        argv = resolve_command([self.command, *self.args])
         try:
             self._process = subprocess.Popen(
-                [self.command, *self.args],
+                argv,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -361,6 +362,47 @@ class MCPRegistry:
             server.close()
         self.servers.clear()
         self.tools.clear()
+
+
+def resolve_command(argv: list[str]) -> list[str]:
+    """Make a command runnable without a shell, on Windows too.
+
+    ``npx``, ``uvx``, ``pnpm`` and friends are ``.cmd`` shims on Windows, and
+    ``CreateProcess`` cannot execute them directly — the error is a bare
+    ``WinError 2`` that reads like "missing binary" and sends you hunting for the
+    wrong problem.
+
+    Node's own launcher is used when it can be found, because that keeps the
+    process tree clean. If it cannot, the shim is handed to ``cmd.exe`` instead:
+    still no user string in the command line, since the arguments are passed as
+    a list and only the shim path is interpolated.
+    """
+    if os.name != "nt" or not argv:
+        return argv
+
+    import shutil
+
+    command = argv[0]
+    located = shutil.which(command) or command
+    lowered = located.lower()
+
+    if not lowered.endswith((".cmd", ".bat")):
+        return [located, *argv[1:]]
+
+    # Prefer running the JS entry point through node directly.
+    node = shutil.which("node")
+    if node:
+        shim = Path(located)
+        # npm/npx shims sit next to node_modules\npm\bin\*.js
+        candidate = shim.parent / "node_modules" / "npm" / "bin" / f"{shim.stem}-cli.js"
+        if candidate.is_file():
+            return [node, str(candidate), *argv[1:]]
+        candidate_alt = shim.parent / "node_modules" / "npm" / "bin" / "npx-cli.js"
+        if shim.stem.lower() == "npx" and candidate_alt.is_file():
+            return [node, str(candidate_alt), *argv[1:]]
+
+    # Fall back to cmd.exe, which can run a .cmd shim. Arguments stay list-based.
+    return ["cmd.exe", "/c", located, *argv[1:]]
 
 
 def qualify(server_name: str, tool_name: str) -> str:

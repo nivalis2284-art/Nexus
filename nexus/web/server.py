@@ -57,18 +57,32 @@ class Approvals:
     Handles two shapes with one mechanism: a yes/no approval, and a free-text
     answer to a question. Both are "the turn is blocked until a human replies",
     so they share the wait/resolve plumbing rather than growing a second one.
+
+    The wait must be **cancellable**. If the browser closes mid-question, or the
+    owner presses stop, the loop is parked inside ``Event.wait`` and the thread
+    would otherwise hold the run lock for the full timeout, making the whole app
+    refuse new messages. ``cancel_all`` releases every waiter at once.
     """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._pending: dict[str, threading.Event] = {}
+        # Which shape each token carries, so a cancel can answer in kind:
+        # a declined approval, and an absent answer for a question.
+        self._kinds: dict[str, str] = {}
         self._answers: dict[str, Any] = {}
+        self._cancelled = False
 
-    def create(self) -> str:
+    def create(self, kind: str = "approval") -> str:
         token = secrets.token_urlsafe(12)
         event = threading.Event()
         with self._lock:
+            # A cancel that arrives while nobody is waiting must still apply to
+            # the next waiter, or a stop during a fast tool call would be lost.
+            if self._cancelled:
+                self._cancelled = False
             self._pending[token] = event
+            self._kinds[token] = kind
             self._answers.pop(token, None)
         return token
 
@@ -81,7 +95,7 @@ class Approvals:
             return bool(self._answers.get(token, False))
 
     def wait_answer(self, token: str, timeout: float = APPROVAL_TIMEOUT) -> str | None:
-        """Wait for a text answer. ``None`` means dismissed or timed out."""
+        """Wait for a text answer. ``None`` means dismissed, cancelled or timed out."""
         event = self._pending.get(token)
         if event is None:
             return None
@@ -101,6 +115,26 @@ class Approvals:
         event.set()
         return True
 
+    def cancel_all(self) -> int:
+        """Release every waiter without granting anything.
+
+        Used when the turn is stopped or the client disconnects. Returns how many
+        waiters were woken, which is useful for logging and tests.
+        """
+        with self._lock:
+            waiting = list(self._pending.values())
+            self._cancelled = True
+            for token, kind in self._kinds.items():
+                # Answer in the shape the waiter expects: a declined approval,
+                # and "no answer at all" for a question.
+                if kind == "question":
+                    self._answers.setdefault(token, None)
+                else:
+                    self._answers.setdefault(token, False)
+        for event in waiting:
+            event.set()
+        return len(waiting)
+
     def resolve_text(self, token: str, text: str) -> bool:
         with self._lock:
             event = self._pending.get(token)
@@ -113,6 +147,7 @@ class Approvals:
     def forget(self, token: str) -> None:
         with self._lock:
             self._pending.pop(token, None)
+            self._kinds.pop(token, None)
             self._answers.pop(token, None)
 
 
@@ -421,7 +456,11 @@ class Handler(BaseHTTPRequestHandler):
         if agent is None:
             return _json(self, 200, {"stopped": False, "reason": "idle"})
         agent.stop()
-        return _json(self, 200, {"stopped": True})
+        # Waking the waiters matters as much as the flag: if the loop is parked
+        # in an approval or question, the flag alone would not be seen until the
+        # timeout, and the run lock would stay held the whole time.
+        woken = APPROVALS.cancel_all()
+        return _json(self, 200, {"stopped": True, "unblocked": woken})
 
     # --- chat ------------------------------------------------------------
 
@@ -483,18 +522,24 @@ class Handler(BaseHTTPRequestHandler):
 
         def ask_owner(question: str, options: list[str]) -> str | None:
             """Block on the same human channel that approvals use."""
-            token = APPROVALS.create()
-            emit(
-                {
-                    "type": "question",
-                    "token": token,
-                    "question": question,
-                    "options": options,
-                }
-            )
-            answer = APPROVALS.wait_answer(token)
-            APPROVALS.forget(token)
-            return answer
+            token = APPROVALS.create("question")
+            try:
+                emit(
+                    {
+                        "type": "question",
+                        "token": token,
+                        "question": question,
+                        "options": options,
+                    }
+                )
+            except OSError:
+                # Nobody is listening any more; do not park for ten minutes.
+                APPROVALS.forget(token)
+                return None
+            try:
+                return APPROVALS.wait_answer(token)
+            finally:
+                APPROVALS.forget(token)
 
         context.ask = ask_owner
         policy = default_policy(settings.permission, settings.permission_rules)
@@ -505,17 +550,25 @@ class Handler(BaseHTTPRequestHandler):
 
         async def approve(request: ApprovalRequest) -> bool:
             token = APPROVALS.create()
-            emit(
-                {
-                    "type": "approval",
-                    "token": token,
-                    "tool": request.tool,
-                    "value": request.value,
-                    "arguments": request.arguments,
-                }
-            )
-            allowed = await asyncio.to_thread(APPROVALS.wait, token)
-            APPROVALS.forget(token)
+            try:
+                emit(
+                    {
+                        "type": "approval",
+                        "token": token,
+                        "tool": request.tool,
+                        "value": request.value,
+                        "arguments": request.arguments,
+                    }
+                )
+            except OSError:
+                # The stream is gone; refusing is the safe answer and, more
+                # importantly, returns immediately instead of parking.
+                APPROVALS.forget(token)
+                return False
+            try:
+                allowed = await asyncio.to_thread(APPROVALS.wait, token)
+            finally:
+                APPROVALS.forget(token)
             if allowed:
                 policy.remember(request.tool, request.value)
             return allowed
@@ -608,8 +661,10 @@ class Handler(BaseHTTPRequestHandler):
             asyncio.run(drive())
         except (BrokenPipeError, ConnectionResetError):
             # The browser went away mid-stream: stop the loop instead of
-            # letting it keep calling the model into a dead socket.
+            # letting it keep calling the model into a dead socket. Wake any
+            # pending approval too, or the thread waits out the full timeout.
             agent.stop()
+            APPROVALS.cancel_all()
             return
         except Exception as error:  # noqa: BLE001 -- surface, never kill the server
             try:
