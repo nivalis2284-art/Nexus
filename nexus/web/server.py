@@ -36,12 +36,16 @@ from typing import Any
 from urllib.parse import urlparse
 
 from ..core import effort as reasoning
+from ..core import subagent
 from ..core.agent import Agent, ApprovalRequest
 from ..core.config import ConfigStore, build_profile
 from ..core.permission import default_policy
 from ..core.workspace import inspect
 from ..model import RuntimeCredentials
 from ..session import Message, SessionStore
+from .. import mcp
+from ..skills import SkillSet
+from .. import skills
 from ..tools import build
 
 APPROVAL_TIMEOUT = 600.0
@@ -473,7 +477,8 @@ class Handler(BaseHTTPRequestHandler):
             "webfetch_hosts": settings.webfetch_hosts,
             "search_endpoint": settings.search_endpoint,
         }
-        registry, context = build(STATE.get("skills") or {}, config=tool_config)
+        skill_set: SkillSet = STATE.get("skills") or SkillSet()
+        registry, context = build(skill_set.bodies(), config=tool_config)
         context.root = workspace.root
 
         def ask_owner(question: str, options: list[str]) -> str | None:
@@ -526,7 +531,50 @@ class Handler(BaseHTTPRequestHandler):
             context_limit=settings.context_limit,
             approve=approve,
             effort=settings.effort,
+            skills=skill_set.manifest(),
         )
+
+        # A subagent is a whole nested run. The tool handler is synchronous (it
+        # runs in a worker thread), so the nested event loop is created here and
+        # the result is handed back through a queue.
+        def spawn_subagent(task: str, max_steps: int):
+            request = subagent.SubagentRequest(task=task, max_steps=max_steps, depth=1)
+
+            async def factory(prompt: str, budget: int):
+                child_registry, child_context = build(skill_set.bodies(), config=tool_config)
+                child_context.root = workspace.root
+                child_context.ask = ask_owner
+                # MCP connections are process-wide; share them rather than
+                # spawning a second copy of every server.
+                child_context.mcp = context.mcp
+                child = Agent(
+                    profile=profile,
+                    credentials=RuntimeCredentials(settings.api_key),
+                    registry=child_registry,
+                    context=child_context,
+                    workspace=workspace,
+                    policy=policy,
+                    max_steps=budget,
+                    context_limit=settings.context_limit,
+                    effort=settings.effort,
+                    skills=skill_set.manifest(),
+                )
+                async for event in child.run([{"role": "user", "content": prompt}]):
+                    yield event
+
+            async def drive_child():
+                return await subagent.run_subagent(request, make_runner=factory)
+
+            try:
+                return asyncio.run(drive_child())
+            except Exception as error:  # noqa: BLE001 -- the parent must keep running
+                return subagent.SubagentResult(
+                    text=f"Subagent failed: {type(error).__name__}: {error}",
+                    stopped="error",
+                    depth=1,
+                )
+
+        context.spawn_subagent = spawn_subagent
 
         async def drive() -> None:
             async for event in agent.run(history):
@@ -616,17 +664,38 @@ class Handler(BaseHTTPRequestHandler):
                 )
 
 
-def _load_skills(store: ConfigStore) -> dict[str, str]:
-    root = store.home / "skills"
-    found: dict[str, str] = {}
-    if not root.is_dir():
-        return found
-    for path in sorted(root.glob("*.md")):
-        try:
-            found[path.stem] = path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+def _load_skills(store: ConfigStore, workspace: Path | None = None) -> SkillSet:
+    """Project skills first, then user skills; the project wins on a clash."""
+    return skills.discover(skills.default_roots(workspace, store.home))
+
+
+def _start_mcp(store: ConfigStore, workspace: Path) -> MCPRegistry | None:
+    """Connect configured MCP servers once, at startup.
+
+    A server that fails to start is reported and skipped: one broken MCP entry
+    must not stop the agent from running.
+    """
+    settings = store.load()
+    entries = settings.mcp_servers
+    if not entries:
+        return None
+    problems = mcp_tools.config_problems(entries)
+    for problem in problems:
+        print(f"mcp: {problem}")
+    registry = MCPRegistry()
+    for raw in entries:
+        config = mcp.ServerConfig.from_dict(raw)
+        if config is None or not config.enabled:
             continue
-    return found
+        try:
+            names = registry.add(config, cwd=workspace)
+        except mcp.MCPError as error:
+            print(f"mcp: '{config.name}' failed to start: {error}")
+            continue
+        print(f"mcp: '{config.name}' provided {len(names)} tool(s)")
+    if not registry.servers:
+        return None
+    return registry
 
 
 def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None = None) -> None:
@@ -636,7 +705,8 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
         store.save_preferences(workspace=str(Path(workspace).resolve()))
     STATE["store"] = store
     STATE["sessions"] = SessionStore(store.sessions_dir)
-    STATE["skills"] = _load_skills(store)
+    STATE["skills"] = _load_skills(store, Path(store.load().workspace))
+    STATE["mcp"] = _start_mcp(store, Path(store.load().workspace))
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     server.daemon_threads = True
     actual = server.server_address[1]
@@ -648,6 +718,9 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
         pass
     finally:
         server.server_close()
+        live = STATE.get("mcp")
+        if live is not None:
+            live.close()
 
 
 def main(argv: list[str] | None = None) -> int:

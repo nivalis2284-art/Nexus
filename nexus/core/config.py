@@ -99,6 +99,9 @@ class Settings:
     # Network tools are opt-in; an empty list means webfetch is not registered.
     webfetch_hosts: list[str] = field(default_factory=list)
     search_endpoint: str = ""
+    # Raw `mcp.servers` entries. Validated and launched by the caller, kept raw
+    # here so a bad entry can be reported instead of silently dropped.
+    mcp_servers: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def profile(self) -> ModelProfile:
@@ -304,6 +307,12 @@ class ConfigStore:
         search_endpoint = raw.get("search_endpoint")
         if not isinstance(search_endpoint, str):
             search_endpoint = ""
+        mcp_block = raw.get("mcp")
+        mcp_servers: list[dict[str, Any]] = []
+        if isinstance(mcp_block, dict):
+            candidate = mcp_block.get("servers")
+            if isinstance(candidate, list):
+                mcp_servers = [item for item in candidate if isinstance(item, dict)]
         return Settings(
             provider=provider,
             model=model,
@@ -316,6 +325,7 @@ class ConfigStore:
             permission_rules=[item for item in rules if isinstance(item, dict)],
             webfetch_hosts=[str(item) for item in hosts if item],
             search_endpoint=search_endpoint,
+            mcp_servers=mcp_servers,
         )
 
     def save_preferences(self, **values: Any) -> None:

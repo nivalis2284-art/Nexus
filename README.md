@@ -15,10 +15,12 @@
 ```
 nexus/
   core/
-    agent.py        主循环（含失败重试与中止检查点）
+    agent.py        主循环（重试、中止、压缩接入）
     protocol.py     三种协议各自的请求体
     effort.py       思考强度：五档 → 各协议的字段映射
     retry.py        重试策略：退避 + 抖动 + Retry-After
+    compaction.py   上下文压缩：先裁剪，后摘要
+    subagent.py     子代理：独立上下文 + 深度限制
     thinking.py     为什么思考内容不回传
     prompt.py       提示词编排 + 上下文预算
     permission.py   权限规则（可配置，最后匹配胜出）
@@ -32,13 +34,19 @@ nexus/
     catalog 驱动的装配（tools/__init__.py 的 TOOLS 清单）
     files.py        read / write / edit / glob / grep
     shell.py        bash（参数列表，无 shell）
+    jobs.py         bash_background / job_output / job_kill / job_list
+    _jobs.py        后台进程与输出环形缓冲
     todo.py         任务清单
     ask.py          向所有者提问
+    subagent_tool.py 委派子任务
     web.py          webfetch / websearch（默认关闭）
+    mcp_tools.py    把 MCP 声明适配成普通工具
     registry.py     工具注册与统一派发
     _paths.py       路径围栏
   session/
     store.py        JSONL 会话
+  skills.py         SKILL.md 发现与解析
+  mcp.py            MCP stdio 客户端（手写 JSON-RPC）
   web/
     server.py       HTTP（标准库，无框架）
     index.html      单页前端
@@ -137,16 +145,92 @@ nexus/
 
 `webfetch` 会拒绝非 http(s) 协议，并拒绝解析到内网/回环地址的主机（即使它在白名单里）。
 
+## 长任务
+
+`bash` 只适合跑完就结束的命令。任何可能超过一分钟的（装依赖、跑测试、构建、起服务）用 `bash_background`：
+
+- 启动后 0.4 秒内返回 `job_id`，不阻塞
+- `job_output` 读取输出，**只返回游标之后的新内容**，不会重复发送
+- `wait_seconds` 会阻塞等待，但任务一结束就立刻返回，不是死等
+- `job_kill` 停止任务，`job_list` 看有哪些在跑
+
+输出存在有界环形缓冲里（上限 200k 字符）：超长构建不会吃掉内存，只保留最新的部分。
+
+## 上下文压缩
+
+两级，按顺序生效：
+
+**第一级 · 裁剪**（每次请求前，不调模型）
+工具结果超过 8192 字符时，保留头 4096 + 尾 1024，中间替换为固定标记。纯文本操作，不改语义，不引入新错误。
+
+**第二级 · 摘要**（用量超过窗口 80% 时）
+把较老的历史折叠成一份结构化检查点，保留最近 16% 的原文。检查点用固定八段模板，包在 `<compacted-summary>` 标签里。
+
+三条防御规则：
+
+1. 压完**必须真的变小**，否则放弃这次压缩、保留原状
+2. 只在**工具调用闭合**的位置切分，绝不切开 call/result 配对
+3. 摘要失败就退回裁剪，**绝不让压缩失败中断对话**
+
+## 子代理
+
+`subagent` 工具把一个独立任务交给子代理：它有自己的对话历史，共享同一套工具，最后只把结论返回给主代理。
+
+深度上限默认 2（主 → 子 → 孙即止），超过会报错而不是无限递归。目前只有 `spawn`（全新上下文），没有 `fork`（继承父上下文）——后者属于"子代理该记住什么"的问题，留待长期方向确定。
+
+## Skill
+
+放在这两个位置，项目级优先：
+
+```
+<工作区>/.nexus/skills/<name>/SKILL.md
+~/.nexus/skills/<name>/SKILL.md
+```
+
+格式是 YAML frontmatter + 正文：
+
+```markdown
+---
+name: code-review
+description: Review a diff for bugs and style.
+when: the user asks for a review
+---
+正文……
+```
+
+system prompt 里**只放 name + description + when**，正文要用 `read_skill` 现取。没用到的 skill 只占一行，不占一页。
+
+## MCP
+
+在 `config.json` 里配置后，启动时连接 stdio 服务器，把它们的工具并进同一个工具列表：
+
+```json
+"mcp": {
+  "servers": [
+    {"name": "fs", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]}
+  ]
+}
+```
+
+工具名加前缀 `mcp__<server>__<tool>`，不会和内置工具撞名。
+
+两点实现说明：
+
+- 子进程环境会**擦洗掉所有看起来像密钥的变量**（KEY/TOKEN/SECRET/PASSWORD 等），不会把 API Key 传给第三方服务器
+- 有一个 MCP 服务器起不来时，只打印错误并跳过，不影响其他功能
+
 ## 测试
 
 ```
 .venv\Scripts\python.exe -m pytest tests -q
 ```
 
-103 项，覆盖主循环、工具、路径围栏、权限闸门、HTTP 往返、多提供商配置、五档思考强度映射、重试策略、中断、架构守卫，以及实测出来的协议兼容性怪癖：
+151 项，覆盖主循环、工具、路径围栏、权限闸门、HTTP 往返、多提供商配置、五档思考强度映射、重试策略、中断、压缩、子代理、skill、MCP、后台任务、并发写保护，以及实测出来的协议兼容性怪癖：
 
 - 流式 tool_calls 不带 `type`
 - Responses 最终事件换了 item id
 - 带 reasoning 时首帧 `id` 为空字符串
 - finish 帧把 `reasoning_content` 发成空串
 - 一条消息同时带思考和正文时，正文必须仍然显示
+
+MCP 用 `tests/mcp_server_stub.py` 这个真实的 stdio 服务器来测，不是 mock：分页、错误结果、凭据擦洗都经过真实进程验证。

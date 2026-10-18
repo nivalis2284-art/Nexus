@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..core import prompt
+from ..core import compaction
 from ..core.permission import ALLOW, ASK, DENY, Policy, default_policy, target
 from ..core.protocol import request_body
 from ..core.retry import RetryPolicy, should_retry
@@ -76,6 +77,7 @@ class Agent:
         approve: Approval | None = None,
         effort: str | None = None,
         retry: RetryPolicy | None = None,
+        skills: str = "",
     ) -> None:
         self.profile = profile
         self.credentials = credentials
@@ -88,6 +90,11 @@ class Agent:
         self.approve = approve
         self.effort = effort
         self.retry = retry or RetryPolicy()
+        # Rendered skill manifest (names + when-to-use, never bodies).
+        self.skills = skills
+        self.last_compaction: compaction.CompactionReport | None = None
+        self.compaction_epochs = 0
+        self.max_epochs = 16
         self.stopped = False
 
     # --- public -----------------------------------------------------------
@@ -99,6 +106,91 @@ class Agent:
         a file write is never interrupted halfway through.
         """
         self.stopped = True
+
+    async def _fold(
+        self,
+        original: list[dict[str, Any]],
+        trimmed: list[dict[str, Any]],
+        window: int,
+    ) -> tuple[list[dict[str, Any]], compaction.CompactionReport]:
+        """Ask the model for a checkpoint and return the replacement history.
+
+        Runs as a normal one-shot request against the same profile, with no
+        tools, so it cannot start new work. Any failure is reported as "no
+        compaction" rather than propagated: a turn that runs long is better than
+        a turn that dies because summarising failed.
+        """
+        # Eligibility is decided here rather than inside compaction.summarise,
+        # because the summariser call is async and summarise() is pure.
+        if compaction.approx_tokens(trimmed) < window * compaction.TRIGGER_RATIO:
+            return trimmed, compaction.CompactionReport(reason="below threshold")
+        if self.compaction_epochs >= self.max_epochs:
+            return trimmed, compaction.CompactionReport(reason="epoch budget exhausted")
+        try:
+            compaction.assert_paired(trimmed)
+        except compaction.CompactionBlocked as blocked:
+            return trimmed, compaction.CompactionReport(reason=str(blocked))
+
+        head, tail = compaction.split_for_summary(
+            trimmed, int(window * compaction.RETAIN_RATIO)
+        )
+        if not head:
+            return trimmed, compaction.CompactionReport(reason="nothing to compact")
+
+        transcript = "\n\n".join(
+            f"[{message.get('role')}] {compaction._text_of(message)[:4000]}"
+            for message in head
+        )
+        prompt_text = transcript + "\n\n" + compaction.SUMMARY_INSTRUCTION
+
+        async def ask() -> str | None:
+            body = request_body(
+                self.profile,
+                "You are a compaction engine.",
+                [{"role": "user", "content": prompt_text}],
+                [],
+                effort=None,
+            )
+            parts: list[str] = []
+            try:
+                async with _client() as client:
+                    gateway = ModelGateway(client, limits=StreamLimits())
+                    async for event in gateway.stream(
+                        self.profile, body, credentials=self.credentials
+                    ):
+                        if event.type == "text_delta" and event.text:
+                            parts.append(event.text)
+                        elif event.type == "error":
+                            return None
+            except Exception:  # noqa: BLE001 -- summarising must never be fatal
+                return None
+            return "".join(parts) or None
+
+        checkpoint = await ask()
+        if not checkpoint:
+            return trimmed, compaction.CompactionReport(reason="summariser returned nothing")
+
+        summary_message = {
+            "role": "user",
+            "content": (
+                f"{compaction.SUMMARY_TAG_OPEN}\n{checkpoint.strip()}\n"
+                f"{compaction.SUMMARY_TAG_CLOSE}"
+            ),
+        }
+        candidate = [summary_message, *tail]
+        before = compaction.approx_tokens(trimmed)
+        after = compaction.approx_tokens(candidate)
+        if after >= before:
+            return trimmed, compaction.CompactionReport(
+                reason="no gain", before_tokens=before, after_tokens=after
+            )
+        return candidate, compaction.CompactionReport(
+            summarised=True,
+            epochs=self.compaction_epochs + 1,
+            reason="ok",
+            before_tokens=before,
+            after_tokens=after,
+        )
 
     async def run(self, messages: list[dict[str, Any]]) -> AsyncIterator[RunEvent]:
         """Yield events; mutate ``messages`` in place so callers can persist."""
@@ -120,9 +212,41 @@ class Agent:
                     tool_text,
                     platform=_platform(),
                     date=time.strftime("%Y-%m-%d"),
+                    skills=self.skills,
                 )
+                # Trim oversized tool results before budgeting. Deterministic,
+                # no model call: see core.compaction for why this goes first.
+                trimmed, compaction_report = compaction.prune(messages)
+                self.last_compaction = compaction_report
+
+                # If pruning was not enough, fold old history into a checkpoint.
+                # Only attempted when a summariser is wired up, and a failure
+                # here never stops the turn.
+                window = self.context_limit or self.profile.context_window_tokens or 64_000
+                if (
+                    self.compaction_epochs < self.max_epochs
+                    and compaction.approx_tokens(trimmed) >= window * compaction.TRIGGER_RATIO
+                    and not self.stopped
+                ):
+                    folded, fold_report = await self._fold(messages, trimmed, window)
+                    if fold_report.summarised:
+                        messages[:] = folded
+                        trimmed = folded
+                        self.compaction_epochs = fold_report.epochs
+                        self.last_compaction = fold_report
+                        yield RunEvent(
+                            "compacted",
+                            data={
+                                "epochs": fold_report.epochs,
+                                "before": fold_report.before_tokens,
+                                "after": fold_report.after_tokens,
+                            },
+                        )
+                    elif fold_report.reason:
+                        self.last_compaction = fold_report
+
                 context = prompt.select(
-                    messages, budget, fixed=prompt.estimate(system) + prompt.estimate(
+                    trimmed, budget, fixed=prompt.estimate(system) + prompt.estimate(
                         json.dumps(tools)
                     )
                 )

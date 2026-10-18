@@ -39,6 +39,11 @@ class WriteArgs(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     path: str = Field(min_length=1)
     content: str
+    expected_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-fA-F]{64}$",
+        description="If given, the operation fails unless the file still has this hash.",
+    )
 
 
 class EditArgs(BaseModel):
@@ -47,6 +52,11 @@ class EditArgs(BaseModel):
     old_text: str = Field(min_length=1)
     new_text: str = ""
     replace_all: bool = False
+    expected_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-fA-F]{64}$",
+        description="If given, the operation fails unless the file still has this hash.",
+    )
 
 
 class GlobArgs(BaseModel):
@@ -100,6 +110,9 @@ def _read_text(path: Path, *, offset: int, limit: int) -> dict[str, Any]:
         "lines": total,
         "offset": start + 1,
         "returned": len(selected),
+        # Lets the model pass expected_sha256 later, so a concurrent change
+        # surfaces as a failed write instead of a silently lost edit.
+        "sha256": _sha256(data),
     }
 
 
@@ -112,17 +125,48 @@ def read(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     return _read_text(path, offset=args["offset"], limit=args["limit"])
 
 
+def _sha256(data: bytes) -> str:
+    import hashlib
+
+    return hashlib.sha256(data).hexdigest()
+
+
+def _check_expected(path: Path, expected: str | None) -> None:
+    """Optimistic concurrency: refuse to write over a file that moved on.
+
+    The model read a file, then wrote it. If something else changed it in
+    between, the write would silently discard that change. Passing the hash the
+    model saw turns that into a visible failure instead.
+    """
+    if not expected:
+        return
+    try:
+        current = _sha256(path.read_bytes())
+    except FileNotFoundError:
+        raise ValueError(
+            f"{path} no longer exists; it was there when the hash was taken."
+        ) from None
+    if current != expected.lower():
+        raise ValueError(
+            f"{path} changed since it was read (expected {expected[:12]}…, "
+            f"found {current[:12]}…). Read it again before writing."
+        )
+
+
 def write(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     path = resolve(context, args["path"])
-    path.parent.mkdir(parents=True, exist_ok=True)
     existed = path.exists()
+    _check_expected(path, args.get("expected_sha256"))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = args["content"].encode("utf-8")
     with open_file(path, "write") as handle:
-        handle.write(args["content"].encode("utf-8"))
+        handle.write(body)
     lines = args["content"].count("\n") + (1 if args["content"] else 0)
     return {
         "content": f"{'Overwrote' if existed else 'Created'} {path} ({lines} lines)",
         "path": str(path),
-        "bytes": len(args["content"].encode("utf-8")),
+        "bytes": len(body),
+        "sha256": _sha256(body),
         "created": not existed,
     }
 
@@ -148,8 +192,10 @@ def _near_misses(original: str, old: str, limit: int = 3) -> list[int]:
 
 def edit(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     path = resolve(context, args["path"])
+    _check_expected(path, args.get("expected_sha256"))
     with open_file(path, "read") as handle:
-        original = handle.read().decode("utf-8", errors="replace")
+        raw = handle.read()
+    original = raw.decode("utf-8", errors="replace")
     old = args["old_text"]
     count = original.count(old)
     if count == 0:

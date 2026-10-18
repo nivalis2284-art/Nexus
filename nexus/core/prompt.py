@@ -71,6 +71,7 @@ def build_system_prompt(
     *,
     platform: str,
     date: str,
+    skills: str = "",
 ) -> str:
     sections = [ROLE]
     env = ENVIRONMENT.format(
@@ -85,6 +86,15 @@ def build_system_prompt(
             "The following comes from instruction files in the workspace. "
             "Follow them unless they conflict with your core rules.\n\n"
             + workspace.instructions
+        )
+    if skills:
+        # Only names, descriptions and trigger hints. Bodies are read on demand
+        # with read_skill, so an unused skill costs one line, not a page.
+        sections.append(
+            "# Skills\n"
+            "Reusable procedures installed in this environment. When one applies, "
+            "call read_skill with its exact name before doing the work.\n"
+            + skills
         )
     if tools:
         sections.append(

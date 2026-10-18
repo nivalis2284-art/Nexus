@@ -17,11 +17,11 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import ask, files, shell, todo, web
+from . import ask, files, jobs, shell, subagent_tool, todo, web
 from .registry import Registry, ToolResult, ToolSpec
 
 # Order matters only for prompt readability: cheap, common tools first.
-CATALOG = (files, shell, todo, ask, web, None)  # None is replaced by _SKILL below
+CATALOG = (files, shell, jobs, todo, ask, subagent_tool, web, None)  # None is replaced by _SKILL below
 
 
 class SkillArgs(BaseModel):
@@ -40,6 +40,8 @@ class ToolContext:
         self.web_allowlist: list[str] = []
         self.search_endpoint: str = ""
         self.ask: Any = None
+        # Live MCP connection registry, injected by the caller when configured.
+        self.mcp: Any = None
 
 
 def _skill(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -95,7 +97,22 @@ def build(
     for spec in tool_specs():
         if spec.available(available):
             registry.add(spec)
+    for spec in mcp_tool_specs(context):
+        registry.add(spec)
     return registry, context
+
+
+def mcp_tool_specs(context: "ToolContext") -> list[ToolSpec]:
+    """Adapt live MCP declarations into ordinary tool specs.
+
+    MCP tools join the same registry as builtins, so the agent loop needs no
+    knowledge of MCP at all. Their schemas are whatever the server advertised,
+    so the argument model is a permissive passthrough and validation is left to
+    the server, which is the only party that knows the real contract.
+    """
+    from .mcp_tools import specs_for
+
+    return specs_for(context)
 
 
 __all__ = [
@@ -104,5 +121,6 @@ __all__ = [
     "ToolResult",
     "ToolSpec",
     "build",
+    "mcp_tool_specs",
     "tool_specs",
 ]
