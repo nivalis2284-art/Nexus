@@ -44,17 +44,19 @@ def live(tmp_path: Path, monkeypatch):
     home = tmp_path / "home"
     store = web.ConfigStore(home)
     store.ensure()
-    store.write_credential("default", "test-key")
     # Pin the protocol: the fake frames below are Chat Completions, and the
-    # shipped default profile uses a different family.
-    profile = ModelProfile(
-        api_family=APIFamily.OPENAI_CHAT_COMPLETIONS,
-        model="fake",
-        base_url="https://fake.test/v1",
-        context_window_tokens=32000,
-        max_output_tokens=1024,
-    )
-    store.save_profile(profile)
+    # shipped default provider uses a different family.
+    for provider in store.providers():
+        store.update_provider(
+            provider.id,
+            {
+                "family": APIFamily.OPENAI_CHAT_COMPLETIONS.value,
+                "models": [{"id": "fake", "context_window_tokens": 32000,
+                            "max_output_tokens": 1024}],
+            },
+        )
+        store.select(provider.id, "fake", "off")
+        store.write_credential(provider.id, "test-key")
     web.STATE["store"] = store
     web.STATE["sessions"] = web.SessionStore(store.sessions_dir)
     web.STATE["skills"] = {}
@@ -126,7 +128,8 @@ def test_full_turn_over_http(live):
 
 def test_chat_requires_a_key(live):
     base, workspace, store = live
-    store.write_credential("default", "")
+    for provider in store.providers():
+        store.write_credential(provider.id, "")
     status, body = post(base + "/api/sessions", {})
     session_id = json.loads(body)["id"]
     with pytest.raises(urllib.error.HTTPError) as caught:

@@ -3,21 +3,23 @@
 Routes
     GET  /                     the single page
     GET  /app.js, /app.css     assets
-    GET  /api/state            model + preferences + sessions
+    GET  /api/state            providers, models, selection, sessions
     POST /api/sessions         create
     GET  /api/sessions/<id>    transcript
     DEL  /api/sessions/<id>    delete
     POST /api/chat             run a turn (NDJSON stream)
     POST /api/approval         answer a pending approval
-    POST /api/settings         save model/preferences
+    POST /api/providers        add a provider
+    PUT  /api/providers/<id>   edit a provider
+    DEL  /api/providers/<id>   remove a provider
+    POST /api/select           choose provider + model + reasoning level
+    POST /api/settings         preferences (permission, max steps)
     POST /api/workspace        change the workspace directory
 
 The chat endpoint streams newline-delimited JSON. NDJSON over a plain POST keeps
 the client trivial: no SSE parsing, no reconnection logic, no EventSource quirks.
 
-Persistence happens once per turn, after the loop finishes. Writing during the
-stream would need a file rewrite per event; one write at the end is simpler and
-cannot leave a half-applied transcript.
+Persistence happens once per turn, after the loop finishes.
 """
 
 from __future__ import annotations
@@ -33,8 +35,9 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from ..core import effort as reasoning
 from ..core.agent import Agent, ApprovalRequest
-from ..core.config import ConfigStore
+from ..core.config import ConfigStore, build_profile
 from ..core.permission import default_policy
 from ..core.workspace import inspect
 from ..model import RuntimeCredentials
@@ -45,11 +48,7 @@ APPROVAL_TIMEOUT = 600.0
 
 
 class Approvals:
-    """One pending approval at a time, keyed by a random token.
-
-    A coding agent runs one turn at a time here, so a single slot is honest: a
-    second concurrent question would be a bug, not a queue.
-    """
+    """One pending approval at a time, keyed by a random token."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -120,11 +119,17 @@ def _transcript(session) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for item in session.items:
         if item.kind in ("user", "assistant"):
-            # An assistant turn that only carried tool calls has no text of its
-            # own; it stays in the file for replay but is not a bubble.
-            if item.kind == "assistant" and not item.text:
+            if item.kind == "assistant" and not item.text and not item.data.get("thinking"):
                 continue
-            out.append({"role": item.kind, "text": item.text, "at": item.at})
+            out.append(
+                {
+                    "role": item.kind,
+                    "text": item.text,
+                    "thinking": item.data.get("thinking") or "",
+                    "usage": item.data.get("usage") or None,
+                    "at": item.at,
+                }
+            )
         elif item.kind == "tool":
             out.append(
                 {
@@ -142,7 +147,11 @@ def _transcript(session) -> list[dict[str, Any]]:
 
 
 def _internal(session) -> list[dict[str, Any]]:
-    """Rebuild the provider-neutral history the agent consumes."""
+    """Rebuild the provider-neutral history the agent consumes.
+
+    Thinking is deliberately excluded: it is display material and is never
+    replayed (see core.thinking).
+    """
     out: list[dict[str, Any]] = []
     for item in session.items:
         if item.kind == "user":
@@ -164,7 +173,7 @@ def _internal(session) -> list[dict[str, Any]]:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "Nexus/0.1"
+    server_version = "Nexus/0.2"
     protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt: str, *args: Any) -> None:
@@ -194,6 +203,25 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/sessions/"):
             removed = STATE["sessions"].delete(path.rsplit("/", 1)[-1])
             return _json(self, 200 if removed else 404, {"removed": removed})
+        if path.startswith("/api/providers/"):
+            provider_id = path.rsplit("/", 1)[-1]
+            try:
+                STATE["store"].remove_provider(provider_id)
+            except ValueError as error:
+                return _json(self, 400, {"error": str(error)})
+            return _json(self, 200, self._state())
+        return _json(self, 404, {"error": "not found"})
+
+    def do_PUT(self) -> None:
+        path = urlparse(self.path).path
+        body = _read_json(self)
+        if path.startswith("/api/providers/"):
+            provider_id = path.rsplit("/", 1)[-1]
+            try:
+                STATE["store"].update_provider(provider_id, body)
+            except ValueError as error:
+                return _json(self, 400, {"error": str(error)})
+            return _json(self, 200, self._state())
         return _json(self, 404, {"error": "not found"})
 
     def do_POST(self) -> None:
@@ -204,6 +232,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._create()
             if path == "/api/approval":
                 return self._approve(body)
+            if path == "/api/providers":
+                return self._add_provider(body)
+            if path == "/api/select":
+                return self._select(body)
             if path == "/api/settings":
                 return self._settings(body)
             if path == "/api/workspace":
@@ -216,7 +248,7 @@ class Handler(BaseHTTPRequestHandler):
             return _json(self, 500, {"error": str(error)})
         return _json(self, 404, {"error": "not found"})
 
-    # --- handlers --------------------------------------------------------
+    # --- state -----------------------------------------------------------
 
     def _file(self, name: str, content_type: str) -> None:
         target = Path(__file__).resolve().parent / name
@@ -232,14 +264,42 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _state(self) -> dict[str, Any]:
-        settings = STATE["store"].load()
+        store: ConfigStore = STATE["store"]
+        settings = store.load()
+        providers = [
+            {
+                "id": provider.id,
+                "name": provider.name,
+                "family": provider.family,
+                "base_url": provider.base_url,
+                "has_key": store.has_key(provider.id),
+                "models": provider.models,
+            }
+            for provider in store.providers()
+        ]
+        family = settings.provider.family
         return {
+            "providers": providers,
+            "current": {
+                "provider": settings.provider.id,
+                "model": settings.model.get("id", ""),
+                "effort": settings.effort,
+            },
+            "effort": {
+                "levels": list(reasoning.LEVELS),
+                "labels": reasoning.LABELS,
+                "current": settings.effort,
+                "mapping": reasoning.describe(family, settings.effort or "", settings.profile)
+                if settings.effort
+                else None,
+            },
             "profile": json.loads(settings.profile.model_dump_json()),
             "has_key": bool(settings.api_key),
             "permission": settings.permission,
             "max_steps": settings.max_steps,
             "workspace": settings.workspace,
             "sessions": STATE["sessions"].list(),
+            "thinking_note": "思考内容仅用于展示，不回传给模型。",
         }
 
     def _session(self, session_id: str) -> None:
@@ -260,30 +320,30 @@ class Handler(BaseHTTPRequestHandler):
 
     def _create(self) -> None:
         settings = STATE["store"].load()
-        session = STATE["sessions"].create(settings.profile.model)
+        session = STATE["sessions"].create(settings.model.get("id", ""))
         return _json(self, 201, {"id": session.id, "title": session.title})
 
-    def _settings(self, value: dict[str, Any]) -> None:
-        store = STATE["store"]
-        current = store.load()
-        profile_raw = value.get("profile")
-        if isinstance(profile_raw, dict):
-            merged = json.loads(current.profile.model_dump_json())
-            for key in (
-                "api_family",
-                "model",
-                "base_url",
-                "context_window_tokens",
-                "max_output_tokens",
-            ):
-                if key in profile_raw and profile_raw[key] not in (None, ""):
-                    merged[key] = profile_raw[key]
-            from ..model import ModelProfile
+    # --- configuration ---------------------------------------------------
 
-            store.save_profile(ModelProfile(**merged))
-        api_key = value.get("api_key")
-        if isinstance(api_key, str):
-            store.write_credential("default", api_key.strip())
+    def _add_provider(self, value: dict[str, Any]) -> None:
+        provider = STATE["store"].add_provider(value)
+        return _json(self, 201, {"provider": provider.to_dict(), **self._state()})
+
+    def _select(self, value: dict[str, Any]) -> None:
+        store: ConfigStore = STATE["store"]
+        provider_id = str(value.get("provider") or "")
+        model_id = str(value.get("model") or "")
+        if not provider_id or not model_id:
+            raise ValueError("provider and model are required")
+        level = value.get("effort")
+        if level is not None:
+            # "off" / "" / "default" collapse to None = provider default.
+            level = reasoning.normalize(level)
+        store.select(provider_id, model_id, level)
+        return _json(self, 200, self._state())
+
+    def _settings(self, value: dict[str, Any]) -> None:
+        store: ConfigStore = STATE["store"]
         store.save_preferences(
             permission=value.get("permission"),
             max_steps=value.get("max_steps"),
@@ -317,7 +377,10 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("session not found")
         settings = STATE["store"].load()
         if not settings.api_key:
-            return _json(self, 400, {"error": "还没有配置 API Key。"})
+            return _json(
+                self, 400,
+                {"error": f"还没配置 {settings.provider.name} 的 API Key。"},
+            )
         if not BUSY.acquire(blocking=False):
             return _json(self, 409, {"error": "上一条还在运行。"})
 
@@ -357,6 +420,7 @@ class Handler(BaseHTTPRequestHandler):
         policy = default_policy(settings.permission)
         history = _internal(session)
         before = len(history)
+        profile = build_profile(settings.provider, settings.model)
 
         async def approve(request: ApprovalRequest) -> bool:
             token = APPROVALS.create()
@@ -376,7 +440,7 @@ class Handler(BaseHTTPRequestHandler):
             return allowed
 
         agent = Agent(
-            profile=settings.profile,
+            profile=profile,
             credentials=RuntimeCredentials(settings.api_key),
             registry=registry,
             context=context,
@@ -385,6 +449,7 @@ class Handler(BaseHTTPRequestHandler):
             max_steps=settings.max_steps,
             context_limit=settings.context_limit,
             approve=approve,
+            effort=settings.effort,
         )
 
         async def drive() -> None:
@@ -400,6 +465,13 @@ class Handler(BaseHTTPRequestHandler):
                 elif event.type == "error":
                     emit({"type": "error", "message": event.text})
                 elif event.type == "done":
+                    usage = event.data.get("usage") or {}
+                    # Attach usage to this turn's last assistant message so the
+                    # figure survives a reload; the stream alone would forget it.
+                    for message in reversed(history):
+                        if message.get("role") == "assistant":
+                            message["usage"] = usage
+                            break
                     emit({"type": "done", "data": event.data})
 
         try:
@@ -420,13 +492,22 @@ class Handler(BaseHTTPRequestHandler):
             role = message.get("role")
             if role == "assistant":
                 calls = message.get("tool_calls") or []
-                if message.get("content") or calls:
+                thinking = message.get("thinking") or ""
+                if message.get("content") or calls or thinking:
+                    data: dict[str, Any] = {}
+                    if calls:
+                        data["tool_calls"] = calls
+                    if thinking:
+                        data["thinking"] = thinking
+                    usage = message.get("usage")
+                    if usage:
+                        data["usage"] = usage
                     store.append(
                         session,
                         Message(
                             kind="assistant",
                             text=message.get("content") or "",
-                            data={"tool_calls": calls} if calls else {},
+                            data=data,
                         ),
                     )
             elif role == "tool":
@@ -447,7 +528,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def _load_skills(store: ConfigStore) -> dict[str, str]:
-    """Skills are plain Markdown files under <home>/skills/<name>.md."""
     root = store.home / "skills"
     found: dict[str, str] = {}
     if not root.is_dir():

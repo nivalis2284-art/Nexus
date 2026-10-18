@@ -17,10 +17,12 @@ nexus/
   core/
     agent.py        主循环
     protocol.py     三种协议各自的请求体
+    effort.py       思考强度：五档 → 各协议的字段映射
+    thinking.py     为什么思考内容不回传
     prompt.py       提示词编排 + 上下文预算
     permission.py   权限规则
     workspace.py    工作区事实（cwd / git / AGENTS.md）
-    config.py       配置读写
+    config.py       多提供商配置
   model/
     gateway.py      流式传输
     _parsers.py     三种协议的流解析
@@ -39,6 +41,12 @@ nexus/
     app.css
 ```
 
+## 多提供商
+
+设置里可以添加任意多个提供商，每个有独立的 Base URL、协议和密钥。输入框左下角切换当前模型，按 `提供商 / 模型` 分组。
+
+密钥按提供商分开存于 `credentials.json`（权限 0600），不进 `config.json`。
+
 ## 三种协议
 
 `api_family` 可选：
@@ -49,7 +57,23 @@ nexus/
 | `openai_chat_completions` | `/v1/chat/completions` |
 | `openai_responses` | `/v1/responses` |
 
-三者都已用真实接口验证：流式输出、工具调用、多轮回灌、文件读取。
+三者都已用真实接口验证：流式输出、工具调用、多轮回灌、文件读取、思考流。
+
+## 思考强度
+
+五档固定词表：`low` / `medium` / `high` / `xhigh` / `max`，另有「提供商默认」（不发字段）。
+
+各协议落到的字段不同：
+
+| 协议 | 字段 |
+|---|---|
+| `anthropic_messages` | `output_config.effort` + `thinking.budget_tokens` |
+| `openai_chat_completions` | `reasoning_effort` |
+| `openai_responses` | `reasoning.effort` |
+
+实测：三种协议 × 五档 = 15 个组合全部可用，且都能流出思考内容。
+
+思考内容在界面上可展开，但**不回传给模型**（三种协议都不保证未签名/未加密的推理文本可被接受）。
 
 ## 数据在哪
 
@@ -77,4 +101,9 @@ nexus/
 .venv\Scripts\python.exe -m pytest tests -q
 ```
 
-16 项，覆盖主循环、工具、路径围栏、权限闸门、HTTP 往返，以及两种兼容性协议怪癖。
+36 项，覆盖主循环、工具、路径围栏、权限闸门、HTTP 往返、多提供商配置、五档思考强度映射，以及四类实测出来的协议兼容性怪癖：
+
+- 流式 tool_calls 不带 `type`
+- Responses 最终事件换了 item id
+- 带 reasoning 时首帧 `id` 为空字符串
+- finish 帧把 `reasoning_content` 发成空串

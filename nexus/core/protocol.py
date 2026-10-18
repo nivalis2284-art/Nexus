@@ -16,6 +16,7 @@ import json
 from typing import Any
 
 from ..model import APIFamily, ModelProfile
+from . import effort as reasoning
 
 
 def _chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -171,6 +172,7 @@ def request_body(
     system: str,
     messages: list[dict[str, Any]],
     tools: list[dict[str, Any]],
+    effort: str | None = None,
 ) -> dict[str, Any]:
     family = profile.api_family
     max_tokens = profile.max_output_tokens or 8192
@@ -185,6 +187,7 @@ def request_body(
         }
         if tool_list:
             body["tools"] = tool_list
+        reasoning.apply(body, family, profile, effort)
         return body
     if family == APIFamily.OPENAI_RESPONSES:
         body = {
@@ -196,6 +199,7 @@ def request_body(
         }
         if tool_list:
             body["tools"] = tool_list
+        reasoning.apply(body, family, profile, effort)
         return body
     body = {
         "model": profile.model,
@@ -206,4 +210,5 @@ def request_body(
         body["max_tokens"] = max_tokens
     if tool_list:
         body["tools"] = tool_list
+    reasoning.apply(body, family, profile, effort)
     return body

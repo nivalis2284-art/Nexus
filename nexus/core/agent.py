@@ -52,6 +52,7 @@ class RunEvent:
 @dataclass
 class RunResult:
     text: str = ""
+    thinking: str = ""
     steps: int = 0
     tool_calls: int = 0
     usage: dict[str, Any] = field(default_factory=dict)
@@ -71,6 +72,7 @@ class Agent:
         max_steps: int = 40,
         context_limit: int | None = None,
         approve: Approval | None = None,
+        effort: str | None = None,
     ) -> None:
         self.profile = profile
         self.credentials = credentials
@@ -81,6 +83,7 @@ class Agent:
         self.max_steps = max_steps
         self.context_limit = context_limit
         self.approve = approve
+        self.effort = effort
         self.stopped = False
 
     # --- public -----------------------------------------------------------
@@ -111,9 +114,12 @@ class Agent:
                         json.dumps(tools)
                     )
                 )
-                body = request_body(self.profile, system, context.messages, tools)
+                body = request_body(
+                    self.profile, system, context.messages, tools, effort=self.effort
+                )
                 turns: list[ModelEvent] = []
                 text_parts: list[str] = []
+                thinking_parts: list[str] = []
                 calls: list[dict[str, Any]] = []
                 async for event in gateway.stream(
                     self.profile, body, credentials=self.credentials
@@ -123,6 +129,7 @@ class Agent:
                         text_parts.append(event.text)
                         yield RunEvent("delta", event.text)
                     elif event.type == "thinking_delta" and event.text:
+                        thinking_parts.append(event.text)
                         yield RunEvent("thinking", event.text)
                     elif event.type == "tool_call" and event.tool_call:
                         call = event.tool_call
@@ -141,14 +148,24 @@ class Agent:
                         yield RunEvent("error", message)
                         return
                 text = "".join(text_parts)
+                thinking = "".join(thinking_parts)
                 result.text = text
+                result.thinking = thinking
                 result.steps = step
                 if not calls:
-                    messages.append({"role": "assistant", "content": text})
+                    messages.append(
+                        {"role": "assistant", "content": text,
+                         "thinking": thinking or None,
+                         "usage": result.usage or None}
+                    )
                     result.stopped = "complete"
                     yield RunEvent("done", data={"usage": result.usage, "steps": step})
                     return
-                messages.append({"role": "assistant", "content": text, "tool_calls": calls})
+                messages.append(
+                    {"role": "assistant", "content": text, "tool_calls": calls,
+                     "thinking": thinking or None,
+                     "usage": result.usage or None}
+                )
                 for call in calls:
                     if self.stopped:
                         result.stopped = "cancelled"

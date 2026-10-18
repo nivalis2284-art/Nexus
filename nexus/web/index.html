@@ -9,52 +9,77 @@
 <body>
 <div id="app">
   <aside id="sidebar">
-    <button id="new" class="primary" type="button">新建会话</button>
-    <ul id="sessions" aria-label="会话列表"></ul>
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <span class="brand-name">Nexus</span>
+      <span class="brand-tag" id="brand-tag">preview</span>
+    </div>
+    <button id="new" class="side-new" type="button">＋ 新建会话</button>
+    <div class="side-group">
+      <div class="side-title">会话</div>
+      <ul id="sessions" aria-label="会话列表"></ul>
+    </div>
     <div class="side-foot">
-      <div id="workspace" class="mono small"></div>
-      <button id="settings" class="link" type="button">设置</button>
+      <div class="side-workspace">
+        <span class="folder">📁</span>
+        <span id="workspace" title=""></span>
+      </div>
+      <button id="settings" class="side-link" type="button">设置</button>
     </div>
   </aside>
 
   <main id="main">
     <header id="topbar">
-      <span id="title">未选择会话</span>
-      <span id="status" class="small"></span>
+      <div id="title">新会话</div>
+      <div class="top-actions">
+        <span id="status" class="small"></span>
+      </div>
     </header>
-    <div id="transcript" aria-live="polite"></div>
+
+    <div id="scroller">
+      <div id="transcript" aria-live="polite"></div>
+    </div>
+
     <form id="composer">
-      <textarea id="input" rows="3" placeholder="说点什么，回车发送，Shift+回车换行"></textarea>
-      <div class="composer-row">
-        <span id="hint" class="small"></span>
-        <button id="send" class="primary" type="submit">发送</button>
+      <div class="composer-card">
+        <textarea id="input" rows="1" placeholder="描述你想构建的内容，或直接提问"></textarea>
+        <div class="composer-bar">
+          <div class="bar-left">
+            <button id="model-button" class="pill-button" type="button" aria-haspopup="listbox">
+              <span id="model-label">选择模型</span>
+              <span class="chev">▾</span>
+            </button>
+            <button id="effort-button" class="pill-button" type="button" aria-haspopup="listbox">
+              <span id="effort-label">思考强度</span>
+              <span class="chev">▾</span>
+            </button>
+          </div>
+          <button id="send" class="send" type="submit" aria-label="发送">↑</button>
+        </div>
+      </div>
+      <div class="composer-stats">
+        <span id="stat-turn">0 轮</span>
+        <span id="stat-tokens">0 tok</span>
+        <span id="stat-context">上下文 —</span>
+        <span id="hint">Enter 发送 · Shift+Enter 换行</span>
       </div>
     </form>
   </main>
 </div>
 
+<div id="menu" class="menu" role="listbox" hidden></div>
+
 <dialog id="settings-dialog">
-  <form method="dialog" class="dialog-body">
-    <h2>设置</h2>
-    <label>接口类型
-      <select id="api_family">
-        <option value="openai_chat_completions">OpenAI Chat Completions</option>
-        <option value="openai_responses">OpenAI Responses</option>
-        <option value="anthropic_messages">Anthropic Messages</option>
-      </select>
-    </label>
-    <label>Base URL
-      <input id="base_url" type="url" placeholder="https://api.deepseek.com/v1">
-    </label>
-    <label>模型名
-      <input id="model" type="text" placeholder="deepseek-chat">
-    </label>
-    <label>API Key
-      <input id="api_key" type="password" autocomplete="off" placeholder="留空则不修改">
-    </label>
-    <label>上下文窗口（tokens）
-      <input id="context_window" type="number" min="1000" step="1000" placeholder="65536">
-    </label>
+  <div class="dialog-body">
+    <div class="dialog-head">
+      <h2>模型</h2>
+      <button class="dialog-x" type="button" data-close="settings-dialog">×</button>
+    </div>
+    <p class="small">填入各提供商的 API 密钥即可使用其模型。</p>
+    <div id="provider-list" class="provider-list"></div>
+    <button id="add-provider" class="add-provider" type="button">＋ 添加模型提供商</button>
+
+    <h2 class="sep">其他</h2>
     <label>权限
       <select id="permission">
         <option value="ask">写文件和跑命令前询问</option>
@@ -66,15 +91,51 @@
     </label>
     <p id="settings-error" class="error small"></p>
     <menu>
-      <button value="cancel" class="link" type="submit">取消</button>
-      <button id="save-settings" value="save" class="primary" type="submit">保存</button>
+      <button class="link" type="button" data-close="settings-dialog">关闭</button>
+      <button id="save-settings" class="primary" type="button">保存</button>
     </menu>
-  </form>
+  </div>
+</dialog>
+
+<dialog id="provider-dialog">
+  <div class="dialog-body">
+    <div class="dialog-head">
+      <h2 id="provider-title">添加提供商</h2>
+      <button class="dialog-x" type="button" data-close="provider-dialog">×</button>
+    </div>
+    <label>名称
+      <input id="p-name" type="text" placeholder="DeepSeek">
+    </label>
+    <label>接口协议
+      <select id="p-family">
+        <option value="anthropic_messages">Anthropic Messages（/v1/messages）</option>
+        <option value="openai_chat_completions">OpenAI Chat Completions（/v1/chat/completions）</option>
+        <option value="openai_responses">OpenAI Responses（/v1/responses）</option>
+      </select>
+    </label>
+    <label>Base URL
+      <input id="p-base" type="url" placeholder="https://api.example.com">
+    </label>
+    <label>模型名（逗号分隔可填多个）
+      <input id="p-models" type="text" placeholder="deepseek-v4.1-flash">
+    </label>
+    <label>API Key
+      <input id="p-key" type="password" autocomplete="off" placeholder="留空则不修改">
+    </label>
+    <p id="provider-error" class="error small"></p>
+    <menu>
+      <button id="p-delete" class="link danger" type="button" hidden>删除</button>
+      <button class="link" type="button" data-close="provider-dialog">取消</button>
+      <button id="p-save" class="primary" type="button">保存</button>
+    </menu>
+  </div>
 </dialog>
 
 <dialog id="approval-dialog">
   <div class="dialog-body">
-    <h2>需要确认</h2>
+    <div class="dialog-head">
+      <h2>需要确认</h2>
+    </div>
     <p id="approval-what" class="mono"></p>
     <pre id="approval-detail" class="code"></pre>
     <menu>

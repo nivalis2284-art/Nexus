@@ -237,9 +237,20 @@ class ChatParser(Parser):
         self.record(data)
         result = self.update_usage(data.get("usage"))
         if "id" in data:
-            response_id = string(data["id"], nonempty=True)
-            if self.response.get("id", response_id) != response_id:
-                raise ProtocolError(reason="response_id_changed")
+            # Some compatible servers send id="" on the opening frame of a
+            # reasoning stream and only fill it in later. An empty id is
+            # "not yet known", not a conflicting identity; only a non-empty
+            # value can disagree with one already recorded.
+            raw_id = data["id"]
+            if isinstance(raw_id, str):
+                if raw_id:
+                    known = self.response.get("id")
+                    # A first non-empty id is "now known", not a change.
+                    if known and known != raw_id:
+                        raise ProtocolError(reason="response_id_changed")
+                    self.response["id"] = raw_id
+            elif raw_id is not None:
+                raise ProtocolError()
         self.response.update({k: deepcopy(v) for k, v in data.items() if k != "choices"})
         choices = seq(data.get("choices"))
         for value in choices:
@@ -322,7 +333,9 @@ class ChatParser(Parser):
         return result
 
     def done(self) -> list[ModelEvent]:
-        if not self.finish_reason or not self.response.get("id"):
+        # A finish_reason is the real terminal signal. The response id is
+        # optional here: some compatible servers never populate it.
+        if not self.finish_reason:
             raise ProtocolError()
         return [self.complete()]
 
