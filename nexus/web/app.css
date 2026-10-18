@@ -505,6 +505,35 @@ html, body {
 
 .send:disabled { background: #d6d9ea; cursor: default; }
 
+/* While a turn runs the same button means "stop". */
+.send.stop {
+  background: #e8e8ec;
+  color: #52525b;
+  font-size: 11px;
+}
+
+.send.stop:hover { background: #dcdce2; }
+
+.question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.question-choice {
+  text-align: left;
+  border: 1px solid var(--line);
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.question-choice:hover { border-color: #cfd3e8; background: #fcfcfe; }
+
 .composer-stats {
   display: flex;
   align-items: center;

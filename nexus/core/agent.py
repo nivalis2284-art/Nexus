@@ -17,9 +17,11 @@ from typing import Any
 from ..core import prompt
 from ..core.permission import ALLOW, ASK, DENY, Policy, default_policy, target
 from ..core.protocol import request_body
+from ..core.retry import RetryPolicy, should_retry
 from ..core.workspace import Workspace
 from ..model import (
     APIFamily,
+    ModelError,
     ModelEvent,
     ModelGateway,
     ModelProfile,
@@ -73,6 +75,7 @@ class Agent:
         context_limit: int | None = None,
         approve: Approval | None = None,
         effort: str | None = None,
+        retry: RetryPolicy | None = None,
     ) -> None:
         self.profile = profile
         self.credentials = credentials
@@ -84,9 +87,18 @@ class Agent:
         self.context_limit = context_limit
         self.approve = approve
         self.effort = effort
+        self.retry = retry or RetryPolicy()
         self.stopped = False
 
     # --- public -----------------------------------------------------------
+
+    def stop(self) -> None:
+        """Ask the loop to stop at the next safe checkpoint.
+
+        Safe checkpoints are before a model request and before each tool run, so
+        a file write is never interrupted halfway through.
+        """
+        self.stopped = True
 
     async def run(self, messages: list[dict[str, Any]]) -> AsyncIterator[RunEvent]:
         """Yield events; mutate ``messages`` in place so callers can persist."""
@@ -121,32 +133,69 @@ class Agent:
                 text_parts: list[str] = []
                 thinking_parts: list[str] = []
                 calls: list[dict[str, Any]] = []
-                async for event in gateway.stream(
-                    self.profile, body, credentials=self.credentials
-                ):
-                    turns.append(event)
-                    if event.type == "text_delta" and event.text:
-                        text_parts.append(event.text)
-                        yield RunEvent("delta", event.text)
-                    elif event.type == "thinking_delta" and event.text:
-                        thinking_parts.append(event.text)
-                        yield RunEvent("thinking", event.text)
-                    elif event.type == "tool_call" and event.tool_call:
-                        call = event.tool_call
-                        calls.append(
-                            {
-                                "id": call.id,
-                                "name": call.name,
-                                "arguments": call.arguments_json,
-                            }
-                        )
-                    elif event.type == "usage" and event.usage:
-                        result.usage = _usage(event.usage)
-                    elif event.type == "error":
-                        message = event.error.message if event.error else "model error"
-                        result.stopped = message
-                        yield RunEvent("error", message)
+                produced = False
+                attempt = 0
+                while True:
+                    attempt += 1
+                    retry_after: float | None = None
+                    failure: ModelError | None = None
+                    async for event in gateway.stream(
+                        self.profile, body, credentials=self.credentials
+                    ):
+                        turns.append(event)
+                        if event.type == "text_delta" and event.text:
+                            produced = True
+                            text_parts.append(event.text)
+                            yield RunEvent("delta", event.text)
+                        elif event.type == "thinking_delta" and event.text:
+                            produced = True
+                            thinking_parts.append(event.text)
+                            yield RunEvent("thinking", event.text)
+                        elif event.type == "tool_call" and event.tool_call:
+                            produced = True
+                            call = event.tool_call
+                            calls.append(
+                                {
+                                    "id": call.id,
+                                    "name": call.name,
+                                    "arguments": call.arguments_json,
+                                }
+                            )
+                        elif event.type == "usage" and event.usage:
+                            result.usage = _usage(event.usage)
+                        elif event.type == "error":
+                            failure = event.error or ModelError("provider_error", "")
+                            if event.error:
+                                retry_after = getattr(event.error, "retry_after", None)
+                    if failure is None:
+                        break
+                    # Only a failure before any visible output can be retried: a
+                    # replay after partial text would duplicate what is on screen.
+                    if not should_retry(
+                        code=failure.code,
+                        status=failure.status_code,
+                        reason=failure.reason,
+                        produced_output=produced,
+                    ) or attempt > self.retry.max_retries:
+                        result.stopped = failure.message or "model error"
+                        yield RunEvent("error", result.stopped)
                         return
+                    delay = self.retry.delay_for(attempt, retry_after)
+                    yield RunEvent(
+                        "retrying",
+                        data={
+                            "attempt": attempt,
+                            "max": self.retry.max_retries,
+                            "delay": round(delay, 2),
+                            "code": failure.code,
+                            "status": failure.status_code,
+                        },
+                    )
+                    # Reset the partial capture: this attempt is being discarded.
+                    text_parts.clear()
+                    thinking_parts.clear()
+                    calls.clear()
+                    await asyncio.sleep(delay)
                 text = "".join(text_parts)
                 thinking = "".join(thinking_parts)
                 result.text = text

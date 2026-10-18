@@ -48,12 +48,17 @@ APPROVAL_TIMEOUT = 600.0
 
 
 class Approvals:
-    """One pending approval at a time, keyed by a random token."""
+    """One pending human interaction at a time, keyed by a random token.
+
+    Handles two shapes with one mechanism: a yes/no approval, and a free-text
+    answer to a question. Both are "the turn is blocked until a human replies",
+    so they share the wait/resolve plumbing rather than growing a second one.
+    """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._pending: dict[str, threading.Event] = {}
-        self._answers: dict[str, bool] = {}
+        self._answers: dict[str, Any] = {}
 
     def create(self) -> str:
         token = secrets.token_urlsafe(12)
@@ -71,12 +76,33 @@ class Approvals:
         with self._lock:
             return bool(self._answers.get(token, False))
 
+    def wait_answer(self, token: str, timeout: float = APPROVAL_TIMEOUT) -> str | None:
+        """Wait for a text answer. ``None`` means dismissed or timed out."""
+        event = self._pending.get(token)
+        if event is None:
+            return None
+        event.wait(timeout)
+        with self._lock:
+            value = self._answers.get(token)
+        if value is None:
+            return None
+        return value if isinstance(value, str) else str(value)
+
     def resolve(self, token: str, allowed: bool) -> bool:
         with self._lock:
             event = self._pending.get(token)
             if event is None:
                 return False
             self._answers[token] = bool(allowed)
+        event.set()
+        return True
+
+    def resolve_text(self, token: str, text: str) -> bool:
+        with self._lock:
+            event = self._pending.get(token)
+            if event is None:
+                return False
+            self._answers[token] = str(text)
         event.set()
         return True
 
@@ -89,6 +115,8 @@ class Approvals:
 APPROVALS = Approvals()
 STATE: dict[str, Any] = {}
 BUSY = threading.Lock()
+# The agent of the run in progress, so another request can ask it to stop.
+RUNNING: dict[str, Any] = {"agent": None}
 
 
 def _json(handler: BaseHTTPRequestHandler, status: int, value: Any) -> None:
@@ -233,6 +261,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._create()
             if path == "/api/approval":
                 return self._approve(body)
+            if path == "/api/answer":
+                return self._answer(body)
             if path == "/api/providers":
                 return self._add_provider(body)
             if path == "/api/select":
@@ -243,6 +273,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._workspace(body)
             if path == "/api/chat":
                 return self._chat(body)
+            if path == "/api/chat/abort":
+                return self._abort()
         except ValueError as error:
             return _json(self, 400, {"error": str(error)})
         except OSError as error:
@@ -366,6 +398,27 @@ class Handler(BaseHTTPRequestHandler):
         ok = APPROVALS.resolve(token, bool(value.get("allowed")))
         return _json(self, 200 if ok else 404, {"resolved": ok})
 
+    def _answer(self, value: dict[str, Any]) -> None:
+        token = str(value.get("token") or "")
+        text = value.get("text")
+        if not isinstance(text, str):
+            return _json(self, 400, {"error": "text is required"})
+        ok = APPROVALS.resolve_text(token, text)
+        return _json(self, 200 if ok else 404, {"resolved": ok})
+
+    def _abort(self) -> None:
+        """Ask the run in progress to stop.
+
+        The loop checks the flag before each model request and before each tool
+        run, so this is a request, not an immediate kill: a file write already
+        started is allowed to finish.
+        """
+        agent = RUNNING.get("agent")
+        if agent is None:
+            return _json(self, 200, {"stopped": False, "reason": "idle"})
+        agent.stop()
+        return _json(self, 200, {"stopped": True})
+
     # --- chat ------------------------------------------------------------
 
     def _chat(self, value: dict[str, Any]) -> None:
@@ -416,9 +469,30 @@ class Handler(BaseHTTPRequestHandler):
 
     def _run_turn(self, session, settings, emit) -> None:
         workspace = inspect(Path(settings.workspace))
-        registry, context = build(STATE.get("skills") or {})
+        tool_config = {
+            "webfetch_hosts": settings.webfetch_hosts,
+            "search_endpoint": settings.search_endpoint,
+        }
+        registry, context = build(STATE.get("skills") or {}, config=tool_config)
         context.root = workspace.root
-        policy = default_policy(settings.permission)
+
+        def ask_owner(question: str, options: list[str]) -> str | None:
+            """Block on the same human channel that approvals use."""
+            token = APPROVALS.create()
+            emit(
+                {
+                    "type": "question",
+                    "token": token,
+                    "question": question,
+                    "options": options,
+                }
+            )
+            answer = APPROVALS.wait_answer(token)
+            APPROVALS.forget(token)
+            return answer
+
+        context.ask = ask_owner
+        policy = default_policy(settings.permission, settings.permission_rules)
         history = _internal(session)
         before = len(history)
         started = time.monotonic()
@@ -460,6 +534,8 @@ class Handler(BaseHTTPRequestHandler):
                     emit({"type": "delta", "text": event.text})
                 elif event.type == "thinking":
                     emit({"type": "thinking", "text": event.text})
+                elif event.type == "retrying":
+                    emit({"type": "retrying", "data": event.data})
                 elif event.type == "tool_start":
                     emit({"type": "tool_start", "tool": event.data})
                 elif event.type == "tool_result":
@@ -479,9 +555,13 @@ class Handler(BaseHTTPRequestHandler):
                             break
                     emit({"type": "done", "data": event.data | {"elapsed": elapsed}})
 
+        RUNNING["agent"] = agent
         try:
             asyncio.run(drive())
         except (BrokenPipeError, ConnectionResetError):
+            # The browser went away mid-stream: stop the loop instead of
+            # letting it keep calling the model into a dead socket.
+            agent.stop()
             return
         except Exception as error:  # noqa: BLE001 -- surface, never kill the server
             try:
@@ -489,6 +569,7 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:
                 pass
         finally:
+            RUNNING["agent"] = None
             self._persist(session, history[before:])
 
     def _persist(self, session, new_messages: list[dict[str, Any]]) -> None:

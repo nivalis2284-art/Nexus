@@ -15,12 +15,13 @@
 ```
 nexus/
   core/
-    agent.py        主循环
+    agent.py        主循环（含失败重试与中止检查点）
     protocol.py     三种协议各自的请求体
     effort.py       思考强度：五档 → 各协议的字段映射
+    retry.py        重试策略：退避 + 抖动 + Retry-After
     thinking.py     为什么思考内容不回传
     prompt.py       提示词编排 + 上下文预算
-    permission.py   权限规则
+    permission.py   权限规则（可配置，最后匹配胜出）
     workspace.py    工作区事实（cwd / git / AGENTS.md）
     config.py       多提供商配置
   model/
@@ -28,8 +29,12 @@ nexus/
     _parsers.py     三种协议的流解析
     _sse.py         SSE 分帧
   tools/
+    catalog 驱动的装配（tools/__init__.py 的 TOOLS 清单）
     files.py        read / write / edit / glob / grep
     shell.py        bash（参数列表，无 shell）
+    todo.py         任务清单
+    ask.py          向所有者提问
+    web.py          webfetch / websearch（默认关闭）
     registry.py     工具注册与统一派发
     _paths.py       路径围栏
   session/
@@ -95,15 +100,53 @@ nexus/
 
 同一回合内确认过的同类操作会被记住。
 
+规则也可以写进 `config.json` 的 `permissions` 字段，语义是**最后匹配胜出**，所以兜底规则要放最前、例外放后面：
+
+```json
+"permissions": [
+  {"tool": "bash", "pattern": "*",     "action": "ask"},
+  {"tool": "bash", "pattern": "git *", "action": "allow"},
+  {"tool": "bash", "pattern": "rm *",  "action": "deny"}
+]
+```
+
+不写这个字段时，行为与之前完全一致。
+
+## 中断与重试
+
+运行中「发送」按钮会变成停止按钮。停止是在**安全检查点**生效的：每次模型请求前、每次工具执行前。已经开始的写文件不会被从中间打断。
+
+模型请求失败时按策略重试：
+
+- 只重试 408/409/425/429/500/502/503/504/529 和网络层错误
+- 指数退避 + 抖动，默认 3 次，上限 8 秒
+- 如果响应带 `Retry-After`，优先采用服务端给的时间
+- **已经输出过内容后不再重试**——重放会造成重复文本
+- 400/401/403 这类重试无意义的错误直接报错
+
+## 网络工具默认关闭
+
+`webfetch` 和 `websearch` 默认不存在，需要在 `config.json` 里配置后才注册：
+
+```json
+"webfetch_hosts": ["docs.python.org", "github.com"],
+"search_endpoint": "https://your-search.example/api"
+```
+
+没有 `webfetch_hosts` 就不会出现 `webfetch`；没有 `search_endpoint` 就不会出现 `websearch`。工具不存在比调用后失败更清楚。
+
+`webfetch` 会拒绝非 http(s) 协议，并拒绝解析到内网/回环地址的主机（即使它在白名单里）。
+
 ## 测试
 
 ```
 .venv\Scripts\python.exe -m pytest tests -q
 ```
 
-36 项，覆盖主循环、工具、路径围栏、权限闸门、HTTP 往返、多提供商配置、五档思考强度映射，以及四类实测出来的协议兼容性怪癖：
+103 项，覆盖主循环、工具、路径围栏、权限闸门、HTTP 往返、多提供商配置、五档思考强度映射、重试策略、中断、架构守卫，以及实测出来的协议兼容性怪癖：
 
 - 流式 tool_calls 不带 `type`
 - Responses 最终事件换了 item id
 - 带 reasoning 时首帧 `id` 为空字符串
 - finish 帧把 `reasoning_content` 发成空串
+- 一条消息同时带思考和正文时，正文必须仍然显示

@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ._jobobject import ResourceLimits, available as job_objects_available
 from ._process import run_process
+from .registry import ToolSpec
 
 DEFAULT_TIMEOUT = 120.0
 MAX_TIMEOUT = 900.0
@@ -102,3 +103,13 @@ def _environment() -> dict[str, str]:
 
 def which(name: str) -> str | None:
     return shutil.which(name)
+
+
+TOOLS = [
+    ToolSpec(
+        "bash",
+        "Run a program as an argument list (no shell). cwd is the workspace root. "
+        "Output is captured and truncated at the ends.",
+        BashArgs, bash,
+    ),
+]

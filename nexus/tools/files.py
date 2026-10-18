@@ -16,6 +16,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from ._paths import FileAccessDenied, open_file, reject_link
+from .registry import ToolSpec
 
 MAX_READ_LINES = 2000
 MAX_READ_BYTES = 400_000
@@ -126,6 +127,25 @@ def write(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _near_misses(original: str, old: str, limit: int = 3) -> list[int]:
+    """Line numbers where the first line of ``old`` appears, loosely.
+
+    Only used to build an error message. A failed edit is almost always a
+    whitespace or drift problem, and telling the model *where* the text actually
+    is lets it correct itself instead of re-reading the entire file.
+    """
+    marker = old.strip().splitlines()[0].strip() if old.strip() else ""
+    if not marker:
+        return []
+    hits: list[int] = []
+    for index, line in enumerate(original.splitlines(), start=1):
+        if marker in line.strip():
+            hits.append(index)
+            if len(hits) >= limit:
+                break
+    return hits
+
+
 def edit(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     path = resolve(context, args["path"])
     with open_file(path, "read") as handle:
@@ -133,14 +153,25 @@ def edit(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     old = args["old_text"]
     count = original.count(old)
     if count == 0:
+        hint = ""
+        lines = _near_misses(original, old)
+        if lines:
+            where = ", ".join(str(n) for n in lines)
+            hint = f" The closest match is near line {where}; read that region and copy it exactly."
         raise ValueError(
-            "old_text not found. Read the file first and copy the exact text, "
-            "including indentation."
+            "old_text not found. It must match the file byte for byte, including "
+            "indentation and blank lines." + hint
         )
     if count > 1 and not args["replace_all"]:
+        lines = [
+            index
+            for index, line in enumerate(original.splitlines(), start=1)
+            if old.splitlines() and line.strip().startswith(old.splitlines()[0].strip())
+        ][:5]
+        where = f" (first lines: {', '.join(str(n) for n in lines)})" if lines else ""
         raise ValueError(
-            f"old_text appears {count} times. Add surrounding context to make it "
-            "unique, or set replace_all."
+            f"old_text appears {count} times{where}. Add surrounding context to make "
+            "it unique, or set replace_all."
         )
     updated = original.replace(old, args["new_text"]) if args["replace_all"] else (
         original.replace(old, args["new_text"], 1)
@@ -216,3 +247,35 @@ def grep(context: Any, args: dict[str, Any]) -> dict[str, Any]:
         "files_scanned": scanned,
         "truncated": len(hits) >= args["max_results"],
     }
+
+
+# The declarative list for this module. Adding a tool means appending here; the
+# assembly code in tools/catalog.py never needs to change.
+TOOLS = [
+    ToolSpec(
+        "read_file",
+        "Read a UTF-8 file with line numbers. Use offset/limit for large files.",
+        ReadArgs, read, read_only=True,
+    ),
+    ToolSpec(
+        "write_file",
+        "Create or overwrite a file. Prefer edit_file for existing files.",
+        WriteArgs, write,
+    ),
+    ToolSpec(
+        "edit_file",
+        "Replace an exact, unique block of text in a file. old_text must match the "
+        "file byte for byte; if it is not unique the edit is refused.",
+        EditArgs, edit,
+    ),
+    ToolSpec(
+        "glob",
+        "Find files by glob pattern (e.g. **/*.py).",
+        GlobArgs, glob_paths, read_only=True,
+    ),
+    ToolSpec(
+        "grep",
+        "Search file contents with a regular expression.",
+        GrepArgs, grep, read_only=True,
+    ),
+]

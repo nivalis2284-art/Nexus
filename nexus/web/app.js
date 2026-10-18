@@ -190,12 +190,16 @@ function renderTranscript() {
     }
     if (item.role === "tool" || (item.role === "assistant" && item.thinking)) {
       if (!batch) batch = { tools: [], thinking: [], elapsed: null, live: false };
-      if (item.role === "tool") batch.tools.push(item);
-      else {
-        batch.thinking.push(item.thinking);
-        if (typeof item.elapsed === "number") batch.elapsed = item.elapsed;
+      // A message can carry reasoning *and* prose (the final answer often
+      // does). Keep the reasoning in the fold and let the prose fall through.
+      const hasBody = Boolean((item.text || "").trim());
+      if (typeof item.elapsed === "number") batch.elapsed = item.elapsed;
+      if (item.role === "tool") {
+        batch.tools.push(item);
+        continue;
       }
-      continue;
+      batch.thinking.push(item.thinking);
+      if (!hasBody) continue;
     }
     if (item.role === "assistant") {
       if (batch) {
@@ -371,7 +375,7 @@ async function send(text) {
 
   state.running = true;
   state.turns += 1;
-  $("send").disabled = true;
+  setRunning(true);
   setStatus("运行中…");
 
   state.items.push({ role: "user", text, at: new Date().toISOString() });
@@ -490,6 +494,15 @@ async function send(text) {
             );
           }
           scrollDown();
+        } else if (event.type === "retrying") {
+          const info = event.data || {};
+          setStatus(
+            "重试中 " + info.attempt + "/" + info.max + "（" + info.code + "）"
+          );
+        } else if (event.type === "question") {
+          askQuestion(event).then((text) =>
+            post("/api/answer", { token: event.token, text }).catch(() => {})
+          );
         } else if (event.type === "approval") {
           askApproval(event).then((allowed) =>
             post("/api/approval", { token: event.token, allowed }).catch(() => {})
@@ -525,12 +538,65 @@ async function send(text) {
     setStatus(error.message, true);
   } finally {
     state.running = false;
-    $("send").disabled = false;
+    setRunning(false);
     answer.classList.remove("streaming-caret");
     updateStats();
     await refresh().catch(() => {});
     if (state.sessionId) await openSession(state.sessionId).catch(() => {});
   }
+}
+
+// ---------------------------------------------------------------- run control
+
+function setRunning(isRunning) {
+  const button = $("send");
+  button.disabled = false;
+  button.classList.toggle("stop", isRunning);
+  button.textContent = isRunning ? "■" : "↑";
+  button.title = isRunning ? "停止" : "发送";
+  button.setAttribute("aria-label", isRunning ? "停止" : "发送");
+}
+
+async function abortRun() {
+  setStatus("正在停止…");
+  try {
+    await post("/api/chat/abort", {});
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+function askQuestion(event) {
+  return new Promise((resolve) => {
+    const dialog = $("question-dialog");
+    $("question-text").textContent = event.question || "";
+    const options = $("question-options");
+    options.innerHTML = "";
+    (event.options || []).forEach((choice) => {
+      const button = el("button", "question-choice", choice);
+      button.type = "button";
+      button.addEventListener("click", () => {
+        dialog.close();
+        resolve(choice);
+      });
+      options.appendChild(button);
+    });
+    const input = $("question-input");
+    input.value = "";
+    const finish = () => {
+      dialog.close();
+      resolve(input.value);
+    };
+    $("question-send").onclick = finish;
+    input.onkeydown = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        finish();
+      }
+    };
+    dialog.showModal();
+    input.focus();
+  });
 }
 
 // ---------------------------------------------------------------- approval
@@ -793,7 +859,11 @@ $("composer").addEventListener("submit", (event) => {
   event.preventDefault();
   const input = $("input");
   const text = input.value.trim();
-  if (!text || state.running) return;
+  if (state.running) {
+    abortRun();
+    return;
+  }
+  if (!text) return;
   input.value = "";
   input.style.height = "auto";
   send(text);

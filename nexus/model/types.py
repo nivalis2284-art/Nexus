@@ -187,6 +187,9 @@ class ModelError:
     message: str
     status_code: int | None = None
     reason: str | None = None
+    # Seconds the provider asked us to wait, parsed from a Retry-After header.
+    # Carried as data so the caller's retry policy can honour it.
+    retry_after: float | None = None
 
 
 EventType = Literal[

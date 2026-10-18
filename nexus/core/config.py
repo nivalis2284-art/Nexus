@@ -94,6 +94,11 @@ class Settings:
     permission: str = "ask"
     workspace: str = ""
     context_limit: int | None = None
+    # Empty means "use the built-in rules", so an old config behaves as before.
+    permission_rules: list[dict[str, Any]] = field(default_factory=list)
+    # Network tools are opt-in; an empty list means webfetch is not registered.
+    webfetch_hosts: list[str] = field(default_factory=list)
+    search_endpoint: str = ""
 
     @property
     def profile(self) -> ModelProfile:
@@ -288,6 +293,17 @@ class ConfigStore:
         context_limit = raw.get("context_limit")
         if type(context_limit) is not int or context_limit <= 0:
             context_limit = None
+        rules = raw.get("permissions")
+        if not isinstance(rules, list):
+            rules = []
+        hosts = raw.get("webfetch_hosts")
+        if isinstance(hosts, str):
+            hosts = [item.strip() for item in hosts.split(",") if item.strip()]
+        if not isinstance(hosts, list):
+            hosts = []
+        search_endpoint = raw.get("search_endpoint")
+        if not isinstance(search_endpoint, str):
+            search_endpoint = ""
         return Settings(
             provider=provider,
             model=model,
@@ -297,6 +313,9 @@ class ConfigStore:
             permission=permission,
             workspace=workspace,
             context_limit=context_limit,
+            permission_rules=[item for item in rules if isinstance(item, dict)],
+            webfetch_hosts=[str(item) for item in hosts if item],
+            search_endpoint=search_endpoint,
         )
 
     def save_preferences(self, **values: Any) -> None:

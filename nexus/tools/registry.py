@@ -32,6 +32,11 @@ class ToolSpec:
     handler: Callable[[Any, dict[str, Any]], dict[str, Any]]
     read_only: bool = False
     needs_approval: bool = False
+    # Configuration keys this tool needs to exist. A tool whose requirements are
+    # unmet is not registered at all, rather than appearing in the schema and
+    # failing when called. Learned from Cordis's `inject`: a plugin whose
+    # dependencies are missing never starts.
+    requires: tuple[str, ...] = ()
 
     def schema(self) -> dict[str, Any]:
         return {
@@ -39,6 +44,9 @@ class ToolSpec:
             "description": self.description,
             "parameters": _model_schema(self.parameters),
         }
+
+    def available(self, config: dict[str, Any]) -> bool:
+        return all(bool(config.get(key)) for key in self.requires)
 
 
 def _model_schema(model: type[BaseModel]) -> dict[str, Any]:

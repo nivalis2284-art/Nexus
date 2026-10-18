@@ -42,6 +42,23 @@ ERROR_MESSAGES = {
 }
 
 
+def _retry_after_header(value: str | None) -> float | None:
+    """``Retry-After`` as delta-seconds.
+
+    Only the numeric form is used. The HTTP-date form is legal but rare, and
+    guessing at it risks sleeping far longer than intended.
+    """
+    if not value:
+        return None
+    try:
+        seconds = float(value.strip())
+    except ValueError:
+        return None
+    if seconds < 0 or seconds > 3600:
+        return None
+    return seconds
+
+
 def _priced_event(profile: ModelProfile, event: ModelEvent) -> ModelEvent:
     """Estimate at emission time; native usage and continuation stay untouched."""
     usage = event.usage
@@ -326,7 +343,12 @@ class ModelGateway:
         response = await self._client.send(request, stream=True, follow_redirects=False, auth=None)
         async with aclosing(response):
             if not 200 <= response.status_code < 300:
-                yield self._error(parser, "http_error", response.status_code)
+                yield self._error(
+                    parser,
+                    "http_error",
+                    response.status_code,
+                    retry_after=_retry_after_header(response.headers.get("retry-after")),
+                )
                 return
             content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
             if content_type != "text/event-stream":
@@ -348,10 +370,17 @@ class ModelGateway:
             raise ProtocolError("unexpected_eof", reason="missing_terminal")
 
     @staticmethod
-    def _error(parser: Parser, code: str, status: int | None = None, *, reason: str | None = None) -> ModelEvent:
+    def _error(
+        parser: Parser,
+        code: str,
+        status: int | None = None,
+        *,
+        reason: str | None = None,
+        retry_after: float | None = None,
+    ) -> ModelEvent:
         return ModelEvent(
             "error",
-            error=ModelError(code, ERROR_MESSAGES[code], status, reason),
+            error=ModelError(code, ERROR_MESSAGES[code], status, reason, retry_after),
             usage=parser.usage,
             continuation=parser.snapshot(),
         )
