@@ -127,6 +127,7 @@ def _transcript(session) -> list[dict[str, Any]]:
                     "text": item.text,
                     "thinking": item.data.get("thinking") or "",
                     "usage": item.data.get("usage") or None,
+                    "elapsed": item.data.get("elapsed"),
                     "at": item.at,
                 }
             )
@@ -420,6 +421,7 @@ class Handler(BaseHTTPRequestHandler):
         policy = default_policy(settings.permission)
         history = _internal(session)
         before = len(history)
+        started = time.monotonic()
         profile = build_profile(settings.provider, settings.model)
 
         async def approve(request: ApprovalRequest) -> bool:
@@ -466,13 +468,16 @@ class Handler(BaseHTTPRequestHandler):
                     emit({"type": "error", "message": event.text})
                 elif event.type == "done":
                     usage = event.data.get("usage") or {}
-                    # Attach usage to this turn's last assistant message so the
-                    # figure survives a reload; the stream alone would forget it.
+                    elapsed = round(time.monotonic() - started, 3)
+                    # Attach usage and elapsed to this turn's last assistant
+                    # message so both survive a reload; the stream alone would
+                    # forget them.
                     for message in reversed(history):
                         if message.get("role") == "assistant":
                             message["usage"] = usage
+                            message["elapsed"] = elapsed
                             break
-                    emit({"type": "done", "data": event.data})
+                    emit({"type": "done", "data": event.data | {"elapsed": elapsed}})
 
         try:
             asyncio.run(drive())
@@ -502,6 +507,9 @@ class Handler(BaseHTTPRequestHandler):
                     usage = message.get("usage")
                     if usage:
                         data["usage"] = usage
+                    elapsed = message.get("elapsed")
+                    if isinstance(elapsed, (int, float)):
+                        data["elapsed"] = elapsed
                     store.append(
                         session,
                         Message(

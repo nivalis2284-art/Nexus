@@ -257,56 +257,42 @@ html, body {
   content: ""; flex: 1; height: 1px; background: var(--line-soft);
 }
 
-/* thinking */
+/* ---------- two-level fold: one phase, many steps ---------- */
 
-.thinking {
+.phase {
   border: 1px solid var(--line-soft);
-  border-radius: 10px;
+  border-radius: 11px;
   background: #fbfbfc;
   overflow: hidden;
 }
 
-.thinking > summary {
+.phase > summary {
   list-style: none;
   cursor: pointer;
-  padding: 7px 11px;
-  font-size: 12.5px;
-  color: var(--ink-2);
+  padding: 8px 12px;
   display: flex;
   align-items: center;
   gap: 7px;
+  font-size: 12.5px;
+  color: var(--ink-2);
   user-select: none;
 }
 
-.thinking > summary::-webkit-details-marker { display: none; }
+.phase > summary::-webkit-details-marker { display: none; }
+.phase > summary:hover { background: #f6f6f8; }
 
-.thinking > summary .tw {
-  transition: transform .12s ease;
+.phase > summary .tw,
+.step > summary .tw {
   font-size: 10px;
   color: var(--muted);
+  transition: transform .12s ease;
 }
 
-.thinking[open] > summary .tw { transform: rotate(90deg); }
+.phase[open] > summary .tw,
+.step[open] > summary .tw { transform: rotate(90deg); }
 
-.thinking > summary .tlabel { flex: 0 0 auto; }
-.thinking > summary .tnote { color: var(--muted); font-size: 11.5px; }
-
-.thinking .tbody {
-  padding: 2px 12px 10px;
-  font-size: 12.5px;
-  line-height: 1.7;
-  color: #5b5b66;
-  white-space: pre-wrap;
-  word-break: break-word;
-  border-top: 1px solid var(--line-soft);
-  max-height: 320px;
-  overflow: auto;
-}
-
-.thinking.live .tlabel::after {
-  content: "…";
-  animation: dots 1.2s steps(3, end) infinite;
-}
+.phase .plabel { flex: 0 0 auto; }
+.phase .pnote { color: var(--muted); font-size: 11.5px; }
 
 @keyframes dots {
   0% { content: ""; }
@@ -315,50 +301,98 @@ html, body {
   100% { content: "..."; }
 }
 
-/* tool */
-
-.tool {
-  border: 1px solid var(--line-soft);
-  border-radius: 10px;
-  overflow: hidden;
-  background: #fff;
+.phase.live .plabel::after {
+  content: "…";
+  animation: dots 1.2s steps(3, end) infinite;
 }
 
-.tool > summary {
+.phase .pbody {
+  border-top: 1px solid var(--line-soft);
+  padding: 6px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* a step inside the phase: closed shows one line */
+
+.step {
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #f0f0f3;
+}
+
+.step > summary {
   list-style: none;
   cursor: pointer;
-  padding: 7px 11px;
+  padding: 6px 9px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12.5px;
+  gap: 7px;
+  font-size: 12px;
   color: var(--ink-2);
   user-select: none;
+  min-width: 0;
 }
 
-.tool > summary::-webkit-details-marker { display: none; }
-.tool > summary:hover { background: #fafafb; }
+.step > summary::-webkit-details-marker { display: none; }
+.step > summary:hover { background: #fafafb; }
 
-.tool .ticon { color: var(--muted); font-size: 11px; }
-.tool .tname { font-family: var(--mono); font-size: 12px; color: var(--ink); }
-.tool .tstate { font-size: 11.5px; color: var(--muted); margin-left: auto; }
-.tool .tstate.bad { color: var(--danger); }
-.tool .tstate.good { color: var(--ok); }
-
-.tool .tbody {
-  border-top: 1px solid var(--line-soft);
-  background: #fbfbfc;
-  padding: 8px 11px;
+.step .sicon { flex: 0 0 auto; color: var(--muted); font-size: 10.5px; }
+.step .sname { flex: 0 0 auto; font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+.step .sargs {
+  flex: 1 1 auto;
+  min-width: 0;
   font-family: var(--mono);
-  font-size: 11.5px;
-  line-height: 1.6;
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.step .stitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+.step .scount,
+.step .sstate { flex: 0 0 auto; font-size: 10.5px; color: var(--muted); }
+.step .sstate.good { color: var(--ok); }
+.step .sstate.bad { color: var(--danger); }
+
+.step .sbody {
+  border-top: 1px solid var(--line-soft);
+  padding: 7px 9px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #5b5b66;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 340px;
+  max-height: 300px;
   overflow: auto;
+  background: #fcfcfd;
 }
 
-.tool .tbody .args { color: #6b6b76; margin-bottom: 6px; }
+.step .sbody.mono {
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.step .sargs-full {
+  color: #6b6b76;
+  margin-bottom: 6px;
+  white-space: pre-wrap;
+}
+
+.msg-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
 
 .streaming-caret::after {
   content: "▍";

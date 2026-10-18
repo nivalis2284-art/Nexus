@@ -179,9 +179,108 @@ function renderTranscript() {
     );
     box.appendChild(hello);
   }
-  for (const item of state.items) box.appendChild(nodeFor(item));
+  // A turn's reasoning and tool calls belong to one collapsible phase, so the
+  // transcript reads as: your message, the phase, the answer.
+  let batch = null;
+  for (const item of state.items) {
+    if (item.role === "user") {
+      if (batch) { box.appendChild(phaseNode(batch)); batch = null; }
+      box.appendChild(nodeFor(item));
+      continue;
+    }
+    if (item.role === "tool" || (item.role === "assistant" && item.thinking)) {
+      if (!batch) batch = { tools: [], thinking: [], elapsed: null, live: false };
+      if (item.role === "tool") batch.tools.push(item);
+      else {
+        batch.thinking.push(item.thinking);
+        if (typeof item.elapsed === "number") batch.elapsed = item.elapsed;
+      }
+      continue;
+    }
+    if (item.role === "assistant") {
+      if (batch) {
+        // The turn's elapsed time sits on its final answer, which closes the
+        // batch; adopt it before the fold is emitted.
+        if (typeof item.elapsed === "number") batch.elapsed = item.elapsed;
+        box.appendChild(phaseNode(batch));
+        batch = null;
+      }
+      box.appendChild(nodeFor(item));
+    } else {
+      box.appendChild(nodeFor(item));
+    }
+  }
+  if (batch) box.appendChild(phaseNode(batch));
   updateStats();
   scrollDown();
+}
+
+function formatElapsed(seconds) {
+  if (typeof seconds !== "number" || seconds <= 0) return "";
+  if (seconds < 60) return seconds < 10 ? seconds.toFixed(1) + " 秒" : Math.round(seconds) + " 秒";
+  const minutes = Math.floor(seconds / 60);
+  const rest = Math.round(seconds % 60);
+  return minutes + " 分 " + rest + " 秒";
+}
+
+/** The outer fold: everything the agent did before it answered. */
+function phaseNode(batch) {
+  const details = el("details", "phase" + (batch.live ? " live" : ""));
+  details.open = Boolean(batch.live);
+  const summary = el("summary");
+  summary.appendChild(el("span", "tw", "▸"));
+  const total = batch.thinking.join("\n\n").length;
+  const state_ = batch.live ? "正在思考" : "思考完成";
+  const label = el("span", "plabel", state_);
+  summary.appendChild(label);
+  const stamp = formatElapsed(batch.elapsed);
+  if (stamp) summary.appendChild(el("span", "pnote", "（已思考 " + stamp + "）"));
+  const meta = [];
+  if (batch.thinking.length) meta.push(batch.thinking.length + " 段思考");
+  if (batch.tools.length) meta.push(batch.tools.length + " 次工具");
+  if (meta.length && !stamp) summary.appendChild(el("span", "pnote", "（" + meta.join(" · ") + "）"));
+  details.appendChild(summary);
+
+  const body = el("div", "pbody");
+  for (const text of batch.thinking) body.appendChild(stepThinking(text));
+  for (const tool of batch.tools) body.appendChild(stepTool(tool));
+  details.appendChild(body);
+  return details;
+}
+
+/** A step inside the phase. Collapsed by default; shows one line when closed. */
+function stepThinking(text) {
+  const details = el("details", "step");
+  const summary = el("summary");
+  summary.appendChild(el("span", "sicon", "◇"));
+  const first = String(text).split("\n").find((line) => line.trim()) || "";
+  summary.appendChild(el("span", "stitle", truncate(first.trim(), 120)));
+  summary.appendChild(el("span", "scount", text.length + " 字"));
+  details.appendChild(summary);
+  details.appendChild(el("div", "sbody", text));
+  return details;
+}
+
+function stepTool(item) {
+  const details = el("details", "step");
+  const summary = el("summary");
+  summary.appendChild(el("span", "sicon", item.ok === false ? "✕" : "✓"));
+  summary.appendChild(el("span", "sname", item.name || "tool"));
+  const args = briefArgs(item.arguments);
+  if (args) summary.appendChild(el("span", "sargs", args));
+  summary.appendChild(
+    el("span", "sstate " + (item.ok === false ? "bad" : "good"), item.ok === false ? "失败" : "完成")
+  );
+  details.appendChild(summary);
+  const body = el("div", "sbody mono");
+  if (item.arguments) body.appendChild(el("div", "sargs-full", JSON.stringify(item.arguments, null, 2)));
+  body.appendChild(el("div", "", item.text || ""));
+  details.appendChild(body);
+  return details;
+}
+
+function truncate(text, size) {
+  return text.length > size ? text.slice(0, size) + "…" : text;
 }
 
 function nodeFor(item) {
@@ -198,8 +297,12 @@ function nodeFor(item) {
     return wrap;
   }
   const wrap = el("div", "msg assistant");
-  if (item.thinking) wrap.appendChild(thinkingNode(item.thinking, false));
   wrap.appendChild(el("div", "answer", item.text || ""));
+  const stamp = el("div", "msg-meta");
+  if (typeof item.elapsed === "number" && item.elapsed > 0) {
+    stamp.textContent = "用时 " + formatElapsed(item.elapsed);
+  }
+  if (stamp.textContent) wrap.appendChild(stamp);
   return wrap;
 }
 
@@ -257,6 +360,10 @@ function updateStats() {
 
 // ---------------------------------------------------------------- send
 
+// During a turn the DOM is built incrementally: one phase fold holds the
+// thinking and tool steps, and the answer grows below it. The final render
+// comes from the server transcript, so this only has to be good enough to
+// watch.
 async function send(text) {
   if (state.running) return;
   if (!state.sessionId) await newSession();
@@ -270,15 +377,50 @@ async function send(text) {
   state.items.push({ role: "user", text, at: new Date().toISOString() });
   const box = $("transcript");
   box.innerHTML = "";
+  box.classList.remove("empty");
+  $("main").classList.remove("empty");
   for (const item of state.items) box.appendChild(nodeFor(item));
 
+  const phase = el("details", "phase live");
+  phase.open = true;
+  const summary = el("summary");
+  summary.appendChild(el("span", "tw", "▸"));
+  const plabel = el("span", "plabel", "正在思考");
+  summary.appendChild(plabel);
+  const pnote = el("span", "pnote", "（计时中）");
+  summary.appendChild(pnote);
+  phase.appendChild(summary);
+  const pbody = el("div", "pbody");
+  phase.appendChild(pbody);
+  box.appendChild(phase);
+
   const wrap = el("div", "msg assistant");
-  let thinking = null;
-  let thinkingText = "";
-  let answer = el("div", "answer streaming-caret");
+  const answer = el("div", "answer streaming-caret");
   wrap.appendChild(answer);
   box.appendChild(wrap);
   scrollDown();
+
+  let thinkingText = "";
+  let stepEl = null;
+  let stepBody = null;
+  let started = Date.now();
+  let active = false;
+
+  const openThinkingStep = () => {
+    const step = el("details", "step");
+    step.open = true;
+    const head = el("summary");
+    head.appendChild(el("span", "sicon", "◇"));
+    const title = el("span", "stitle", "思考中…");
+    head.appendChild(title);
+    const count = el("span", "scount", "");
+    head.appendChild(count);
+    step.appendChild(head);
+    const body = el("div", "sbody");
+    step.appendChild(body);
+    pbody.appendChild(step);
+    return { step, body, title, count };
+  };
 
   try {
     const response = await fetch("/api/chat", {
@@ -303,32 +445,43 @@ async function send(text) {
         if (!line.trim()) continue;
         const event = JSON.parse(line);
         if (event.type === "thinking") {
+          active = true;
+          if (!stepEl) {
+            const built = openThinkingStep();
+            stepEl = built.step;
+            stepBody = built.body;
+            stepEl._title = built.title;
+            stepEl._count = built.count;
+          }
           thinkingText += event.text;
-          if (!thinking) {
-            thinking = thinkingNode("", true);
-            wrap.insertBefore(thinking, answer);
-          }
-          thinking.querySelector(".tbody").textContent = thinkingText;
-          if (thinking.querySelector(".tnote")) {
-            thinking.querySelector(".tnote").textContent = thinkingText.length + " 字";
-          }
+          stepBody.textContent = thinkingText;
+          stepEl._count.textContent = thinkingText.length + " 字";
+          const first = thinkingText.split("\n").find((l) => l.trim()) || "";
+          stepEl._title.textContent = truncate(first.trim(), 120) || "思考中…";
           scrollDown();
         } else if (event.type === "delta") {
           answer.textContent += event.text;
           scrollDown();
         } else if (event.type === "tool_start") {
           answer.classList.remove("streaming-caret");
-          if (thinking) thinking.classList.remove("live");
-          box.insertBefore(toolNode({ name: event.tool.name, arguments: event.tool.arguments, text: "运行中…" }), wrap);
-          thinking = null;
+          if (stepEl) stepEl.open = false;
+          stepEl = null;
+          stepBody = null;
           thinkingText = "";
+          const step = stepTool({
+            name: event.tool.name,
+            arguments: event.tool.arguments,
+            text: "运行中…",
+          });
+          step.dataset.live = "1";
+          pbody.appendChild(step);
           scrollDown();
         } else if (event.type === "tool_result") {
-          const nodes = box.querySelectorAll(".tool");
-          const last = nodes[nodes.length - 1];
+          const steps = pbody.querySelectorAll('.step[data-live="1"]');
+          const last = steps[steps.length - 1];
           if (last) {
             last.replaceWith(
-              toolNode({
+              stepTool({
                 name: event.tool.name,
                 arguments: event.tool.arguments,
                 text: event.tool.content,
@@ -346,7 +499,16 @@ async function send(text) {
           setStatus(event.message, true);
         } else if (event.type === "done") {
           answer.classList.remove("streaming-caret");
-          if (thinking) thinking.classList.remove("live");
+          if (stepEl) stepEl.open = false;
+          phase.classList.remove("live");
+          const elapsed =
+            (event.data && typeof event.data.elapsed === "number" && event.data.elapsed) ||
+            (Date.now() - started) / 1000;
+          plabel.textContent = "思考完成";
+          pnote.textContent = "（已思考 " + formatElapsed(elapsed) + "）";
+          // Nothing happened before the answer: the phase is noise, drop it.
+          if (!pbody.children.length) phase.remove();
+          else phase.open = false;
           const usage = (event.data && event.data.usage) || {};
           const total = (usage.input_tokens || 0) + (usage.output_tokens || 0);
           if (total) {
