@@ -17,11 +17,11 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import ask, files, jobs, shell, subagent_tool, todo, web
+from . import ask, files, jobs, patch, shell, subagent_tool, todo, web
 from .registry import Registry, ToolResult, ToolSpec
 
 # Order matters only for prompt readability: cheap, common tools first.
-CATALOG = (files, shell, jobs, todo, ask, subagent_tool, web, None)  # None is replaced by _SKILL below
+CATALOG = (files, shell, jobs, patch, todo, ask, subagent_tool, web, None)  # None is replaced by _SKILL below
 
 
 class SkillArgs(BaseModel):

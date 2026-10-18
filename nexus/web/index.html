@@ -43,8 +43,11 @@
     <form id="composer">
       <div class="composer-card">
         <textarea id="input" rows="1" placeholder="描述你想构建的内容，或直接提问"></textarea>
+        <div id="attachments" class="attachments" hidden></div>
         <div class="composer-bar">
           <div class="bar-left">
+            <button id="attach" class="pill-button" type="button" title="添加图片">＋ 图片</button>
+            <input id="image-input" type="file" accept="image/*" multiple hidden>
             <button id="model-button" class="pill-button" type="button" aria-haspopup="listbox">
               <span id="model-label">选择模型</span>
               <span class="chev">▾</span>
@@ -59,10 +62,12 @@
       </div>
       <div class="composer-stats">
         <span id="stat-turn">0 轮</span>
-        <span id="stat-tokens">0 tok</span>
-        <span id="stat-context">上下文 —</span>
+        <button id="stat-tokens" class="stat-button" type="button" title="Token 用量">0 tok</button>
+        <button id="stat-context" class="stat-button" type="button" title="上下文构成">上下文 —</button>
         <span id="hint">Enter 发送 · Shift+Enter 换行</span>
       </div>
+
+      <div id="usage-panel" class="usage-panel" hidden></div>
     </form>
   </main>
 </div>
@@ -136,11 +141,9 @@
     <div class="dialog-head">
       <h2>需要你回答</h2>
     </div>
-    <p id="question-text"></p>
     <div id="question-options" class="question-options"></div>
-    <input id="question-input" type="text" placeholder="输入回答后回车">
     <menu>
-      <button id="question-send" class="primary" type="button">回答</button>
+      <button id="question-send" class="primary" type="button">提交回答</button>
     </menu>
   </div>
 </dialog>

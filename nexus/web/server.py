@@ -50,18 +50,69 @@ from ..tools import build
 
 APPROVAL_TIMEOUT = 600.0
 
+# Upload limits. Base64 inflates by ~33%, so 5MB becomes ~6.7MB of JSON; eight
+# of those is already a large request, which is why the count is capped too.
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+MAX_IMAGES_PER_TURN = 8
+ALLOWED_IMAGE_MIMES = frozenset(
+    {"image/png", "image/jpeg", "image/webp", "image/gif"}
+)
+
+
+def _read_images(raw: Any) -> list[dict[str, str]]:
+    """Validate image blocks from a chat request.
+
+    Rejects anything that is not a supported image or is too large, rather than
+    forwarding it to a provider that would reject it more confusingly.
+    """
+    if not raw:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("images must be a list")
+    if len(raw) > MAX_IMAGES_PER_TURN:
+        raise ValueError(f"too many images (max {MAX_IMAGES_PER_TURN})")
+    out: list[dict[str, str]] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise ValueError(f"image {index} is not an object")
+        mime = str(item.get("mime") or "").strip().lower()
+        data = item.get("data")
+        if mime not in ALLOWED_IMAGE_MIMES:
+            raise ValueError(f"image {index} has unsupported type '{mime}'")
+        if not isinstance(data, str) or not data:
+            raise ValueError(f"image {index} has no data")
+        # Rough decoded size from the base64 length.
+        approx = len(data) * 3 // 4
+        if approx > MAX_IMAGE_BYTES:
+            raise ValueError(f"image {index} is larger than 5MB")
+        out.append({"mime": mime, "data": data})
+    return out
+
+
+def _content_blocks(text: str, images: list[dict[str, str]]) -> Any:
+    """Build the internal content value: plain string when there are no images."""
+    if not images:
+        return text
+    blocks: list[dict[str, Any]] = []
+    if text:
+        blocks.append({"type": "text", "text": text})
+    for image in images:
+        blocks.append({"type": "image", "mime": image["mime"], "data": image["data"]})
+    return blocks
+
 
 class Approvals:
     """One pending human interaction at a time, keyed by a random token.
 
     Handles two shapes with one mechanism: a yes/no approval, and a free-text
-    answer to a question. Both are "the turn is blocked until a human replies",
-    so they share the wait/resolve plumbing rather than growing a second one.
+    answer to a question. Both mean "the turn is blocked until a human replies".
 
-    The wait must be **cancellable**. If the browser closes mid-question, or the
-    owner presses stop, the loop is parked inside ``Event.wait`` and the thread
-    would otherwise hold the run lock for the full timeout, making the whole app
-    refuse new messages. ``cancel_all`` releases every waiter at once.
+    The wait is bound to the owning run's lifetime, the way DSH's
+    ``TimedQuestionWait`` binds to its parent turn. Without that binding, closing
+    a browser tab mid-question leaves the loop parked inside ``Event.wait`` for
+    the full timeout and the run lock unreleased, so every new message 409s.
+    ``cancel_all`` is the one place that releases waiters, and the chat handler
+    calls it on disconnect, on stop, and in its ``finally``.
     """
 
     def __init__(self) -> None:
@@ -94,8 +145,12 @@ class Approvals:
         with self._lock:
             return bool(self._answers.get(token, False))
 
-    def wait_answer(self, token: str, timeout: float = APPROVAL_TIMEOUT) -> str | None:
-        """Wait for a text answer. ``None`` means dismissed, cancelled or timed out."""
+    def wait_answer(self, token: str, timeout: float = APPROVAL_TIMEOUT) -> Any:
+        """Wait for an answer. ``None`` means dismissed, cancelled or timed out.
+
+        The value is either a string (one question) or a list of strings (many),
+        so the caller gets back exactly what the client submitted.
+        """
         event = self._pending.get(token)
         if event is None:
             return None
@@ -104,7 +159,11 @@ class Approvals:
             value = self._answers.get(token)
         if value is None:
             return None
-        return value if isinstance(value, str) else str(value)
+        if isinstance(value, str):
+            return value
+        if isinstance(value, list):
+            return [str(item) for item in value]
+        return str(value)
 
     def resolve(self, token: str, allowed: bool) -> bool:
         with self._lock:
@@ -118,8 +177,8 @@ class Approvals:
     def cancel_all(self) -> int:
         """Release every waiter without granting anything.
 
-        Used when the turn is stopped or the client disconnects. Returns how many
-        waiters were woken, which is useful for logging and tests.
+        Used when the turn is stopped, the client disconnects, or the handler is
+        finishing for any reason. Returns how many waiters were woken.
         """
         with self._lock:
             waiting = list(self._pending.values())
@@ -135,12 +194,17 @@ class Approvals:
             event.set()
         return len(waiting)
 
-    def resolve_text(self, token: str, text: str) -> bool:
+    def resolve_text(self, token: str, text: Any) -> bool:
+        """Store an answer. ``text`` may be a string or a list of strings."""
+        if isinstance(text, list):
+            value: Any = [str(item) for item in text]
+        else:
+            value = str(text)
         with self._lock:
             event = self._pending.get(token)
             if event is None:
                 return False
-            self._answers[token] = str(text)
+            self._answers[token] = value
         event.set()
         return True
 
@@ -223,7 +287,13 @@ def _internal(session) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for item in session.items:
         if item.kind == "user":
-            out.append({"role": "user", "content": item.text})
+            images = item.data.get("images") or []
+            out.append(
+                {
+                    "role": "user",
+                    "content": _content_blocks(item.text, images) if images else item.text,
+                }
+            )
         elif item.kind == "assistant":
             calls = item.data.get("tool_calls") or []
             if item.text or calls:
@@ -298,6 +368,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/sessions":
                 return self._create()
+            if path.startswith("/api/sessions/") and path.endswith("/rename"):
+                return self._rename(path.split("/")[-2], body)
             if path == "/api/approval":
                 return self._approve(body)
             if path == "/api/answer":
@@ -395,6 +467,15 @@ class Handler(BaseHTTPRequestHandler):
         session = STATE["sessions"].create(settings.model.get("id", ""))
         return _json(self, 201, {"id": session.id, "title": session.title})
 
+    def _rename(self, session_id: str, value: dict[str, Any]) -> None:
+        title = value.get("title")
+        if not isinstance(title, str):
+            raise ValueError("title is required")
+        renamed = STATE["sessions"].rename(session_id, title)
+        if not renamed:
+            return _json(self, 404, {"error": "session not found"})
+        return _json(self, 200, {"id": session_id, "renamed": True})
+
     # --- configuration ---------------------------------------------------
 
     def _add_provider(self, value: dict[str, Any]) -> None:
@@ -439,10 +520,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def _answer(self, value: dict[str, Any]) -> None:
         token = str(value.get("token") or "")
-        text = value.get("text")
-        if not isinstance(text, str):
-            return _json(self, 400, {"error": "text is required"})
-        ok = APPROVALS.resolve_text(token, text)
+        answers = value.get("answers")
+        if answers is None:
+            answers = value.get("text")
+        if isinstance(answers, str):
+            payload: Any = answers
+        elif isinstance(answers, list) and all(isinstance(item, str) for item in answers):
+            payload = answers
+        else:
+            return _json(self, 400, {"error": "answers must be a string or a list of strings"})
+        ok = APPROVALS.resolve_text(token, payload)
         return _json(self, 200 if ok else 404, {"resolved": ok})
 
     def _abort(self) -> None:
@@ -467,7 +554,8 @@ class Handler(BaseHTTPRequestHandler):
     def _chat(self, value: dict[str, Any]) -> None:
         session_id = str(value.get("session_id") or "")
         text = str(value.get("text") or "").strip()
-        if not text:
+        images = _read_images(value.get("images"))
+        if not text and not images:
             raise ValueError("message is empty")
         session = STATE["sessions"].load(session_id)
         if session is None:
@@ -478,14 +566,19 @@ class Handler(BaseHTTPRequestHandler):
                 self, 400,
                 {"error": f"还没配置 {settings.provider.name} 的 API Key。"},
             )
+        if images and not settings.model.get("capabilities", {}).get("images"):
+            return _json(
+                self, 400,
+                {"error": "当前模型没有声明图片能力，请先在设置里启用。"},
+            )
         if not BUSY.acquire(blocking=False):
             return _json(self, 409, {"error": "上一条还在运行。"})
 
         try:
             store: SessionStore = STATE["sessions"]
-            store.append(session, Message(kind="user", text=text))
+            store.append(session, Message(kind="user", text=text, data={"images": images} if images else {}))
             if not session.title:
-                session.title = text[:40]
+                session.title = (text or "图片")[:40]
                 store.rewrite(session)
 
             self.send_response(200)
@@ -494,10 +587,18 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Transfer-Encoding", "chunked")
             self.end_headers()
 
+            # Tools run in a worker thread (asyncio.to_thread), and some of them
+            # emit — ask_user sends a question from there. The event loop thread
+            # may be writing the same socket at the same moment, and two
+            # interleaved chunked writes corrupt the stream. One lock per turn.
+            write_lock = threading.Lock()
+
             def emit(payload: dict[str, Any]) -> None:
                 data = (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
-                self.wfile.write(f"{len(data):X}\r\n".encode("ascii") + data + b"\r\n")
-                self.wfile.flush()
+                chunk = f"{len(data):X}\r\n".encode("ascii") + data + b"\r\n"
+                with write_lock:
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
 
             try:
                 self._run_turn(session, settings, emit)
@@ -520,26 +621,29 @@ class Handler(BaseHTTPRequestHandler):
         registry, context = build(skill_set.bodies(), config=tool_config)
         context.root = workspace.root
 
-        def ask_owner(question: str, options: list[str]) -> str | None:
-            """Block on the same human channel that approvals use."""
+        def ask_owner(questions: list[dict[str, Any]]) -> list[str] | None:
+            """Block on the same human channel that approvals use.
+
+            ``questions`` is a list of ``{question, options}``. All of them are
+            sent in one event and answered in one submit.
+            """
             token = APPROVALS.create("question")
             try:
-                emit(
-                    {
-                        "type": "question",
-                        "token": token,
-                        "question": question,
-                        "options": options,
-                    }
-                )
+                emit({"type": "question", "token": token, "questions": questions})
             except OSError:
                 # Nobody is listening any more; do not park for ten minutes.
                 APPROVALS.forget(token)
                 return None
             try:
-                return APPROVALS.wait_answer(token)
+                answer = APPROVALS.wait_answer(token)
             finally:
                 APPROVALS.forget(token)
+            if answer is None:
+                return None
+            # A single string from an older client becomes a one-element list.
+            if isinstance(answer, str):
+                return [answer]
+            return answer
 
         context.ask = ask_owner
         policy = default_policy(settings.permission, settings.permission_rules)
@@ -637,6 +741,8 @@ class Handler(BaseHTTPRequestHandler):
                     emit({"type": "thinking", "text": event.text})
                 elif event.type == "retrying":
                     emit({"type": "retrying", "data": event.data})
+                elif event.type == "context":
+                    emit({"type": "context", "data": event.data})
                 elif event.type == "tool_start":
                     emit({"type": "tool_start", "tool": event.data})
                 elif event.type == "tool_result":

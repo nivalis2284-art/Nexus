@@ -6,6 +6,11 @@ The internal transcript is a flat, provider-neutral list::
     {"role": "assistant", "content": "...", "tool_calls": [{"id","name","arguments"}]}
     {"role": "tool",      "tool_call_id": "...", "name": "...", "content": "..."}
 
+``content`` may also be a list of blocks when a message carries images::
+
+    [{"type": "text", "text": "..."},
+     {"type": "image", "mime": "image/png", "data": "<base64>"}]
+
 Each builder returns a request body. The gateway then applies model/stream and
 validates family-specific fields, so nothing here may set credentials.
 """
@@ -19,12 +24,97 @@ from ..model import APIFamily, ModelProfile
 from . import effort as reasoning
 
 
+def is_blocks(content: Any) -> bool:
+    return isinstance(content, list)
+
+
+def blocks_to_text(content: Any) -> str:
+    """Flatten block content to plain text, for places that need a string."""
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    return "".join(
+        str(block.get("text", ""))
+        for block in content
+        if isinstance(block, dict) and block.get("type") == "text"
+    )
+
+
+def _image_data_url(block: dict[str, Any]) -> str:
+    mime = block.get("mime") or "image/png"
+    data = block.get("data") or ""
+    return f"data:{mime};base64,{data}"
+
+
+def _chat_content(content: Any) -> Any:
+    """OpenAI Chat: images are ``image_url`` parts inside a content array."""
+    if not is_blocks(content):
+        return content or ""
+    parts: list[dict[str, Any]] = []
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        kind = block.get("type")
+        if kind == "text":
+            parts.append({"type": "text", "text": str(block.get("text") or "")})
+        elif kind == "image":
+            parts.append({"type": "image_url", "image_url": {"url": _image_data_url(block)}})
+    return parts or ""
+
+
+def _anthropic_image_block(block: dict[str, Any]) -> dict[str, Any]:
+    """Anthropic: source is a typed object, not a data URL."""
+    return {
+        "type": "image",
+        "source": {
+            "type": "base64",
+            "media_type": block.get("mime") or "image/png",
+            "data": block.get("data") or "",
+        },
+    }
+
+
+def _anthropic_user_content(content: Any) -> Any:
+    if not is_blocks(content):
+        return content or ""
+    parts: list[dict[str, Any]] = []
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        kind = block.get("type")
+        if kind == "text":
+            parts.append({"type": "text", "text": str(block.get("text") or "")})
+        elif kind == "image":
+            parts.append(_anthropic_image_block(block))
+    return parts or ""
+
+
+def _responses_content(content: Any) -> Any:
+    """Responses API: ``input_image`` takes the data URL directly."""
+    if not is_blocks(content):
+        return [{"type": "input_text", "text": content or ""}]
+    parts: list[dict[str, Any]] = []
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        kind = block.get("type")
+        if kind == "text":
+            parts.append({"type": "input_text", "text": str(block.get("text") or "")})
+        elif kind == "image":
+            parts.append({"type": "input_image", "image_url": _image_data_url(block)})
+    return parts
+
+
 def _chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for message in messages:
         role = message["role"]
         if role == "assistant":
-            entry: dict[str, Any] = {"role": "assistant", "content": message.get("content") or None}
+            entry: dict[str, Any] = {
+                "role": "assistant",
+                "content": blocks_to_text(message.get("content")) or None,
+            }
             calls = message.get("tool_calls") or []
             if calls:
                 entry["tool_calls"] = [
@@ -44,11 +134,11 @@ def _chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 {
                     "role": "tool",
                     "tool_call_id": message["tool_call_id"],
-                    "content": message.get("content") or "",
+                    "content": blocks_to_text(message.get("content")),
                 }
             )
         else:
-            out.append({"role": role, "content": message.get("content") or ""})
+            out.append({"role": role, "content": _chat_content(message.get("content"))})
     return out
 
 
@@ -79,7 +169,7 @@ def _anthropic_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
             block = {
                 "type": "tool_result",
                 "tool_use_id": message["tool_call_id"],
-                "content": message.get("content") or "",
+                "content": blocks_to_text(message.get("content")),
             }
             # Consecutive tool results belong to one user turn.
             if out and out[-1]["role"] == "user" and isinstance(out[-1]["content"], list):
@@ -87,7 +177,9 @@ def _anthropic_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
             else:
                 out.append({"role": "user", "content": [block]})
         else:
-            out.append({"role": role, "content": message.get("content") or ""})
+            out.append(
+                {"role": role, "content": _anthropic_user_content(message.get("content"))}
+            )
     return out
 
 
@@ -119,7 +211,7 @@ def _responses_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 {
                     "type": "function_call_output",
                     "call_id": message["tool_call_id"],
-                    "output": message.get("content") or "",
+                    "output": blocks_to_text(message.get("content")),
                 }
             )
         else:
@@ -127,7 +219,7 @@ def _responses_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 {
                     "type": "message",
                     "role": "user",
-                    "content": [{"type": "input_text", "text": message.get("content") or ""}],
+                    "content": _responses_content(message.get("content")),
                 }
             )
     return out

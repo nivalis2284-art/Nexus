@@ -238,7 +238,7 @@ system prompt 里**只放 name + description + when**，正文要用 `read_skill
 .venv\Scripts\python.exe -m pytest tests -q
 ```
 
-165 项，覆盖主循环、工具、路径围栏、权限闸门、HTTP 往返、多提供商配置、五档思考强度映射、重试策略、中断、压缩、子代理、skill、MCP、后台任务、并发写保护，以及实测出来的协议兼容性怪癖：
+221 项，覆盖主循环、工具、路径围栏、权限闸门、HTTP 往返、多提供商配置、五档思考强度映射、重试策略、中断、压缩、子代理、skill、MCP、后台任务、并发写保护，以及实测出来的协议兼容性怪癖：
 
 - 流式 tool_calls 不带 `type`
 - Responses 最终事件换了 item id

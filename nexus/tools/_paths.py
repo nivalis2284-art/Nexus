@@ -114,10 +114,20 @@ def open_file(path: Path, operation: str):
         else:
             fd = _posix_open(path, operation, stack)
         regular_file(os.fstat(fd))
-        mode = "rb" if operation == "read" else "wb"
-        # closefd=False: ExitStack owns the OS descriptor, including validation failures.
-        with os.fdopen(fd, mode, closefd=False) as stream:
-            yield stream
+        if operation == "read":
+            # closefd=False: ExitStack owns the OS descriptor, including
+            # validation failures.
+            with os.fdopen(fd, "rb", closefd=False) as stream:
+                yield stream
+        else:
+            # "wb" on an already-open descriptor does NOT truncate; it only sets
+            # the mode. A shorter write used to leave the previous tail behind,
+            # which reads as silent corruption of the file. Truncate the held
+            # handle and rewind before any bytes land.
+            os.ftruncate(fd, 0)
+            os.lseek(fd, 0, os.SEEK_SET)
+            with os.fdopen(fd, "wb", closefd=False) as stream:
+                yield stream
 
 
 @contextmanager
@@ -184,9 +194,18 @@ def open_child(parent_fd: int, path: Path, operation: str):
             raise
         stack.callback(os.close, fd)
         regular_file(os.fstat(fd))
-        mode = "rb" if operation == "read" else "wb"
-        with os.fdopen(fd, mode, closefd=False) as stream:
-            yield stream
+        if operation == "read":
+            with os.fdopen(fd, "rb", closefd=False) as stream:
+                yield stream
+        else:
+            # "wb" on an already-open descriptor does NOT truncate; it only sets
+            # the mode. Writing a shorter file would leave the old tail behind,
+            # which reads as silent corruption. Truncate the held handle and
+            # rewind, because the handle keeps whatever position it had.
+            os.ftruncate(fd, 0)
+            os.lseek(fd, 0, os.SEEK_SET)
+            with os.fdopen(fd, "wb", closefd=False) as stream:
+                yield stream
 
 
 def _posix_open(path: Path, operation: str, stack: ExitStack) -> int:

@@ -23,8 +23,20 @@ from pathlib import Path
 from typing import Any
 
 
+TITLE_LIMIT = 80
+DEFAULT_TITLE = "新会话"
+
+
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + "Z"
+
+
+def normalize_title(title: str | None) -> str:
+    """Trim, cap and default a session title so it is always displayable."""
+    text = (title or "").strip()
+    if not text:
+        return DEFAULT_TITLE
+    return text[:TITLE_LIMIT]
 
 
 def new_session_id() -> str:
@@ -197,6 +209,19 @@ class SessionStore:
         temporary = path.with_suffix(".tmp")
         temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
         temporary.replace(path)
+
+    def rename(self, session_id: str, title: str) -> bool:
+        """Set a session's title, persisting it through the meta record.
+
+        Returns False when the session does not exist. The title is trimmed,
+        defaults to "新会话" when empty, and is capped at 80 characters.
+        """
+        session = self.load(session_id)
+        if session is None:
+            return False
+        session.title = normalize_title(title)
+        self.rewrite(session)
+        return True
 
     def delete(self, session_id: str) -> bool:
         try:

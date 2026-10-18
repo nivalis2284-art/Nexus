@@ -163,17 +163,59 @@ def test_todo_rejects_unknown_status():
 
 def test_ask_user_without_a_channel_fails_loudly():
     registry, context = build({}, config={})
-    result = registry.execute("ask_user", {"question": "which?"}, context)
+    result = registry.execute(
+        "ask_user", {"questions": [{"question": "which?"}]}, context
+    )
     assert not result.ok
     assert "declined" in result.content.lower() or "nobody" in result.content.lower()
 
 
 def test_ask_user_returns_the_answer():
     registry, context = build({}, config={})
-    context.ask = lambda question, options: "option-b"
-    result = registry.execute("ask_user", {"question": "which?"}, context)
+    context.ask = lambda questions: ["option-b"]
+    result = registry.execute(
+        "ask_user", {"questions": [{"question": "which?"}]}, context
+    )
     assert result.ok
     assert "option-b" in result.content
+
+
+def test_ask_user_asks_many_questions_at_once():
+    registry, context = build({}, config={})
+    seen: list = []
+
+    def asker(questions):
+        seen.append(questions)
+        return ["red", "blue"]
+
+    context.ask = asker
+    result = registry.execute(
+        "ask_user",
+        {
+            "questions": [
+                {"question": "first?", "options": ["red", "blue"]},
+                {"question": "second?"},
+            ]
+        },
+        context,
+    )
+    assert result.ok
+    # Both questions went to the human in a single call.
+    assert len(seen) == 1
+    assert len(seen[0]) == 2
+    assert result.data["answers"] == ["red", "blue"]
+    assert "red" in result.content and "blue" in result.content
+
+
+def test_ask_user_rejects_mismatched_answer_count():
+    registry, context = build({}, config={})
+    context.ask = lambda questions: ["only one"]
+    result = registry.execute(
+        "ask_user",
+        {"questions": [{"question": "a?"}, {"question": "b?"}]},
+        context,
+    )
+    assert not result.ok
 
 
 # ---------------------------------------------------------------- webfetch

@@ -16,6 +16,9 @@ const state = {
   tokens: 0,
   contextLimit: null,
   editingProvider: null,
+  // Context composition from the last turn, and cumulative token usage.
+  context: null,
+  usage: { input: 0, output: 0, cached: 0, created: 0 },
 };
 
 async function api(path, options) {
@@ -121,6 +124,11 @@ function renderSessions() {
     if (session.id === state.sessionId) item.classList.add("active");
     const label = el("span", "label", session.title || "新会话");
     label.title = session.title || "";
+    label.title = "双击重命名";
+    label.addEventListener("dblclick", (event) => {
+      event.stopPropagation();
+      renameSession(session.id, label, item);
+    });
     item.appendChild(label);
     const remove = el("button", "del", "×");
     remove.type = "button";
@@ -143,6 +151,51 @@ function renderSessions() {
   }
 }
 
+// ---------------------------------------------------------------- rename
+
+async function renameSession(sessionId, label, item) {
+  const input = el("input", "rename-input");
+  input.type = "text";
+  input.value = label.textContent;
+  input.maxLength = 80;
+  label.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let settled = false;
+  const finish = async (save) => {
+    if (settled) return;
+    settled = true;
+    const value = input.value.trim();
+    if (!save || !value) {
+      input.replaceWith(label);
+      return;
+    }
+    try {
+      await post(
+        "/api/sessions/" + encodeURIComponent(sessionId) + "/rename",
+        { title: value }
+      );
+      label.textContent = value;
+      input.replaceWith(label);
+      await refresh();
+    } catch (error) {
+      setStatus(error.message, true);
+      input.replaceWith(label);
+    }
+  };
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      finish(true);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      finish(false);
+    }
+  });
+  input.addEventListener("blur", () => finish(true));
+}
+
 // ---------------------------------------------------------------- session
 
 async function newSession() {
@@ -160,6 +213,17 @@ async function openSession(id) {
     const usage = item.usage || {};
     return sum + (usage.input_tokens || 0) + (usage.output_tokens || 0);
   }, 0);
+  state.usage = state.items.reduce(
+    (acc, item) => {
+      const usage = item.usage || {};
+      acc.input += usage.input_tokens || 0;
+      acc.output += usage.output_tokens || 0;
+      acc.cached += usage.cached_input_tokens || 0;
+      acc.created += usage.cache_creation_input_tokens || 0;
+      return acc;
+    },
+    { input: 0, output: 0, cached: 0, created: 0 }
+  );
   $("title").textContent = value.title || "新会话";
   renderSessions();
   renderTranscript();
@@ -378,7 +442,13 @@ async function send(text) {
   setRunning(true);
   setStatus("运行中…");
 
-  state.items.push({ role: "user", text, at: new Date().toISOString() });
+  state.items.push({
+    role: "user",
+    text,
+    images: pendingImages.map((image) => ({ mime: image.mime })),
+    at: new Date().toISOString(),
+  });
+  pendingImages = [];
   const box = $("transcript");
   box.innerHTML = "";
   box.classList.remove("empty");
@@ -430,7 +500,7 @@ async function send(text) {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: state.sessionId, text }),
+      body: JSON.stringify({ session_id: state.sessionId, text, images: pendingImages }),
     });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
@@ -494,6 +564,9 @@ async function send(text) {
             );
           }
           scrollDown();
+        } else if (event.type === "context") {
+          state.context = event.data;
+          renderUsage();
         } else if (event.type === "retrying") {
           const info = event.data || {};
           setStatus(
@@ -526,7 +599,13 @@ async function send(text) {
           const total = (usage.input_tokens || 0) + (usage.output_tokens || 0);
           if (total) {
             state.tokens += total;
+            state.usage.input += usage.input_tokens || 0;
+            state.usage.output += usage.output_tokens || 0;
+            state.usage.cached += usage.cached_input_tokens || 0;
+            state.usage.created += usage.cache_creation_input_tokens || 0;
+            if (state.context) state.context.source = "actual";
             updateStats();
+            renderUsage();
           }
           setStatus("");
         }
@@ -544,6 +623,136 @@ async function send(text) {
     await refresh().catch(() => {});
     if (state.sessionId) await openSession(state.sessionId).catch(() => {});
   }
+}
+
+// ---------------------------------------------------------------- attachments
+
+// Images waiting to be sent. Kept outside `state` because they are transient
+// per composition, not session data.
+let pendingImages = [];
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGES = 8;
+
+function renderAttachments() {
+  const strip = $("attachments");
+  strip.innerHTML = "";
+  strip.hidden = pendingImages.length === 0;
+  pendingImages.forEach((image, index) => {
+    const chip = el("div", "attach-chip");
+    const thumb = el("img");
+    thumb.src = "data:" + image.mime + ";base64," + image.data;
+    thumb.alt = image.name || "图片";
+    chip.appendChild(thumb);
+    const remove = el("button", "attach-x", "×");
+    remove.type = "button";
+    remove.title = "移除";
+    remove.addEventListener("click", () => {
+      pendingImages.splice(index, 1);
+      renderAttachments();
+    });
+    chip.appendChild(remove);
+    strip.appendChild(chip);
+  });
+}
+
+function addImages(files) {
+  const incoming = Array.from(files || []).filter((file) =>
+    file.type.startsWith("image/")
+  );
+  for (const file of incoming) {
+    if (pendingImages.length >= MAX_IMAGES) {
+      setStatus("最多 " + MAX_IMAGES + " 张图片", true);
+      break;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setStatus("图片超过 5MB：" + file.name, true);
+      continue;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      const comma = result.indexOf(",");
+      pendingImages.push({
+        mime: file.type,
+        data: comma >= 0 ? result.slice(comma + 1) : result,
+        name: file.name,
+      });
+      renderAttachments();
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+// ---------------------------------------------------------------- usage
+
+/** Format a token count the way the panels show it: approximate, compact. */
+function approx(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  if (value >= 1_000_000) return "~" + (value / 1_000_000).toFixed(2) + "M";
+  if (value >= 1_000) return "~" + (value / 1_000).toFixed(1) + "K";
+  return "~" + value;
+}
+
+/** Cache hit rate, or an em dash when there is nothing to divide by. */
+function cacheRate(usage) {
+  const denominator = usage.cached + usage.input;
+  if (!denominator) return "—";
+  return Math.round((usage.cached / denominator) * 100) + "%";
+}
+
+function renderUsage() {
+  const panel = $("usage-panel");
+  if (panel.hidden) return;
+
+  const parts = [];
+  const ctx = state.context;
+  if (ctx) {
+    const used = (ctx.system || 0) + (ctx.tools || 0) + (ctx.messages || 0);
+    const window_ = ctx.window || 0;
+    const percent = window_ ? Math.min(100, Math.round((used / window_) * 100)) : 0;
+    parts.push(
+      '<div class="usage-head">' +
+        '<span>上下文已用 <b>' + percent + "%</b></span>" +
+        '<span class="usage-total">' + approx(used) + " / " + approx(window_) + "</span>" +
+        "</div>"
+    );
+    parts.push(
+      '<div class="usage-bar"><span style="width:' + percent + '%"></span></div>'
+    );
+    parts.push(
+      '<ul class="usage-list">' +
+        '<li><i class="dot d-system"></i>系统提示词<em>' + approx(ctx.system) + "</em></li>" +
+        '<li><i class="dot d-tools"></i>工具定义<em>' + approx(ctx.tools) + "</em></li>" +
+        '<li><i class="dot d-messages"></i>对话消息<em>' + approx(ctx.messages) + "</em></li>" +
+        "</ul>"
+    );
+  }
+
+  const u = state.usage;
+  const grand = u.cached + u.created + u.input + u.output;
+  parts.push(
+    '<div class="usage-head usage-q">' +
+      "<span>Token 用量</span>" +
+      '<span class="usage-total"><b>' + (grand ? grand.toLocaleString() : 0) + "</b> tok</span>" +
+      "</div>"
+  );
+  parts.push(
+    '<ul class="usage-list">' +
+      "<li>缓存命中<em>" + cacheRate(u) + "</em></li>" +
+      "<li>未缓存输入<em>" + (u.input ? u.input.toLocaleString() : 0) + " tok</em></li>" +
+      "<li>缓存读取<em>" + (u.cached ? u.cached.toLocaleString() : 0) + " tok</em></li>" +
+      "<li>输出<em>" + (u.output ? u.output.toLocaleString() : 0) + " tok</em></li>" +
+      "</ul>"
+  );
+  parts.push('<p class="usage-note">~ 表示估算，不是计费口径。</p>');
+  panel.innerHTML = parts.join("");
+}
+
+function toggleUsage() {
+  const panel = $("usage-panel");
+  panel.hidden = !panel.hidden;
+  renderUsage();
 }
 
 // ---------------------------------------------------------------- run control
@@ -567,35 +776,55 @@ async function abortRun() {
 }
 
 function askQuestion(event) {
+  // All questions are shown together and answered in one submit; asking them
+  // one at a time turns a decision into a queue of dialogs.
   return new Promise((resolve) => {
     const dialog = $("question-dialog");
-    $("question-text").textContent = event.question || "";
-    const options = $("question-options");
-    options.innerHTML = "";
-    (event.options || []).forEach((choice) => {
-      const button = el("button", "question-choice", choice);
-      button.type = "button";
-      button.addEventListener("click", () => {
-        dialog.close();
-        resolve(choice);
+    const list = $("question-options");
+    list.innerHTML = "";
+    const questions = event.questions || [];
+    const answers = new Array(questions.length).fill("");
+
+    questions.forEach((item, index) => {
+      const block = el("div", "question-block");
+      block.appendChild(el("p", "question-text", item.question || ""));
+      const choices = el("div", "question-choices");
+      (item.options || []).forEach((choice) => {
+        const button = el("button", "question-choice", choice);
+        button.type = "button";
+        button.addEventListener("click", () => {
+          answers[index] = choice;
+          choices.querySelectorAll(".question-choice").forEach((node) => {
+            node.classList.toggle("picked", node === button);
+          });
+          const input = block.querySelector(".question-free");
+          if (input) input.value = "";
+        });
+        choices.appendChild(button);
       });
-      options.appendChild(button);
+      block.appendChild(choices);
+      const input = el("input", "question-free");
+      input.type = "text";
+      input.placeholder = "或输入自定义回答";
+      input.addEventListener("input", () => {
+        answers[index] = input.value;
+        choices.querySelectorAll(".question-choice").forEach((node) => {
+          node.classList.remove("picked");
+        });
+      });
+      block.appendChild(input);
+      list.appendChild(block);
     });
-    const input = $("question-input");
-    input.value = "";
+
     const finish = () => {
       dialog.close();
-      resolve(input.value);
+      resolve(answers);
     };
     $("question-send").onclick = finish;
-    input.onkeydown = (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        finish();
-      }
-    };
+    list.querySelectorAll(".question-free").forEach((input, index) => {
+      if (index === 0) input.focus();
+    });
     dialog.showModal();
-    input.focus();
   });
 }
 
@@ -836,6 +1065,28 @@ document.querySelectorAll("[data-close]").forEach((button) => {
   button.addEventListener("click", () => $(button.getAttribute("data-close")).close());
 });
 
+$("stat-tokens").addEventListener("click", toggleUsage);
+$("stat-context").addEventListener("click", toggleUsage);
+$("attach").addEventListener("click", () => $("image-input").click());
+$("image-input").addEventListener("change", (event) => {
+  addImages(event.target.files);
+  event.target.value = "";
+});
+$("input").addEventListener("paste", (event) => {
+  const files = Array.from(event.clipboardData?.files || []);
+  if (files.length) {
+    addImages(files);
+    event.preventDefault();
+  }
+});
+$("composer").addEventListener("dragover", (event) => event.preventDefault());
+$("composer").addEventListener("drop", (event) => {
+  if (event.dataTransfer?.files?.length) {
+    event.preventDefault();
+    addImages(event.dataTransfer.files);
+  }
+});
+
 $("new").addEventListener("click", () => newSession().catch((e) => setStatus(e.message, true)));
 $("settings").addEventListener("click", () => openSettings().catch((e) => setStatus(e.message, true)));
 $("add-provider").addEventListener("click", () => openProviderDialog(null));
@@ -863,7 +1114,7 @@ $("composer").addEventListener("submit", (event) => {
     abortRun();
     return;
   }
-  if (!text) return;
+  if (!text && !pendingImages.length) return;
   input.value = "";
   input.style.height = "auto";
   send(text);

@@ -246,9 +246,22 @@ class Agent:
                         self.last_compaction = fold_report
 
                 context = prompt.select(
-                    trimmed, budget, fixed=prompt.estimate(system) + prompt.estimate(
-                        json.dumps(tools)
-                    )
+                    trimmed,
+                    budget,
+                    system_tokens=prompt.estimate(system),
+                    tools_tokens=prompt.estimate(json.dumps(tools)),
+                )
+                yield RunEvent(
+                    "context",
+                    data={
+                        "system": context.manifest["breakdown"]["system"],
+                        "tools": context.manifest["breakdown"]["tools"],
+                        "messages": context.manifest["breakdown"]["messages"],
+                        "window": budget.context_limit,
+                        "limit": context.manifest["limit"],
+                        "dropped": context.manifest["dropped"],
+                        "source": "estimate",
+                    },
                 )
                 body = request_body(
                     self.profile, system, context.messages, tools, effort=self.effort
@@ -428,6 +441,15 @@ def _safe_json(text: str) -> Any:
 def _usage(usage: Any) -> dict[str, Any]:
     return {
         key: getattr(usage, key)
-        for key in ("input_tokens", "output_tokens", "total_tokens", "reasoning_tokens")
+        for key in (
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "reasoning_tokens",
+            # Cache accounting matters for an honest reading of a long session:
+            # most of a repeated prompt is served from cache on every turn.
+            "cached_input_tokens",
+            "cache_creation_input_tokens",
+        )
         if getattr(usage, key, None) is not None
     }

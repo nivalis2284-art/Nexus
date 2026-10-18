@@ -105,18 +105,36 @@ def build_system_prompt(
     return "\n\n".join(sections)
 
 
-def select(messages: list[dict[str, Any]], budget: Budget, fixed: int) -> Context:
+def select(
+    messages: list[dict[str, Any]],
+    budget: Budget,
+    fixed: int = 0,
+    *,
+    system_tokens: int | None = None,
+    tools_tokens: int | None = None,
+) -> Context:
     """Keep the newest contiguous tail that fits.
 
     ``messages`` are already provider-shaped. The returned list is a slice, so
     callers must not assume it starts at the original first message.
+
+    ``fixed`` is the old combined budget for the prompt and tool schemas. New
+    callers pass ``system_tokens`` and ``tools_tokens`` separately so the UI can
+    show where the context is actually going; ``fixed`` stays supported so an
+    older call site keeps working.
     """
-    limit = budget.input_limit - fixed
+    if system_tokens is None and tools_tokens is None:
+        system_tokens, tools_tokens = fixed, 0
+    system_tokens = system_tokens or 0
+    tools_tokens = tools_tokens or 0
+    overhead = system_tokens + tools_tokens
+
+    limit = budget.input_limit - overhead
     used = 0
     selected: list[dict[str, Any]] = []
     dropped = 0
     for message in reversed(messages):
-        cost = estimate(_text_of(message)) + 8
+        cost = estimate(_text_of(message)) + 8 + image_tokens(message)
         if selected and used + cost > limit:
             dropped = len(messages) - len(selected)
             break
@@ -129,10 +147,33 @@ def select(messages: list[dict[str, Any]], budget: Budget, fixed: int) -> Contex
     manifest = {
         "sent": len(selected),
         "dropped": dropped,
-        "estimated_input_tokens": used + fixed,
+        "estimated_input_tokens": used + overhead,
         "limit": budget.input_limit,
+        "breakdown": {
+            "system": system_tokens,
+            "tools": tools_tokens,
+            "messages": used,
+        },
     }
     return Context(instructions="", messages=selected, manifest=manifest)
+
+
+# An image costs a fixed conservative allowance. Exact counts depend on the
+# provider's tiling of the image, which nobody can compute before sending, so
+# this is deliberately a rough upper bound and is presented as an estimate.
+IMAGE_TOKEN_ALLOWANCE = 1_600
+
+
+def image_tokens(message: dict[str, Any]) -> int:
+    content = message.get("content")
+    if not isinstance(content, list):
+        return 0
+    count = sum(
+        1
+        for block in content
+        if isinstance(block, dict) and block.get("type") == "image"
+    )
+    return count * IMAGE_TOKEN_ALLOWANCE
 
 
 def _text_of(message: dict[str, Any]) -> str:
@@ -143,6 +184,10 @@ def _text_of(message: dict[str, Any]) -> str:
     elif isinstance(content, list):
         for block in content:
             if isinstance(block, dict):
+                # Image payloads are base64, not text; counting their bytes as
+                # tokens would be wildly wrong, so only the text block counts.
+                if block.get("type") == "image":
+                    continue
                 parts.append(str(block.get("text", "")))
                 parts.append(str(block.get("content", "")))
     for key in ("arguments", "tool_call_id", "name"):

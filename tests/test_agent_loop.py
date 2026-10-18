@@ -129,12 +129,14 @@ def test_reads_a_file_and_answers(workspace: Path):
         ],
         seen,
     )
-    assert [e.type for e in events] == [
+    # "context" is a per-step accounting event; it carries no transcript change.
+    transcript = [e for e in events if e.type != "context"]
+    assert [e.type for e in transcript] == [
         "tool_start", "tool_result",
         "delta", "done",
     ]
-    assert "1: alpha" in events[1].data["content"]
-    assert events[2].text == "It contains alpha and beta."
+    assert "1: alpha" in transcript[1].data["content"]
+    assert transcript[2].text == "It contains alpha and beta."
     # The tool result went back to the model on the second request.
     second = seen[1]["messages"]
     assert any(m["role"] == "tool" and "alpha" in m["content"] for m in second)
@@ -207,7 +209,8 @@ def test_bash_runs_without_a_shell(workspace: Path):
         ],
         seen,
     )
-    result = events[1].data
+    transcript = [e for e in events if e.type != "context"]
+    result = transcript[1].data
     assert result["ok"] is True
     assert "42" in result["content"]
 
