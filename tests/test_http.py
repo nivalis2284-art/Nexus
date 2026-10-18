@@ -16,6 +16,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from nexus.model import APIFamily, ModelProfile
 from nexus.web import server as web
 
 
@@ -44,6 +45,16 @@ def live(tmp_path: Path, monkeypatch):
     store = web.ConfigStore(home)
     store.ensure()
     store.write_credential("default", "test-key")
+    # Pin the protocol: the fake frames below are Chat Completions, and the
+    # shipped default profile uses a different family.
+    profile = ModelProfile(
+        api_family=APIFamily.OPENAI_CHAT_COMPLETIONS,
+        model="fake",
+        base_url="https://fake.test/v1",
+        context_window_tokens=32000,
+        max_output_tokens=1024,
+    )
+    store.save_profile(profile)
     web.STATE["store"] = store
     web.STATE["sessions"] = web.SessionStore(store.sessions_dir)
     web.STATE["skills"] = {}
