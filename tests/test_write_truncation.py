@@ -13,7 +13,6 @@ not just the new tool.
 
 from __future__ import annotations
 
-import pytest
 
 from nexus.tools import build
 from nexus.tools._paths import open_file

@@ -1,6 +1,6 @@
 # Nexus 优化与功能业务关系图：需求复核及技术研究
 
-> 本文保留开发前的调查快照。正式开发的修复、验证和当前限制见 [PROGRESS.md](../../PROGRESS.md)，当前功能关系见 [BUSINESS-MAP.html](../../BUSINESS-MAP.html)。下文“本轮”均指研究阶段。本文与对应 PRD 于新一轮需求同步时一并归档；仅调整归档后的链接，原调查结论保持不变。
+> 本文保留开发前的调查快照。正式开发的修复、验证和当前限制见 [PROGRESS.md](../2026-10-19-task-lifecycle/PROGRESS.md)，当前功能关系见 [BUSINESS-MAP.html](../../BUSINESS-MAP.html)。下文“本轮”均指研究阶段。本文与对应 PRD 于新一轮需求同步时一并归档；仅调整归档后的链接，原调查结论保持不变。
 
 研究日期：2026-10-19（Asia/Tokyo）。源码基线：`6c3729f`。需求来源：[PRD.md](PRD.md) 与当前会话明确指令。
 

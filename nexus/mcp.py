@@ -21,7 +21,6 @@ import json
 import os
 import subprocess
 import threading
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -128,6 +127,11 @@ class StdioServer:
         self._closed = True
         process = self._process
         self._process = None
+        with self._lock:
+            events = list(self._events.values())
+            self._responses.clear()
+        for event in events:
+            event.set()
         if process is None:
             return
         try:
@@ -142,6 +146,19 @@ class StdioServer:
             try:
                 process.kill()
             except OSError:
+                pass
+            try:
+                process.wait(timeout=3)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        reader = self._reader
+        if reader is not None and reader is not threading.current_thread():
+            reader.join(timeout=3)
+        for stream in (process.stdout, process.stderr):
+            try:
+                if stream is not None:
+                    stream.close()
+            except (OSError, ValueError):
                 pass
 
     def __enter__(self) -> "StdioServer":
@@ -216,14 +233,19 @@ class StdioServer:
             request_id = self._next_id
             event = threading.Event()
             self._events[request_id] = event
-        self._send(
-            {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params or {}}
-        )
-        if not event.wait(self.timeout):
+        try:
+            self._send(
+                {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params or {}}
+            )
+            timed_out = not event.wait(self.timeout)
+        finally:
+            with self._lock:
+                payload = self._responses.pop(request_id, None)
+                self._events.pop(request_id, None)
+        if timed_out:
             raise MCPError(f"'{self.name}' did not answer {method} within {self.timeout}s")
-        with self._lock:
-            payload = self._responses.pop(request_id, None)
-            self._events.pop(request_id, None)
+        if self._closed:
+            raise MCPError(f"'{self.name}' was closed before answering {method}")
         if payload is None:
             raise MCPError(f"'{self.name}' closed before answering {method}")
         if "error" in payload:

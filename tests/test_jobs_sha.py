@@ -5,7 +5,6 @@ from __future__ import annotations
 import sys
 import time
 
-import pytest
 
 from nexus.tools import build
 

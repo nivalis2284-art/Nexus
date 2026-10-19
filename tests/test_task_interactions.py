@@ -40,3 +40,33 @@ def test_answer_with_wrong_task_version_is_rejected(tmp_path):
     store.command(task.id, "paused", request_id="change")
     with pytest.raises(TaskConflict):
         store.interaction_answer(pending["id"], answer=True, expected_version=1)
+
+
+def test_callbacks_cannot_answer_another_tasks_interaction(tmp_path):
+    store, task, callbacks = make(tmp_path)
+    other = store.create(title="other", goal="other", workspace=str(tmp_path))
+    pending = store.interaction_create(
+        task_id=other.id, run_id=None, kind="approval", payload={},
+        control_version=other.control_version,
+    )
+    with pytest.raises(TaskConflict):
+        callbacks.pending_answer(pending, True)
+    assert store.interaction(pending)["status"] == "pending"
+    assert store.messages(other.id) == []
+
+
+def test_callbacks_cannot_resolve_another_tasks_operation(tmp_path):
+    store, task, callbacks = make(tmp_path)
+    other = store.create(title="other", goal="other", workspace=str(tmp_path))
+    store.command(other.id, "running", request_id="other-run")
+    run = store.begin_run(other.id)
+    operation = store.operation_begin(
+        run_id=run["id"], tool_call_id="other-call", tool_name="write_file",
+        arguments={"path": "x"},
+    )
+    with pytest.raises(TaskConflict):
+        callbacks.resolve_operation({
+            "operation_id": operation, "conclusion": "not_applied",
+            "observation": "not this task's effect"
+        })
+    assert store.get_operation(operation)["status"] == "dispatching"

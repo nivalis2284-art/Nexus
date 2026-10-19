@@ -205,7 +205,14 @@ async function newSession() {
 }
 
 async function openSession(id) {
+  const viewVersion = state.viewVersion = (state.viewVersion || 0) + 1;
+  if (typeof taskView !== "undefined") {
+    taskView.current = null;
+    if (taskView.timer) clearTimeout(taskView.timer);
+    taskView.timer = null;
+  }
   const value = await api("/api/sessions/" + encodeURIComponent(id));
+  if (viewVersion !== state.viewVersion) return;
   state.sessionId = value.id;
   state.items = value.items || [];
   state.turns = state.items.filter((i) => i.role === "user").length;
@@ -302,7 +309,6 @@ function phaseNode(batch) {
   details.open = Boolean(batch.live);
   const summary = el("summary");
   summary.appendChild(el("span", "tw", "▸"));
-  const total = batch.thinking.join("\n\n").length;
   const state_ = batch.live ? "正在思考" : "思考完成";
   const label = el("span", "plabel", state_);
   summary.appendChild(label);
@@ -633,7 +639,12 @@ async function send(text) {
             updateStats();
             renderUsage();
           }
-          setStatus("");
+          const stopped = event.data && event.data.stopped;
+          if (stopped && !["complete", "cancelled"].includes(stopped)) {
+            setStatus("模型输出未完整结束（" + stopped + "）", true);
+          } else {
+            setStatus("");
+          }
         }
       }
     }
@@ -1146,27 +1157,10 @@ $("effort-button").addEventListener("click", (event) => {
   effortMenu($("effort-button"));
 });
 
-$("composer").addEventListener("submit", (event) => {
+$("composer").addEventListener("submit", async (event) => {
   event.preventDefault();
   const input = $("input");
   const text = input.value.trim();
-  if (typeof taskView !== "undefined" && !state.running) {
-    naturalTaskControl(text).then((handled) => {
-      if (handled) {
-        input.value = "";
-        input.style.height = "auto";
-        return;
-      }
-      if (!taskView.current) {
-        setStatus("请先打开一个任务，或使用“创建任务：…”", true);
-        return;
-      }
-      input.value = "";
-      input.style.height = "auto";
-      sendTaskMessage(text).catch((error) => setStatus(error.message, true));
-    });
-    return;
-  }
   if (state.running) {
     abortRun();
     return;
@@ -1176,6 +1170,24 @@ $("composer").addEventListener("submit", (event) => {
     return;
   }
   if (!text && !pendingImages.length) return;
+  if (typeof taskView !== "undefined") {
+    if (taskView.current && pendingImages.length) {
+      setStatus("任务输入暂不支持图片，请切换到普通会话发送", true);
+      return;
+    }
+    if (text && !pendingImages.length && await naturalTaskControl(text)) {
+      input.value = "";
+      input.style.height = "auto";
+      return;
+    }
+    if (taskView.current) {
+      if (await sendTaskMessage(text)) {
+        input.value = "";
+        input.style.height = "auto";
+      }
+      return;
+    }
+  }
   input.value = "";
   input.style.height = "auto";
   send(text);

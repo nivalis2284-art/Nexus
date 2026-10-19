@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import threading
-import time
 import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -16,7 +15,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from nexus.model import APIFamily, ModelProfile
+from nexus.model import APIFamily
 from nexus.web import server as web
 
 

@@ -7,7 +7,7 @@ import threading
 import pytest
 
 from nexus.runtime.callbacks import TaskCallbacks
-from nexus.task import Evidence, Step, TaskStore, TaskValidationError
+from nexus.task import Evidence, TaskStore, TaskValidationError
 
 
 def make(tmp_path):

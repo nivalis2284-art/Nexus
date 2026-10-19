@@ -8,7 +8,6 @@ reasoning attached, the grouping logic treated it as pure reasoning, and the
 from __future__ import annotations
 
 import pathlib
-import re
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 APP = (ROOT / "nexus" / "web" / "app.js").read_text(encoding="utf-8")

@@ -136,11 +136,9 @@ AGENTS.md    开发协作说明
 ## 文档导航
 
 - [`AGENTS.md`](AGENTS.md)：给开发 Agent 的简洁协作说明，不代替具体 PRD。
-- [`docs/PRD.md`](docs/PRD.md)：当前任务生命周期、失败止损与持续恢复需求；尚处于研究阶段。
-- [`docs/RESEARCH.md`](docs/RESEARCH.md)：当前需求复核、现状差距、技术取舍与待确认事项。
-- [`docs/EXECUTION-RESEARCH.md`](docs/EXECUTION-RESEARCH.md)：上一轮 Agent 执行能力与经验积累方向预研。
-- [`docs/PROGRESS.md`](docs/PROGRESS.md)：上一轮工程优化的交付、验证结果、复核方法与限制。
-- [`docs/参考/2026-10-19-系统优化/`](docs/参考/2026-10-19-系统优化/)：上一轮 PRD 与开发前研究归档。
+- [`docs/PRD.md`](docs/PRD.md)：当前现有系统清理与技术债务治理需求。
+- [`docs/PROGRESS.md`](docs/PROGRESS.md)：本轮维护的模块梳理、修复依据、验证证据与剩余问题。
+- [`docs/archive/`](docs/archive/)：历史阶段需求、研究、重要决策与交付证据；不构成当前待办。
 - [`docs/BUSINESS-MAP.html`](docs/BUSINESS-MAP.html)：独立功能业务关系图，可直接用本地浏览器打开。
 - [`docs/愿景/01-概念与原则.md`](docs/愿景/01-概念与原则.md)：长期方向与所有者控制原则。
 - [`docs/愿景/02-抽象需求.md`](docs/愿景/02-抽象需求.md)：长期期望的能力与体验；**并非当前阶段待办清单**。

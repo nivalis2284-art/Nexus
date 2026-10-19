@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from nexus.core.permission import ALLOW, ASK, DENY, default_policy
 

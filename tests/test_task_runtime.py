@@ -144,3 +144,85 @@ def test_answering_question_survives_reopen_and_reaches_next_model_run(tmp_path,
     serialized = json.dumps(seen[0], ensure_ascii=False)
     assert "yes" in serialized
     assert not reopened.pending_interactions(item.id)
+
+
+def test_approval_survives_reopen_and_resumes_exact_action(tmp_path, monkeypatch):
+    config, provider_id = configure(tmp_path)
+    config.save_preferences(workspace=str(tmp_path), permission="ask")
+    tasks = TaskStore(tmp_path / "tasks.sqlite3")
+    item = tasks.create(title="approval", goal="write once", workspace=str(tmp_path),
+                        provider_id=provider_id, model_id="fake")
+    tasks.command(item.id, "running", request_id="approval-first")
+    tasks.begin_run(item.id)
+    first = [call_frames("a1", "write_file", {"path": "approved.txt", "content": "ok"})]
+    import nexus.core.agent as module
+    monkeypatch.setattr(module, "_client", lambda: httpx.AsyncClient(transport=httpx.MockTransport(
+        lambda request: httpx.Response(200, headers={"content-type": "text/event-stream"}, text=first.pop(0))
+    )))
+    assert TaskAssembler(tasks, config)(tasks.get(item.id), threading.Event()).status == "waiting_user"
+    pending = tasks.pending_interactions(item.id)
+    assert pending and pending[0]["kind"] == "approval"
+    assert not (tmp_path / "approved.txt").exists()
+
+    reopened = TaskStore(tasks.path)
+    reopened.interaction_answer(pending[0]["id"], answer=True,
+                                expected_version=reopened.get(item.id).control_version)
+    reopened.command(item.id, "running", request_id="approval-resume")
+    reopened.begin_run(item.id)
+    second = [call_frames("a2", "write_file", {"path": "approved.txt", "content": "ok"}),
+              text_frames("done")]
+    seen = []
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, text=second.pop(0))
+    monkeypatch.setattr(module, "_client", lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    TaskAssembler(reopened, config)(reopened.get(item.id), threading.Event())
+    assert (tmp_path / "approved.txt").read_text() == "ok"
+    assert len(seen) == 2
+    assert not reopened.pending_interactions(item.id)
+    assert not reopened.unfinished_operations(item.id)
+    finished = [event for event in reopened.events(item.id) if event["type"] == "operation.finished"]
+    assert len(finished) == 1, "one tool execution must commit one result"
+
+
+def test_unfinished_model_stop_is_a_visible_task_pause(tmp_path, monkeypatch):
+    config, provider_id = configure(tmp_path)
+    tasks = TaskStore(tmp_path / "tasks.sqlite3")
+    item = tasks.create(title="stopped", goal="finish", workspace=str(tmp_path),
+                        provider_id=provider_id, model_id="fake")
+    tasks.command(item.id, "running", request_id="stop-test")
+    tasks.begin_run(item.id)
+    import nexus.core.agent as module
+    monkeypatch.setattr(module, "_client", lambda: httpx.AsyncClient(transport=httpx.MockTransport(
+        lambda request: httpx.Response(200, headers={"content-type": "text/event-stream"},
+                                       text=frame({"content": "cut off"}) + frame({}, "length")
+                                       + "data: [DONE]\n\n")
+    )))
+    result = TaskAssembler(tasks, config)(tasks.get(item.id), threading.Event())
+    assert result.status == "paused"
+    assert result.wait_reason == "length"
+    assert any("未正常结束" in message["text"] for message in tasks.messages(item.id))
+    assert tasks.get(item.id).state != "completed"
+
+
+def test_resumed_turn_does_not_duplicate_saved_history(tmp_path, monkeypatch):
+    config, provider_id = configure(tmp_path)
+    tasks = TaskStore(tmp_path / "tasks.sqlite3")
+    item = tasks.create(title="history", goal="keep history", workspace=str(tmp_path),
+                        provider_id=provider_id, model_id="fake")
+    tasks.command(item.id, "running", request_id="history-run")
+    tasks.begin_run(item.id)
+    responses = [text_frames("first answer"), text_frames("second answer")]
+    import nexus.core.agent as module
+    monkeypatch.setattr(module, "_client", lambda: httpx.AsyncClient(transport=httpx.MockTransport(
+        lambda request: httpx.Response(200, headers={"content-type": "text/event-stream"},
+                                       text=responses.pop(0))
+    )))
+    TaskAssembler(tasks, config)(tasks.get(item.id), threading.Event())
+    reopened = TaskStore(tasks.path)
+    TaskAssembler(reopened, config)(reopened.get(item.id), threading.Event())
+    messages = reopened.messages(item.id)
+    assert [message["text"] for message in messages if message["kind"] == "assistant"] == [
+        "first answer", "second answer",
+    ]
+    assert len([message for message in messages if message["kind"] == "user"]) == 1

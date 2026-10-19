@@ -84,3 +84,25 @@ def test_other_tasks_are_not_started_by_one_schedule(tmp_path):
     finally:
         controller.close()
         scheduler.close()
+
+
+def test_failed_dispatch_can_retry_the_same_schedule(tmp_path):
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    item = create(store, "retry dispatch")
+    store.set_schedule(item.id, due_at="2026-01-01T00:00:00+00:00", timezone="UTC", mode="auto")
+    calls = []
+
+    class Controller:
+        def submit(self, task_id, **kwargs):
+            calls.append(task_id)
+            if len(calls) == 1:
+                raise RuntimeError("temporary dispatch failure")
+
+    scheduler = TaskScheduler(store, Controller())
+    now = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    assert scheduler.tick(now) == []
+    assert store.schedule(item.id)["status"] == "pending"
+    assert scheduler.tick(now) == [item.id]
+    assert store.schedule(item.id)["status"] == "consumed"
+    assert scheduler.tick(now) == []
+    assert calls == [item.id, item.id]

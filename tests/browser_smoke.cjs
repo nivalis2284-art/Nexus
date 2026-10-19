@@ -20,21 +20,28 @@ async function main() {
   fs.mkdirSync(home); fs.mkdirSync(workspace);
   fs.mkdirSync(path.join(root, '.artifacts'), { recursive: true });
   const requests = [];
+  let taskRequests = 0;
   const provider = http.createServer(async (req, res) => {
     let raw = '';
     for await (const chunk of req) raw += chunk;
-    requests.push(JSON.parse(raw));
-    const delta = requests.length === 1 ? {
+    const body = JSON.parse(raw);
+    requests.push(body);
+    const taskRequest = JSON.stringify(body.messages).includes('TASK_WRITE');
+    if (taskRequest) taskRequests += 1;
+    const toolRequest = requests.length === 1 || (taskRequest && taskRequests <= 2);
+    const delta = toolRequest ? {
       reasoning_content: 'Checking the image and creating the requested file.',
-      tool_calls: [{ index: 0, id: 'call_browser', type: 'function', function: {
-        name: 'write_file', arguments: JSON.stringify({ path: 'browser-result.txt', content: 'browser verified' }),
+      tool_calls: [{ index: 0, id: 'call_browser_' + requests.length, type: 'function', function: {
+        name: 'write_file', arguments: JSON.stringify({
+          path: taskRequest ? 'task-result.txt' : 'browser-result.txt', content: 'browser verified',
+        }),
       }}],
-    } : { content: 'Browser smoke complete.' };
+    } : { content: taskRequest ? 'Task smoke complete.' : 'Browser smoke complete.' };
     const frame = (delta, finish_reason = null) => 'data: ' + JSON.stringify({
       id: 'local-smoke', choices: [{ index: 0, delta, finish_reason }],
     }) + '\n\n';
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-    res.end(frame(delta) + frame({}, requests.length === 1 ? 'tool_calls' : 'stop') + 'data: [DONE]\n\n');
+    res.end(frame(delta) + frame({}, toolRequest ? 'tool_calls' : 'stop') + 'data: [DONE]\n\n');
   });
   let python, browser;
   try {
@@ -95,10 +102,41 @@ async function main() {
     await page.locator('#task-panel').waitFor();
     assert.ok((await page.locator('#task-status').innerText()).includes('待执行'));
     assert.equal(requests.length, 2, 'creating a task must not invoke a model');
+
+    await page.locator('.task-schedule summary').click();
+    await page.locator('#task-due').fill('2030-01-01T12:30');
+    await page.waitForTimeout(1800);
+    assert.equal(await page.locator('#task-due').inputValue(), '2030-01-01T12:30',
+      'task refresh must preserve an unsaved schedule');
+    await page.locator('#new').click();
+    await page.locator('#task-panel').waitFor({ state: 'hidden' });
+    await page.locator('#input').fill('ordinary chat still works');
+    await page.locator('#send').click();
+    await page.locator('#transcript .answer').filter({ hasText: 'Browser smoke complete.' }).waitFor();
+    await page.locator('#send[aria-label="发送"]').waitFor();
+    assert.equal(requests.length, 3, 'ordinary text must reach the chat model with task controls loaded');
     await page.reload();
     await page.locator('#tasks li').filter({ hasText: 'browser task' }).click();
     await page.locator('#task-panel').waitFor();
     assert.ok((await page.locator('#task-status').innerText()).includes('待执行'));
+
+    await page.locator('#task-new').click();
+    await page.locator('#task-name').fill('approval resume');
+    await page.locator('#task-goal').fill('TASK_WRITE: create task-result.txt with approval');
+    await page.locator('#task-create').click();
+    await page.locator('#task-title').filter({ hasText: 'approval resume' }).waitFor();
+    await page.locator('#task-start').click();
+    await page.locator('#task-interactions input').waitFor();
+    assert.equal(fs.existsSync(path.join(workspace, 'task-result.txt')), false);
+    await page.reload();
+    await page.locator('#tasks li').filter({ hasText: 'approval resume' }).click();
+    await page.locator('#task-interactions input').fill('允许');
+    await page.locator('#task-interactions button').click();
+    await page.locator('#transcript .answer').filter({ hasText: 'Task smoke complete.' }).waitFor();
+    assert.equal(fs.readFileSync(path.join(workspace, 'task-result.txt'), 'utf8'), 'browser verified');
+    assert.equal(taskRequests, 3, 'task approval must resume the exact call and continue to its answer');
+    assert.ok((await page.locator('#task-status').innerText()).includes('已挂起'));
+    await page.screenshot({ path: path.join(root, '.artifacts', 'task-approval-smoke.png'), fullPage: true });
 
     const map = await browser.newPage({ viewport: { width: 1360, height: 960 } });
     const external = [];
@@ -138,7 +176,7 @@ async function main() {
     assert.deepEqual(errors, []);
     await map.screenshot({ path: path.join(root, '.artifacts', 'business-map.png'), fullPage: true });
     await map.locator('.stage-card').screenshot({ path: path.join(root, '.artifacts', 'business-map-detail.png') });
-    console.log('Browser smoke passed: image/approval chat, persistent task creation without a model call, reload, and offline business map.');
+    console.log('Browser smoke passed: image/approval and ordinary chat, persistent tasks, unsaved schedule, task approval across reload with a real file write, and offline business map.');
   } finally {
     if (browser) await browser.close();
     if (python && python.exitCode === null) {

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .. import mcp, skills
+from .. import skills
 from ..core.agent import Agent, AgentSuspended
 from ..core.config import ConfigStore, build_profile
 from ..core.permission import default_policy
@@ -34,8 +34,6 @@ class TaskAssembler:
         provider = next((item for item in providers if item.id == task.provider_id), None)
         if provider is None:
             raise TaskValidationError("任务的模型提供商已不存在；请修改任务模型绑定")
-        if provider.family != "anthropic_messages":
-            pass
         model = next((item for item in provider.models if item.get("id") == task.model_id), None)
         if not isinstance(model, dict):
             raise TaskValidationError("任务的模型引用已不存在；请修改任务模型绑定")
@@ -60,6 +58,7 @@ class TaskAssembler:
         return getattr(self, "_jobs", {}).get(task_id)
 
     def __call__(self, task: Task, cancel: threading.Event) -> RunFnResult:
+        incomplete = False
         profile, key, permission, rules, model = self._strict_settings(task)
         workspace_path = Path(task.workspace).expanduser().resolve()
         if not workspace_path.is_dir():
@@ -93,21 +92,17 @@ class TaskAssembler:
         policy = default_policy(permission, rules)
         system_task_state = callbacks.context_text()
         messages = self.store.messages_for_model(task.id)
-        answered = self.store.latest_answered_interaction(task.id)
-        if answered:
-            messages.append({"role": "user", "content": (
-                "The user has answered the saved task interaction: "
-                + str(answered.get("payload")) + " -> " + str(answered.get("answer"))
-            )})
         if not messages:
-            messages.append({"role": "user", "content": (
+            self.store.add_message(task.id, kind="user", text=(
                 "Work on this persistent task. Start by understanding the goal, then use the task tools "
                 "to record material decisions and verified outcomes. Do not claim completion without evidence.\n\n"
                 f"Goal: {task.effective_goal or task.goal}\nConstraints: {task.constraints or '(none)'}"
-            )})
+            ))
+            messages = self.store.messages_for_model(task.id)
 
-        def approve(request):
+        async def approve(request):
             callbacks.approve(request)
+            return True
 
         agent = Agent(
             profile=profile, credentials=RuntimeCredentials(key), registry=registry,
@@ -116,17 +111,13 @@ class TaskAssembler:
             context_limit=self.config.load().context_limit,
             approve=approve, effort=task.effort, skills=skill_set.manifest(),
             cancel_event=cancel, task_context=system_task_state,
-            on_message=callbacks.save_message,
             on_tool_intent=callbacks.prepare_dispatch,
-            on_tool_result=lambda call, args, result: callbacks.tool_message(
-                str(call.get("id") or ""), str(call.get("name") or ""),
-                args, result.content, result.ok, result.error_code, result.data,
-            ),
             execute_prepared=lambda prepared: callbacks.wrap_execute(
                 prepared, context, registry.execute_prepared
             ),
         )
         try:
+            final = None
             async def drive():
                 final = None
                 async for event in agent.run(messages):
@@ -134,8 +125,9 @@ class TaskAssembler:
                         final = event.data
                 return final
             import asyncio
-            asyncio.run(drive())
+            final = asyncio.run(drive())
         except AgentSuspended:
+            incomplete = True
             current = self.store.get(task.id)
             if current.state == "running":
                 current = self.store.command(
@@ -155,6 +147,7 @@ class TaskAssembler:
             self.store.record_job_snapshots(task.id, snapshots)
             return RunFnResult(status="waiting_user", wait_reason="等待用户处理")
         except TaskValidationError as error:
+            incomplete = True
             # A rejected task tool call (e.g. claiming completion without
             # evidence) is feedback for the model. The agent loop catches only
             # tool failures inside its worker, so a deliberate tool-side gate
@@ -166,14 +159,20 @@ class TaskAssembler:
                     task.id, "paused", request_id=f"stalled-{task.id}"
                 )
             return RunFnResult(status="stalled", wait_reason=str(error))
-        except BaseException as error:
+        except BaseException:
+            incomplete = True
             try:
                 self.store.mark_dispatching_unknown(self.store.current_run(task.id))
             except Exception:
                 pass
             raise
         finally:
-            callbacks.save_run_messages(messages)
+            # Persist only messages produced by this run. Re-saving the full
+            # provider transcript duplicated all prior history after recovery.
+            callbacks.save_run_messages(
+                getattr(agent, "new_messages", []),
+                incomplete=incomplete,
+            )
             if self.store.get(task.id).state != "waiting_user":
                 snapshots = []
                 for value in task_jobs.list():
@@ -190,4 +189,12 @@ class TaskAssembler:
                 task_jobs.close_all()
                 if isinstance(self._jobs, dict) and self._jobs.get(task.id) is task_jobs:
                     self._jobs.pop(task.id, None)
+        stopped = str((final or {}).get("stopped") or "")
+        if stopped not in ("complete", "cancelled"):
+            reason = stopped or "unknown"
+            self.store.add_message(
+                task.id, kind="notice",
+                text=f"本轮未正常结束（{reason}）；任务保留为挂起，需检查后继续。",
+            )
+            return RunFnResult(status="paused", wait_reason=reason)
         return RunFnResult(status="complete", text="本轮结束")

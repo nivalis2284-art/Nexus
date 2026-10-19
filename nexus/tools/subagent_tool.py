@@ -41,11 +41,12 @@ def spawn(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     if isinstance(result, str):
         return {"content": result, "subagent": True}
     text = getattr(result, "text", "") or "(subagent returned nothing)"
+    stopped = getattr(result, "stopped", "complete")
     return {
         "content": text,
-        "ok": getattr(result, "stopped", "complete") not in ("error", "cancelled"),
+        "ok": stopped in ("complete", "max_steps"),
         "subagent": True,
-        "stopped": getattr(result, "stopped", "complete"),
+        "stopped": stopped,
         "steps": getattr(result, "steps", 0),
         "depth": getattr(result, "depth", 1),
     }

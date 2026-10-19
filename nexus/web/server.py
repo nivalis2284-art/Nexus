@@ -46,7 +46,7 @@ from ..model import RuntimeCredentials
 from ..runtime import TaskController
 from ..runtime.assembly import TaskAssembler
 from ..runtime.scheduler import TaskScheduler
-from ..task import TaskConflict, TaskNotFound, TaskStore, TaskValidationError
+from ..task import TaskConflict, TaskNotFound, TaskStore
 from ..session import Message, SessionStore
 from ..skills import SkillSet
 from ..tools import build, mcp_tools

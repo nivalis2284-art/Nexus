@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 import uuid
 from typing import Any
-from urllib.parse import parse_qs
 
 from ..task import TaskConflict, TaskNotFound, TaskValidationError
 
@@ -84,14 +83,14 @@ class TaskHTTP:
                 raise TaskConflict("pause the active task before changing its goal or environment")
             if "goal" in changes and "effective_goal" not in changes:
                 changes["effective_goal"] = changes["goal"]
-        item = self.store.update_task(task_id, expected_version=expected, changes=changes)
         if "steps" in body:
-            # Config edit advances control_version only; progress remains its
-            # own version domain.
-            item = self.store.update_progress(
-                task_id, expected_version=item.progress_version,
-                changes={"steps": body["steps"]},
+            if not isinstance(body["steps"], list):
+                raise TaskValidationError("steps must be a list")
+            item = self.store.update_task(
+                task_id, expected_version=expected, changes=changes, steps=body["steps"],
             )
+        else:
+            item = self.store.update_task(task_id, expected_version=expected, changes=changes)
         self.respond(handler, 200, item.to_dict())
 
     def command(self, handler, task_id: str, body: dict[str, Any]) -> None:
@@ -130,11 +129,14 @@ class TaskHTTP:
         expected = body.get("expected_version")
         if type(expected) is not int:
             raise TaskValidationError("expected_version is required")
+        interaction = self.store.interaction(interaction_id)
+        if interaction["task_id"] != task_id:
+            raise TaskConflict("interaction belongs to another task")
+        if interaction["kind"] not in ("approval", "question"):
+            raise TaskConflict("use the start confirmation endpoint for this interaction")
         result = self.store.interaction_answer(
             interaction_id, answer=body.get("answer"), expected_version=expected
         )
-        if result["task_id"] != task_id:
-            raise TaskConflict("interaction belongs to another task")
         interaction = self.store.pending_interactions(task_id)
         pending = next((item for item in interaction if item["id"] == interaction_id), None)
         resumed = False
@@ -149,6 +151,11 @@ class TaskHTTP:
             raise TaskValidationError("expected_version is required")
         if body.get("answer") is not True:
             raise TaskValidationError("start_confirmation must be accepted explicitly")
+        interaction = self.store.interaction(interaction_id)
+        if interaction["task_id"] != task_id:
+            raise TaskConflict("interaction belongs to another task")
+        if interaction["kind"] != "start_confirmation":
+            raise TaskConflict("interaction is not a start confirmation")
         self.store.interaction_answer(interaction_id, answer=True, expected_version=expected)
         current = self.store.get(task_id)
         self.controller.submit(task_id, request_id="confirm-" + uuid.uuid4().hex,
@@ -184,6 +191,7 @@ class TaskHTTP:
                     "Select a task explicitly; the instruction does not identify exactly one task."
                 )
             task_id = candidates[0].id
+            words = instruction.replace(candidates[0].title, "", 1).lower().strip().rstrip("。.!！?？ ")
         else:
             self.store.get(task_id)
         short = {

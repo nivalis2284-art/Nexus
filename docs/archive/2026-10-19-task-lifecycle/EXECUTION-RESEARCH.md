@@ -44,18 +44,18 @@ Nexus 已经能够连续调用工具、读取反馈、调整行动，具有上�
 
 | 能力 | 当前实现与证据位置 | 与本次研究相关的局限 |
 |---|---|---|
-| 连续执行与反馈 | [Agent.run](../nexus/core/agent.py)，工具结果加入消息后再次请求模型；同一响应中的调用逐个执行 | 任务分解、依赖推理和判断是否完成主要由模型承担；没有独立任务状态或成果验证器 |
+| 连续执行与反馈 | [Agent.run](../../../nexus/core/agent.py)，工具结果加入消息后再次请求模型；同一响应中的调用逐个执行 | 任务分解、依赖推理和判断是否完成主要由模型承担；没有独立任务状态或成果验证器 |
 | 执行结束 | `Agent.run` 中没有 tool call 就返回 `stopped="complete"`；步数用尽返回 `max_steps`；默认 `max_steps=40` | `complete` 表示本轮循环正常结束，不证明用户目标达成；直接调高上限不能解决过早结束或无效循环 |
-| 计划与进度 | [todo.write](../nexus/tools/todo.py) 用完整列表替换 `{content,status}`；结果文本可进入历史 | `ToolContext.todos` 初始为空，网页每轮重新 build；没有恢复独立待办状态。历史中可能仍有清单，因此不能说“下一轮完全不知道计划” |
-| 工具选择 | [ToolSpec / Registry](../nexus/tools/registry.py)、[build](../nexus/tools/__init__.py) 提供声明、参数校验、配置可用性过滤和统一派发；MCP 工具并入同一目录 | `requires` 是配置依赖，不是执行步骤依赖图；工具选择/组合交给模型；没有动态工具检索或通用数据依赖调度 |
-| 错误反馈 | `ToolResult` 有 `ok/content/data/error_code`；错误作为工具结果返回；[retry](../nexus/core/retry.py) 仅重试特定模型请求错误且不重放已产生输出的流 | 没有任务级尝试记录、原因分类和卡住检测。系统提示已经要求不要重复相同失败调用，但这只是行为指引 |
-| 结果保存与重载 | [Handler._persist](../nexus/web/server.py) 保存调用 ID、参数、文本、ok/error；[SessionStore](../nexus/session/store.py) 使用 JSONL、写入锁和 flush/fsync | 本轮 assistant/tool 消息在 `_run_turn` 的 `finally` 中批量调用保存；进程硬退出前已发生的工具副作用，可能还没有相应落盘记录 |
-| 模型可见反馈 | Agent 内部工具消息记录 ok/error；[protocol](../nexus/core/protocol.py) 转为三类提供商请求时，工具反馈主要只传文本；网页 `_internal` 也主要重建工具文本和调用关联 | `ToolResult.data` 没有通用进入 Agent 消息，内部 ok/error 没有直接转成模型可见的统一状态。许多工具已在文本里说明错误，所以不等于模型收不到失败；重载也不是这项限制的唯一来源 |
-| 上下文连续性 | [compaction](../nexus/core/compaction.py) 先裁剪大结果，再生成结构化摘要；配对保留工具交互；保留原始会话记录 | 摘要是当前 run 的工作上下文，不作为可复用摘要条目持久保存；下一轮从原始会话重建。摘要不等于跨任务经验，也不能保证保全所有证据 |
-| 后台任务 | [JobRegistry](../nexus/tools/_jobs.py)、[jobs](../nexus/tools/jobs.py) 按会话跨轮持有；输出有界、cursor 可继续读；退出时清理进程树 | 已确认产品语义是服务退出后结束、不恢复。恢复 Agent 逻辑任务不能被解释成恢复后台进程；后台命令也不等于 Agent 可脱离连接持续执行 |
-| 子代理 | [run_subagent](../nexus/core/subagent.py)、[spawn](../nexus/tools/subagent_tool.py)、网页 factory：独立上下文、同一模型配置、共享审批/取消和会话任务资源；父调用等待返回 | 当前装配没有并行任务句柄、对子代理注入再委派 factory 或保存完整子轨迹；模块的深度上限不能当成网页已支持多层代理的证据 |
+| 计划与进度 | [todo.write](../../../nexus/tools/todo.py) 用完整列表替换 `{content,status}`；结果文本可进入历史 | `ToolContext.todos` 初始为空，网页每轮重新 build；没有恢复独立待办状态。历史中可能仍有清单，因此不能说“下一轮完全不知道计划” |
+| 工具选择 | [ToolSpec / Registry](../../../nexus/tools/registry.py)、[build](../../../nexus/tools/__init__.py) 提供声明、参数校验、配置可用性过滤和统一派发；MCP 工具并入同一目录 | `requires` 是配置依赖，不是执行步骤依赖图；工具选择/组合交给模型；没有动态工具检索或通用数据依赖调度 |
+| 错误反馈 | `ToolResult` 有 `ok/content/data/error_code`；错误作为工具结果返回；[retry](../../../nexus/core/retry.py) 仅重试特定模型请求错误且不重放已产生输出的流 | 没有任务级尝试记录、原因分类和卡住检测。系统提示已经要求不要重复相同失败调用，但这只是行为指引 |
+| 结果保存与重载 | [Handler._persist](../../../nexus/web/server.py) 保存调用 ID、参数、文本、ok/error；[SessionStore](../../../nexus/session/store.py) 使用 JSONL、写入锁和 flush/fsync | 本轮 assistant/tool 消息在 `_run_turn` 的 `finally` 中批量调用保存；进程硬退出前已发生的工具副作用，可能还没有相应落盘记录 |
+| 模型可见反馈 | Agent 内部工具消息记录 ok/error；[protocol](../../../nexus/core/protocol.py) 转为三类提供商请求时，工具反馈主要只传文本；网页 `_internal` 也主要重建工具文本和调用关联 | `ToolResult.data` 没有通用进入 Agent 消息，内部 ok/error 没有直接转成模型可见的统一状态。许多工具已在文本里说明错误，所以不等于模型收不到失败；重载也不是这项限制的唯一来源 |
+| 上下文连续性 | [compaction](../../../nexus/core/compaction.py) 先裁剪大结果，再生成结构化摘要；配对保留工具交互；保留原始会话记录 | 摘要是当前 run 的工作上下文，不作为可复用摘要条目持久保存；下一轮从原始会话重建。摘要不等于跨任务经验，也不能保证保全所有证据 |
+| 后台任务 | [JobRegistry](../../../nexus/tools/_jobs.py)、[jobs](../../../nexus/tools/jobs.py) 按会话跨轮持有；输出有界、cursor 可继续读；退出时清理进程树 | 已确认产品语义是服务退出后结束、不恢复。恢复 Agent 逻辑任务不能被解释成恢复后台进程；后台命令也不等于 Agent 可脱离连接持续执行 |
+| 子代理 | [run_subagent](../../../nexus/core/subagent.py)、[spawn](../../../nexus/tools/subagent_tool.py)、网页 factory：独立上下文、同一模型配置、共享审批/取消和会话任务资源；父调用等待返回 | 当前装配没有并行任务句柄、对子代理注入再委派 factory 或保存完整子轨迹；模块的深度上限不能当成网页已支持多层代理的证据 |
 | 子代理结果语义 | `run_subagent` 收集所有 `delta` 文本；工具层只将 `error/cancelled` 视为 `ok=false` | 实际返回可能拼接中间说明和结尾报告；`max_steps` 仍可 `ok=true`。因此不能直接用子调用 ok 给经验标记“任务成功” |
-| Skill 与项目指引 | [skills.discover](../nexus/skills.py) 支持项目优先的目录发现；摘要入提示、正文按需读取；[workspace](../nexus/core/workspace.py) 收集项目指引 | 已有程序性知识载体，但没有自动提炼、效果追踪、冲突/失效判断或受控晋升流程；也不是完整 Agent Skills 规范实现 |
+| Skill 与项目指引 | [skills.discover](../../../nexus/skills.py) 支持项目优先的目录发现；摘要入提示、正文按需读取；[workspace](../../../nexus/core/workspace.py) 收集项目指引 | 已有程序性知识载体，但没有自动提炼、效果追踪、冲突/失效判断或受控晋升流程；也不是完整 Agent Skills 规范实现 |
 | 指标与测试 | 流有用量、步骤和耗时；每条 assistant 可保存其用量；已有大量工具/协议/集成测试 | `RunResult.usage` 被最新模型请求覆盖，done 不是完整父子/摘要总成本账本；工程回归与真实任务质量评估是两种证据 |
 
 ### 3.2 本轮实际探针
@@ -394,16 +394,16 @@ flowchart TD
 
 | 文件 | 关键位置 | 用于支持的结论 |
 |---|---|---|
-| [core/agent.py](../nexus/core/agent.py) | `_fold`（约 136 行）、`run`（221 行）、无 calls 分支（383 行）、工具循环（398 行）、`_invoke`（438 行） | 循环、结束/步数、反馈记录、权限与取消、摘要边界 |
-| [web/server.py](../nexus/web/server.py) | `_internal`（285 行）、`_run_turn`（656 行）、子 factory（764 行）、finally（848 行）、`_persist`（858 行） | 跨轮装配、历史投影、子代理与保存边界 |
-| [tools/__init__.py](../nexus/tools/__init__.py) | `ToolContext`、`build` | 每轮上下文、todo 初值、工具装配 |
-| [tools/registry.py](../nexus/tools/registry.py) | `ToolSpec`、`ToolResult`、`Registry.execute` | 校验/配置依赖、结构化结果与裁剪 |
-| [core/protocol.py](../nexus/core/protocol.py) | `_chat_messages`、`_anthropic_messages`、`_responses_input` | 内部工具状态如何投影成提供商请求，与内部记录/界面展示的区别 |
-| [tools/todo.py](../nexus/tools/todo.py) | `write` | 列表替换与模型驱动状态 |
-| [core/subagent.py](../nexus/core/subagent.py)、[tools/subagent_tool.py](../nexus/tools/subagent_tool.py) | `run_subagent`、`spawn` | 文本归约、结束原因与 ok 映射 |
-| [core/compaction.py](../nexus/core/compaction.py)、[core/prompt.py](../nexus/core/prompt.py) | 摘要模板、`prune`、`select`、`ROLE` | 有界上下文、已有纠错规则与限制 |
-| [skills.py](../nexus/skills.py) | `parse_frontmatter`、`discover`、`default_roots` | Skill 装载范围及能力边界 |
-| [session/store.py](../nexus/session/store.py) | `append`、`_append_record`、`load` | JSONL 的实际保存保证与读取 |
+| [core/agent.py](../../../nexus/core/agent.py) | `_fold`（约 136 行）、`run`（221 行）、无 calls 分支（383 行）、工具循环（398 行）、`_invoke`（438 行） | 循环、结束/步数、反馈记录、权限与取消、摘要边界 |
+| [web/server.py](../../../nexus/web/server.py) | `_internal`（285 行）、`_run_turn`（656 行）、子 factory（764 行）、finally（848 行）、`_persist`（858 行） | 跨轮装配、历史投影、子代理与保存边界 |
+| [tools/__init__.py](../../../nexus/tools/__init__.py) | `ToolContext`、`build` | 每轮上下文、todo 初值、工具装配 |
+| [tools/registry.py](../../../nexus/tools/registry.py) | `ToolSpec`、`ToolResult`、`Registry.execute` | 校验/配置依赖、结构化结果与裁剪 |
+| [core/protocol.py](../../../nexus/core/protocol.py) | `_chat_messages`、`_anthropic_messages`、`_responses_input` | 内部工具状态如何投影成提供商请求，与内部记录/界面展示的区别 |
+| [tools/todo.py](../../../nexus/tools/todo.py) | `write` | 列表替换与模型驱动状态 |
+| [core/subagent.py](../../../nexus/core/subagent.py)、[tools/subagent_tool.py](../../../nexus/tools/subagent_tool.py) | `run_subagent`、`spawn` | 文本归约、结束原因与 ok 映射 |
+| [core/compaction.py](../../../nexus/core/compaction.py)、[core/prompt.py](../../../nexus/core/prompt.py) | 摘要模板、`prune`、`select`、`ROLE` | 有界上下文、已有纠错规则与限制 |
+| [skills.py](../../../nexus/skills.py) | `parse_frontmatter`、`discover`、`default_roots` | Skill 装载范围及能力边界 |
+| [session/store.py](../../../nexus/session/store.py) | `append`、`_append_record`、`load` | JSONL 的实际保存保证与读取 |
 
 相关测试命令，本轮实测结果为 `90 passed in 4.13s`：
 
@@ -441,7 +441,7 @@ session = Session(id="probe", items=[Message(kind="tool", text="no result",
 print(_internal(session))  # 没有 ok/error 字段
 ```
 
-保存边界探针复用 [test_web_runtime.py](../tests/test_web_runtime.py) 的模拟协议帧和隔离 runtime 装配方法：在 `tool_result` 与 `done` 的 emit 回调中重新 `SessionStore.load`，与 `_run_turn` 返回后的读取比较；mock 的第一个响应调用 `write_file`，第二个返回文本。实际观察见第 3.2 节。没有进行强杀主服务、系统断电或真实远端副作用实验。
+保存边界探针复用 [test_web_runtime.py](../../../tests/test_web_runtime.py) 的模拟协议帧和隔离 runtime 装配方法：在 `tool_result` 与 `done` 的 emit 回调中重新 `SessionStore.load`，与 `_run_turn` 返回后的读取比较；mock 的第一个响应调用 `write_file`，第二个返回文本。实际观察见第 3.2 节。没有进行强杀主服务、系统断电或真实远端副作用实验。
 
 ### 13.3 本地参考部署与远端快照
 

@@ -187,7 +187,7 @@ function jsonResponse(value) {
   };
 }
 
-async function loadHarness() {
+async function loadHarness(options = {}) {
   const ids = new Map();
   const document = {
     createElement(tag) {
@@ -213,6 +213,9 @@ async function loadHarness() {
       calls.chatBodies.push(JSON.parse(options.body));
       return streamResponse(chatEvents);
     }
+    if (requestPath === "/api/task-control") {
+      return {...jsonResponse({error: "The instruction does not identify exactly one task."}), ok: false};
+    }
     if (requestPath.startsWith("/api/sessions/")) {
       return jsonResponse({ id: "s1", title: "测试", items: [] });
     }
@@ -226,8 +229,8 @@ async function loadHarness() {
     TextDecoder,
     TextEncoder,
     console,
-    setTimeout,
-    clearTimeout,
+    setTimeout: options.setTimeout || setTimeout,
+    clearTimeout: options.clearTimeout || clearTimeout,
     confirm: () => true,
     FileReader: class {
       readAsDataURL(file) {
@@ -238,6 +241,11 @@ async function loadHarness() {
   });
   vm.runInContext(APP, context, { filename: "nexus/web/app.js" });
   await new Promise((resolve) => setImmediate(resolve));
+  if (options.tasks) {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, "nexus", "web", "tasks.js"), "utf8"), context,
+      { filename: "nexus/web/tasks.js" });
+    await new Promise((resolve) => setImmediate(resolve));
+  }
   return {
     context,
     ids,
@@ -408,6 +416,105 @@ async function testToolResultArgumentsReachTheStep() {
   console.log("ok - tool_result arguments replace the earlier preview");
 }
 
+async function testChatComposerWithTasksLoaded() {
+  const harness = await loadHarness({tasks: true});
+  evaluate(harness.context, `
+    __sent = [];
+    send = async text => __sent.push(text);
+    $("input").value = "普通聊天";
+  `);
+  await harness.ids.get("composer").__submitHandler({preventDefault() {}});
+  assert.equal(evaluate(harness.context, "__sent[0]"), "普通聊天");
+  evaluate(harness.context, `
+    pendingImages = [{mime: "image/png", data: ${JSON.stringify(PNG_A)}}];
+    $("input").value = "";
+  `);
+  await harness.ids.get("composer").__submitHandler({preventDefault() {}});
+  assert.equal(evaluate(harness.context, "__sent.length"), 2, "image-only chat remains sendable");
+  assert.equal(evaluate(harness.context, "__sent[1]"), "");
+  console.log("ok - loading task controls preserves ordinary and image-only chat");
+}
+
+async function testTaskPollingSurvivesHiddenPageAndErrors() {
+  const timers = new Map();
+  let sequence = 0;
+  const harness = await loadHarness({tasks: true,
+    setTimeout: callback => { timers.set(++sequence, callback); return sequence; },
+    clearTimeout: id => timers.delete(id),
+  });
+  evaluate(harness.context, `
+    taskView.current = {id: "t1"};
+    document.hidden = true;
+    armTaskPolling();
+  `);
+  async function tick() {
+    const [id, callback] = timers.entries().next().value;
+    timers.delete(id);
+    await callback();
+  }
+  await tick();
+  assert.equal(timers.size, 1, "hidden page must keep a future refresh scheduled");
+  evaluate(harness.context, `
+    document.hidden = false;
+    openTask = async () => { throw new Error("temporary failure"); };
+  `);
+  await tick();
+  assert.equal(timers.size, 1, "temporary request failure must not stop polling");
+  evaluate(harness.context, "taskView.current = null");
+  await tick();
+  assert.equal(timers.size, 0, "leaving a task must end polling");
+  console.log("ok - task polling survives hidden tabs and transient request failures");
+}
+
+async function testStaleTaskResponseCannotReplaceSession() {
+  const harness = await loadHarness({tasks: true});
+  evaluate(harness.context, `
+    __originalApi = api;
+    api = path => path === "/api/tasks/t1"
+      ? new Promise(resolve => { __resolveTask = resolve; }) : __originalApi(path);
+    __openingTask = openTask("t1");
+  `);
+  await evaluate(harness.context, "openSession('s1')");
+  evaluate(harness.context, "__resolveTask({id: 't1', state: 'pending'})");
+  await evaluate(harness.context, "__openingTask");
+  assert.equal(evaluate(harness.context, "state.sessionId"), "s1");
+  assert.equal(evaluate(harness.context, "taskView.current"), null);
+  console.log("ok - a stale task response cannot overwrite a selected chat");
+}
+
+async function testTaskRefreshPreservesUnsubmittedInputs() {
+  const harness = await loadHarness({tasks: true, setTimeout: () => 1, clearTimeout: () => {}});
+  evaluate(harness.context, `
+    __task = {id: "t1", state: "waiting_user", messages: [], schedule: null,
+      pending_interactions: [{id: "i1", kind: "question", payload: {questions: [{question: "Which?"}]}}]};
+    api = async path => path === "/api/tasks" ? {tasks: []} : {...__task};
+  `);
+  await evaluate(harness.context, "openTask('t1')");
+  const answer = harness.ids.get("task-interactions").querySelector("input");
+  answer.value = "正在输入";
+  harness.ids.get("task-due").value = "2030-01-01T12:30";
+  harness.ids.get("task-timezone").value = "Asia/Tokyo";
+  await evaluate(harness.context, "openTask('t1')");
+  assert.equal(harness.ids.get("task-interactions").querySelector("input"), answer);
+  assert.equal(answer.value, "正在输入");
+  assert.equal(harness.ids.get("task-due").value, "2030-01-01T12:30");
+  assert.equal(harness.ids.get("task-timezone").value, "Asia/Tokyo");
+  console.log("ok - polling preserves unsubmitted task answers and schedule edits");
+}
+
+async function testTruncatedAnswerKeepsItsVisibleStatus() {
+  const harness = await loadHarness();
+  harness.setChatEvents([{type: "delta", text: "partial"}, {type: "done", data: {stopped: "length"}}]);
+  evaluate(harness.context, `
+    state.sessionId = "s1";
+    refresh = async () => ({});
+    openSession = async () => {};
+  `);
+  await evaluate(harness.context, "send('answer fully')");
+  assert.match(harness.ids.get("status").textContent, /未完整结束.*length/);
+  console.log("ok - truncated model output keeps a visible incomplete status");
+}
+
 async function main() {
   await testHistoricalUserImagesRender();
   await testNodeForHandlesAnImageOnlyMessage();
@@ -415,6 +522,11 @@ async function main() {
   await testComposerWaitsUntilImageReadsFinish();
   await testPickedFileBecomesAnImageInTheRequest();
   await testToolResultArgumentsReachTheStep();
+  await testChatComposerWithTasksLoaded();
+  await testTaskPollingSurvivesHiddenPageAndErrors();
+  await testStaleTaskResponseCannotReplaceSession();
+  await testTaskRefreshPreservesUnsubmittedInputs();
+  await testTruncatedAnswerKeepsItsVisibleStatus();
   console.log("frontend behaviour: all checks passed");
 }
 

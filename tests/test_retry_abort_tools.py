@@ -113,7 +113,6 @@ def test_agent_stop_sets_the_flag():
 
 
 def test_todo_writes_and_summarises():
-    from nexus.tools import todo
 
     registry, context = build({}, config={})
     result = registry.execute(

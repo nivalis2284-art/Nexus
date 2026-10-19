@@ -6,7 +6,7 @@ import json
 import threading
 from typing import Any
 
-from ..task import Evidence, Step, TaskConflict, TaskStore, TaskValidationError, now_iso
+from ..task import Evidence, Step, TaskConflict, TaskStore, TaskValidationError
 from ..tools.registry import PreparedCall
 
 
@@ -25,6 +25,7 @@ class TaskCallbacks:
         self._operations: dict[str, str] = {}
         self._finished = False
         self.waiting: dict[str, Any] | None = None
+        self._failure_streak: tuple[tuple[str, str], int, bool] | None = None
 
     # --- task work -------------------------------------------------------
 
@@ -82,6 +83,9 @@ class TaskCallbacks:
                 self.task_id, expected_version=task.progress_version,
                 changes={"decisions": current[-100:]},
             )
+            recent = self._failure_streak
+            if recent is not None and raw.get("new_information"):
+                self._failure_streak = (recent[0], recent[1], True)
             return {"attempt_count": len(self._attempts)}
 
     def finish(self, raw: dict[str, Any]) -> dict[str, Any]:
@@ -123,7 +127,8 @@ class TaskCallbacks:
 
     def resolve_operation(self, raw: dict[str, Any]) -> dict[str, Any]:
         self.store.resolve_operation(
-            raw["operation_id"], conclusion=raw["conclusion"], observation=raw["observation"]
+            raw["operation_id"], conclusion=raw["conclusion"],
+            observation=raw["observation"], task_id=self.task_id,
         )
         return {"operation_id": raw["operation_id"], "conclusion": raw["conclusion"]}
 
@@ -169,28 +174,6 @@ class TaskCallbacks:
         self._operations[str(context._task_tool_call_id)] = operation_id
         return operation_id
 
-    def prepare_batch(self, calls: list[dict[str, Any]]) -> None:
-        """Persist all calls in an assistant batch before running the first."""
-        if not calls:
-            return
-        self._batch_operations = self.store.operation_begin_for_batch(
-            run_id=self.run_id, calls=calls,
-        )
-        self._batch_calls = [str(call.get("id") or "") for call in calls]
-
-    def dispatch_claimed(self, tool_call_id: str) -> None:
-        calls = getattr(self, "_batch_calls", [])
-        operations = getattr(self, "_batch_operations", [])
-        if tool_call_id not in calls:
-            raise TaskConflict("tool call does not belong to the prepared batch")
-        index = calls.index(tool_call_id)
-        self.store.mark_operation_dispatched(operations[index])
-        self._operations[tool_call_id] = operations[index]
-
-    def before_call(self, call: dict[str, Any]) -> None:
-        """Carry the provider call identity into the worker thread."""
-        self._current_call_id = str(call.get("id") or "")
-
     def after_dispatch(self, tool_call_id: str, outcome: Any) -> None:
         operation_id = self._operations.get(tool_call_id)
         if operation_id is None:
@@ -230,31 +213,26 @@ class TaskCallbacks:
             pass
 
     def pending_answer(self, interaction_id: str, answer: Any) -> None:
-        """Record the user's decision only for the still-current task version."""
+        """Record a decision only for one of this task's pending interactions."""
+        interaction = self.store.interaction(interaction_id)
+        if interaction["task_id"] != self.task_id:
+            raise TaskConflict("interaction belongs to another task")
+        if interaction["kind"] not in ("approval", "question"):
+            raise TaskConflict("interaction cannot answer a task action")
         task = self.store.get(self.task_id)
         self.store.interaction_answer(
             interaction_id, answer=answer, expected_version=task.control_version
         )
 
-    def save_message(self, message: dict[str, Any]) -> None:
-        # Messages are committed as one coherent batch at a run boundary. A
-        # partial assistant/tool pair must not become the next run's input.
-        return
-
-    def save_run_messages(self, messages: list[dict[str, Any]]) -> None:
-        self.store.save_run_messages(self.task_id, messages)
-
-    def tool_message(
-        self, tool_call_id: str, name: str, arguments: dict[str, Any],
-        content: str, ok: bool, error: str = "", data: dict[str, Any] | None = None,
-    ) -> None:
-        self.after_dispatch(tool_call_id, type("Outcome", (), {
-            "ok": ok, "content": content, "data": data or {}
-        })())
+    def save_run_messages(self, messages: list[dict[str, Any]], *,
+                          incomplete: bool = False) -> None:
+        self.store.save_run_messages(
+            self.task_id, messages, incomplete=incomplete
+        )
 
     def prepare_dispatch(self, tool_call_id: str, prepared: Any, context: Any) -> None:
         """Persist intent immediately before the side effect enters a worker."""
-        context._task_tool_call_id = tool_call_id or getattr(self, "_current_call_id", "")
+        context._task_tool_call_id = tool_call_id
         self.before_dispatch(prepared, context)
 
     def context_text(self) -> str:

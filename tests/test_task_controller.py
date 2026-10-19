@@ -5,8 +5,10 @@ from __future__ import annotations
 import threading
 import time
 
+import pytest
+
 from nexus.runtime import TaskController
-from nexus.task import TaskStore
+from nexus.task import TaskConflict, TaskStore
 
 
 def make(tmp_path, run):
@@ -80,7 +82,7 @@ def test_pause_stops_worker_before_marking_paused(tmp_path):
     finished = threading.Event()
     def run(item, cancel):
         entered.set()
-        stop = cancel.wait(3)
+        cancel.wait(3)
         stopped.set()
         time.sleep(0.1)
         finished.set()
@@ -128,4 +130,51 @@ def test_runner_failure_is_visible_and_task_is_not_silently_completed(tmp_path):
         assert any("provider unavailable" in message["text"] for message in messages)
         assert store.get(item.id).state != "completed"
     finally:
+        controller.close()
+
+
+def test_rejected_cancel_does_not_stop_an_active_task(tmp_path):
+    entered = threading.Event()
+    release = threading.Event()
+    def run(item, cancel):
+        entered.set()
+        release.wait(3)
+        return "paused"
+    store, controller = make(tmp_path, run)
+    try:
+        item = task(store, "reject cancel")
+        controller.submit(item.id, request_id="cancel-start")
+        assert entered.wait(3)
+        with pytest.raises(TaskConflict):
+            controller.cancel(item.id, request_id="stale-cancel", expected_version=0)
+        time.sleep(0.1)
+        assert controller.active_task == item.id
+        assert store.get(item.id).state == "running"
+        release.set()
+        assert wait_state(store, item.id, {"paused"}) == "paused"
+    finally:
+        release.set()
+        controller.close()
+
+
+def test_rejected_pause_keeps_a_queued_task(tmp_path):
+    entered = threading.Event()
+    release = threading.Event()
+    def run(item, cancel):
+        entered.set()
+        release.wait(3)
+        return "paused"
+    store, controller = make(tmp_path, run)
+    try:
+        first, queued = task(store, "active"), task(store, "queued")
+        controller.submit(first.id, request_id="first-start")
+        controller.submit(queued.id, request_id="queued-start")
+        assert entered.wait(3)
+        with pytest.raises(TaskConflict):
+            controller.pause(queued.id, request_id="stale-pause", expected_version=0)
+        assert queued.id in controller.queued_ids()
+        assert store.get(queued.id).state == "queued"
+        release.set()
+    finally:
+        release.set()
         controller.close()

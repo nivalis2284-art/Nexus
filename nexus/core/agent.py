@@ -30,6 +30,11 @@ from ..model import (
 from ..tools import Registry, ToolContext
 from ..tools.registry import TaskSuspension, ToolResult
 
+# Provider-specific values that mean the model finished the requested turn.
+# The call variants are only normal when the parser actually produced calls.
+_CALL_FINISH_REASONS = frozenset({"tool_calls", "tool_use", "function_call"})
+_NORMAL_FINISH_REASONS = frozenset({"stop", "end_turn", "stop_sequence", "completed"})
+
 
 @dataclass
 class ApprovalRequest:
@@ -58,6 +63,7 @@ class RunResult:
     tool_calls: int = 0
     usage: dict[str, Any] = field(default_factory=dict)
     stopped: str = ""
+    finish_reason: str = ""
 
 
 class AgentSuspended(Exception):
@@ -367,6 +373,11 @@ class Agent:
                 text_parts: list[str] = []
                 thinking_parts: list[str] = []
                 calls: list[dict[str, Any]] = []
+                finish_reason = ""
+                # Usage belongs to one response. A tool step followed by a
+                # provider that reports no usage must not inherit the previous
+                # step's counts.
+                result.usage = {}
                 produced = False
                 attempt = 0
                 while True:
@@ -396,6 +407,8 @@ class Agent:
                             )
                         elif event.type == "usage" and event.usage:
                             result.usage = _usage(event.usage)
+                        elif event.type == "complete":
+                            finish_reason = event.finish_reason or ""
                         elif event.type == "error":
                             failure = event.error or ModelError("provider_error", "")
                             if event.error:
@@ -441,6 +454,9 @@ class Agent:
                     text_parts.clear()
                     thinking_parts.clear()
                     calls.clear()
+                    # A failed attempt's usage is not the successful response's
+                    # usage. Keep the retried answer internally consistent.
+                    result.usage = {}
                     deadline = time.monotonic() + delay
                     while not self.stopped and time.monotonic() < deadline:
                         await asyncio.sleep(min(0.1, max(0, deadline - time.monotonic())))
@@ -450,6 +466,7 @@ class Agent:
                 thinking = "".join(thinking_parts)
                 result.text = text
                 result.thinking = thinking
+                result.finish_reason = finish_reason
                 result.steps = step
                 if not calls:
                     self._record(messages,
@@ -457,9 +474,14 @@ class Agent:
                          "thinking": thinking or None,
                          "usage": result.usage or None}
                     )
-                    result.stopped = "cancelled" if self.stopped else "complete"
+                    result.stopped = (
+                        "cancelled"
+                        if self.stopped
+                        else _finish_status(finish_reason, has_calls=False)
+                    )
                     yield RunEvent("done", data={"usage": result.usage, "steps": step,
-                                                 "stopped": result.stopped})
+                                                 "stopped": result.stopped,
+                                                 "finish_reason": finish_reason or None})
                     return
                 self._record(messages,
                     {"role": "assistant", "content": text, "tool_calls": calls,
@@ -517,7 +539,8 @@ class Agent:
                     )
             result.stopped = result.stopped or "max_steps"
             yield RunEvent("done", data={"usage": result.usage, "steps": result.steps,
-                                         "stopped": result.stopped})
+                                         "stopped": result.stopped,
+                                         "finish_reason": result.finish_reason or None})
 
     async def _invoke(self, call: dict[str, Any], *, yield_event: Any) -> ToolResult:
         name = call["name"]
@@ -594,3 +617,19 @@ def _usage(usage: Any) -> dict[str, Any]:
         )
         if getattr(usage, key, None) is not None
     }
+
+
+def _finish_status(finish_reason: str, *, has_calls: bool) -> str:
+    """Translate a provider terminal reason into the run's stop status.
+
+    A normal terminal reason is still ``complete``. Output limits, filtering,
+    and a call reason with no parsed calls are real reasons the turn did not
+    complete normally, and callers must be able to distinguish them.
+    """
+    if not finish_reason:
+        return "complete"
+    if finish_reason in _CALL_FINISH_REASONS:
+        return "complete" if has_calls else finish_reason
+    if finish_reason in _NORMAL_FINISH_REASONS:
+        return "complete"
+    return finish_reason

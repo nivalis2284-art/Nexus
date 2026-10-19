@@ -134,6 +134,7 @@ class TaskController:
         # before the runner picks them up so a concurrent start is idempotent.
         current = self.store.get(task.id)
         if current.state not in ("queued", "pending"):
+            self.store.end_run(run_id, status="superseded")
             return
         if self.run is None:
             raise TaskRunnerUnavailable("no task runner is configured")
@@ -147,6 +148,7 @@ class TaskController:
                 self.store.command(
                     task.id, "paused", request_id=f"stop-{task.id}-{int(time.time_ns())}"
                 )
+            self.store.end_run(run_id, status="suspended")
             return
         if isinstance(result, str):
             result = RunFnResult(status=result)
@@ -180,11 +182,7 @@ class TaskController:
                 self.store.command(
                     task.id, "paused", request_id=f"stalled-{task.id}-{int(time.time_ns())}"
                 )
-        # A waiting_user result is already closed by the model runner's own
-        # durable run record. Closing it again with the generic status would
-        # hide why the task yielded.
-        if result.status != "waiting_user":
-            self.store.end_run(run_id, status=result.status)
+        self.store.end_run(run_id, status=result.status)
 
     def _record_failure(self, task_id: str, error: BaseException) -> None:
         try:
@@ -239,9 +237,6 @@ class TaskController:
         current = self.store.get(task_id)
         with self._lock:
             is_active = task_id == self._active
-            was_queued = task_id in self._queue
-            if was_queued:
-                self._queue.remove(task_id)
         if is_active and current.state == "running":
             task = self.store.command(task_id, "pausing", request_id=request_id, expected_version=expected_version)
             with self._lock:
@@ -251,18 +246,23 @@ class TaskController:
             self._wait_inactive(task_id)
             self.stop_task_resources(task_id)
             return task
+        task = self.store.command(task_id, "paused", request_id=request_id, expected_version=expected_version)
+        with self._lock:
+            if task_id in self._queue:
+                self._queue.remove(task_id)
         self.stop_task_resources(task_id)
-        return self.store.command(task_id, "paused", request_id=request_id, expected_version=expected_version)
+        return task
 
     def cancel(self, task_id: str, *, request_id: str, expected_version: int | None = None) -> Task:
-        current = self.store.get(task_id)
+        self.store.command(
+            task_id, "cancelled", request_id=request_id, expected_version=expected_version
+        )
         with self._lock:
             if task_id in self._queue:
                 self._queue.remove(task_id)
             event = self._cancel_events.get(task_id)
             if task_id == self._active and event is not None:
                 event.set()
-        task = self.store.command(task_id, "cancelled", request_id=request_id, expected_version=expected_version)
         if task_id == self._active:
             self._wait_inactive(task_id)
             self.stop_task_resources(task_id)
@@ -292,6 +292,11 @@ class TaskController:
         return self.store.command(task_id, "unarchive", request_id=request_id, expected_version=expected_version)
 
     def answer(self, task_id: str, interaction_id: str, *, answer: Any, expected_version: int) -> Task:
+        interaction = self.store.interaction(interaction_id)
+        if interaction["task_id"] != task_id:
+            raise TaskConflict("interaction belongs to another task")
+        if interaction["kind"] not in ("approval", "question"):
+            raise TaskConflict("interaction cannot answer a task action")
         self.store.interaction_answer(interaction_id, answer=answer, expected_version=expected_version)
         task = self.store.get(task_id)
         # A decision releases only its own task. Resume becomes an explicit

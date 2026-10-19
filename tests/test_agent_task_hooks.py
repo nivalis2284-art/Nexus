@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
-
 from nexus.core.agent import Agent, AgentSuspended
 from nexus.core.permission import default_policy
 from nexus.core.workspace import inspect

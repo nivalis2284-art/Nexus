@@ -26,10 +26,10 @@
 
 上一轮明确对应且已过时的当前需求/研究入口，已保留到：
 
-- [系统优化 PRD 归档](参考/2026-10-19-系统优化/PRD.md)
-- [系统优化开发前研究归档](参考/2026-10-19-系统优化/RESEARCH.md)
+- [系统优化 PRD 归档](../2026-10-19-系统优化/PRD.md)
+- [系统优化开发前研究归档](../2026-10-19-系统优化/RESEARCH.md)
 
-归档研究只调整移动后需要修正的链接并注明归档，原调查结论不作事后改写。[PROGRESS.md](PROGRESS.md) 仍记录上一轮优化交付，仅修正历史需求链接；[BUSINESS-MAP.html](BUSINESS-MAP.html) 和 [EXECUTION-RESEARCH.md](EXECUTION-RESEARCH.md) 保留为既有成果/背景。README 导航改为指向当前文档含义。
+归档研究只调整移动后需要修正的链接并注明归档，原调查结论不作事后改写。[PROGRESS.md](PROGRESS.md) 仍记录上一轮优化交付，仅修正历史需求链接；[BUSINESS-MAP.html](../../BUSINESS-MAP.html) 和 [EXECUTION-RESEARCH.md](EXECUTION-RESEARCH.md) 保留为既有成果/背景。README 导航改为指向当前文档含义。
 
 ### 1.3 本会话已经确认的产品边界
 
@@ -73,18 +73,18 @@
 
 | PRD 结果 | 可复用基础 | 实际差距与位置 |
 |---|---|---|
-| 提前创建任务、多个任务独立保留 | JSONL 会话有独立 ID，可创建空会话 | [SessionStore](../nexus/session/store.py) 只有会话/消息，没有目标、任务状态、安排和工作上下文；空会话不是待执行任务 |
-| 进度与证据参与后续执行 | [Agent.run](../nexus/core/agent.py) 回灌工具结果；[todo.write](../nexus/tools/todo.py) 可写步骤列表 | [ToolContext](../nexus/tools/__init__.py) 每次 build 的 todos 为空，网页每轮重建；没有权威任务进度或其恢复。完成/验证仍由对话解释 |
+| 提前创建任务、多个任务独立保留 | JSONL 会话有独立 ID，可创建空会话 | [SessionStore](../../../nexus/session/store.py) 只有会话/消息，没有目标、任务状态、安排和工作上下文；空会话不是待执行任务 |
+| 进度与证据参与后续执行 | [Agent.run](../../../nexus/core/agent.py) 回灌工具结果；[todo.write](../../../nexus/tools/todo.py) 可写步骤列表 | [ToolContext](../../../nexus/tools/__init__.py) 每次 build 的 todos 为空，网页每轮重建；没有权威任务进度或其恢复。完成/验证仍由对话解释 |
 | 可信完成状态 | 工具 `ok/error`、每轮结束原因、测试工具都可用 | 无 tool call 就返回 `complete`；子代理 `max_steps` 仍可能映射为工具 ok。它们都不是任务整体完成的证明 |
-| 失败止损 | [retry](../nexus/core/retry.py) 有请求级有限退避；提示规则要求失败后调整 | 没有任务内的尝试原因、相关前提、排除路线或持久停滞判定。接口错误与任务策略错误不能直接共用重试计数 |
-| 挂起/继续 | 停止 Event、前台命令取消、子代理共享取消已有集成覆盖 | [server._abort](../nexus/web/server.py) 只影响当前 run，无挂起对象；不是按目标任务 ID 控制，也没有恢复按钮/自然语言状态命令 |
+| 失败止损 | [retry](../../../nexus/core/retry.py) 有请求级有限退避；提示规则要求失败后调整 | 没有任务内的尝试原因、相关前提、排除路线或持久停滞判定。接口错误与任务策略错误不能直接共用重试计数 |
+| 挂起/继续 | 停止 Event、前台命令取消、子代理共享取消已有集成覆盖 | [server._abort](../../../nexus/web/server.py) 只影响当前 run，无挂起对象；不是按目标任务 ID 控制，也没有恢复按钮/自然语言状态命令 |
 | 关闭网页仍可定时执行 | 服务是独立 Python 进程，HTTP 服务本身可无浏览器运行 | `_run_turn` 的 emit 直接写请求连接；断连停止 Agent。当前不是可后台驱动并可重新订阅的任务运行器 |
-| 跨重启直接继续 | JSONL 原始历史保留；[compaction](../nexus/core/compaction.py) 已有结构化摘要与工具配对 | 摘要仅在当前 run 使用，未保存为可复用任务 checkpoint；重开仍从历史组装，没有明确下一步/未知操作清单 |
+| 跨重启直接继续 | JSONL 原始历史保留；[compaction](../../../nexus/core/compaction.py) 已有结构化摘要与工具配对 | 摘要仅在当前 run 使用，未保存为可复用任务 checkpoint；重开仍从历史组装，没有明确下一步/未知操作清单 |
 | 意外中断后核查副作用 | 文件工具的 hash、调用 ID、结构化错误和取消检查可复用 | 本轮记录直到 `_run_turn` 的 finally 才落盘；`close_pending_calls` 用 interrupted 修复协议配对，没有可靠的已派发/未派发业务状态区分 |
 | 持久人工等待 | Approvals 有令牌与唤醒、权限规则已有实现 | 等待是进程内 Event，最长 600 秒，回答/断连/停止后清除；不能持久保存待审批动作或跨重启回答 |
 | 按任务正确环境恢复 | Workspace、Skill、MCP 配置已有 | 工作目录、模型选择、活动 MCP 连接主要是全局配置；恢复 A 不能误用用户正在浏览 B 时的全局目录/模型 |
-| 自然语言控制，运行中可挂起 | ask_user、聊天框和现有 HTTP 控制端点 | [app.js::send](../nexus/web/app.js) 在 `state.running` 时直接返回；把生命周期操作只做成普通模型工具，无法覆盖运行中自然语言停止 |
-| 挂起停止任务后台命令 | [JobRegistry](../nexus/tools/_jobs.py) 已能清理进程树并保留运行期输出 | 当前注册表按会话保留；普通 Agent 停止不会杀后台 job；`close_all` 关闭后不能再接收任务，恢复需新活动资源与旧输出记录分开 |
+| 自然语言控制，运行中可挂起 | ask_user、聊天框和现有 HTTP 控制端点 | [app.js::send](../../../nexus/web/app.js) 在 `state.running` 时直接返回；把生命周期操作只做成普通模型工具，无法覆盖运行中自然语言停止 |
+| 挂起停止任务后台命令 | [JobRegistry](../../../nexus/tools/_jobs.py) 已能清理进程树并保留运行期输出 | 当前注册表按会话保留；普通 Agent 停止不会杀后台 job；`close_all` 关闭后不能再接收任务，恢复需新活动资源与旧输出记录分开 |
 | 一次性安排及修改/取消 | 标准库有时钟、线程和 SQLite，无新外部服务必要 | 当前无调度器/安排存储。手动、定时和取消之间需要一致派发，不能各自启动一份 Agent |
 
 ### 2.3 本轮验证
@@ -383,14 +383,14 @@ OpenCode 官方 `doom_loop` 以相同输入重复三次作为权限信号，适�
 
 | 文件/入口 | 本轮使用的事实 |
 |---|---|
-| [web/server.py](../nexus/web/server.py)：`_chat`、`_run_turn`、`_abort`、`Approvals`、`serve` | 请求拥有运行、全局单运行、内存人工等待、finally 保存、关闭清理 |
-| [web/app.js](../nexus/web/app.js)：`send`、`abortRun` | 运行中普通发送被阻止；已有停止入口可复用 |
-| [core/agent.py](../nexus/core/agent.py)：`run`、`_invoke`、`close_pending_calls`、`_fold` | 循环结束/工具状态、权限与停止边界、协议配对与摘要 |
-| [tools/__init__.py](../nexus/tools/__init__.py)、[tools/todo.py](../nexus/tools/todo.py)、[tools/registry.py](../nexus/tools/registry.py) | 每 run 上下文、todo 替换、ToolResult 数据 |
-| [session/store.py](../nexus/session/store.py) | 现有 JSONL、写锁、fsync 和读取兼容 |
-| [core/config.py](../nexus/core/config.py)、[skills.py](../nexus/skills.py)、[mcp.py](../nexus/mcp.py) | 当前全局配置、每轮 Skill、MCP cwd/同步请求等待 |
-| [tools/_jobs.py](../nexus/tools/_jobs.py)、[tools/jobs.py](../nexus/tools/jobs.py)、[tools/_process.py](../nexus/tools/_process.py) | 进程树清理、输出/cursor、前台取消及后台资源边界 |
-| [core/permission.py](../nexus/core/permission.py) | 当前有序 allow/ask/deny 与 run 内 remembered；定时不得旁路 |
+| [web/server.py](../../../nexus/web/server.py)：`_chat`、`_run_turn`、`_abort`、`Approvals`、`serve` | 请求拥有运行、全局单运行、内存人工等待、finally 保存、关闭清理 |
+| [web/app.js](../../../nexus/web/app.js)：`send`、`abortRun` | 运行中普通发送被阻止；已有停止入口可复用 |
+| [core/agent.py](../../../nexus/core/agent.py)：`run`、`_invoke`、`close_pending_calls`、`_fold` | 循环结束/工具状态、权限与停止边界、协议配对与摘要 |
+| [tools/__init__.py](../../../nexus/tools/__init__.py)、[tools/todo.py](../../../nexus/tools/todo.py)、[tools/registry.py](../../../nexus/tools/registry.py) | 每 run 上下文、todo 替换、ToolResult 数据 |
+| [session/store.py](../../../nexus/session/store.py) | 现有 JSONL、写锁、fsync 和读取兼容 |
+| [core/config.py](../../../nexus/core/config.py)、[skills.py](../../../nexus/skills.py)、[mcp.py](../../../nexus/mcp.py) | 当前全局配置、每轮 Skill、MCP cwd/同步请求等待 |
+| [tools/_jobs.py](../../../nexus/tools/_jobs.py)、[tools/jobs.py](../../../nexus/tools/jobs.py)、[tools/_process.py](../../../nexus/tools/_process.py) | 进程树清理、输出/cursor、前台取消及后台资源边界 |
+| [core/permission.py](../../../nexus/core/permission.py) | 当前有序 allow/ask/deny 与 run 内 remembered；定时不得旁路 |
 
 本机 DSH 阅读路径：`C:/Users/Nivalis/AppData/Local/Programs/DSH Desktop/resources/app/node_modules/@deepseek-ai/` 下两个包的 `lib/index.js`，版本均 `0.2.0-rc.2`。本轮重读关键边界，具体部署哈希与 OpenCode 原有源码快照记录见 [EXECUTION-RESEARCH.md 第 13 节](EXECUTION-RESEARCH.md#13-证据位置版本与复核)；未读取二进制内部实现或改动参考项目。
 

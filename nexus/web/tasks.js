@@ -6,7 +6,6 @@
 const taskView = {
   tasks: [],
   current: null,
-  eventSeq: 0,
   timer: null,
 };
 
@@ -54,7 +53,13 @@ function renderTasks() {
 }
 
 async function openTask(id) {
+  const viewVersion = state.viewVersion = (state.viewVersion || 0) + 1;
+  if (taskView.timer) clearTimeout(taskView.timer);
+  taskView.timer = null;
   const value = await api("/api/tasks/" + encodeURIComponent(id));
+  if (viewVersion !== state.viewVersion) return;
+  const previous = taskView.current;
+  const sameTask = previous && previous.id === value.id;
   taskView.current = value;
   $("task-panel").hidden = false;
   $("task-title").textContent = value.title || "未命名任务";
@@ -73,10 +78,14 @@ async function openTask(id) {
   }
   $("task-summary").textContent = description.join("\n");
   renderTaskSteps(value.steps || []);
-  renderTaskInteractions(value.pending_interactions || []);
-  $("task-due").value = value.schedule ? localInput(value.schedule.due_at) : "";
-  $("task-timezone").value = value.schedule ? value.schedule.timezone : Intl.DateTimeFormat().resolvedOptions().timeZone;
-  $("task-mode").value = value.schedule ? value.schedule.mode : "confirm";
+  if (!sameTask || JSON.stringify(previous.pending_interactions) !== JSON.stringify(value.pending_interactions)) {
+    renderTaskInteractions(value.pending_interactions || []);
+  }
+  if (!sameTask || JSON.stringify(previous.schedule) !== JSON.stringify(value.schedule)) {
+    $("task-due").value = value.schedule ? localInput(value.schedule.due_at) : "";
+    $("task-timezone").value = value.schedule ? value.schedule.timezone : Intl.DateTimeFormat().resolvedOptions().timeZone;
+    $("task-mode").value = value.schedule ? value.schedule.mode : "confirm";
+  }
   $("title").textContent = value.title || "任务";
   state.sessionId = null;
   state.items = (value.messages || []).map((message) => ({
@@ -89,8 +98,8 @@ async function openTask(id) {
     thinking: message.thinking,
   }));
   renderTranscript();
-  await refreshTasks();
   armTaskPolling();
+  await refreshTasks();
 }
 
 async function sendTaskMessage(text) {
@@ -283,12 +292,14 @@ function armTaskPolling() {
   if (taskView.timer) clearTimeout(taskView.timer);
   taskView.timer = setTimeout(async () => {
     taskView.timer = null;
-    if (taskView.current && !document.hidden) {
-      try {
+    try {
+      if (taskView.current && !document.hidden) {
         await openTask(taskView.current.id);
-      } catch (error) {
-        setStatus(error.message, true);
       }
+    } catch (error) {
+      setStatus(error.message, true);
+    } finally {
+      if (taskView.current && !taskView.timer) armTaskPolling();
     }
   }, 1500);
 }

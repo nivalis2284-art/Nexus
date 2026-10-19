@@ -279,51 +279,66 @@ class TaskStore:
             text="任务已保存；继续时以当前目标、步骤、证据和阻塞为工作上下文。",
         )
 
-    def update_task(self, task_id: str, *, expected_version: int, changes: dict[str, Any]) -> Task:
-        """User-authorized target, binding, and lifecycle edits."""
+    @staticmethod
+    def _validated_task_changes(changes: dict[str, Any]) -> dict[str, Any]:
+        """Validate user-editable task fields before opening a write transaction."""
         allowed = {"title", "goal", "constraints", "effective_goal", "workspace",
                    "provider_id", "model_id", "effort"}
         unknown = set(changes) - allowed
         if unknown:
             raise TaskValidationError(f"unknown task fields: {', '.join(sorted(unknown))}")
+        values: dict[str, Any] = {}
+        for key, value in changes.items():
+            if key == "effort" and value is None:
+                values[key] = None
+            elif not isinstance(value, str):
+                raise TaskValidationError(f"{key} must be a string")
+            elif key in ("title", "goal", "effective_goal", "workspace", "provider_id", "model_id") and not value.strip():
+                raise TaskValidationError(f"{key} cannot be empty")
+            elif len(value) > 20_000:
+                raise TaskValidationError(f"{key} is too long")
+            else:
+                values[key] = value.strip()
+        if "goal" in values and "effective_goal" not in values:
+            values["effective_goal"] = values["goal"]
+        return values
+
+    def update_task(self, task_id: str, *, expected_version: int,
+                    changes: dict[str, Any], steps: list[dict[str, Any]] | None = None) -> Task:
+        """Apply user target/binding changes and optional steps in one transaction."""
+        values = self._validated_task_changes(changes)
+        serialized_steps: list[dict[str, Any]] | None = None
+        if steps is not None:
+            if not isinstance(steps, list) or len(steps) > 100:
+                raise TaskValidationError("steps must be a list of up to 100 items")
+            serialized_steps = [Step.from_dict(item).to_dict() for item in steps]
         with self._lock, self._transaction() as connection:
             row = self._row(connection, task_id)
             if row["control_version"] != expected_version:
                 raise TaskConflict("task configuration changed; reload before editing")
-            values = {}
-            for key, value in changes.items():
-                if key in ("effort",) and value is None:
-                    values[key] = None
-                elif not isinstance(value, str):
-                    raise TaskValidationError(f"{key} must be a string")
-                elif key in ("title", "goal", "effective_goal", "workspace", "provider_id", "model_id") and not value.strip():
-                    raise TaskValidationError(f"{key} cannot be empty")
-                elif len(value) > 20_000:
-                    raise TaskValidationError(f"{key} is too long")
-                else:
-                    values[key] = value.strip()
-            if "goal" in values and "effective_goal" not in values:
-                values["effective_goal"] = values["goal"]
-            if not values:
-                return task_from_row(row)
-            values["control_version"] = expected_version + 1
-            values["updated_at"] = now_iso()
-            assignments = ", ".join(f"{key}=?" for key in values)
-            connection.execute(f"UPDATE tasks SET {assignments} WHERE id=?", (*values.values(), task_id))
-            # A target/scope or model change is not permission to use an old
-            # automatic time for a different job.
-            if set(values) & {"goal", "constraints", "effective_goal", "workspace", "provider_id", "model_id", "effort"}:
-                connection.execute("DELETE FROM schedules WHERE task_id=?", (task_id,))
-            self._event(connection, task_id, "task.user_edit", {"version": expected_version + 1})
+            if values:
+                touched_schedule = set(values) & {
+                    "goal", "constraints", "effective_goal", "workspace",
+                    "provider_id", "model_id", "effort",
+                }
+                values["control_version"] = expected_version + 1
+                values["updated_at"] = now_iso()
+                assignments = ", ".join(f"{key}=?" for key in values)
+                connection.execute(f"UPDATE tasks SET {assignments} WHERE id=?",
+                                   (*values.values(), task_id))
+                if touched_schedule:
+                    connection.execute("DELETE FROM schedules WHERE task_id=?", (task_id,))
+                self._event(connection, task_id, "task.user_edit",
+                            {"version": expected_version + 1})
+            if serialized_steps is not None:
+                connection.execute(
+                    "UPDATE tasks SET steps_json=?,progress_version=progress_version+1,"
+                    "updated_at=? WHERE id=?",
+                    (json.dumps(serialized_steps, ensure_ascii=False), now_iso(), task_id),
+                )
+                self._event(connection, task_id, "task.progress",
+                            {"version": row["progress_version"] + 1})
             return task_from_row(self._row(connection, task_id))
-
-    def remove_task_artifact(self, task_id: str) -> None:
-        """Delete a legacy task-session projection after an explicit deletion."""
-        with self._lock, self._transaction() as connection:
-            self._row(connection, task_id)
-            connection.execute(
-                "DELETE FROM task_messages WHERE task_id=?", (task_id,)
-            )
 
     def command(self, task_id: str, operation: str, *, request_id: str, expected_version: int | None = None) -> Task:
         if operation not in ACTIVITY_STATES and operation not in ("reopen", "archive", "unarchive", "confirm_wait"):
@@ -346,7 +361,7 @@ class TaskStore:
             if operation in ("running", "queued"):
                 if state == "cancelled":
                     raise TaskConflict("re-enable the task before starting it")
-                if state in ("completed", "running"):
+                if state in ("completed", "running", "pausing"):
                     raise TaskConflict(f"cannot start a {state} task")
                 target = operation
                 wait_reason = ""
@@ -367,9 +382,13 @@ class TaskStore:
                 target = "waiting_user"
                 wait_reason = "定时安排已到期，等待用户确认开始"
             elif operation == "waiting_user":
-                if state not in ("running", "pausing"):
-                    raise TaskConflict("only a running task can wait for the user")
+                if state not in ("running", "pausing", "queued"):
+                    raise TaskConflict("only an active task can wait for the user")
                 target = "waiting_user"
+                # A decision belongs to the state in which it was requested.
+                # Waiting itself advances control_version, so update the still-
+                # pending decisions in the same transaction; earlier decisions
+                # remain tied to their old version and cannot authorize this run.
             elif operation == "completed":
                 if state == "cancelled":
                     raise TaskConflict("cancelled tasks are not completed")
@@ -396,6 +415,12 @@ class TaskStore:
                 "UPDATE tasks SET state=?,wait_reason=?,archived=?,control_version=?,updated_at=? WHERE id=?",
                 (target, wait_reason, int(archived), control_version, now_iso(), task_id),
             )
+            if operation == "waiting_user":
+                connection.execute(
+                    "UPDATE interactions SET control_version=? WHERE task_id=? "
+                    "AND status='pending' AND control_version=?",
+                    (control_version, task_id, row["control_version"]),
+                )
             result = {"task_id": task_id, "state": target}
             self._remember_command(connection, request_id, task_id, operation, result)
             self._event(connection, task_id, "task.control", {"operation": operation, "state": target})
@@ -550,39 +575,6 @@ class TaskStore:
             self._event(connection, run["task_id"], "operation.dispatching", {"id": operation_id})
             return operation_id
 
-    def operation_begin_for_batch(
-        self, *, run_id: str, calls: list[dict[str, Any]], effects: dict[str, Any] | None = None,
-    ) -> list[str]:
-        """Record only calls that follow an agreed assistant batch before any runs."""
-        ids: list[str] = []
-        with self._lock, self._transaction() as connection:
-            run = connection.execute("SELECT task_id FROM runs WHERE id=?", (run_id,)).fetchone()
-            if run is None:
-                raise TaskNotFound(f"run {run_id} not found")
-            for call in calls:
-                operation_id = "op_" + uuid.uuid4().hex[:16]
-                stamp = now_iso()
-                connection.execute(
-                    """INSERT INTO operations(id,run_id,task_id,tool_call_id,tool_name,
-                    arguments_json,status,effect_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)""",
-                    (operation_id, run_id, run["task_id"], str(call.get("id") or ""),
-                     str(call.get("name") or ""),
-                     json.dumps(call.get("arguments") or {}, ensure_ascii=False),
-                     "prepared", json.dumps((effects or {}).get(str(call.get("id")), {}),
-                                           ensure_ascii=False), stamp, stamp),
-                )
-                ids.append(operation_id)
-            self._event(connection, run["task_id"], "operations.prepared", {"count": len(ids)})
-        return ids
-
-    def mark_operation_dispatched(self, operation_id: str) -> None:
-        with self._lock, self._transaction() as connection:
-            row = connection.execute("SELECT task_id FROM operations WHERE id=?", (operation_id,)).fetchone()
-            if row is not None:
-                connection.execute("UPDATE operations SET status='dispatching',updated_at=? WHERE id=?",
-                                   (now_iso(), operation_id))
-                self._event(connection, row["task_id"], "operation.dispatching", {"id": operation_id})
-
     def operation_finish(self, operation_id: str, *, ok: bool, content: str, data: dict[str, Any] | None = None) -> None:
         with self._lock, self._transaction() as connection:
             row = connection.execute("SELECT task_id FROM operations WHERE id=?", (operation_id,)).fetchone()
@@ -730,6 +722,9 @@ class TaskStore:
                 raise TaskNotFound(f"interaction {interaction_id} not found")
             if row["status"] != "pending":
                 raise TaskConflict("interaction has already been answered")
+            task = self._row(connection, row["task_id"])
+            if row["control_version"] != task["control_version"]:
+                raise TaskConflict("task changed before this answer")
             if expected_version is not None and row["control_version"] != expected_version:
                 raise TaskConflict("task changed before this answer")
             connection.execute("UPDATE interactions SET status='answered',answer_json=?,updated_at=? WHERE id=?",
@@ -795,7 +790,8 @@ class TaskStore:
                 "SELECT * FROM interactions WHERE task_id=? AND status='pending' ORDER BY created_at", (task_id,)
             ).fetchall()
             return [{"id": r["id"], "kind": r["kind"], "payload": json.loads(r["payload_json"]),
-                     "operation_id": r["operation_id"], "created_at": r["created_at"]} for r in rows]
+                     "operation_id": r["operation_id"], "control_version": r["control_version"],
+                     "created_at": r["created_at"]} for r in rows]
         finally:
             connection.close()
 
@@ -808,23 +804,6 @@ class TaskStore:
             return {"id": row["id"], "task_id": row["task_id"], "run_id": row["run_id"],
                     "kind": row["kind"], "payload": json.loads(row["payload_json"]),
                     "status": row["status"], "answer": json.loads(row["answer_json"]),
-                    "operation_id": row["operation_id"]}
-        finally:
-            connection.close()
-
-    def latest_answered_interaction(self, task_id: str) -> dict[str, Any] | None:
-        connection = self._connect()
-        try:
-            self._row(connection, task_id)
-            row = connection.execute(
-                "SELECT * FROM interactions WHERE task_id=? AND status='answered' "
-                "ORDER BY updated_at DESC LIMIT 1", (task_id,)
-            ).fetchone()
-            if row is None:
-                return None
-            return {"id": row["id"], "kind": row["kind"],
-                    "payload": json.loads(row["payload_json"]),
-                    "answer": json.loads(row["answer_json"]),
                     "operation_id": row["operation_id"]}
         finally:
             connection.close()
@@ -847,7 +826,8 @@ class TaskStore:
         finally:
             connection.close()
 
-    def resolve_operation(self, operation_id: str, *, conclusion: str, observation: str) -> None:
+    def resolve_operation(self, operation_id: str, *, conclusion: str, observation: str,
+                          task_id: str | None = None) -> None:
         if conclusion not in ("succeeded", "failed", "not_applied", "unknown"):
             raise TaskValidationError("invalid operation conclusion")
         if not observation.strip():
@@ -856,6 +836,8 @@ class TaskStore:
             row = connection.execute("SELECT task_id,status FROM operations WHERE id=?", (operation_id,)).fetchone()
             if row is None:
                 raise TaskNotFound(f"operation {operation_id} not found")
+            if task_id is not None and row["task_id"] != task_id:
+                raise TaskConflict("operation belongs to another task")
             connection.execute(
                 "UPDATE operations SET status=?,updated_at=? WHERE id=?",
                 (conclusion if conclusion != "not_applied" else "failed_not_applied", now_iso(), operation_id),
@@ -894,10 +876,24 @@ class TaskStore:
             self._event(connection, task_id, "message", {"seq": sequence})
         return {"seq": sequence, "kind": kind, "text": text, **(data or {})}
 
-    def save_run_messages(self, task_id: str, messages: list[dict[str, Any]]) -> None:
+    def save_run_messages(self, task_id: str, messages: list[dict[str, Any]], *,
+                          incomplete: bool = False) -> None:
         """Persist provider-shaped messages while retaining tool-call identity."""
         with self._lock, self._transaction() as connection:
             self._row(connection, task_id)
+            if incomplete:
+                pending: dict[str, str] = {}
+                for message in messages:
+                    for call in message.get("tool_calls") or []:
+                        pending[str(call.get("id") or "")] = str(call.get("name") or "")
+                    if message.get("role") == "tool":
+                        pending.pop(str(message.get("tool_call_id") or ""), None)
+                messages = [*messages, *[
+                    {"role": "tool", "tool_call_id": call_id, "name": name,
+                     "content": "No result was recorded: operation outcome is unknown.",
+                     "ok": False, "error": "unknown", "arguments": {}}
+                    for call_id, name in pending.items()
+                ]]
             for message in messages:
                 role = message.get("role")
                 if role not in ("user", "assistant", "tool", "notice"):
@@ -910,7 +906,8 @@ class TaskStore:
                     (task_id, role, str(message.get("content") or ""),
                      json.dumps(data, ensure_ascii=False, default=str), now_iso()),
                 )
-            self._event(connection, task_id, "messages.saved", {"count": len(messages)})
+            self._event(connection, task_id, "messages.saved",
+                        {"count": len(messages), "incomplete": incomplete})
 
     def messages_for_model(self, task_id: str) -> list[dict[str, Any]]:
         """Legal provider-neutral transcript; unresolved calls get an unknown result."""
@@ -1051,17 +1048,27 @@ class TaskStore:
                 return None
             previous = connection.execute("SELECT * FROM commands WHERE request_id=?",
                                           (request_id,)).fetchone()
-            if previous is not None:
-                return json.loads(previous["result_json"])
             start_operation = "queued" if row["mode"] == "auto" else "waiting_user"
+            if previous is not None and previous["task_id"] != task_id:
+                raise TaskConflict("request id was used for another schedule")
             connection.execute("UPDATE schedules SET status='claimed',claimed_at=?,updated_at=? WHERE task_id=?",
                                (now_iso(), now_iso(), task_id))
             self._event(connection, task_id, "schedule.claimed", {"mode": row["mode"]})
             result = {"task_id": task_id, "mode": row["mode"], "operation": start_operation}
-            self._remember_command(connection, request_id, task_id, start_operation, result)
+            if previous is None:
+                self._remember_command(connection, request_id, task_id, start_operation, result)
             return result
 
     def complete_schedule(self, task_id: str) -> None:
         with self._lock, self._transaction() as connection:
             connection.execute("UPDATE schedules SET status='consumed',updated_at=? WHERE task_id=?",
                                (now_iso(), task_id))
+
+    def release_schedule(self, task_id: str) -> None:
+        """Return a failed reservation to the due set for a later retry."""
+        with self._lock, self._transaction() as connection:
+            connection.execute(
+                "UPDATE schedules SET status='pending',claimed_at=NULL,updated_at=? "
+                "WHERE task_id=? AND status='claimed'",
+                (now_iso(), task_id),
+            )

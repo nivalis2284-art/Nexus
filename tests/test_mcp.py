@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -107,3 +109,76 @@ def test_registry_indexes_tools():
 def test_bad_command_fails_cleanly():
     with pytest.raises(MCPError):
         StdioServer("nope", "definitely-not-a-real-binary-xyz", []).start()
+
+
+def test_close_reaps_the_server_and_releases_its_pipes():
+    server = StdioServer("stub", sys.executable, [str(STUB)], timeout=20)
+    server.start()
+    server.initialize()
+    process = server._process
+    assert process is not None
+
+    server.close()
+
+    assert process.poll() is not None
+    assert server._reader is not None
+    assert not server._reader.is_alive()
+    assert process.stdin.closed
+    assert process.stdout.closed
+    assert process.stderr.closed
+
+
+def test_close_wakes_a_request_that_is_still_waiting():
+    class Stream:
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    class Process:
+        stdin = Stream()
+        stdout = Stream()
+        stderr = Stream()
+
+        def terminate(self):
+            pass
+
+        def wait(self, timeout=None):
+            return 0
+
+    server = StdioServer("stub", sys.executable, [])
+    process = Process()
+    server._process = process
+    server._send = lambda payload: None
+    outcome = []
+
+    def request():
+        try:
+            server._request("slow")
+        except MCPError as error:
+            outcome.append(error)
+
+    worker = threading.Thread(target=request)
+    worker.start()
+    deadline = time.monotonic() + 2
+    while not server._events and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert server._events
+    started = time.monotonic()
+    server.close()
+    worker.join(1)
+    assert not worker.is_alive()
+    assert time.monotonic() - started < 1
+    assert outcome and outcome[0].code is None
+    assert "was closed" in str(outcome[0])
+    assert process.stdin.closed
+    assert process.stdout.closed
+    assert process.stderr.closed
+
+
+def test_send_failure_releases_request_bookkeeping():
+    server = StdioServer("not-started", sys.executable, [])
+    with pytest.raises(MCPError, match="not running"):
+        server._request("tools/list")
+    assert server._events == {}
+    assert server._responses == {}

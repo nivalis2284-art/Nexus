@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import threading
-import time
 from datetime import datetime, timezone
 
 from ..task import TaskStore
@@ -47,23 +46,33 @@ class TaskScheduler:
     def tick(self, now: datetime | None = None, *, startup: bool = False,
              startup_cutoff: str = "") -> list[str]:
         current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-        claimed = []
+        dispatched = []
         for schedule in self.store.due_schedules(current.isoformat(timespec="milliseconds")):
             result = self.store.claim_schedule(
                 schedule["task_id"], request_id=f"due-{schedule['task_id']}-{schedule['version']}"
             )
             if result is None:
                 continue
-            task = self.store.get(schedule["task_id"])
             missed = startup and bool(startup_cutoff) and str(schedule["due_at"]) <= startup_cutoff
-            if schedule["mode"] == "confirm" or missed:
-                self.store.request_confirmation(
-                    task.id, request_id=f"confirm-{schedule['task_id']}-{schedule['version']}",
-                    payload={"due_at": schedule["due_at"], "timezone": schedule["timezone"],
-                             "reason": "missed_while_stopped" if missed else "due"},
-                )
-            else:
-                self.controller.submit(task.id, request_id=f"auto-{schedule['task_id']}-{schedule['version']}")
-            self.store.complete_schedule(task.id)
-            claimed.append(task.id)
-        return claimed
+            try:
+                if schedule["mode"] == "confirm" or missed:
+                    self.store.request_confirmation(
+                        schedule["task_id"], request_id=f"confirm-{schedule['task_id']}-{schedule['version']}",
+                        payload={"due_at": schedule["due_at"], "timezone": schedule["timezone"],
+                                 "reason": "missed_while_stopped" if missed else "due"},
+                    )
+                else:
+                    self.controller.submit(
+                        schedule["task_id"],
+                        request_id=f"auto-{schedule['task_id']}-{schedule['version']}",
+                    )
+            except Exception:
+                # A claim is a short-lived reservation, not a promise that the
+                # user interaction or queue write succeeded. Keep a later tick
+                # able to retry instead of leaving the schedule stuck at
+                # ``claimed`` forever. The command id makes any retry idempotent.
+                self.store.release_schedule(schedule["task_id"])
+                continue
+            self.store.complete_schedule(schedule["task_id"])
+            dispatched.append(schedule["task_id"])
+        return dispatched

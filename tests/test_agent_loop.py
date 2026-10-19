@@ -15,8 +15,17 @@ import pytest
 
 from nexus.core.agent import Agent
 from nexus.core.permission import default_policy
+from nexus.core.retry import RetryPolicy
 from nexus.core.workspace import inspect
-from nexus.model import APIFamily, ModelCapabilities, ModelProfile, RuntimeCredentials
+from nexus.model import (
+    APIFamily,
+    ModelCapabilities,
+    ModelError,
+    ModelEvent,
+    ModelProfile,
+    RuntimeCredentials,
+    Usage,
+)
 from nexus.tools import build
 
 SSE = "text/event-stream"
@@ -271,6 +280,90 @@ def test_max_steps_stops_the_loop(workspace: Path):
     )
     assert events[-1].type == "done"
     assert events[-1].data["stopped"] == "max_steps"
+
+
+@pytest.mark.parametrize("finish", ["length", "content_filter"])
+def test_abnormal_finish_reason_is_not_reported_complete(workspace: Path, finish: str):
+    """A truncated or filtered answer must not look like a finished turn."""
+    seen: list[dict] = []
+    agent = build_agent(workspace)
+    messages = [{"role": "user", "content": "answer fully"}]
+    events = run(
+        agent,
+        messages,
+        [stream_of([chat_frame({"content": "partial"}), chat_frame({}, finish)])],
+        seen,
+    )
+    done = events[-1]
+    assert done.type == "done"
+    assert done.data["stopped"] == finish
+    assert done.data["finish_reason"] == finish
+    assert messages[-1] == {
+        "role": "assistant",
+        "content": "partial",
+        "thinking": None,
+        "usage": None,
+    }
+
+
+def test_usage_does_not_leak_from_a_previous_tool_step(workspace: Path):
+    """Each model response reports its own usage and no earlier step's counts."""
+    seen: list[dict] = []
+    agent = build_agent(workspace)
+    first = stream_of([
+        chat_frame({"tool_calls": [{
+            "index": 0,
+            "id": "c1",
+            "type": "function",
+            "function": {"name": "glob", "arguments": '{"pattern":"*"}'},
+        }]}),
+        chat_frame({}, "tool_calls"),
+    ])
+    # Usage belongs to the first response only.
+    first = first.replace(
+        'data: [DONE]\n\n',
+        'data: {"id":"chatcmpl-1","choices":[],"usage":{"prompt_tokens":11,'
+        '"completion_tokens":7,"total_tokens":18}}\n\ndata: [DONE]\n\n',
+    )
+    events = run(
+        agent,
+        [{"role": "user", "content": "list then answer"}],
+        [first, text_stream("finished")],
+        seen,
+    )
+    done = events[-1]
+    assert done.data["stopped"] == "complete"
+    assert done.data["usage"] == {}
+
+
+def test_usage_does_not_leak_from_a_failed_attempt(workspace: Path, monkeypatch):
+    """Usage observed before a retryable failure is not the final response's."""
+    attempts = 0
+
+    class Gateway:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def stream(self, *args, **kwargs):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                yield ModelEvent("usage", usage=Usage(input_tokens=11, output_tokens=7))
+                yield ModelEvent("error", error=ModelError("transport_error", "failed"))
+                return
+            yield ModelEvent("text_delta", text="recovered")
+            yield ModelEvent("complete", finish_reason="stop")
+
+    import nexus.core.agent as module
+
+    monkeypatch.setattr(module, "ModelGateway", Gateway)
+    agent = build_agent(workspace)
+    agent.retry = RetryPolicy(max_retries=1, initial_delay=0, max_delay=0, jitter_ratio=0)
+    seen: list[dict] = []
+    events = run(agent, [{"role": "user", "content": "retry"}], [], seen)
+    assert attempts == 2
+    assert events[-1].data["stopped"] == "complete"
+    assert events[-1].data["usage"] == {}
 
 
 def test_anthropic_request_shape(workspace: Path):

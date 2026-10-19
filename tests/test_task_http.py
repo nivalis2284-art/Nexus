@@ -6,8 +6,6 @@ import json
 import threading
 import urllib.request
 from http.server import ThreadingHTTPServer
-from pathlib import Path
-
 import pytest
 
 from nexus.runtime import TaskController
