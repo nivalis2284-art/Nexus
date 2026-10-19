@@ -158,8 +158,9 @@ AGENTS.md    开发协作说明
 ## 文档导航
 
 - [`AGENTS.md`](AGENTS.md)：给开发 Agent 的简洁协作说明，不代替具体 PRD。
-- [`docs/PRD.md`](docs/PRD.md)：当前通用附件上传与文档读取需求及已确认范围。
-- [`docs/PROGRESS.md`](docs/PROGRESS.md)：本轮附件实现、验证证据与读取限制。
+- [`docs/PRD.md`](docs/PRD.md)：当前「灵的第一阶段 · 持续性」PRD，保留上传原文。
+- [`docs/RESEARCH.md`](docs/RESEARCH.md)：持续性需求复核、用户补充确认、现状差距与方案研究；本阶段尚未正式开发。
+- [`附件交付记录`](docs/archive/2026-10-20-attachments/PROGRESS.md)：上一轮附件实现、验证证据与读取限制。
 - [`docs/archive/`](docs/archive/)：历史阶段需求、研究、重要决策与交付证据；不构成当前待办。
 - [`docs/BUSINESS-MAP.html`](docs/BUSINESS-MAP.html)：独立功能业务关系图，可直接用本地浏览器打开。
 - [`docs/愿景/01-概念与原则.md`](docs/愿景/01-概念与原则.md)：长期方向与所有者控制原则。

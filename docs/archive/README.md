@@ -5,5 +5,6 @@
 - [任务生命周期 PRD](2026-10-19-task-lifecycle/PRD.md)、[研究与已确认决策](2026-10-19-task-lifecycle/RESEARCH.md)、[交付及验收证据](2026-10-19-task-lifecycle/PROGRESS.md)、[前置执行能力预研](2026-10-19-task-lifecycle/EXECUTION-RESEARCH.md)。其中研究 §1.3 保留了手动恢复、错过时间等待确认、串行排队、权限等待及后台命令语义等重要决定；交付记录保留全部未验证项。
 - [早期系统优化 PRD](2026-10-19-系统优化/PRD.md)、[开发前研究](2026-10-19-系统优化/RESEARCH.md)。原系统优化交付记录的后续覆盖情况和 Git 追溯入口见任务生命周期交付记录开头，不补造缺失证据。
 - [系统维护 PRD](2026-10-20-maintenance/PRD.md)、[维护交付与验收证据](2026-10-20-maintenance/PROGRESS.md)：2026-10-20 进入附件功能阶段时归档，保留上一轮 354 passed / 1 skipped、真实 Edge 验证和全部限制。
+- [通用附件 PRD](2026-10-20-attachments/PRD.md)、[附件交付与验收证据](2026-10-20-attachments/PROGRESS.md)：2026-10-20 进入灵的持续性研究阶段时归档，保留 370 passed / 1 skipped、六种文件格式的 Edge 验证、读取范围及未验证项。对应代码提交为 `31f3bbc`。
 
-当前需求见 [PRD](../PRD.md)，当前交付结果见 [PROGRESS](../PROGRESS.md)。愿景和其他历史参考继续保留在原目录。
+当前需求见 [PRD](../PRD.md)，当前持续性调查、用户补充确认和技术取舍见 [RESEARCH](../RESEARCH.md)。当前阶段尚未正式开发；愿景和其他历史参考继续保留在原目录。
