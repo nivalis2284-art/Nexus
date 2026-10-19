@@ -1,208 +1,80 @@
 # Nexus
 
-一个最小可用的通用 Agent。没有数据库、没有人格、没有长期记忆，只有：对话循环、模型接入、工具、权限。
+Nexus 是一个正在迭代的个人 Agent 项目。**当前版本**围绕「用户提出任务 → 模型判断 → 调用工具 → 结果回灌 → 完成或停止」构建，提供网页界面、模型接入、基础工具和必要的运行控制。
 
-## 启动
+当前项目尚未实现长期记忆或人格等愿景能力；这只是版本现状，**不代表未来的功能限制**。长期方向见 [`docs/愿景/`](docs/愿景/)，当前要做什么以已确认的需求为准。
 
-双击 `start.bat`（首次会自动建 `.venv` 并装依赖），浏览器会打开 `http://127.0.0.1:8766`。
+## 快速开始
 
-首次使用点右下角「设置」，填 Base URL、模型名、API Key。仓库不带默认端点，不填就无法开始对话。
+当前主要面向 Windows，使用 Python 3.12。
 
-## 它是什么
+1. 双击 `start.bat`。首次启动会按脚本配置创建虚拟环境、安装依赖。
+2. 在浏览器打开 `http://127.0.0.1:8766`（通常由启动脚本打开）。
+3. 在设置中填写模型提供商的 Base URL、模型名称、协议及 API Key，然后开始对话。
 
-一个循环：把消息发给模型 → 模型要工具就执行 → 结果回灌 → 直到模型不再要工具。
+仓库不预置可直接使用的模型服务与密钥。依赖和 Python 版本范围以 [`pyproject.toml`](pyproject.toml) 为准。
 
-```
-nexus/
-  core/
-    agent.py        主循环（重试、中止、压缩接入）
-    protocol.py     三种协议各自的请求体
-    effort.py       思考强度：五档 → 各协议的字段映射
-    retry.py        重试策略：退避 + 抖动 + Retry-After
-    compaction.py   上下文压缩：先裁剪，后摘要
-    subagent.py     子代理：独立上下文 + 深度限制
-    thinking.py     为什么思考内容不回传
-    prompt.py       提示词编排 + 上下文预算
-    permission.py   权限规则（可配置，最后匹配胜出）
-    workspace.py    工作区事实（cwd / git / AGENTS.md）
-    config.py       多提供商配置
-  model/
-    gateway.py      流式传输
-    _parsers.py     三种协议的流解析
-    _sse.py         SSE 分帧
-  tools/
-    catalog 驱动的装配（tools/__init__.py 的 TOOLS 清单）
-    files.py        read / write / edit / glob / grep
-    shell.py        bash（参数列表，无 shell）
-    jobs.py         bash_background / job_output / job_kill / job_list
-    _jobs.py        后台进程与输出环形缓冲
-    todo.py         任务清单
-    ask.py          向所有者提问
-    subagent_tool.py 委派子任务
-    web.py          webfetch / websearch（默认关闭）
-    mcp_tools.py    把 MCP 声明适配成普通工具
-    registry.py     工具注册与统一派发
-    _paths.py       路径围栏
-  session/
-    store.py        JSONL 会话
-  skills.py         SKILL.md 发现与解析
-  mcp.py            MCP stdio 客户端（手写 JSON-RPC）
-  web/
-    server.py       HTTP（标准库，无框架）
-    index.html      单页前端
-    app.js
-    app.css
+## 当前功能概览
+
+| 业务能力 | 当前实现 |
+|---|---|
+| 模型交互 | Anthropic Messages、OpenAI Chat Completions、OpenAI Responses 三类协议；支持流式输出 |
+| 模型管理 | 多提供商配置、切换模型、思考强度设置 |
+| Agent 执行 | 多轮工具调用及结果回灌、停止操作、模型请求重试 |
+| 基础工具 | 文件操作、命令、后台任务、补丁、待办与向用户提问 |
+| 扩展能力 | 子代理、Skill、MCP；网络工具按配置启用 |
+| 上下文 | 会话历史、上下文裁剪与摘要压缩 |
+| 网页交互 | 聊天界面、思考与工具过程展示、授权确认 |
+
+这些是现状说明，不是未来开发必须保留的架构和功能清单。具体行为请以代码与实际运行结果为准。
+
+## 模型配置与数据
+
+三个协议标识：
+
+- `anthropic_messages`：通常使用 `/v1/messages`
+- `openai_chat_completions`：通常使用 `/v1/chat/completions`
+- `openai_responses`：通常使用 `/v1/responses`
+
+思考强度设为“提供商默认”时不主动传入强度字段；也提供 `low`、`medium`、`high`、`xhigh`、`max` 档位。实际支持情况取决于模型、服务端及协议实现，并非所有服务都必然接受全部档位。
+
+数据目录默认为 `%LOCALAPPDATA%\Nexus`，可用 `NEXUS_HOME` 调整。常见内容：
+
+```text
+config.json          提供商及运行配置（不含 API Key）
+credentials.json     API Key 等凭据
+sessions/*.jsonl     会话记录
+skills/*.md          可选 Skill 文档
 ```
 
-## 多提供商
+凭据请勿提交到 Git、公开上传或复制进日志；实际访问控制还取决于操作系统与目录权限。删除或覆盖数据目录会造成记录及配置丢失，操作前应自行备份。
 
-设置里可以添加任意多个提供商，每个有独立的 Base URL、协议和密钥。输入框左下角切换当前模型，按 `提供商 / 模型` 分组。
+## 工具与权限
 
-密钥按提供商分开存于 `credentials.json`（权限 0600），不进 `config.json`。
-
-## 三种协议
-
-`api_family` 可选：
-
-| 值 | 端点后缀 |
-|---|---|
-| `anthropic_messages` | `/v1/messages` |
-| `openai_chat_completions` | `/v1/chat/completions` |
-| `openai_responses` | `/v1/responses` |
-
-三者都已用真实接口验证：流式输出、工具调用、多轮回灌、文件读取、思考流。
-
-## 思考强度
-
-五档固定词表：`low` / `medium` / `high` / `xhigh` / `max`，另有「提供商默认」（不发字段）。
-
-各协议落到的字段不同：
-
-| 协议 | 字段 |
-|---|---|
-| `anthropic_messages` | `output_config.effort` + `thinking.budget_tokens` |
-| `openai_chat_completions` | `reasoning_effort` |
-| `openai_responses` | `reasoning.effort` |
-
-实测：三种协议 × 五档 = 15 个组合全部可用，且都能流出思考内容。
-
-思考内容在界面上可展开，但**不回传给模型**（三种协议都不保证未签名/未加密的推理文本可被接受）。
-
-## 数据在哪
-
-默认 `%LOCALAPPDATA%\Nexus`，或设置 `NEXUS_HOME`。
-
-- `config.json` — 模型配置（不含密钥）
-- `credentials.json` — 密钥，权限 0600
-- `sessions/*.jsonl` — 每个会话一个文件
-- `skills/*.md` — 可选，技能说明
-
-删掉这个目录就是全新开始。
-
-## 权限
-
-设置里两档：
-
-- `ask` — 写文件、跑命令前弹窗确认（默认）
-- `yolo` — 全部放行
-
-同一回合内确认过的同类操作会被记住。
-
-规则也可以写进 `config.json` 的 `permissions` 字段，语义是**最后匹配胜出**，所以兜底规则要放最前、例外放后面：
+设置支持 `ask`（关键操作请求确认）与 `yolo`（允许更多自动执行）两种模式，也支持通过 `config.json` 配置具体工具规则。规则使用后匹配覆盖前匹配的方式：
 
 ```json
 "permissions": [
-  {"tool": "bash", "pattern": "*",     "action": "ask"},
+  {"tool": "bash", "pattern": "*", "action": "ask"},
   {"tool": "bash", "pattern": "git *", "action": "allow"},
-  {"tool": "bash", "pattern": "rm *",  "action": "deny"}
+  {"tool": "bash", "pattern": "rm *", "action": "deny"}
 ]
 ```
 
-不写这个字段时，行为与之前完全一致。
+这是应用层授权控制，**不能等同于操作系统沙箱或完整隔离**。尤其在 `yolo` 模式下，请只在可信环境中授予适当的文件与命令权限。停止命令不保证回滚已经完成的外部操作。
 
-## 中断与重试
+耗时操作可使用后台任务工具；如需查看其细节或具体参数，请以工具定义和当前实现为准。
 
-运行中「发送」按钮会变成停止按钮。停止是在**安全检查点**生效的：每次模型请求前、每次工具执行前。已经开始的写文件不会被从中间打断。
+## 可选能力
 
-模型请求失败时按策略重试：
-
-- 只重试 408/409/425/429/500/502/503/504/529 和网络层错误
-- 指数退避 + 抖动，默认 3 次，上限 8 秒
-- 如果响应带 `Retry-After`，优先采用服务端给的时间
-- **已经输出过内容后不再重试**——重放会造成重复文本
-- 400/401/403 这类重试无意义的错误直接报错
-
-## 网络工具默认关闭
-
-`webfetch` 和 `websearch` 默认不存在，需要在 `config.json` 里配置后才注册：
+**网络工具**默认不注册；需要时在配置中提供允许访问的站点或搜索服务：
 
 ```json
 "webfetch_hosts": ["docs.python.org", "github.com"],
 "search_endpoint": "https://your-search.example/api"
 ```
 
-没有 `webfetch_hosts` 就不会出现 `webfetch`；没有 `search_endpoint` 就不会出现 `websearch`。工具不存在比调用后失败更清楚。
-
-`webfetch` 会拒绝非 http(s) 协议，并拒绝解析到内网/回环地址的主机（即使它在白名单里）。
-
-## 长任务
-
-`bash` 只适合跑完就结束的命令。任何可能超过一分钟的（装依赖、跑测试、构建、起服务）用 `bash_background`：
-
-- 启动后 0.4 秒内返回 `job_id`，不阻塞
-- `job_output` 读取输出，**只返回游标之后的新内容**，不会重复发送
-- `wait_seconds` 会阻塞等待，但任务一结束就立刻返回，不是死等
-- `job_kill` 停止任务，`job_list` 看有哪些在跑
-
-输出存在有界环形缓冲里（上限 200k 字符）：超长构建不会吃掉内存，只保留最新的部分。
-
-## 上下文压缩
-
-两级，按顺序生效：
-
-**第一级 · 裁剪**（每次请求前，不调模型）
-工具结果超过 8192 字符时，保留头 4096 + 尾 1024，中间替换为固定标记。纯文本操作，不改语义，不引入新错误。
-
-**第二级 · 摘要**（用量超过窗口 80% 时）
-把较老的历史折叠成一份结构化检查点，保留最近 16% 的原文。检查点用固定八段模板，包在 `<compacted-summary>` 标签里。
-
-三条防御规则：
-
-1. 压完**必须真的变小**，否则放弃这次压缩、保留原状
-2. 只在**工具调用闭合**的位置切分，绝不切开 call/result 配对
-3. 摘要失败就退回裁剪，**绝不让压缩失败中断对话**
-
-## 子代理
-
-`subagent` 工具把一个独立任务交给子代理：它有自己的对话历史，共享同一套工具，最后只把结论返回给主代理。
-
-深度上限默认 2（主 → 子 → 孙即止），超过会报错而不是无限递归。目前只有 `spawn`（全新上下文），没有 `fork`（继承父上下文）——后者属于"子代理该记住什么"的问题，留待长期方向确定。
-
-## Skill
-
-放在这两个位置，项目级优先：
-
-```
-<工作区>/.nexus/skills/<name>/SKILL.md
-~/.nexus/skills/<name>/SKILL.md
-```
-
-格式是 YAML frontmatter + 正文：
-
-```markdown
----
-name: code-review
-description: Review a diff for bugs and style.
-when: the user asks for a review
----
-正文……
-```
-
-system prompt 里**只放 name + description + when**，正文要用 `read_skill` 现取。没用到的 skill 只占一行，不占一页。
-
-## MCP
-
-在 `config.json` 里配置后，启动时连接 stdio 服务器，把它们的工具并进同一个工具列表：
+**MCP** 可通过 stdio 服务器接入外部工具，例如：
 
 ```json
 "mcp": {
@@ -212,51 +84,49 @@ system prompt 里**只放 name + description + when**，正文要用 `read_skill
 }
 ```
 
-工具名加前缀 `mcp__<server>__<tool>`，不会和内置工具撞名。
+上述 MCP 配置是示例；运行第三方服务器前需确认其来源、依赖和可访问范围。工具可用性取决于本地环境。
 
-两点实现说明：
+**Skill** 可从工作区 `.nexus/skills/<名称>/SKILL.md` 或用户目录 `~/.nexus/skills/<名称>/SKILL.md` 发现；实际读取方式由现有 Skill 机制决定。
 
-- 子进程环境会**擦洗掉所有看起来像密钥的变量**（KEY/TOKEN/SECRET/PASSWORD 等），不会把 API Key 传给第三方服务器
-- 有一个 MCP 服务器起不来时，只打印错误并跳过，不影响其他功能
+## 项目结构
 
-**Windows 上的命令问题**：`npx`、`uvx` 这些在 Windows 是 `.cmd` 批处理，进程 API 不能直接执行，报错还是误导性的"找不到文件"。客户端会自动解析：能找到 node 就直接跑 `npx-cli.js`，否则交给 `cmd.exe /c`。参数始终按列表传递，不拼字符串。
-
-已用官方 `@modelcontextprotocol/server-filesystem` 实测通过：连上后拿到 14 个工具，`list_directory`、`read_text_file` 都真实读到内容，越界路径被服务器正确拒绝并以工具错误返回。
-
-## 待办与答复
-
-人工确认（`ask_user` 或写文件授权）会阻塞等待。如果此时关掉浏览器、或按下停止，等待会被**立即唤醒**而不是干等到超时：
-
-- 中止 → 所有等待被唤醒，审批按"拒绝"处理，提问按"无回答"处理
-- 流断开 → 同上，并在下一个请求前就恢复可用
-
-这条曾经是个真 bug：一次提问挂着时关掉页面，服务端会占住运行锁 10 分钟，期间所有新消息都返回 409。实测修复后恢复到 1 秒内可用。
-
-## 测试
-
+```text
+nexus/
+  core/       Agent 循环、上下文、配置与权限
+  model/      模型传输与协议解析
+  tools/      内置工具及注册
+  session/    JSONL 会话存储
+  web/        HTTP 服务、HTML/CSS/JavaScript 前端
+  mcp.py      MCP 客户端
+  skills.py   Skill 发现
+tests/        自动化测试
+docs/         愿景与历史参考等文档
+AGENTS.md    开发协作说明
 ```
+
+当前使用 Python 标准库提供 HTTP 服务，前端为无需构建的单页应用；这些是实现现状，不是不可改变的技术规定。
+
+## 代码组织偏好（非强制）
+
+为了便于维护，目前倾向于小型共同基础、按职责组织模块、通过清楚的接口协作，并将易变的外部技术适当隔离。早期可优先考虑结构清晰的模块化单体。
+
+**这些只是经验性偏好，不是架构约束或验收标准。** 不要求强制分层、依赖注入、插件化或彻底解耦；业务之间可以存在合理的深度依赖。若当前需求、实际代码或维护成本表明其他组织方式更合适，可以自主调整，不必为了符合上述偏好而增加额外抽象。
+
+## 开发与测试
+
+安装开发依赖后，在仓库根目录运行：
+
+```powershell
 .venv\Scripts\python.exe -m pytest tests -q
 ```
 
-221 项，覆盖主循环、工具、路径围栏、权限闸门、HTTP 往返、多提供商配置、五档思考强度映射、重试策略、中断、压缩、子代理、skill、MCP、后台任务、并发写保护，以及实测出来的协议兼容性怪癖：
+测试覆盖范围、通过数量及真实模型验证情况会随版本变化；请以当前测试运行结果为准。自动化测试通过不等于所有功能已经完成实际操作验收。
 
-- 流式 tool_calls 不带 `type`
-- Responses 最终事件换了 item id
-- 带 reasoning 时首帧 `id` 为空字符串
-- finish 帧把 `reasoning_content` 发成空串
-- 一条消息同时带思考和正文时，正文必须仍然显示
+## 文档导航
 
-MCP 用 `tests/mcp_server_stub.py` 这个真实的 stdio 服务器来测，不是 mock：分页、错误结果、凭据擦洗都经过真实进程验证。
+- [`AGENTS.md`](AGENTS.md)：给开发 Agent 的简洁协作说明，不代替具体 PRD。
+- [`docs/愿景/01-概念与原则.md`](docs/愿景/01-概念与原则.md)：长期方向与所有者控制原则。
+- [`docs/愿景/02-抽象需求.md`](docs/愿景/02-抽象需求.md)：长期期望的能力与体验；**并非当前阶段待办清单**。
+- [`docs/参考/`](docs/参考/)：历史对话、变更及曾经暂缓或待定的事项；其中的判断不自动代表当前产品决定。
 
-
-## 文档
-
-约束统一写在 [`AGENTS.md`](AGENTS.md)。以下只作参考，不具备约束力。
-
-| 文档 | 内容 |
-|---|---|
-| [`docs/参考/对话日志.md`](docs/参考/对话日志.md) | 每一轮对话的前因后果 |
-| [`docs/参考/变更记录.md`](docs/参考/变更记录.md) | 每次改动的目的、改了什么、什么问题、怎么修的 |
-| [`docs/参考/暂缓项.md`](docs/参考/暂缓项.md) | 目前不需要、未来确定需要的 |
-| [`docs/参考/待定项.md`](docs/参考/待定项.md) | 目前确定不需要、未来不确定的 |
-| [`docs/愿景/`](docs/愿景/) | 长期愿景与抽象需求 |
+新的需求、研究、进度和验收记录应放在 `docs/`。如果历史判断与当前明确需求发生冲突，请以当前已确认的需求为准；不应仅凭参考材料扩大开发范围。
