@@ -199,6 +199,7 @@ async function renameSession(sessionId, label, item) {
 // ---------------------------------------------------------------- session
 
 async function newSession() {
+  if (typeof clearLingView === "function") clearLingView();
   const created = await post("/api/sessions", {});
   await refresh();
   await openSession(created.id);
@@ -206,6 +207,7 @@ async function newSession() {
 
 async function openSession(id) {
   const viewVersion = state.viewVersion = (state.viewVersion || 0) + 1;
+  if (typeof clearLingView === "function") clearLingView();
   if (typeof taskView !== "undefined") {
     taskView.current = null;
     if (taskView.timer) clearTimeout(taskView.timer);
@@ -695,12 +697,18 @@ async function send(text) {
     answer.textContent += "\n[错误] " + error.message;
     setStatus(error.message, true);
   } finally {
+    const finishedSession = state.sessionId;
     state.running = false;
     setRunning(false);
     answer.classList.remove("streaming-caret");
     updateStats();
     await refresh().catch(() => {});
-    if (state.sessionId) await openSession(state.sessionId).catch(() => {});
+    // Do not drag the reader back if they moved to Ling or another task while
+    // this legacy stream was finishing.
+    const sameView = (typeof lingView === "undefined" || !lingView.active) &&
+      (typeof taskView === "undefined" || !taskView.current) &&
+      state.sessionId === finishedSession;
+    if (sameView && state.sessionId) await openSession(state.sessionId).catch(() => {});
   }
 }
 
@@ -1267,15 +1275,23 @@ $("composer").addEventListener("submit", async (event) => {
   const input = $("input");
   const text = input.value.trim();
   if (state.preparing) return;
-  if (state.running) {
-    abortRun();
-    return;
-  }
   if (readingImages) {
     setStatus("图片还在读取，请稍候再发送", true);
     return;
   }
   if (!text && !pendingImages.length && !pendingFiles.length) return;
+  if (typeof lingView !== "undefined" && lingView.active) {
+    const sent = await submitLingMessage(text);
+    if (sent) {
+      input.value = "";
+      input.style.height = "auto";
+    }
+    return;
+  }
+  if (state.running) {
+    abortRun();
+    return;
+  }
   if (typeof taskView !== "undefined") {
     if (text && !pendingImages.length && !pendingFiles.length && await naturalTaskControl(text)) {
       input.value = "";
@@ -1308,18 +1324,20 @@ $("input").addEventListener("input", () => {
   node.style.height = Math.min(node.scrollHeight, 220) + "px";
 });
 
-const initialViewVersion = state.viewVersion;
-refresh()
-  .then(() => {
+async function startApp() {
+  const initialViewVersion = state.viewVersion;
+  try {
+    await refresh();
     if (state.viewVersion !== initialViewVersion) return;
-    if (!state.providers.some((p) => p.has_key)) {
-      setStatus("先添加模型提供商并填入密钥", true);
-      // Still render the empty transcript, so the first screen is the real UI.
-      renderTranscript();
-      return;
-    }
     setStatus("");
-    if (state.sessions.length) return openSession(state.sessions[0].id);
-    renderTranscript();
-  })
-  .catch((error) => setStatus(error.message, true));
+    await openLing();
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", startApp, { once: true });
+} else {
+  startApp();
+}

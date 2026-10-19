@@ -1,0 +1,282 @@
+"""Continuity boundaries across model requests, child work, and MCP scope."""
+
+from __future__ import annotations
+
+import io
+import json
+import threading
+import asyncio
+
+import httpx
+import pytest
+
+from nexus.core import subagent
+
+from nexus.attachments import AttachmentStore
+from nexus.core.config import ConfigStore
+from nexus.model import APIFamily
+from nexus.runtime.assembly import TaskAssembler
+from nexus.runtime.callbacks import TaskCallbacks
+from nexus.runtime.connections import start_mcp
+from nexus.task import TaskStore
+from nexus.tools import build
+
+
+def frame(delta, finish=None):
+    return "data: " + json.dumps(
+        {"choices": [{"index": 0, "delta": delta, "finish_reason": finish}]}
+    ) + "\n\n"
+
+
+def text_frames(text):
+    return frame({"content": text}) + frame({}, "stop") + "data: [DONE]\n\n"
+
+
+def call_frames(call_id, name, arguments):
+    return (
+        frame({"tool_calls": [{"index": 0, "id": call_id, "type": "function",
+               "function": {"name": name, "arguments": json.dumps(arguments)}}]})
+        + frame({}, "tool_calls") + "data: [DONE]\n\n"
+    )
+
+
+def configure(tmp_path):
+    store = ConfigStore(tmp_path / "home")
+    settings = store.ensure()
+    provider = settings.provider
+    store.update_provider(provider.id, {
+        "base_url": "https://fake.test/v1",
+        "family": APIFamily.OPENAI_CHAT_COMPLETIONS.value,
+        "models": [{"id": "fake", "context_window_tokens": 32000,
+                    "max_output_tokens": 1024}],
+    })
+    store.select(provider.id, "fake", "off")
+    store.write_credential(provider.id, "test-key")
+    store.save_preferences(workspace=str(tmp_path), permission="yolo")
+    return store, provider.id
+
+
+def started_task(tmp_path, *, ling=False):
+    config, provider_id = configure(tmp_path)
+    tasks = TaskStore(tmp_path / "tasks.sqlite3")
+    task = tasks.create(
+        title="continuity", goal="inspect attachments", workspace=str(tmp_path),
+        provider_id=provider_id, model_id="fake",
+    )
+    tasks.add_message(
+        task.id, kind="user", text="begin",
+        data={"source_session_id": "session-one"} if ling else None,
+    )
+    tasks.command(task.id, "running", request_id="start")
+    tasks.begin_run(task.id)
+    return config, tasks, task
+
+
+def install_stream(monkeypatch, responses, seen):
+    import nexus.core.agent as module
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(
+            200, headers={"content-type": "text/event-stream"},
+            text=responses.pop(0),
+        )
+    monkeypatch.setattr(
+        module, "_client",
+        lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+
+
+def test_new_input_and_attachment_are_applied_once_at_the_next_request(tmp_path, monkeypatch):
+    config, tasks, task = started_task(tmp_path)
+    attachment = AttachmentStore(config.home).save(
+        "tasks", task.id, "new.txt", "text/plain", io.BytesIO(b"new attachment"), 14,
+    )
+    responses = [call_frames("c1", "read_attachment", {"attachment_id": attachment["id"]}),
+                 text_frames("finished")]
+    seen = []
+    install_stream(monkeypatch, responses, seen)
+    # New input arrives only after the first request has actually gone out.
+    # The stream helper's handler records after receiving, so enqueue through
+    # the before-model boundary hook on the first completed response.
+    callbacks_hook = TaskCallbacks.before_model
+    first = {"done": False}
+    def before_model(self, history, **kwargs):
+        if not first["done"]:
+            first["done"] = True
+            self.store.accept_user_message(
+                self.task_id, text="apply this once", request_id="new-input",
+                data={"attachments": [attachment]},
+            )
+        return callbacks_hook(self, history, **kwargs)
+    monkeypatch.setattr(TaskCallbacks, "before_model", before_model)
+    result = TaskAssembler(tasks, config)(tasks.get(task.id), threading.Event())
+    assert result.status == "complete"
+    second = json.dumps(seen[1], ensure_ascii=False)
+    assert second.count("apply this once") == 1
+    assert attachment["id"] in second
+    tool_messages = [m for m in tasks.messages(task.id) if m.get("kind") == "tool"]
+    assert any(m.get("name") == "read_attachment" for m in tool_messages)
+    assert tasks.input_status(task.id)["pending_count"] == 0
+
+
+def test_child_uses_a_distinct_operation_scope_for_reused_call_id(tmp_path):
+    _config, tasks, task = started_task(tmp_path)
+    store = tasks
+    callbacks = TaskCallbacks(store, task.id, store.current_run(task.id), cancel=threading.Event())
+    child = callbacks.child_scope()
+    callback_by_context = {}
+
+    def invoke(owner, call_id, path):
+        registry, context = build(root=tmp_path, task_callbacks=owner)
+        prepared = registry.prepare(
+            "write_file", {"path": path, "content": path}, context,
+        )
+        owner.prepare_dispatch(call_id, prepared, context)
+        callback_by_context[path] = context._task_tool_call_id
+        outcome = owner.wrap_execute(prepared, context, registry.execute_prepared)
+        assert outcome.ok
+
+    invoke(callbacks, "c0", "parent.txt")
+    invoke(child, "c0", "child.txt")
+    assert callback_by_context["parent.txt"] == "c0"
+    assert callback_by_context["child.txt"].startswith("child-")
+    assert not store.unfinished_operations(task.id)
+
+
+def test_child_registry_cannot_finish_or_rewrite_parent_steps(tmp_path):
+    _config, tasks, task = started_task(tmp_path)
+    callbacks = TaskCallbacks(tasks, task.id, tasks.current_run(task.id), cancel=threading.Event())
+    registry, _ = build(root=tmp_path, task_callbacks=callbacks)
+    child = TaskAssembler._subagent_registry(registry) if hasattr(TaskAssembler, "_subagent_registry") else None
+    if child is None:
+        from nexus.runtime.assembly import _subagent_registry
+        child = _subagent_registry(registry)
+    assert child.get("task_finish") is None
+    assert child.get("task_update") is None
+    assert child.get("task_attempt") is None
+    assert child.get("task_resolve_operation") is None
+    assert child.get("task_read") is not None
+
+
+def test_child_does_not_consume_parent_input_cursor(tmp_path):
+    _config, tasks, task = started_task(tmp_path)
+    callbacks = TaskCallbacks(
+        tasks, task.id, tasks.current_run(task.id), cancel=threading.Event(),
+    )
+    child = callbacks.child_scope()
+    history = callbacks.snapshot_history()
+    tasks.accept_user_message(
+        task.id, text="parent only", request_id="parent-input",
+    )
+    child_agent = type("Child", (), {"task_context": ""})()
+    child.refresh_child_context(history, agent=child_agent)
+    assert child_agent.task_context
+    assert tasks.input_status(task.id)["pending_count"] == 1
+    callbacks.before_model(history, agent=child_agent)
+    assert history[-1] == {"role": "user", "content": "parent only"}
+    assert tasks.input_status(task.id)["pending_count"] == 0
+
+
+def test_subagent_trace_retains_arguments_and_bounded_content(tmp_path):
+    class Event:
+        def __init__(self, type_, data=None):
+            self.type = type_
+            self.data = data or {}
+
+    async def factory(prompt, budget):
+        yield Event("tool_start", {"id": "c0", "name": "read_file",
+                                    "arguments": {"path": "long.txt"}})
+        yield Event("tool_result", {"id": "c0", "name": "read_file", "ok": True,
+                                    "content": "x" * 20000,
+                                    "details": {"truncated": True}})
+        yield Event("done", {"steps": 2, "stopped": "complete"})
+
+    result = asyncio.run(subagent.run_subagent(
+        subagent.SubagentRequest(task="inspect"), make_runner=factory,
+    ))
+    assert result.trace[0]["arguments"] == {"path": "long.txt"}
+    assert result.trace[1]["content"] == "x" * 20000
+    assert result.trace[1]["truncated"] is True
+
+
+def test_completion_requires_a_cited_successful_verification(tmp_path):
+    _config, tasks, task = started_task(tmp_path)
+    callbacks = TaskCallbacks(
+        tasks, task.id, tasks.current_run(task.id), cancel=threading.Event(),
+    )
+    callbacks.write_todos([{"content": "implement", "status": "completed"}])
+    callbacks.add_evidence({
+        "kind": "verification", "source": "test", "summary": "actual test output",
+        "ok": True,
+    })
+    current = tasks.get(task.id)
+    tasks.update_progress(
+        task.id, expected_version=current.progress_version,
+        changes={"steps": [{
+            "content": current.steps[0].content, "status": "completed",
+            "verification": "verified", "evidence": ["1"],
+        }]},
+    )
+    with pytest.raises(Exception, match="cited"):
+        callbacks.finish({"summary": "done", "evidence_ids": [], "unresolved": []})
+    completed = callbacks.finish({
+        "summary": "done", "evidence_ids": ["1"], "unresolved": [],
+    })
+    assert completed["state"] == "completed"
+    assert tasks.get(task.id).decisions[-1]["evidence_ids"] == ["1"]
+
+
+def test_subagent_approval_resumes_with_the_shared_async_channel(tmp_path, monkeypatch):
+    config, tasks, task = started_task(tmp_path)
+    config.save_preferences(workspace=str(tmp_path), permission="ask")
+    responses = [
+        call_frames("parent", "subagent", {"task": "write the child file"}),
+        call_frames("c0", "write_file", {"path": "child.txt", "content": "child"}),
+        # Recovery does not replay an unknown side effect. The model must ask
+        # for it again with the same accepted arguments.
+        call_frames("c0", "write_file", {"path": "child.txt", "content": "child"}),
+        text_frames("child complete"),
+        text_frames("parent complete"),
+    ]
+    seen = []
+    install_stream(monkeypatch, responses, seen)
+    first = TaskAssembler(tasks, config)(tasks.get(task.id), threading.Event())
+    assert first.status == "waiting_user"
+    pending = tasks.pending_interactions(task.id)
+    assert pending and pending[0]["kind"] == "approval"
+
+    reopened = TaskStore(tasks.path)
+    reopened.interaction_answer(pending[0]["id"], answer=True,
+                                expected_version=reopened.get(task.id).control_version)
+    reopened.command(task.id, "running", request_id="resume-child")
+    reopened.begin_run(task.id)
+    second = TaskAssembler(reopened, config)(reopened.get(task.id), threading.Event())
+    assert second.status == "complete"
+    assert (tmp_path / "child.txt").read_text() == "child"
+    assert not reopened.pending_interactions(task.id)
+
+
+def test_no_progress_continuation_becomes_blocked_without_spinning(tmp_path, monkeypatch):
+    config, tasks, task = started_task(tmp_path, ling=True)
+    seen = []
+    install_stream(monkeypatch, [text_frames("still working")] * 5, seen)
+    result = TaskAssembler(tasks, config)(tasks.get(task.id), threading.Event())
+    assert result.status == "stalled"
+    assert tasks.get(task.id).state == "paused"
+    assert tasks.get(task.id).blocked
+    assert len(seen) == 4
+
+
+def test_legacy_task_keeps_single_turn_behavior(tmp_path, monkeypatch):
+    config, tasks, task = started_task(tmp_path)
+    seen = []
+    install_stream(monkeypatch, [text_frames("one reply")], seen)
+    result = TaskAssembler(tasks, config)(tasks.get(task.id), threading.Event())
+    assert result.status == "complete"
+    assert len(seen) == 1
+
+
+def test_mcp_startup_returns_no_shared_registry_when_disabled(tmp_path):
+    config, _ = configure(tmp_path)
+    assert start_mcp(config, tmp_path) is None

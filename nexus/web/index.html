@@ -12,8 +12,9 @@
     <div class="brand">
       <span class="brand-dot"></span>
       <span class="brand-name">Nexus</span>
-      <span class="brand-tag" id="brand-tag">preview</span>
+      <span class="brand-tag" id="brand-tag">continuous</span>
     </div>
+    <button id="ling-home" class="side-new side-ling" type="button">✦ 灵</button>
     <button id="new" class="side-new" type="button">＋ 新建会话</button>
     <button id="task-new" class="side-new" type="button">＋ 新建任务</button>
     <div class="side-group">
@@ -35,11 +36,43 @@
 
   <main id="main">
     <header id="topbar">
-      <div id="title">新会话</div>
+      <div class="top-title">
+        <div id="title">灵</div>
+        <span id="ling-mode-label" class="ling-mode-label" hidden>持续入口</span>
+      </div>
       <div class="top-actions">
+        <button id="notifications-toggle" class="notification-toggle" type="button" aria-expanded="false" aria-controls="notification-region">
+          通知 <span id="notification-count" class="notification-count">0</span>
+        </button>
         <span id="status" class="small"></span>
       </div>
     </header>
+
+    <section id="notification-region" class="notification-region" hidden aria-label="主动通知">
+      <div class="notification-head">
+        <div class="notification-heading">
+          <span class="notification-kicker">灵的通知</span>
+          <span id="notification-summary" class="small"></span>
+        </div>
+        <div class="notification-actions">
+          <button id="notifications-read-all" class="link-button" type="button">全部已读</button>
+          <button id="notifications-close" class="link-button" type="button">收起</button>
+        </div>
+      </div>
+      <div id="notification-list" class="notification-list"></div>
+    </section>
+
+    <section id="ling-bar" class="ling-bar" hidden aria-live="polite">
+      <div class="ling-identity">
+        <span class="ling-orbit" aria-hidden="true">✦</span>
+        <span id="ling-state-text">与灵相连</span>
+      </div>
+      <span id="ling-queue-count" class="ling-queue-count"></span>
+      <div id="ling-tasks" class="ling-tasks"></div>
+      <button id="ling-resume" class="ling-resume" type="button" hidden>继续待恢复输入</button>
+    </section>
+    <div id="ling-inputs" class="ling-inputs" hidden aria-label="灵的工作队列"></div>
+    <section id="ling-interaction" class="ling-interaction" hidden aria-live="polite"></section>
 
     <div id="scroller">
       <div id="transcript" aria-live="polite"></div>
@@ -93,6 +126,7 @@
               <span class="chev">▾</span>
             </button>
           </div>
+          <button id="ling-stop" class="composer-stop" type="button" hidden>停止</button>
           <button id="send" class="send" type="submit" aria-label="发送">↑</button>
         </div>
       </div>
@@ -215,6 +249,7 @@
   </div>
 </dialog>
 
+<script src="/ling.js"></script>
 <script src="/app.js"></script>
 <script src="/tasks.js"></script>
 </body>

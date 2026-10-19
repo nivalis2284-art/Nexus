@@ -42,13 +42,21 @@ def spawn(context: Any, args: dict[str, Any]) -> dict[str, Any]:
         return {"content": result, "subagent": True}
     text = getattr(result, "text", "") or "(subagent returned nothing)"
     stopped = getattr(result, "stopped", "complete")
+    trace = getattr(result, "trace", None) or []
+    seq = getattr(result, "message_seq", None)
+    content = (
+        f"{text}\n\n[subagent stopped={stopped}; steps={getattr(result, 'steps', 0)}; "
+        f"trace_events={len(trace)}; evidence message seq={seq if seq is not None else 'not saved'}]"
+    )
     return {
-        "content": text,
-        "ok": stopped in ("complete", "max_steps"),
+        "content": content,
+        "ok": stopped == "complete",
         "subagent": True,
         "stopped": stopped,
         "steps": getattr(result, "steps", 0),
         "depth": getattr(result, "depth", 1),
+        "trace": trace,
+        "message_seq": seq,
     }
 
 

@@ -74,6 +74,7 @@ def build_system_prompt(
     date: str,
     skills: str = "",
     task_context: str = "",
+    interaction_context: str = "",
 ) -> str:
     sections = [ROLE]
     env = ENVIRONMENT.format(
@@ -98,6 +99,8 @@ def build_system_prompt(
             "call read_skill with its exact name before doing the work.\n"
             + skills
         )
+    if interaction_context:
+        sections.append("# Continuing interaction\n" + interaction_context)
     if task_context:
         sections.append(
             "# Persistent task state\n"

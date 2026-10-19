@@ -9,6 +9,7 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
+
 from ..attachments import message_content
 
 from .models import (
@@ -16,7 +17,12 @@ from .models import (
     TaskValidationError, now_iso, task_from_row,
 )
 
-TASK_SCHEMA_VERSION = 1
+TASK_SCHEMA_VERSION = 2
+
+NOTIFICATION_KINDS = frozenset({
+    "completed", "blocked", "interaction", "cancelled",
+    "interrupted", "paused",
+})
 
 
 class TaskStore:
@@ -140,7 +146,38 @@ class TaskStore:
                 for statement in statements:
                     connection.execute(statement)
                 connection.execute(f"PRAGMA user_version = {TASK_SCHEMA_VERSION}")
-            elif version != TASK_SCHEMA_VERSION:
+            if version < 2:
+                # Existing task databases gain additive tables only. Task rows
+                # and their model projection stay unchanged across this upgrade.
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS notifications (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                      event_seq INTEGER UNIQUE REFERENCES events(seq) ON DELETE CASCADE,
+                      kind TEXT NOT NULL, title TEXT NOT NULL, text TEXT NOT NULL,
+                      current_state TEXT NOT NULL, control_version INTEGER NOT NULL,
+                      interaction_id TEXT, created_at TEXT NOT NULL, read_at TEXT
+                    )
+                    """
+                )
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS notifications_task_id ON notifications(task_id, id)"
+                )
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS notifications_unread ON notifications(read_at, id)"
+                )
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS task_input_cursors (
+                      task_id TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+                      applied_through INTEGER NOT NULL DEFAULT 0,
+                      updated_at TEXT NOT NULL
+                    )
+                    """
+                )
+                connection.execute(f"PRAGMA user_version = {TASK_SCHEMA_VERSION}")
+            elif version > TASK_SCHEMA_VERSION:
                 raise TaskValidationError(f"unsupported task database version: {version}")
 
     @contextmanager
@@ -164,7 +201,96 @@ class TaskStore:
             "INSERT INTO events(task_id,type,data_json,created_at) VALUES(?,?,?,?)",
             (task_id, kind, json.dumps(data or {}, ensure_ascii=False), now_iso()),
         )
-        return int(cursor.lastrowid)
+        sequence = int(cursor.lastrowid)
+        self._record_notification(connection, task_id, sequence, kind, data or {})
+        return sequence
+
+    def _record_notification(self, connection: sqlite3.Connection, task_id: str,
+                             event_seq: int, kind: str, data: dict[str, Any]) -> None:
+        """Project one significant event into the durable notification feed.
+
+        Task state, the event row, and this projection share the caller's
+        transaction. Routine messages and tool progress deliberately produce
+        no notification; event_seq makes repeated hooking harmless.
+        """
+        task = connection.execute(
+            "SELECT title,state,control_version,wait_reason,work_summary,blocked "
+            "FROM tasks WHERE id=?", (task_id,),
+        ).fetchone()
+        if task is None:
+            return
+        notice_kind: str | None = None
+        interaction_id = data.get("id") if kind == "interaction.pending" else None
+        interaction_id = str(interaction_id) if interaction_id else None
+        if kind == "task.control":
+            operation = str(data.get("operation") or "")
+            if operation == "completed":
+                notice_kind = "completed"
+            elif operation == "cancelled":
+                notice_kind = "cancelled"
+            elif operation == "paused":
+                notice_kind = "paused"
+            elif operation == "waiting_user":
+                pending = connection.execute(
+                    "SELECT id FROM interactions WHERE task_id=? AND status='pending' "
+                    "ORDER BY created_at DESC LIMIT 1", (task_id,),
+                ).fetchone()
+                if pending is None:
+                    notice_kind = "interaction"
+                else:
+                    # interaction.pending already announced this decision. The
+                    # read projection supplies the latest state and version.
+                    interaction_id = str(pending["id"])
+        elif kind == "task.user_lifecycle":
+            state = str(data.get("state") or "")
+            if state == "completed":
+                notice_kind = "completed"
+            elif state == "paused":
+                notice_kind = "paused"
+        elif kind == "interaction.pending":
+            notice_kind = "interaction"
+        elif kind == "start.held_after_restart":
+            notice_kind = "interaction"
+            interaction_id = str(data.get("interaction_id") or "") or None
+        elif kind == "run.interrupted":
+            notice_kind = "interrupted"
+        elif kind == "task.progress":
+            blocked, old_blocked = str(task["blocked"] or ""), str(data.get("old_blocked") or "")
+            if blocked and blocked != old_blocked:
+                notice_kind = "blocked"
+        if notice_kind not in NOTIFICATION_KINDS:
+            return
+        state = str(task["state"])
+        title = str(task["title"])
+        reason = str(data.get("wait_reason") or task["wait_reason"] or "")
+        summary = str(task["work_summary"] or task["blocked"] or task["wait_reason"] or "")
+        if notice_kind == "completed":
+            text = f"任务已完成：{title}"
+            if task["work_summary"]:
+                text += f"\n{task['work_summary']}"
+        elif notice_kind == "interaction":
+            text = f"任务需要你的处理：{title}"
+            if reason:
+                text += f"\n{reason}"
+        elif notice_kind == "blocked":
+            text = f"任务遇到阻碍：{title}\n{task['blocked']}"
+        elif notice_kind == "cancelled":
+            text = f"任务已取消：{title}"
+        elif notice_kind == "interrupted":
+            text = f"任务执行意外中断：{title}"
+        else:
+            text = f"任务已挂起：{title}"
+            if reason:
+                text += f"\n{reason}"
+        if summary and notice_kind != "completed" and summary not in text:
+            text += f"\n{summary}"
+        connection.execute(
+            """INSERT OR IGNORE INTO notifications(task_id,event_seq,kind,title,text,
+            current_state,control_version,interaction_id,created_at)
+            VALUES(?,?,?,?,?,?,?,?,?)""",
+            (task_id, event_seq, notice_kind, title, text[:8000], state,
+             int(task["control_version"]), interaction_id, now_iso()),
+        )
 
     def _row(self, connection: sqlite3.Connection, task_id: str) -> sqlite3.Row:
         row = connection.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
@@ -186,6 +312,14 @@ class TaskStore:
         stamp = now_iso()
         task_id = "task_" + uuid.uuid4().hex[:16]
         with self._lock, self._transaction() as connection:
+            if request_id:
+                previous = connection.execute(
+                    "SELECT task_id,operation FROM commands WHERE request_id=?", (request_id,)
+                ).fetchone()
+                if previous is not None:
+                    if previous["operation"] != "create":
+                        raise TaskConflict("request id was used for another task command")
+                    return task_from_row(self._row(connection, previous["task_id"]))
             connection.execute(
                 """INSERT INTO tasks(id,title,goal,constraints,effective_goal,state,workspace,
                 provider_id,model_id,effort,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
@@ -252,7 +386,8 @@ class TaskStore:
             values["updated_at"] = now_iso()
             assignments = ", ".join(f"{key}=?" for key in values)
             connection.execute(f"UPDATE tasks SET {assignments} WHERE id=?", (*values.values(), task_id))
-            self._event(connection, task_id, "task.progress", {"version": expected_version + 1})
+            self._event(connection, task_id, "task.progress",
+                        {"version": expected_version + 1, "old_blocked": row["blocked"]})
             return task_from_row(self._row(connection, task_id))
 
     def add_evidence(self, task_id: str, evidence: Evidence) -> Task:
@@ -422,9 +557,18 @@ class TaskStore:
                     "AND status='pending' AND control_version=?",
                     (control_version, task_id, row["control_version"]),
                 )
+                # A waiting request stays answerable across its own version
+                # transition. A later task change invalidates it as before.
+                connection.execute(
+                    "UPDATE notifications SET control_version=? "
+                    "WHERE task_id=? AND interaction_id IS NOT NULL AND read_at IS NULL",
+                    (control_version, task_id),
+                )
             result = {"task_id": task_id, "state": target}
             self._remember_command(connection, request_id, task_id, operation, result)
-            self._event(connection, task_id, "task.control", {"operation": operation, "state": target})
+            self._event(connection, task_id, "task.control", {
+                "operation": operation, "state": target, "wait_reason": wait_reason,
+            })
             return task_from_row(self._row(connection, task_id))
 
     def edit_lifecycle(self, task_id: str, operation: str, *, request_id: str, expected_version: int) -> Task:
@@ -444,17 +588,20 @@ class TaskStore:
             if row["state"] in ("running", "pausing", "queued"):
                 raise TaskConflict("stop the active task before changing its lifecycle")
             target = "completed" if operation == "mark_completed" else "paused"
+            wait_reason = "用户确认完成；这不免除可继续验证的后续工作" if target == "completed" else ""
             if target == "completed":
                 if self.pending_interactions(task_id) or self.unfinished_operations(task_id):
                     raise TaskConflict("resolve pending work and unknown operations first")
                 connection.execute("DELETE FROM schedules WHERE task_id=?", (task_id,))
             connection.execute(
                 "UPDATE tasks SET state=?,wait_reason=?,control_version=?,updated_at=? WHERE id=?",
-                (target, "用户确认完成；这不免除可继续验证的后续工作" if target == "completed" else "",
+                (target, wait_reason,
                  expected_version + 1, now_iso(), task_id),
             )
             self._remember_command(connection, request_id, task_id, operation, {"state": target})
-            self._event(connection, task_id, "task.user_lifecycle", {"state": target, "source": "user"})
+            self._event(connection, task_id, "task.user_lifecycle", {
+                "state": target, "source": "user", "wait_reason": wait_reason,
+            })
             return task_from_row(self._row(connection, task_id))
 
     def delete(self, task_id: str, *, expected_version: int) -> None:
@@ -637,7 +784,10 @@ class TaskStore:
                         ("服务上次意外结束；请核查未知操作后手动继续",
                          task["control_version"] + 1, now_iso(), row["task_id"]),
                     )
-                self._event(connection, row["task_id"], "run.interrupted", {"run_id": row["id"]})
+                self._event(connection, row["task_id"], "run.interrupted", {
+                    "run_id": row["id"],
+                    "wait_reason": "服务上次意外结束；请核查未知操作后手动继续",
+                })
                 interrupted.append(row["task_id"])
             # The service cannot resume background processes. Persist the fact
             # explicitly if a job row survived a crash.
@@ -668,7 +818,8 @@ class TaskStore:
                     ("重启前任务已排队但尚未开始，等待用户确认", stamp, task["id"]),
                 )
                 self._event(connection, task["id"], "start.held_after_restart",
-                            {"interaction_id": interaction_id})
+                            {"interaction_id": interaction_id,
+                             "wait_reason": "重启前任务已排队但尚未开始，等待用户确认"})
                 held.append(task["id"])
         return held
 
@@ -686,7 +837,10 @@ class TaskStore:
                 (interaction_id, task_id, run_id, operation_id, kind,
                  json.dumps(payload, ensure_ascii=False), "pending", control_version, stamp, stamp),
             )
-            self._event(connection, task_id, "interaction.pending", {"id": interaction_id, "kind": kind})
+            self._event(connection, task_id, "interaction.pending", {
+                "id": interaction_id, "kind": kind,
+                "wait_reason": str(payload.get("question") or payload.get("reason") or ""),
+            })
             return interaction_id
 
     def request_confirmation(
@@ -713,7 +867,8 @@ class TaskStore:
             self._remember_command(connection, request_id, task_id, "confirm_wait",
                                    {"interaction_id": interaction_id})
             self._event(connection, task_id, "interaction.pending",
-                        {"id": interaction_id, "kind": "start_confirmation"})
+                        {"id": interaction_id, "kind": "start_confirmation",
+                         "wait_reason": "定时安排已到期，等待用户确认开始"})
             return interaction_id
 
     def interaction_answer(self, interaction_id: str, *, answer: Any, expected_version: int | None = None) -> dict[str, Any]:
@@ -731,10 +886,18 @@ class TaskStore:
             connection.execute("UPDATE interactions SET status='answered',answer_json=?,updated_at=? WHERE id=?",
                                (json.dumps(answer, ensure_ascii=False), now_iso(), interaction_id))
             rendered = ("approved" if answer is True else "declined") if row["kind"] == "approval" else str(answer)
+            payload = json.loads(row["payload_json"])
+            action = ""
+            if row["kind"] == "approval":
+                action = "\nSaved action: " + json.dumps(
+                    {"tool": payload.get("tool"), "arguments": payload.get("arguments")}, ensure_ascii=False
+                )
+            elif row["kind"] == "question":
+                action = "\nSaved questions: " + json.dumps(payload.get("questions") or [], ensure_ascii=False)
             connection.execute(
                 "INSERT INTO task_messages(task_id,kind,text,data_json,created_at) VALUES(?,?,?,?,?)",
                 (row["task_id"], "user",
-                 f"User answered the saved {row['kind']}: {rendered}",
+                 f"User answered the saved {row['kind']}: {rendered}{action}",
                  json.dumps({"interaction_id": interaction_id, "source": "user_answer"},
                             ensure_ascii=False), now_iso()),
             )
@@ -864,6 +1027,134 @@ class TaskStore:
         finally:
             connection.close()
 
+    def notifications(self, *, after: int = 0, limit: int = 100,
+                      unread_only: bool = False) -> list[dict[str, Any]]:
+        """Read the durable, globally ordered important-event feed."""
+        if type(after) is not int or after < 0 or type(limit) is not int or not 1 <= limit <= 1000:
+            raise TaskValidationError("invalid notification cursor or limit")
+        connection = self._connect()
+        try:
+            where = "WHERE n.id>?" + (" AND n.read_at IS NULL" if unread_only else "")
+            rows = connection.execute(
+                "SELECT n.id AS notification_id,n.task_id,n.kind,n.title,n.text,"
+                "n.created_at,n.read_at,n.interaction_id,t.wait_reason AS task_wait_reason,"
+                "CASE WHEN n.kind='interaction' AND i.id IS NOT NULL AND i.status='pending' "
+                "THEN 'waiting_user' "
+                "ELSE t.state END AS current_state,"
+                "t.control_version AS current_version,"
+                "t.wait_reason AS current_wait_reason,i.status AS interaction_status,"
+                "i.control_version AS interaction_version,i.payload_json AS interaction_payload "
+                "FROM notifications n "
+                "JOIN tasks t ON t.id=n.task_id LEFT JOIN interactions i ON i.id=n.interaction_id "
+                + where + " ORDER BY n.id LIMIT ?",
+                (after, limit),
+            ).fetchall()
+            return [self._notification_dict(row) for row in rows]
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _notification_dict(row: sqlite3.Row) -> dict[str, Any]:
+        item = {
+            "id": int(row["notification_id"]), "task_id": row["task_id"], "kind": row["kind"],
+            "title": row["title"], "text": row["text"],
+            "created_at": row["created_at"], "read_at": row["read_at"],
+            "interaction_id": row["interaction_id"],
+            "current_state": row["current_state"],
+            "control_version": int(row["current_version"]),
+        }
+        if row["interaction_id"]:
+            item["interaction_status"] = row["interaction_status"]
+            item["interaction_payload"] = json.loads(row["interaction_payload"] or "{}")
+            item["interaction_expired"] = (
+                row["interaction_status"] != "pending"
+                or row["interaction_version"] < row["current_version"]
+            )
+            if item["interaction_expired"]:
+                item["stale_reason"] = "interaction is no longer pending at the current control version"
+        return item
+
+    def ack_notification(self, notification_id: int) -> dict[str, Any]:
+        """Mark one notification read; acknowledgement is idempotent."""
+        if type(notification_id) is not int or notification_id <= 0:
+            raise TaskValidationError("invalid notification id")
+        with self._lock, self._transaction() as connection:
+            row = connection.execute("SELECT * FROM notifications WHERE id=?",
+                                     (notification_id,)).fetchone()
+            if row is None:
+                raise TaskNotFound(f"notification {notification_id} not found")
+            if row["read_at"] is None:
+                connection.execute("UPDATE notifications SET read_at=? WHERE id=? AND read_at IS NULL",
+                                   (now_iso(), notification_id))
+            row = connection.execute(
+                "SELECT n.id AS notification_id,n.task_id,n.kind,n.title,n.text,"
+                "n.created_at,n.read_at,n.interaction_id,"
+                "CASE WHEN n.kind='interaction' AND i.id IS NOT NULL AND i.status='pending' "
+                "THEN 'waiting_user' ELSE t.state END AS current_state,"
+                "t.control_version AS current_version,"
+                "i.status AS interaction_status,i.control_version AS interaction_version,"
+                "i.payload_json AS interaction_payload "
+                "FROM notifications n JOIN tasks t ON t.id=n.task_id "
+                "LEFT JOIN interactions i ON i.id=n.interaction_id WHERE n.id=?",
+                (notification_id,),
+            ).fetchone()
+            return self._notification_dict(row)
+
+    def notification_count(self, *, unread_only: bool = True) -> int:
+        """Return the full count, independent of the notification page size."""
+        connection = self._connect()
+        try:
+            where = "WHERE read_at IS NULL" if unread_only else ""
+            return int(connection.execute(
+                f"SELECT COUNT(*) FROM notifications {where}"
+            ).fetchone()[0])
+        finally:
+            connection.close()
+
+    def mark_inputs_applied(self, task_id: str, through_seq: int) -> dict[str, int]:
+        """Advance the model-boundary cursor without moving it backwards."""
+        if type(through_seq) is not int or through_seq < 0:
+            raise TaskValidationError("through_seq must be a non-negative integer")
+        with self._lock, self._transaction() as connection:
+            self._row(connection, task_id)
+            latest_user = connection.execute(
+                "SELECT COALESCE(MAX(seq),0) FROM task_messages WHERE task_id=? AND kind='user'",
+                (task_id,),
+            ).fetchone()[0]
+            if through_seq > int(latest_user):
+                raise TaskValidationError("cannot apply an input that does not exist")
+            current = connection.execute(
+                "SELECT applied_through FROM task_input_cursors WHERE task_id=?", (task_id,)
+            ).fetchone()
+            applied = max(int(current[0]) if current else 0, through_seq)
+            connection.execute(
+                "INSERT INTO task_input_cursors(task_id,applied_through,updated_at) VALUES(?,?,?) "
+                "ON CONFLICT(task_id) DO UPDATE SET applied_through=excluded.applied_through,"
+                "updated_at=excluded.updated_at",
+                (task_id, applied, now_iso()),
+            )
+            return self._input_status(connection, task_id)
+
+    def input_status(self, task_id: str) -> dict[str, int]:
+        connection = self._connect()
+        try:
+            self._row(connection, task_id)
+            return self._input_status(connection, task_id)
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _input_status(connection: sqlite3.Connection, task_id: str) -> dict[str, int]:
+        cursor = connection.execute(
+            "SELECT applied_through FROM task_input_cursors WHERE task_id=?", (task_id,)
+        ).fetchone()
+        applied = int(cursor[0]) if cursor else 0
+        pending = connection.execute(
+            "SELECT COUNT(*) FROM task_messages WHERE task_id=? AND kind='user' AND seq>?",
+            (task_id, applied),
+        ).fetchone()[0]
+        return {"applied_through": applied, "pending_count": int(pending)}
+
     def add_message(self, task_id: str, *, kind: str, text: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
         if kind not in ("user", "assistant", "tool", "notice"):
             raise TaskValidationError("invalid task message kind")
@@ -874,8 +1165,75 @@ class TaskStore:
                 (task_id, kind, text, json.dumps(data or {}, ensure_ascii=False), now_iso()),
             )
             sequence = int(cursor.lastrowid)
+            if kind == "user":
+                # The first snapshot after upgrading an older task establishes
+                # a baseline; those records predate the delivery cursor.
+                connection.execute(
+                    "INSERT OR IGNORE INTO task_input_cursors(task_id,applied_through,updated_at) "
+                    "VALUES(?,?,?)", (task_id, sequence - 1, now_iso()),
+                )
             self._event(connection, task_id, "message", {"seq": sequence})
         return {"seq": sequence, "kind": kind, "text": text, **(data or {})}
+
+    def message_for_request(self, task_id: str, request_id: str) -> dict[str, Any] | None:
+        """Find an already accepted input before repeating attachment copies."""
+        connection = self._connect()
+        try:
+            command = connection.execute(
+                "SELECT task_id,operation,result_json FROM commands WHERE request_id=?", (request_id,)
+            ).fetchone()
+            if command is None:
+                return None
+            if command["task_id"] != task_id or command["operation"] != "message":
+                raise TaskConflict("request id was used for another task command")
+            sequence = json.loads(command["result_json"])["seq"]
+            row = connection.execute(
+                "SELECT seq,text,data_json FROM task_messages WHERE task_id=? AND seq=?", (task_id, sequence)
+            ).fetchone()
+            if row is None:
+                raise TaskNotFound("saved task message no longer exists")
+            return {"seq": row["seq"], "text": row["text"], **json.loads(row["data_json"])}
+        finally:
+            connection.close()
+
+    def accept_user_message(self, task_id: str, *, text: str, request_id: str,
+                            data: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Persist one user input and return its stable message sequence.
+
+        The request id is stored with the message so retrying an HTTP request
+        cannot enqueue it twice. Input is accepted independently of execution;
+        the caller decides which lifecycle transition, if any, to request.
+        """
+        if not request_id or len(request_id) > 120:
+            raise TaskValidationError("invalid request id")
+        with self._lock, self._transaction() as connection:
+            self._row(connection, task_id)
+            previous = connection.execute(
+                "SELECT task_id,operation,result_json FROM commands WHERE request_id=?",
+                (request_id,),
+            ).fetchone()
+            if previous is not None:
+                if previous["task_id"] != task_id or previous["operation"] != "message":
+                    raise TaskConflict("request id was used for another task command")
+                saved = json.loads(previous["result_json"])
+                row = connection.execute(
+                    "SELECT seq,kind,text,data_json,created_at FROM task_messages "
+                    "WHERE task_id=? AND seq=?", (task_id, int(saved["seq"])),
+                ).fetchone()
+                if row is None:
+                    raise TaskNotFound("saved task message no longer exists")
+                if row["text"] != text or json.loads(row["data_json"]) != (data or {}):
+                    raise TaskConflict("request id was used for different message content")
+                return {"seq": row["seq"], "kind": row["kind"], "text": row["text"],
+                        "created_at": row["created_at"], **json.loads(row["data_json"])}
+            cursor = connection.execute(
+                "INSERT INTO task_messages(task_id,kind,text,data_json,created_at) VALUES(?,?,?,?,?)",
+                (task_id, "user", text, json.dumps(data or {}, ensure_ascii=False), now_iso()),
+            )
+            sequence = int(cursor.lastrowid)
+            self._remember_command(connection, request_id, task_id, "message", {"seq": sequence})
+            self._event(connection, task_id, "message", {"seq": sequence})
+            return {"seq": sequence, "kind": "user", "text": text, **(data or {})}
 
     def save_run_messages(self, task_id: str, messages: list[dict[str, Any]], *,
                           incomplete: bool = False) -> None:

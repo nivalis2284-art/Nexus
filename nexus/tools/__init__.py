@@ -85,6 +85,7 @@ def build(
     task_callbacks: Any = None,
     attachment_source: Any = None,
     attachment_ids: set[str] | None = None,
+    work_service: Any = None,
 ) -> tuple[Registry, ToolContext]:
     """Assemble a registry. ``config`` decides which optional tools exist."""
     context = ToolContext(root or Path.cwd(), skills)
@@ -92,6 +93,7 @@ def build(
     context.jobs = jobs
     context.cancel_event = cancel_event
     context.task_callbacks = task_callbacks
+    context.work_service = work_service
     context.attachments = attachment_source
     context.attachment_ids = attachment_ids or set()
     settings = config or {}
@@ -115,8 +117,14 @@ def build(
         registry.add(spec)
     if task_callbacks is not None:
         from .tasks import TOOLS as task_tools
+        from .work import TASK_READ_TOOL
 
         for spec in task_tools:
+            registry.add(spec)
+        registry.add(TASK_READ_TOOL)
+    if work_service is not None:
+        from .work import WORK_TOOLS
+        for spec in WORK_TOOLS:
             registry.add(spec)
     return registry, context
 

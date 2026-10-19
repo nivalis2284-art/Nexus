@@ -14,13 +14,16 @@ def test_subagent_preserves_abnormal_provider_stop(reason):
     ))
     result = spawn(context, {"task": "finish the work", "max_steps": 12})
     assert result["ok"] is False
-    assert result["content"] == "partial result"
+    assert "partial result" in result["content"]
+    assert f"stopped={reason}" in result["content"]
     assert result["stopped"] == reason
 
 
 @pytest.mark.parametrize("reason", ["complete", "max_steps"])
-def test_subagent_keeps_existing_normal_and_step_budget_results(reason):
+def test_subagent_only_marks_a_verified_normal_stop_as_complete(reason):
     context = SimpleNamespace(spawn_subagent=lambda *args: SimpleNamespace(
         text="result", stopped=reason,
     ))
-    assert spawn(context, {"task": "work", "max_steps": 12})["ok"] is True
+    result = spawn(context, {"task": "work", "max_steps": 12})
+    assert result["ok"] is (reason == "complete")
+    assert f"stopped={reason}" in result["content"]

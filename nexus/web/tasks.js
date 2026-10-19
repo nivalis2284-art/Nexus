@@ -54,6 +54,7 @@ function renderTasks() {
 
 async function openTask(id) {
   const viewVersion = state.viewVersion = (state.viewVersion || 0) + 1;
+  if (typeof clearLingView === "function" && lingView.active) clearLingView();
   if (taskView.timer) clearTimeout(taskView.timer);
   taskView.timer = null;
   const value = await api("/api/tasks/" + encodeURIComponent(id));

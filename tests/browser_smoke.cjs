@@ -92,6 +92,9 @@ async function main() {
     page.on('pageerror', error => errors.push(String(error)));
     await page.goto(base);
     await page.locator('#model-label').filter({ hasText: 'fake' }).waitFor();
+    // This suite protects the legacy chat path; the default entry is now Ling.
+    await page.locator('#new').click();
+    await page.waitForFunction(() => !lingView.active && Boolean(state.sessionId));
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aPe4AAAAASUVORK5CYII=', 'base64');
     await page.locator('#image-input').setInputFiles({ name: 'pixel.png', mimeType: 'image/png', buffer: png });
     await page.locator('.attach-chip img').waitFor();
@@ -101,6 +104,7 @@ async function main() {
     await page.locator('#transcript .answer').filter({ hasText: 'Browser smoke complete.' }).waitFor();
     await page.locator('#send[aria-label="发送"]').waitFor();
     await page.reload();
+    await page.locator('#sessions li').filter({ hasText: '图片' }).click();
     await page.locator('#transcript .answer').filter({ hasText: 'Browser smoke complete.' }).waitFor();
     const thumbnail = page.locator('#transcript .msg.user img');
     await thumbnail.waitFor();
@@ -173,6 +177,7 @@ async function main() {
       assert.deepEqual(await download.body(), fs.readFileSync(path.join(fixtures, fileNames[index])));
     }
     await page.reload();
+    await page.locator('#sessions li').filter({hasText: 'notes.md'}).click();
     await page.locator('#transcript .file-link').first().waitFor();
     assert.equal(await page.locator('#transcript .file-link').count(), 6);
     await page.screenshot({path: path.join(root, '.artifacts', 'attachments-chat-smoke.png'), fullPage: true});

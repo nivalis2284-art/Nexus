@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import threading
+import uuid
 from typing import Any
 
+from ..attachments import message_content
 from ..task import Evidence, Step, TaskConflict, TaskStore, TaskValidationError
 from ..tools.registry import PreparedCall
 
@@ -23,9 +25,12 @@ class TaskCallbacks:
         self._lock = threading.RLock()
         self._attempts: list[dict[str, Any]] = []
         self._operations: dict[str, str] = {}
+        self._operation_scope = ""
         self._finished = False
         self.waiting: dict[str, Any] | None = None
         self._failure_streak: tuple[tuple[str, str], int, bool] | None = None
+        self._saved_messages: dict[int, dict[str, Any]] = {}
+        self._progress_marker: tuple[int, int, int] | None = None
 
     # --- task work -------------------------------------------------------
 
@@ -107,15 +112,32 @@ class TaskCallbacks:
         existing_ids = {str(index + 1) for index in range(len(task.evidence))}
         if evidence_ids - existing_ids:
             raise TaskValidationError("completion cites evidence that does not exist")
-        verified = [item for item in task.evidence if item.kind == "verification" and item.ok]
         limitations = raw.get("unresolved") or []
-        if not verified:
-            raise TaskValidationError("task completion needs a successful verification observation")
+        if not evidence_ids:
+            raise TaskValidationError("task completion needs a cited verification observation")
+        cited_verified = [
+            item for index, item in enumerate(task.evidence, start=1)
+            if str(index) in evidence_ids and item.kind == "verification" and item.ok
+        ]
+        if not cited_verified:
+            raise TaskValidationError(
+                "task completion needs a cited successful verification observation"
+            )
         if any(step.verification != "verified" for step in task.steps):
             raise TaskValidationError("every task step must be verified before completion")
         updated = self.store.update_progress(
             self.task_id, expected_version=task.progress_version,
-            changes={"work_summary": raw["summary"]},
+            changes={
+                "work_summary": raw["summary"],
+                "decisions": [
+                    *task.decisions,
+                    {
+                        "kind": "completion", "summary": raw["summary"],
+                        "evidence_ids": sorted(evidence_ids, key=int),
+                        "unresolved": list(limitations),
+                    },
+                ][-100:],
+            },
         )
         completed = self.store.command(
             self.task_id, "completed", request_id=f"finish-{self.run_id}",
@@ -209,8 +231,8 @@ class TaskCallbacks:
                 self.task_id, kind="notice",
                 text=f"无法保存任务检查点，已停止后续派发：{type(error).__name__}: {error}",
             )
-        except Exception:
-            pass
+        except (OSError, ValueError, TaskConflict) as notice_error:
+            self._persistence_notice_error = notice_error
 
     def pending_answer(self, interaction_id: str, answer: Any) -> None:
         """Record a decision only for one of this task's pending interactions."""
@@ -224,16 +246,178 @@ class TaskCallbacks:
             interaction_id, answer=answer, expected_version=task.control_version
         )
 
+    def on_message(self, message: dict[str, Any]) -> None:
+        """Checkpoint one completed model/tool exchange immediately.
+
+        A tool result is recorded only after dispatch returns, so this is an
+        existing safe boundary. Provider messages are saved with their call
+        identity so the end-of-run save cannot duplicate them.
+        """
+        identity = id(message)
+        if identity in self._saved_messages:
+            return
+        saved = dict(message)
+        try:
+            self.store.save_run_messages(self.task_id, [saved])
+        except BaseException as error:
+            self.persistence_failure(error)
+            raise
+        # Holding the object prevents CPython from reusing its id in a later
+        # Agent.run() while this callback still owns the run boundary.
+        self._saved_messages[identity] = message
+
     def save_run_messages(self, messages: list[dict[str, Any]], *,
                           incomplete: bool = False) -> None:
-        self.store.save_run_messages(
-            self.task_id, messages, incomplete=incomplete
+        """Close the final exchange without rewriting already saved facts."""
+        remaining = [{key: value for key, value in message.items() if key != "details"}
+                     for message in messages
+                     if id(message) not in self._saved_messages]
+        try:
+            self.store.save_run_messages(self.task_id, remaining, incomplete=incomplete)
+        except BaseException as error:
+            self.persistence_failure(error)
+            raise
+        self._saved_messages.update({id(message): message for message in messages})
+
+    def apply_new_inputs(self, history: list[dict[str, Any]], *,
+                         include_images: bool = False, snapshot: bool = False,
+                         advance: bool = True, repeat_last: bool = False) -> int:
+        """Merge durable user input at the model-request boundary.
+
+        On a fresh run the already loaded snapshot is marked first. Later
+        model steps consume only newer user rows; saved user rows are never
+        appended to the provider transcript a second time.
+        """
+        status = self.store.input_status(self.task_id)
+        applied = int(status["applied_through"])
+        rows = self.store.messages(self.task_id)
+        user_rows = [row for row in rows if row.get("kind") == "user"]
+        through = max((int(row["seq"]) for row in user_rows), default=applied)
+        if snapshot:
+            if advance:
+                self.store.mark_inputs_applied(self.task_id, through)
+            return through
+        new_rows = [row for row in user_rows if int(row["seq"]) > applied]
+        if (not new_rows and repeat_last and user_rows
+                and history and history[-1].get("role") == "assistant"):
+            # A model response always needs a following user turn before the
+            # next request. Do not resend assistant text or mutate old calls.
+            prior = message_content(
+                str(user_rows[-1].get("text") or ""), user_rows[-1].get("attachments") or [],
+                include_images=include_images,
+            )
+            history.append({"role": "user", "content": prior})
+        history.extend({
+            "role": "user",
+            "content": message_content(
+                str(row.get("text") or ""), row.get("attachments") or [],
+                include_images=include_images,
+            ),
+        } for row in new_rows)
+        if advance:
+            self.store.mark_inputs_applied(self.task_id, through)
+        return through
+
+    def snapshot_history(self, *, include_images: bool = False,
+                         repeat_last: bool = False) -> list[dict[str, Any]]:
+        """Build provider history and mark its user snapshot atomically.
+
+        New input arriving during this operation either appears in the build
+        or remains beyond the cursor; it cannot be marked applied unseen.
+        """
+        with self.store._lock:
+            history = self.store.messages_for_model(
+                self.task_id, include_images=include_images
+            )
+            if repeat_last and history and history[-1].get("role") == "assistant":
+                user_rows = [row for row in self.store.messages(self.task_id)
+                             if row.get("kind") == "user"]
+                if user_rows:
+                    history.append({
+                        "role": "user",
+                        "content": message_content(
+                            str(user_rows[-1].get("text") or ""),
+                            user_rows[-1].get("attachments") or [],
+                            include_images=include_images,
+                        ),
+                    })
+            self.apply_new_inputs(history, include_images=include_images, snapshot=True)
+            return history
+
+    def capture_progress(self) -> tuple[int, int, int]:
+        task = self.store.get(self.task_id)
+        return (task.progress_version, len(task.evidence), len(task.decisions))
+
+    def continuation_progress(self) -> bool:
+        """Whether saved work facts changed since this checkpoint began."""
+        return self._progress_marker is None or self.capture_progress() != self._progress_marker
+
+    def begin_continuation(self) -> None:
+        self._progress_marker = self.capture_progress()
+
+    def before_model(self, history: list[dict[str, Any]], *, agent: Any,
+                     include_images: bool = False,
+                     attachment_contexts: list[Any] | None = None) -> None:
+        """Refresh the rendered task state and accept ordered user input."""
+        agent.task_context = self.context_text()
+        through = self.apply_new_inputs(
+            history, include_images=include_images,
+            advance=False, repeat_last=True,
         )
+        # The caller has completed its preparation and this hook is invoked
+        # immediately before the request. Persist the consumed boundary now.
+        self.store.mark_inputs_applied(self.task_id, through)
+        if attachment_contexts:
+            allowed = {
+                a["id"] for item in self.store.messages(self.task_id)
+                for a in (item.get("attachments") or [])
+            }
+            for context in attachment_contexts:
+                context.attachment_ids = allowed
+
 
     def prepare_dispatch(self, tool_call_id: str, prepared: Any, context: Any) -> None:
         """Persist intent immediately before the side effect enters a worker."""
-        context._task_tool_call_id = tool_call_id
+        context._task_tool_call_id = self._scoped_call_id(tool_call_id)
         self.before_dispatch(prepared, context)
+
+    def child_scope(self) -> TaskCallbacks:
+        """One isolated operation namespace on the same task authority."""
+        child = TaskCallbacks(
+            self.store, self.task_id, self.run_id, cancel=self.cancel,
+        )
+        child._operation_scope = "child-" + uuid.uuid4().hex[:12]
+        return child
+
+    def refresh_child_context(self, history: list[dict[str, Any]], *,
+                              agent: Any, attachment_contexts: list[Any] | None = None,
+                              include_images: bool = False) -> None:
+        """Refresh child facts without consuming the parent's input cursor."""
+        agent.task_context = self.context_text()
+        if attachment_contexts:
+            allowed = {
+                a["id"] for item in self.store.messages(self.task_id)
+                for a in (item.get("attachments") or [])
+            }
+            for context in attachment_contexts:
+                context.attachment_ids = allowed
+
+    def add_child_evidence(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Subagent observations enrich the parent without rewriting its plan."""
+        evidence = Evidence.from_dict({
+            **raw,
+            "metadata": {**(raw.get("metadata") or {}), "subagent": True},
+        })
+        updated = self.store.add_evidence(self.task_id, evidence)
+        return {
+            "evidence_count": len(updated.evidence),
+            "progress_version": updated.progress_version,
+        }
+
+    def _scoped_call_id(self, tool_call_id: str) -> str:
+        if not self._operation_scope:
+            return tool_call_id
+        return f"{self._operation_scope}:{tool_call_id}"
 
     def context_text(self) -> str:
         task = self.store.get(self.task_id)

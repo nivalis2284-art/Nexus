@@ -125,6 +125,8 @@ class Agent:
         execute_prepared: Callable[[Any], ToolResult] | None = None,
         on_tool_intent: Callable[[str, Any, Any], None] | None = None,
         on_tool_result: Callable[[dict[str, Any], dict[str, Any], ToolResult], None] | None = None,
+        before_model: Callable[[list[dict[str, Any]]], None] | None = None,
+        interaction_context: str = "",
     ) -> None:
         self.profile = profile
         self.credentials = credentials
@@ -149,6 +151,8 @@ class Agent:
         self.execute_prepared = execute_prepared
         self.on_tool_intent = on_tool_intent
         self.on_tool_result = on_tool_result
+        self.before_model = before_model
+        self.interaction_context = interaction_context
         # The durable turn output must not depend on the size of compacted history.
         self.new_messages: list[dict[str, Any]] = []
 
@@ -310,6 +314,8 @@ class Agent:
                 if self.stopped:
                     result.stopped = "cancelled"
                     break
+                if self.before_model is not None:
+                    self.before_model(messages)
                 system = prompt.build_system_prompt(
                     self.workspace,
                     tool_text,
@@ -317,6 +323,7 @@ class Agent:
                     date=time.strftime("%Y-%m-%d"),
                     skills=self.skills,
                     task_context=self.task_context,
+                    interaction_context=self.interaction_context,
                 )
                 # Trim oversized tool results before budgeting. Deterministic,
                 # no model call: see core.compaction for why this goes first.
@@ -523,6 +530,8 @@ class Agent:
                             "ok": outcome.ok,
                             "error": outcome.error_code,
                         }
+                    if outcome.data.get("subagent"):
+                        tool_message["details"] = outcome.data
                     self._record(messages, tool_message)
                     if self.on_tool_result is not None:
                         self.on_tool_result(call, _safe_json(call["arguments"]), outcome)
@@ -535,6 +544,7 @@ class Agent:
                             "ok": outcome.ok,
                             "content": outcome.content,
                             "error": outcome.error_code,
+                            "details": tool_message.get("details"),
                         },
                     )
             result.stopped = result.stopped or "max_steps"

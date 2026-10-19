@@ -6,8 +6,8 @@ import time
 import uuid
 from typing import Any
 
-from ..task import TaskConflict, TaskNotFound, TaskValidationError
 from ..attachments import AttachmentStore, IMAGE_MIMES
+from ..task import TaskConflict, TaskNotFound, TaskValidationError
 
 
 class TaskHTTP:
@@ -239,14 +239,14 @@ class TaskHTTP:
         self.respond(handler, 200, {"events": events, "next": events[-1]["seq"] if events else after})
 
     def messages(self, handler, task_id: str, body: dict[str, Any]) -> None:
-        """Append a user message and start/resume this same task."""
+        """Accept user input without replacing a pending decision or run."""
         text = str(body.get("text") or "").strip()
         request_id = str(body.get("request_id") or "").strip()
         if (not text and not body.get("attachments")) or not request_id:
             raise TaskValidationError("text and request_id are required")
-        prepared = {"task_id": task_id, "text": text, "request_id": request_id}
         task = self.store.get(task_id)
-        if task.state in ("cancelled", "completed"):
+        previous = self.store.message_for_request(task_id, request_id)
+        if previous is None and task.state in ("cancelled", "completed"):
             raise TaskConflict("re-enable or create a new task before adding work")
         # Persist the user's message before a worker can start and consume it.
         attachments = AttachmentStore(self.state["store"].home).resolve("tasks", task_id, body.get("attachments", []))
@@ -257,11 +257,17 @@ class TaskHTTP:
                 raise TaskValidationError("任务绑定的模型未声明图片能力，请更换模型或移除图片")
             if any(item["mime"] in IMAGE_MIMES and item["size"] > 5 * 1024 * 1024 for item in attachments):
                 raise TaskValidationError("图片上限为 5 MiB")
-        self.store.add_message(task_id, kind="user", text=text, data={"attachments": attachments})
-        if task.state in ("paused", "waiting_user"):
+        message = self.store.accept_user_message(
+            task_id, text=text, request_id=request_id, data={"attachments": attachments},
+        )
+        delivery = "pending"
+        if previous is None and task.state == "paused" and body.get("resume", True) is True:
             task = self.controller.submit(task_id, request_id=request_id + "-run",
                                           expected_version=task.control_version)
-        self.respond(handler, 200, prepared)
+        self.respond(handler, 200, {
+            "task_id": task_id, "text": text, "request_id": request_id,
+            "seq": message["seq"], "delivery": delivery,
+        })
 
     def task_detail(self, task_id: str) -> dict[str, Any]:
         """Shared task projection used by pages and control helpers."""
@@ -278,6 +284,7 @@ class TaskHTTP:
             **task.to_dict(), "schedule": self.store.schedule(task_id),
             "pending_interactions": self.store.pending_interactions(task_id),
             "messages": self.store.messages(task_id),
+            "input_status": self.store.input_status(task_id),
             "unfinished_operations": self.store.unfinished_operations(task_id),
             "jobs": jobs, "active": task_id == self.controller.active_task,
             "queued": task_id in self.controller.queued_ids(),

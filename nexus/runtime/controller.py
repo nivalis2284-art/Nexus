@@ -82,7 +82,11 @@ class TaskController:
             return list(self._queue)
 
     def submit(self, task_id: str, *, request_id: str, expected_version: int | None = None) -> Task:
-        task = self.store.command(task_id, "queued", request_id=request_id, expected_version=expected_version)
+        with self.store._lock:
+            current = self.store.get(task_id)
+            if current.state == "waiting_user" and self.store.pending_interactions(task_id):
+                raise TaskConflict("answer the pending interaction before starting this task")
+            task = self.store.command(task_id, "queued", request_id=request_id, expected_version=expected_version)
         self._enqueue(task_id)
         return task
 

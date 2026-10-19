@@ -47,13 +47,14 @@ from ..model import RuntimeCredentials
 from ..runtime import TaskController
 from ..runtime.assembly import TaskAssembler
 from ..runtime.scheduler import TaskScheduler
-from ..task import TaskConflict, TaskNotFound, TaskStore
+from ..task import TaskConflict, TaskNotFound, TaskStore, TaskValidationError
 from ..session import Message, SessionStore
 from ..skills import SkillSet
 from ..tools import build, mcp_tools
 from ..tools._jobs import JobRegistry
 from .task_api import TaskHTTP
 from .attachments import route as attachment_route
+from ..ling import LingInbox, WorkService, ling_session_id
 
 APPROVAL_TIMEOUT = 600.0
 
@@ -235,6 +236,27 @@ def _task_http() -> TaskHTTP:
     return TaskHTTP(STATE, _json)
 
 
+def _ling() -> LingInbox:
+    with RESOURCES:
+        if STATE.get("closing"):
+            raise TaskConflict("服务正在关闭")
+        if "tasks" not in STATE:
+            raise TaskValidationError("task service is not initialized")
+        if STATE.get("ling") is None:
+            def run(session, emit, inbox):
+                handler = object.__new__(Handler)
+                try:
+                    handler._run_turn(session, STATE["store"].load(), emit, ling=inbox)
+                finally:
+                    if RUNNING.get("session_id") == session.id:
+                        APPROVALS.cancel_all()
+                        RUNNING["agent"] = None
+                        RUNNING.pop("session_id", None)
+                        RUNNING.pop("cancel_event", None)
+            STATE["ling"] = LingInbox(STATE, run, BUSY)
+        return STATE["ling"]
+
+
 def _task_error(handler: BaseHTTPRequestHandler, error: BaseException) -> None:
     status = 404 if isinstance(error, TaskNotFound) else 409 if isinstance(error, TaskConflict) else 400
     _json(handler, status, {"error": str(error)})
@@ -350,6 +372,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._file("app.js", "text/javascript; charset=utf-8")
         if path == "/tasks.js":
             return self._file("tasks.js", "text/javascript; charset=utf-8")
+        if path == "/ling.js":
+            return self._file("ling.js", "text/javascript; charset=utf-8")
         if path == "/app.css":
             return self._file("app.css", "text/css; charset=utf-8")
         if path == "/api/state":
@@ -357,6 +381,21 @@ class Handler(BaseHTTPRequestHandler):
                 return _json(self, 200, self._state())
             except (OSError, ValueError) as error:
                 return _json(self, 500, {"error": str(error)})
+        if path in ("/api/ling", "/api/notifications"):
+            try:
+                if path == "/api/ling":
+                    return _json(self, 200, _ling().projection(_transcript))
+                query = parse_qs(urlparse(self.path).query)
+                after = max(0, int(query.get("after", ["0"])[-1]))
+                limit = min(1000, max(1, int(query.get("limit", ["100"])[-1])))
+                values = STATE["tasks"].notifications(
+                    after=after, limit=limit,
+                    unread_only=query.get("unread", ["0"])[-1] in ("1", "true"))
+                return _json(self, 200, {"notifications": values,
+                    "next": values[-1]["id"] if values else after,
+                    "unread_count": STATE["tasks"].notification_count()})
+            except (OSError, ValueError) as error:
+                return _task_error(self, error)
         if path == "/api/tasks":
             try:
                 return _task_http().list(self, parse_qs(urlparse(self.path).query))
@@ -394,6 +433,8 @@ class Handler(BaseHTTPRequestHandler):
                 return _task_error(self, error)
         if path.startswith("/api/sessions/"):
             session_id = path.rsplit("/", 1)[-1]
+            if session_id == ling_session_id(STATE.get("tasks")):
+                return _json(self, 409, {"error": "灵的持续记录由统一入口管理，不能作为普通会话删除。"})
             if RUNNING.get("session_id") == session_id:
                 return _json(self, 409, {"error": "请先停止当前会话，再删除。"})
             removed = STATE["sessions"].delete(session_id)
@@ -442,6 +483,32 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         body = _read_json(self)
         try:
+            if path == "/api/ling/input":
+                inbox = _ling()
+                text = str(body.get("text") or "").strip()
+                images = _read_images(body.get("images"))
+                settings = STATE["store"].load()
+                if not settings.api_key or not settings.provider.base_url:
+                    raise TaskValidationError("请先配置模型的 Base URL 和 API Key")
+                build_profile(settings.provider, settings.model)
+                if images and not settings.model.get("capabilities", {}).get("images"):
+                    raise TaskValidationError("当前模型没有声明图片能力")
+                attachments = AttachmentStore(STATE["store"].home).resolve(
+                    "sessions", inbox.session_id, body.get("attachments", []))
+                if len(images) + len(attachments) > 8:
+                    raise TaskValidationError("每次最多 8 个附件")
+                return _json(self, 202, inbox.enqueue(text, images, attachments,
+                    str(body.get("request_id") or "")))
+            if path == "/api/ling/resume":
+                return _json(self, 200, _ling().resume())
+            if path == "/api/ling/stop":
+                inbox = _ling()
+                if RUNNING.get("session_id") == inbox.session_id:
+                    return self._abort()
+                return _json(self, 200, {"stopped": False})
+            if path.startswith("/api/notifications/") and path.endswith("/read"):
+                value = STATE["tasks"].ack_notification(int(path.split("/")[3]))
+                return _json(self, 200, value or {"read": True})
             if path == "/api/tasks":
                 return _task_http().create(self, body)
             if path == "/api/task-control":
@@ -519,6 +586,7 @@ class Handler(BaseHTTPRequestHandler):
             profile = settings.profile
         except ValueError:
             profile = None
+        ling_id = ling_session_id(STATE.get("tasks"))
         return {
             "providers": providers,
             "current": {
@@ -539,7 +607,8 @@ class Handler(BaseHTTPRequestHandler):
             "permission": settings.permission,
             "max_steps": settings.max_steps,
             "workspace": settings.workspace,
-            "sessions": STATE["sessions"].list(),
+            "sessions": [item for item in STATE["sessions"].list()
+                         if item["id"] != ling_id],
             "thinking_note": "思考内容仅用于展示，不回传给模型。",
         }
 
@@ -737,7 +806,7 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             BUSY.release()
 
-    def _run_turn(self, session, settings, emit) -> None:
+    def _run_turn(self, session, settings, emit, *, ling: LingInbox | None = None) -> None:
         workspace = inspect(Path(settings.workspace))
         tool_config = {
             "webfetch_hosts": settings.webfetch_hosts,
@@ -753,13 +822,22 @@ class Handler(BaseHTTPRequestHandler):
             session_jobs = STATE.setdefault("jobs", {}).setdefault(session.id, JobRegistry())
             cancel_event = threading.Event()
             RUNNING["cancel_event"] = cancel_event
+            RUNNING["session_id"] = session.id
 
-        def toolset():
+        def work_input(task_id, body):
+            results = []
+            TaskHTTP(STATE, lambda handler, status, value: results.append(value)).messages(None, task_id, body)
+            return results[-1]
+
+        work_service = WorkService(STATE, session, settings, ling.current_input, intake=work_input) if ling else None
+
+        def toolset(*, supervise=True):
             return build(
                 skill_set.bodies(), root=workspace.root, config=tool_config,
                 mcp=STATE.get("mcp"), jobs=session_jobs, cancel_event=cancel_event,
                 attachment_source=(AttachmentStore(STATE["store"].home), "sessions", session.id),
                 attachment_ids={a["id"] for item in session.items for a in item.data.get("attachments", [])},
+                work_service=work_service if supervise else None,
             )
 
         registry, context = toolset()
@@ -829,6 +907,21 @@ class Handler(BaseHTTPRequestHandler):
                 policy.remember(request.tool, request.value)
             return allowed
 
+        persisted_count = 0
+
+        def checkpoint(message):
+            nonlocal persisted_count
+            self._persist(session, [message])
+            persisted_count += 1
+            if ling:
+                # The persisted message now replaces its streaming preview.
+                with ling._condition:
+                    ling.live = {}
+
+        def before_model(messages):
+            if work_service:
+                agent.interaction_context = work_service.context_text()
+
         agent = Agent(
             profile=profile,
             credentials=RuntimeCredentials(settings.api_key),
@@ -842,6 +935,9 @@ class Handler(BaseHTTPRequestHandler):
             effort=settings.effort,
             skills=skill_set.manifest(),
             cancel_event=cancel_event,
+            interaction_context=work_service.context_text() if work_service else "",
+            on_message=checkpoint if ling else None,
+            before_model=before_model if ling else None,
         )
 
         # A subagent is a whole nested run. The tool handler is synchronous (it
@@ -851,7 +947,7 @@ class Handler(BaseHTTPRequestHandler):
             request = subagent.SubagentRequest(task=task, max_steps=max_steps, depth=1)
 
             async def factory(prompt: str, budget: int):
-                child_registry, child_context = toolset()
+                child_registry, child_context = toolset(supervise=False)
                 child_context.ask = ask_owner
                 child = Agent(
                     profile=profile,
@@ -935,7 +1031,7 @@ class Handler(BaseHTTPRequestHandler):
             APPROVALS.cancel_all()
             agent.close_pending_calls(history)
             try:
-                self._persist(session, agent.new_messages)
+                self._persist(session, agent.new_messages[persisted_count:])
             finally:
                 RUNNING["agent"] = None
                 RUNNING.pop("session_id", None)
@@ -982,6 +1078,7 @@ class Handler(BaseHTTPRequestHandler):
                             "ok": message.get("ok", not str(message.get("content", "")).startswith(
                                 ("The user declined", "Blocked by policy", "Unknown tool")
                             )),
+                            "details": message.get("details"),
                         },
                     ),
                 )
@@ -1022,6 +1119,9 @@ def _start_mcp(store: ConfigStore, workspace: Path) -> mcp.MCPRegistry | None:
 
 
 def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None = None) -> None:
+    previous_ling = STATE.get("ling")
+    if previous_ling is not None:
+        previous_ling.close()
     previous_scheduler = STATE.get("task_scheduler")
     if previous_scheduler is not None:
         previous_scheduler.close()
@@ -1035,6 +1135,7 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
     STATE["store"] = store
     STATE["sessions"] = SessionStore(store.sessions_dir)
     STATE["jobs"] = {}
+    STATE.pop("ling", None)
     STATE["closing"] = False
     STATE["skills"] = _load_skills(store, Path(store.load().workspace))
     STATE["mcp"] = _start_mcp(store, Path(store.load().workspace))
@@ -1080,6 +1181,9 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
         if agent is not None:
             agent.stop()
         APPROVALS.cancel_all()
+        ling = STATE.get("ling")
+        if ling is not None:
+            ling.close()
         for jobs in session_jobs:
             jobs.close_all()
         server.server_close()
