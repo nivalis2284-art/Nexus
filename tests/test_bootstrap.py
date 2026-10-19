@@ -55,7 +55,7 @@ def test_invalid_venv_is_preserved_before_creating_a_replacement(tmp_path):
         version = _version(command)
         if version is not None:
             return version
-        if "import httpx, pydantic, tzdata" in command:
+        if "import httpx, pydantic, tzdata, pypdf, docx, openpyxl, pptx" in command:
             return _completed(command, 1)
         if command[-2:] == ["venv", str(root / ".venv")]:
             _venv_python(root)
@@ -95,7 +95,7 @@ def test_base_interpreter_is_used_for_creation(tmp_path):
         version = _version(command)
         if version is not None:
             return version
-        if "import httpx, pydantic, tzdata" in command:
+        if "import httpx, pydantic, tzdata, pypdf, docx, openpyxl, pptx" in command:
             return _completed(command)
         return _completed(command)
 
@@ -133,7 +133,7 @@ def test_missing_dependencies_are_installed_from_pyproject(tmp_path):
         version = _version(command)
         if version is not None:
             return version
-        if "import httpx, pydantic, tzdata" in command:
+        if "import httpx, pydantic, tzdata, pypdf, docx, openpyxl, pptx" in command:
             return _completed(command, 1, stderr="ModuleNotFoundError")
         return _completed(command)
 
@@ -195,7 +195,7 @@ def test_failed_install_keeps_environment_and_reports_error(tmp_path):
         version = _version(command)
         if version is not None:
             return version
-        if "import httpx, pydantic, tzdata" in command:
+        if "import httpx, pydantic, tzdata, pypdf, docx, openpyxl, pptx" in command:
             return _completed(command, 1)
         if "install" in command:
             return _completed(command, 1, stderr="network is unavailable")

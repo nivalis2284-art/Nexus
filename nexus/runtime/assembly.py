@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import skills
+from ..attachments import AttachmentStore
 from ..core.agent import Agent, AgentSuspended
 from ..core.config import ConfigStore, build_profile
 from ..core.permission import default_policy
@@ -80,6 +81,8 @@ class TaskAssembler:
                     "search_endpoint": str(self.config.read_config().get("search_endpoint") or "")},
             mcp=None, jobs=task_jobs, cancel_event=cancel,
             task_callbacks=callbacks,
+            attachment_source=(AttachmentStore(self.config.home), "tasks", task.id),
+            attachment_ids={a["id"] for item in self.store.messages(task.id) for a in item.get("attachments", [])},
         )
         context.ask = callbacks.ask
         context.task_todos = callbacks.write_todos
@@ -91,14 +94,14 @@ class TaskAssembler:
 
         policy = default_policy(permission, rules)
         system_task_state = callbacks.context_text()
-        messages = self.store.messages_for_model(task.id)
+        messages = self.store.messages_for_model(task.id, include_images=profile.capabilities.images)
         if not messages:
             self.store.add_message(task.id, kind="user", text=(
                 "Work on this persistent task. Start by understanding the goal, then use the task tools "
                 "to record material decisions and verified outcomes. Do not claim completion without evidence.\n\n"
                 f"Goal: {task.effective_goal or task.goal}\nConstraints: {task.constraints or '(none)'}"
             ))
-            messages = self.store.messages_for_model(task.id)
+            messages = self.store.messages_for_model(task.id, include_images=profile.capabilities.images)
 
         async def approve(request):
             callbacks.approve(request)

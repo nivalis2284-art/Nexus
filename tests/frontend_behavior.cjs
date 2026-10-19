@@ -515,6 +515,65 @@ async function testTruncatedAnswerKeepsItsVisibleStatus() {
   console.log("ok - truncated model output keeps a visible incomplete status");
 }
 
+async function testGenericFilesUploadThenSendOnlyReferences() {
+  const harness = await loadHarness();
+  evaluate(harness.context, `
+    state.sessionId = "s1";
+    refresh = async () => ({});
+    openSession = async () => {};
+    __baseFetch = fetch;
+    __uploads = 0;
+    fetch = async (path, options) => {
+      if (path.includes("/attachments?")) {
+        __uploads += 1;
+        __uploadedBody = options.body;
+        return {ok: true, json: async () => ({id: "a_test", name: "report.pdf", size: 10,
+          status: "ready", note: "可读取文本", url: "/download"})};
+      }
+      return __baseFetch(path, options);
+    };
+    addFiles([{name: "report.pdf", type: "application/pdf", size: 10}]);
+  `);
+  assert.equal(evaluate(harness.context, "pendingFiles.length"), 1);
+  assert.equal(harness.ids.get("attachments").querySelectorAll(".file-chip").length, 1);
+  await evaluate(harness.context, "send('')");
+  assert.equal(evaluate(harness.context, "__uploads"), 1);
+  assert.equal(evaluate(harness.context, "__uploadedBody.name"), "report.pdf");
+  assert.deepEqual(harness.calls.chatBodies[0].attachments, ["a_test"]);
+  assert.equal(evaluate(harness.context, "pendingFiles.length"), 0);
+  assert.equal(evaluate(harness.context, "state.items[0].attachments[0].name"), "report.pdf");
+  console.log("ok - generic files upload as bytes and chat sends attachment references only");
+}
+
+async function testFailedUploadKeepsTheFileAndMessage() {
+  const harness = await loadHarness();
+  evaluate(harness.context, `
+    state.sessionId = "s1";
+    fetch = async () => ({ok: false, json: async () => ({error: "upload failed"})});
+    addFiles([{name: "notes.md", type: "text/plain", size: 10}]);
+  `);
+  await evaluate(harness.context, "send('keep this message')");
+  assert.equal(evaluate(harness.context, "pendingFiles.length"), 1);
+  assert.equal(harness.ids.get("input").value, "keep this message");
+  assert.equal(evaluate(harness.context, "state.preparing"), false);
+  console.log("ok - failed upload retains draft files and message");
+}
+
+async function testTaskCanSendAnAttachmentWithoutText() {
+  const harness = await loadHarness({tasks: true});
+  evaluate(harness.context, `
+    taskView.current = {id: "t1"};
+    pendingFiles = [{name: "data.csv", size: 10, file: {type: "text/csv"}}];
+    uploadFiles = async () => [{id: "a_task"}];
+    api = async (path, options) => { __taskBody = JSON.parse(options.body); return {}; };
+    openTask = async () => {};
+  `);
+  assert.equal(await evaluate(harness.context, "sendTaskMessage('')"), true);
+  assert.equal(evaluate(harness.context, "__taskBody.attachments[0]"), "a_task");
+  assert.equal(evaluate(harness.context, "pendingFiles.length"), 0);
+  console.log("ok - task input accepts an attachment-only message");
+}
+
 async function main() {
   await testHistoricalUserImagesRender();
   await testNodeForHandlesAnImageOnlyMessage();
@@ -527,6 +586,9 @@ async function main() {
   await testStaleTaskResponseCannotReplaceSession();
   await testTaskRefreshPreservesUnsubmittedInputs();
   await testTruncatedAnswerKeepsItsVisibleStatus();
+  await testGenericFilesUploadThenSendOnlyReferences();
+  await testFailedUploadKeepsTheFileAndMessage();
+  await testTaskCanSendAnAttachmentWithoutText();
   console.log("frontend behaviour: all checks passed");
 }
 

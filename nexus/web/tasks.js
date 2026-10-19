@@ -96,6 +96,7 @@ async function openTask(id) {
     arguments: message.arguments,
     ok: message.ok,
     thinking: message.thinking,
+    attachments: message.attachments || [],
   }));
   renderTranscript();
   armTaskPolling();
@@ -104,17 +105,27 @@ async function openTask(id) {
 
 async function sendTaskMessage(text) {
   const current = taskView.current;
-  if (!current || !text) return false;
+  if (!current || (!text && !pendingFiles.length && !pendingImages.length) || state.preparing) return false;
+  const files = pendingFiles.slice();
+  const images = pendingImages.slice();
+  state.preparing = true;
   try {
+    const attachments = await uploadFiles("tasks", current.id, [...files, ...images]);
     await taskPost("/api/tasks/" + encodeURIComponent(current.id) + "/messages", {
       text,
+      attachments: attachments.map(file => file.id),
       request_id: newControlId("message"),
     });
+    pendingFiles = pendingFiles.filter(file => !files.includes(file));
+    pendingImages = pendingImages.filter(image => !images.includes(image));
+    renderAttachments();
     await openTask(current.id);
     return true;
   } catch (error) {
     setStatus(error.message, true);
     return false;
+  } finally {
+    state.preparing = false;
   }
 }
 

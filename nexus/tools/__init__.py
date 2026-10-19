@@ -17,11 +17,11 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import ask, files, jobs, patch, shell, subagent_tool, todo, web
+from . import ask, attachments, files, jobs, patch, shell, subagent_tool, todo, web
 from .registry import Registry, ToolResult, ToolSpec
 
 # Order matters only for prompt readability: cheap, common tools first.
-CATALOG = (files, shell, jobs, patch, todo, ask, subagent_tool, web, None)  # None is replaced by _SKILL below
+CATALOG = (files, attachments, shell, jobs, patch, todo, ask, subagent_tool, web, None)
 
 
 class SkillArgs(BaseModel):
@@ -83,6 +83,8 @@ def build(
     jobs: Any = None,
     cancel_event: Any = None,
     task_callbacks: Any = None,
+    attachment_source: Any = None,
+    attachment_ids: set[str] | None = None,
 ) -> tuple[Registry, ToolContext]:
     """Assemble a registry. ``config`` decides which optional tools exist."""
     context = ToolContext(root or Path.cwd(), skills)
@@ -90,6 +92,8 @@ def build(
     context.jobs = jobs
     context.cancel_event = cancel_event
     context.task_callbacks = task_callbacks
+    context.attachments = attachment_source
+    context.attachment_ids = attachment_ids or set()
     settings = config or {}
     allowlist = settings.get("webfetch_hosts") or []
     if isinstance(allowlist, str):
@@ -98,6 +102,7 @@ def build(
     context.search_endpoint = str(settings.get("search_endpoint") or "")
 
     available = {
+        "attachments": attachment_source,
         "webfetch_hosts": context.web_allowlist,
         "search_endpoint": context.search_endpoint,
     }

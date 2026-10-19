@@ -36,6 +36,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from .. import mcp, skills
+from ..attachments import AttachmentStore, message_text
 from ..core import effort as reasoning
 from ..core import subagent
 from ..core.agent import Agent, ApprovalRequest
@@ -52,6 +53,7 @@ from ..skills import SkillSet
 from ..tools import build, mcp_tools
 from ..tools._jobs import JobRegistry
 from .task_api import TaskHTTP
+from .attachments import route as attachment_route
 
 APPROVAL_TIMEOUT = 600.0
 
@@ -277,6 +279,7 @@ def _transcript(session) -> list[dict[str, Any]]:
                     "elapsed": item.data.get("elapsed"),
                     "at": item.at,
                     "images": item.data.get("images") or [],
+                    "attachments": item.data.get("attachments") or [],
                 }
             )
         elif item.kind == "tool":
@@ -309,7 +312,7 @@ def _internal(session) -> list[dict[str, Any]]:
             out.append(
                 {
                     "role": "user",
-                    "content": _content_blocks(item.text, images) if images else item.text,
+                    "content": _content_blocks(message_text(item.text, item.data.get("attachments") or []), images),
                 }
             )
         elif item.kind == "assistant":
@@ -338,6 +341,8 @@ class Handler(BaseHTTPRequestHandler):
     # --- routing ---------------------------------------------------------
 
     def do_GET(self) -> None:
+        if attachment_route(self, STATE, _json, "GET"):
+            return
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):
             return self._file("index.html", "text/html; charset=utf-8")
@@ -393,6 +398,7 @@ class Handler(BaseHTTPRequestHandler):
                 return _json(self, 409, {"error": "请先停止当前会话，再删除。"})
             removed = STATE["sessions"].delete(session_id)
             if removed:
+                AttachmentStore(STATE["store"].home).delete_owner("sessions", session_id)
                 jobs = STATE.get("jobs", {}).pop(session_id, None)
                 if jobs is not None:
                     jobs.close_all()
@@ -431,6 +437,8 @@ class Handler(BaseHTTPRequestHandler):
         return _json(self, 404, {"error": "not found"})
 
     def do_POST(self) -> None:
+        if attachment_route(self, STATE, _json, "POST"):
+            return
         path = urlparse(self.path).path
         body = _read_json(self)
         try:
@@ -661,11 +669,14 @@ class Handler(BaseHTTPRequestHandler):
         session_id = str(value.get("session_id") or "")
         text = str(value.get("text") or "").strip()
         images = _read_images(value.get("images"))
-        if not text and not images:
+        if not text and not images and not value.get("attachments"):
             raise ValueError("message is empty")
         session = STATE["sessions"].load(session_id)
         if session is None:
             raise ValueError("session not found")
+        attachments = AttachmentStore(STATE["store"].home).resolve("sessions", session_id, value.get("attachments", []))
+        if len(images) + len(attachments) > 8:
+            raise ValueError("每次最多 8 个附件")
         settings = STATE["store"].load()
         if not settings.provider.base_url:
             return _json(
@@ -691,9 +702,9 @@ class Handler(BaseHTTPRequestHandler):
             if STATE.get("closing"):
                 return _json(self, 503, {"error": "服务正在关闭。"})
             store: SessionStore = STATE["sessions"]
-            store.append(session, Message(kind="user", text=text, data={"images": images} if images else {}))
+            store.append(session, Message(kind="user", text=text, data={"images": images, "attachments": attachments}))
             if not session.title:
-                session.title = (text or "图片")[:40]
+                session.title = (text or (attachments[0]["name"] if attachments else "图片"))[:40]
                 store.rename(session.id, session.title, only_if_empty=True)
 
             self.send_response(200)
@@ -747,6 +758,8 @@ class Handler(BaseHTTPRequestHandler):
             return build(
                 skill_set.bodies(), root=workspace.root, config=tool_config,
                 mcp=STATE.get("mcp"), jobs=session_jobs, cancel_event=cancel_event,
+                attachment_source=(AttachmentStore(STATE["store"].home), "sessions", session.id),
+                attachment_ids={a["id"] for item in session.items for a in item.data.get("attachments", [])},
             )
 
         registry, context = toolset()

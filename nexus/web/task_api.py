@@ -7,6 +7,7 @@ import uuid
 from typing import Any
 
 from ..task import TaskConflict, TaskNotFound, TaskValidationError
+from ..attachments import AttachmentStore, IMAGE_MIMES
 
 
 class TaskHTTP:
@@ -241,14 +242,22 @@ class TaskHTTP:
         """Append a user message and start/resume this same task."""
         text = str(body.get("text") or "").strip()
         request_id = str(body.get("request_id") or "").strip()
-        if not text or not request_id:
+        if (not text and not body.get("attachments")) or not request_id:
             raise TaskValidationError("text and request_id are required")
         prepared = {"task_id": task_id, "text": text, "request_id": request_id}
         task = self.store.get(task_id)
         if task.state in ("cancelled", "completed"):
             raise TaskConflict("re-enable or create a new task before adding work")
         # Persist the user's message before a worker can start and consume it.
-        self.store.add_message(task_id, kind="user", text=text)
+        attachments = AttachmentStore(self.state["store"].home).resolve("tasks", task_id, body.get("attachments", []))
+        if any(item["mime"] in IMAGE_MIMES for item in attachments):
+            provider = next((item for item in self.state["store"].providers() if item.id == task.provider_id), None)
+            model = next((item for item in provider.models if item.get("id") == task.model_id), {}) if provider else {}
+            if not model.get("capabilities", {}).get("images"):
+                raise TaskValidationError("任务绑定的模型未声明图片能力，请更换模型或移除图片")
+            if any(item["mime"] in IMAGE_MIMES and item["size"] > 5 * 1024 * 1024 for item in attachments):
+                raise TaskValidationError("图片上限为 5 MiB")
+        self.store.add_message(task_id, kind="user", text=text, data={"attachments": attachments})
         if task.state in ("paused", "waiting_user"):
             task = self.controller.submit(task_id, request_id=request_id + "-run",
                                           expected_version=task.control_version)
@@ -288,4 +297,5 @@ class TaskHTTP:
         if task_id == self.controller.active_task or task_id in self.controller.queued_ids():
             raise TaskConflict("task still owns execution resources")
         self.store.delete(task_id, expected_version=expected)
+        AttachmentStore(self.state["store"].home).delete_owner("tasks", task_id)
         self.respond(handler, 200, {"deleted": True})

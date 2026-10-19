@@ -844,6 +844,10 @@ button.link.danger { color: var(--danger); margin-right: auto; }
 }
 
 /* ---------- attachments ---------- */
+.message-files { display: grid; gap: 4px; margin-top: 8px; }
+.file-link { color: inherit; overflow-wrap: anywhere; }
+.file-thumbnail { max-width: 220px; max-height: 160px; object-fit: contain; }
+.file-chip { display: flex; flex-direction: column; gap: 3px; max-width: 280px; padding: 8px 28px 8px 10px; overflow-wrap: anywhere; }
 
 .attachments {
   display: flex;

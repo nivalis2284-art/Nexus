@@ -8,7 +8,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
-const { spawn } = require('node:child_process');
+const { spawn, execFileSync } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
 const { chromium } = require(process.env.NEXUS_PLAYWRIGHT_MODULE || 'playwright');
 
@@ -29,7 +29,7 @@ async function main() {
     const taskRequest = JSON.stringify(body.messages).includes('TASK_WRITE');
     if (taskRequest) taskRequests += 1;
     const toolRequest = requests.length === 1 || (taskRequest && taskRequests <= 2);
-    const delta = toolRequest ? {
+    let delta = toolRequest ? {
       reasoning_content: 'Checking the image and creating the requested file.',
       tool_calls: [{ index: 0, id: 'call_browser_' + requests.length, type: 'function', function: {
         name: 'write_file', arguments: JSON.stringify({
@@ -37,11 +37,24 @@ async function main() {
         }),
       }}],
     } : { content: taskRequest ? 'Task smoke complete.' : 'Browser smoke complete.' };
+    const attachmentRun = /a_[a-f0-9]{32}/.test(JSON.stringify(body.messages));
+    if (attachmentRun) {
+      const last = body.messages[body.messages.length - 1];
+      if (last.role === 'tool') {
+        assert.ok(last.content.includes('7319'), 'the agent must receive real extracted attachment text');
+        delta = {content: 'Attachment smoke complete: 7319'};
+      } else {
+        const match = JSON.stringify(body.messages).match(/a_[a-f0-9]{32}/);
+        assert.ok(match, 'attachment id must be available in model context');
+        delta = {tool_calls: [{index: 0, id: 'attachment_' + requests.length, type: 'function',
+          function: {name: 'read_attachment', arguments: JSON.stringify({attachment_id: match[0]})}}]};
+      }
+    }
     const frame = (delta, finish_reason = null) => 'data: ' + JSON.stringify({
       id: 'local-smoke', choices: [{ index: 0, delta, finish_reason }],
     }) + '\n\n';
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-    res.end(frame(delta) + frame({}, toolRequest ? 'tool_calls' : 'stop') + 'data: [DONE]\n\n');
+    res.end(frame(delta) + frame({}, delta.tool_calls ? 'tool_calls' : 'stop') + 'data: [DONE]\n\n');
   });
   let python, browser;
   try {
@@ -54,11 +67,12 @@ async function main() {
       current: { provider: 'smoke', model: 'fake' }, permission: 'ask', workspace,
     }));
     fs.writeFileSync(path.join(home, 'credentials.json'), JSON.stringify({ smoke: 'fake-local-key' }));
+    async function launchNexus() {
     python = spawn(process.env.NEXUS_TEST_PYTHON || 'python', [
       '-u', '-m', 'nexus', '--home', home, '--workspace', workspace, '--port', '0', '--no-browser',
     ], { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
-    const base = await new Promise((resolve, reject) => {
+    return await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('Nexus startup timeout: ' + output)), 15000);
       python.stdout.on('data', data => {
         output += data;
@@ -69,6 +83,8 @@ async function main() {
       python.once('error', reject);
       python.once('exit', code => { clearTimeout(timeout); reject(new Error('Nexus exited ' + code + ': ' + output)); });
     });
+    }
+    let base = await launchNexus();
     browser = await chromium.launch({ headless: true,
       ...(process.env.NEXUS_BROWSER_CHANNEL ? { channel: process.env.NEXUS_BROWSER_CHANNEL } : {}) });
     const page = await browser.newPage({ viewport: { width: 1360, height: 960 } });
@@ -138,6 +154,61 @@ async function main() {
     assert.ok((await page.locator('#task-status').innerText()).includes('已挂起'));
     await page.screenshot({ path: path.join(root, '.artifacts', 'task-approval-smoke.png'), fullPage: true });
 
+    const fixtures = path.join(temporary, 'fixtures');
+    execFileSync(process.env.NEXUS_TEST_PYTHON || 'python', ['tests/attachment_fixtures.py', fixtures],
+      {cwd: root, windowsHide: true});
+    await page.locator('#new').click();
+    await page.locator('#task-panel').waitFor({state: 'hidden'});
+    const fileNames = ['notes.md', 'report.docx', 'table.xlsx', 'deck.pptx', 'report.pdf', 'archive.zip'];
+    await page.locator('#image-input').setInputFiles(fileNames.map(name => path.join(fixtures, name)));
+    assert.equal(await page.locator('#attachments .file-chip').count(), 6);
+    await page.locator('#input').fill('');
+    await page.locator('#send').click();
+    await page.locator('#transcript .answer').filter({hasText: 'Attachment smoke complete: 7319'}).waitFor();
+    assert.equal(await page.locator('#transcript .file-link').count(), 6);
+    const links = await page.locator('#transcript .file-link').evaluateAll(nodes => nodes.map(node => node.href));
+    for (let index = 0; index < links.length; index += 1) {
+      const download = await page.request.get(links[index]);
+      assert.equal(download.status(), 200);
+      assert.deepEqual(await download.body(), fs.readFileSync(path.join(fixtures, fileNames[index])));
+    }
+    await page.reload();
+    await page.locator('#transcript .file-link').first().waitFor();
+    assert.equal(await page.locator('#transcript .file-link').count(), 6);
+    await page.screenshot({path: path.join(root, '.artifacts', 'attachments-chat-smoke.png'), fullPage: true});
+
+    await page.locator('#task-new').click();
+    await page.locator('#task-name').fill('attachment task');
+    await page.locator('#task-goal').fill('Read the attached evidence');
+    await page.locator('#task-create').click();
+    await page.locator('#task-title').filter({hasText: 'attachment task'}).waitFor();
+    await page.locator('#transcript .file-link').first().waitFor({state: 'detached'});
+    await page.locator('#image-input').setInputFiles(path.join(fixtures, 'notes.md'));
+    await page.locator('#input').fill('');
+    await page.locator('#send').click();
+    await page.locator('#transcript .file-link').waitFor();
+    await page.locator('#task-start').click();
+    await page.locator('#transcript .answer').filter({hasText: 'Attachment smoke complete: 7319'}).waitFor();
+    await page.reload();
+    await page.locator('#tasks li').filter({hasText: 'attachment task'}).click();
+    await page.locator('#task-title').filter({hasText: 'attachment task'}).waitFor();
+    await page.locator('#transcript .file-link').first().waitFor();
+    assert.equal(await page.locator('#transcript .file-link').count(), 1);
+    await page.screenshot({path: path.join(root, '.artifacts', 'attachments-task-smoke.png'), fullPage: true});
+
+    const beforeRestart = requests.length;
+    const stopped = new Promise(resolve => python.once('exit', resolve));
+    python.kill('SIGINT');
+    await stopped;
+    base = await launchNexus();
+    await page.goto(base);
+    await page.locator('#tasks li').filter({hasText: 'attachment task'}).click();
+    await page.locator('#task-title').filter({hasText: 'attachment task'}).waitFor();
+    await page.locator('#transcript .file-link').first().waitFor();
+    const restoredFile = await page.request.get(await page.locator('#transcript .file-link').evaluate(node => node.href));
+    assert.deepEqual(await restoredFile.body(), fs.readFileSync(path.join(fixtures, 'notes.md')));
+    assert.equal(requests.length, beforeRestart, 'restarting must not execute a paused task');
+
     const map = await browser.newPage({ viewport: { width: 1360, height: 960 } });
     const external = [];
     map.on('request', r => { if (r.url().startsWith('http')) external.push(r.url()); });
@@ -176,7 +247,7 @@ async function main() {
     assert.deepEqual(errors, []);
     await map.screenshot({ path: path.join(root, '.artifacts', 'business-map.png'), fullPage: true });
     await map.locator('.stage-card').screenshot({ path: path.join(root, '.artifacts', 'business-map-detail.png') });
-    console.log('Browser smoke passed: image/approval and ordinary chat, persistent tasks, unsaved schedule, task approval across reload with a real file write, and offline business map.');
+    console.log('Browser smoke passed: chat/task attachments, six file formats and original downloads, read_attachment calls, refresh and process restart persistence, images, approval and offline map.');
   } finally {
     if (browser) await browser.close();
     if (python && python.exitCode === null) {

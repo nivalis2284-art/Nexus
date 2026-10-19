@@ -163,7 +163,7 @@ def test_catalog_and_registry_agree_when_everything_is_configured():
         "webfetch_hosts": ["example.com"],
         "search_endpoint": "https://search.test/q",
     }
-    registry, _ = build({}, config=full_config)
+    registry, _ = build({}, config=full_config, attachment_source=(object(), "sessions", "s1"))
     registered = {spec.name for spec in registry.specs()}
     declared = {spec.name for spec in tool_specs()}
     assert registered == declared
@@ -174,6 +174,7 @@ def test_optional_tools_absent_without_configuration():
     names = {spec.name for spec in registry.specs()}
     assert "webfetch" not in names
     assert "websearch" not in names
+    assert "read_attachment" not in names
     # Core tools are always present.
     assert {"read_file", "write_file", "edit_file", "bash"} <= names
 
@@ -197,7 +198,7 @@ def test_tool_names_are_unique():
 
 def test_requires_mentioned_in_specs_resolve_from_config_only():
     """A declared requirement must be a key the assembly code actually provides."""
-    provided = {"webfetch_hosts", "search_endpoint"}
+    provided = {"webfetch_hosts", "search_endpoint", "attachments"}
     for spec in tool_specs():
         for key in spec.requires:
             assert key in provided, f"{spec.name} requires unknown key {key}"

@@ -372,6 +372,24 @@ function nodeFor(item) {
   if (item.role === "user") {
     const wrap = el("div", "msg user");
     if (item.text) wrap.appendChild(el("div", "bubble", item.text));
+    if (item.attachments && item.attachments.length) {
+      const files = el("div", "message-files");
+      item.attachments.forEach((file) => {
+        const link = el("a", "file-link", file.name + " · " + formatFileSize(file.size));
+        link.href = file.url;
+        link.download = file.name;
+        link.title = file.note || "下载原文件";
+        files.appendChild(link);
+        files.appendChild(el("span", "small", file.note || "原文件已保存"));
+        if (IMAGE_TYPES.has(file.mime)) {
+          const picture = el("img", "file-thumbnail");
+          picture.src = file.url;
+          picture.alt = file.name;
+          files.appendChild(picture);
+        }
+      });
+      wrap.appendChild(files);
+    }
     const images = Array.isArray(item.images) ? item.images : [];
     if (images.length) {
       const gallery = el("div", "msg-images");
@@ -457,13 +475,27 @@ function updateStats() {
 // comes from the server transcript, so this only has to be good enough to
 // watch.
 async function send(text) {
-  if (state.running) return;
+  if (state.running || state.preparing) return;
   // Freeze the attachments for this turn. A new session request may yield, and
   // the composer's array must not decide later what was actually sent.
   const sentItems = pendingImages.slice();
+  const sentFiles = pendingFiles.slice();
   const images = sentItems.map((image) => ({ mime: image.mime, data: image.data }));
-  if (!state.sessionId) await newSession();
-  if (!state.sessionId) return;
+  let attachments;
+  state.preparing = true;
+  try {
+    if (!state.sessionId) await newSession();
+    if (!state.sessionId) return;
+    const targetSession = state.sessionId;
+    attachments = await uploadFiles("sessions", targetSession, sentFiles);
+    if (state.sessionId !== targetSession) throw new Error("上传期间已切换会话，附件已保留，请在目标会话重新发送");
+  } catch (error) {
+    setStatus(error.message, true);
+    if (!$("input").value) $("input").value = text;
+    return;
+  } finally {
+    state.preparing = false;
+  }
 
   state.running = true;
   state.turns += 1;
@@ -474,9 +506,11 @@ async function send(text) {
     role: "user",
     text,
     images,
+    attachments,
     at: new Date().toISOString(),
   });
   pendingImages = pendingImages.filter((image) => !sentItems.includes(image));
+  pendingFiles = pendingFiles.filter((file) => !sentFiles.includes(file));
   renderAttachments();
   const box = $("transcript");
   box.innerHTML = "";
@@ -525,16 +559,18 @@ async function send(text) {
     return { step, body, title, count };
   };
 
+  let accepted = false;
   try {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: state.sessionId, text, images }),
+      body: JSON.stringify({ session_id: state.sessionId, text, images, attachments: attachments.map(file => file.id) }),
     });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
       throw new Error(payload.error || response.statusText);
     }
+    accepted = true;
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
@@ -650,6 +686,12 @@ async function send(text) {
     }
   } catch (error) {
     answer.classList.remove("streaming-caret");
+    if (!accepted) {
+      pendingFiles = [...sentFiles, ...pendingFiles];
+      pendingImages = [...sentItems, ...pendingImages];
+      if (!$("input").value) $("input").value = text;
+      renderAttachments();
+    }
     answer.textContent += "\n[错误] " + error.message;
     setStatus(error.message, true);
   } finally {
@@ -667,17 +709,68 @@ async function send(text) {
 // Images waiting to be sent. Kept outside `state` because they are transient
 // per composition, not session data.
 let pendingImages = [];
+let pendingFiles = [];
 // Files still being read. Sending before these settle would silently omit the
 // picture the user just attached, so the composer waits for read completion.
 let readingImages = 0;
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGES = 8;
+const MAX_FILE_BYTES = 25 * 1024 * 1024;
+const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+
+function formatFileSize(size) {
+  return size >= 1024 * 1024 ? (size / (1024 * 1024)).toFixed(1) + " MiB" : Math.ceil(size / 1024) + " KiB";
+}
+
+function addFiles(files) {
+  for (const file of Array.from(files || [])) {
+    if (pendingImages.length + pendingFiles.length + readingImages >= MAX_IMAGES) {
+      setStatus("每次最多 8 个附件", true);
+      break;
+    }
+    if (IMAGE_TYPES.has(file.type)) {
+      addImages([file]);
+    } else if (file.size > MAX_FILE_BYTES) {
+      setStatus("文件超过 25 MiB：" + file.name, true);
+    } else {
+      pendingFiles.push({file, name: file.name, size: file.size, status: "等待发送"});
+    }
+  }
+  renderAttachments();
+}
+
+async function uploadFiles(kind, owner, items) {
+  const result = [];
+  for (const item of items) {
+    const ownerKey = kind + "/" + owner;
+    if (!item.uploaded || item.ownerKey !== ownerKey) {
+      item.status = "上传并读取中…";
+      renderAttachments();
+      try {
+        const response = await fetch("/api/" + ownerKey + "/attachments?name=" + encodeURIComponent(item.name), {
+          method: "POST", headers: {"Content-Type": item.file.type || "application/octet-stream"}, body: item.file,
+        });
+        const value = await response.json();
+        if (!response.ok) throw new Error(value.error || "附件上传失败");
+        item.uploaded = value;
+        item.ownerKey = ownerKey;
+        item.status = value.note;
+      } catch (error) {
+        item.status = "上传失败，可重新发送";
+        renderAttachments();
+        throw error;
+      }
+    }
+    result.push(item.uploaded);
+  }
+  return result;
+}
 
 function renderAttachments() {
   const strip = $("attachments");
   strip.innerHTML = "";
-  strip.hidden = pendingImages.length === 0;
+  strip.hidden = pendingImages.length + pendingFiles.length === 0;
   pendingImages.forEach((image, index) => {
     const chip = el("div", "attach-chip");
     const thumb = el("img");
@@ -694,6 +787,17 @@ function renderAttachments() {
     chip.appendChild(remove);
     strip.appendChild(chip);
   });
+  pendingFiles.forEach((file, index) => {
+    const chip = el("div", "attach-chip file-chip");
+    chip.appendChild(el("span", "", file.name + " · " + formatFileSize(file.size)));
+    chip.appendChild(el("span", "small", file.status || "等待发送"));
+    const remove = el("button", "attach-x", "×");
+    remove.type = "button";
+    remove.title = "移除";
+    remove.addEventListener("click", () => { pendingFiles.splice(index, 1); renderAttachments(); });
+    chip.appendChild(remove);
+    strip.appendChild(chip);
+  });
 }
 
 function addImages(files) {
@@ -701,7 +805,7 @@ function addImages(files) {
     file.type.startsWith("image/")
   );
   for (const file of incoming) {
-    if (pendingImages.length >= MAX_IMAGES) {
+    if (pendingImages.length + pendingFiles.length + readingImages >= MAX_IMAGES) {
       setStatus("最多 " + MAX_IMAGES + " 张图片", true);
       break;
     }
@@ -718,6 +822,7 @@ function addImages(files) {
         mime: file.type,
         data: comma >= 0 ? result.slice(comma + 1) : result,
         name: file.name,
+        file,
       });
       finishImageRead();
     };
@@ -1120,13 +1225,13 @@ $("stat-tokens").addEventListener("click", toggleUsage);
 $("stat-context").addEventListener("click", toggleUsage);
 $("attach").addEventListener("click", () => $("image-input").click());
 $("image-input").addEventListener("change", (event) => {
-  addImages(event.target.files);
+  addFiles(event.target.files);
   event.target.value = "";
 });
 $("input").addEventListener("paste", (event) => {
   const files = Array.from(event.clipboardData?.files || []);
   if (files.length) {
-    addImages(files);
+    addFiles(files);
     event.preventDefault();
   }
 });
@@ -1134,7 +1239,7 @@ $("composer").addEventListener("dragover", (event) => event.preventDefault());
 $("composer").addEventListener("drop", (event) => {
   if (event.dataTransfer?.files?.length) {
     event.preventDefault();
-    addImages(event.dataTransfer.files);
+    addFiles(event.dataTransfer.files);
   }
 });
 
@@ -1161,6 +1266,7 @@ $("composer").addEventListener("submit", async (event) => {
   event.preventDefault();
   const input = $("input");
   const text = input.value.trim();
+  if (state.preparing) return;
   if (state.running) {
     abortRun();
     return;
@@ -1169,13 +1275,9 @@ $("composer").addEventListener("submit", async (event) => {
     setStatus("图片还在读取，请稍候再发送", true);
     return;
   }
-  if (!text && !pendingImages.length) return;
+  if (!text && !pendingImages.length && !pendingFiles.length) return;
   if (typeof taskView !== "undefined") {
-    if (taskView.current && pendingImages.length) {
-      setStatus("任务输入暂不支持图片，请切换到普通会话发送", true);
-      return;
-    }
-    if (text && !pendingImages.length && await naturalTaskControl(text)) {
+    if (text && !pendingImages.length && !pendingFiles.length && await naturalTaskControl(text)) {
       input.value = "";
       input.style.height = "auto";
       return;
@@ -1206,8 +1308,10 @@ $("input").addEventListener("input", () => {
   node.style.height = Math.min(node.scrollHeight, 220) + "px";
 });
 
+const initialViewVersion = state.viewVersion;
 refresh()
   .then(() => {
+    if (state.viewVersion !== initialViewVersion) return;
     if (!state.providers.some((p) => p.has_key)) {
       setStatus("先添加模型提供商并填入密钥", true);
       // Still render the empty transcript, so the first screen is the real UI.

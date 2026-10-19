@@ -9,6 +9,7 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
+from ..attachments import message_content
 
 from .models import (
     ACTIVITY_STATES, Evidence, Step, Task, TaskConflict, TaskNotFound,
@@ -909,7 +910,7 @@ class TaskStore:
             self._event(connection, task_id, "messages.saved",
                         {"count": len(messages), "incomplete": incomplete})
 
-    def messages_for_model(self, task_id: str) -> list[dict[str, Any]]:
+    def messages_for_model(self, task_id: str, *, include_images: bool = False) -> list[dict[str, Any]]:
         """Legal provider-neutral transcript; unresolved calls get an unknown result."""
         out: list[dict[str, Any]] = []
         pending: dict[str, dict[str, Any]] = {}
@@ -920,7 +921,7 @@ class TaskStore:
                 if item.get("interaction_id"):
                     user_answers[str(item["interaction_id"])] = item.get("text", "")
                 else:
-                    out.append({"role": "user", "content": item.get("text", "")})
+                    out.append({"role": "user", "content": message_content(item.get("text", ""), item.get("attachments", []), include_images=include_images)})
             elif kind == "assistant":
                 calls = item.get("tool_calls") or []
                 if item.get("text") or calls:
