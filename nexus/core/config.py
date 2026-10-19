@@ -151,7 +151,10 @@ def build_profile(provider: Provider, model: dict[str, Any]) -> ModelProfile:
 DEFAULT_PROVIDER = {
     "name": "DeepSeek",
     "family": APIFamily.ANTHROPIC_MESSAGES.value,
-    "base_url": "https://cf.hetune.top",
+    # No default endpoint is shipped: nobody should inherit someone else's
+    # gateway by cloning this repo. First run asks for it in Settings, and a
+    # chat turn refuses to start until it is set.
+    "base_url": "",
 }
 DEFAULT_MODEL = {
     "id": "deepseek-v4.1-flash",

@@ -15,7 +15,9 @@ def test_default_config_has_one_provider(tmp_path):
     store = ConfigStore(tmp_path)
     settings = store.ensure()
     assert store.providers()
-    assert settings.provider.base_url.startswith("http")
+    # No endpoint ships by default: shipping a real gateway would make every
+    # clone point at somebody else's server. First run asks for it.
+    assert settings.provider.base_url == ""
     assert settings.provider.models
 
 

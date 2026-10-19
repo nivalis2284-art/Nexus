@@ -50,6 +50,9 @@ def live(tmp_path: Path, monkeypatch):
         store.update_provider(
             provider.id,
             {
+                # The shipped default has no endpoint by design, so the fixture
+                # supplies one; the transport is mocked either way.
+                "base_url": "https://fake.test",
                 "family": APIFamily.OPENAI_CHAT_COMPLETIONS.value,
                 "models": [{"id": "fake", "context_window_tokens": 32000,
                             "max_output_tokens": 1024}],

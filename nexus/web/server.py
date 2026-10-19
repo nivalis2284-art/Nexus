@@ -561,6 +561,11 @@ class Handler(BaseHTTPRequestHandler):
         if session is None:
             raise ValueError("session not found")
         settings = STATE["store"].load()
+        if not settings.provider.base_url:
+            return _json(
+                self, 400,
+                {"error": f"还没配置 {settings.provider.name} 的 Base URL，请在设置里填写。"},
+            )
         if not settings.api_key:
             return _json(
                 self, 400,
