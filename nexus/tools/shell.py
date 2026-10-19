@@ -13,7 +13,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ._jobobject import ResourceLimits, available as job_objects_available
+from ._jobobject import ResourceLimits
+from ._jobobject import available as job_objects_available
 from ._process import run_process
 from .registry import ToolSpec
 
@@ -68,6 +69,7 @@ def bash(context: Any, args: dict[str, Any]) -> dict[str, Any]:
         env=_environment(),
         job_limits=limits,
         new_session=os.name != "nt",
+        cancel_event=getattr(context, "cancel_event", None),
     )
     out = started.stdout.decode("utf-8", errors="replace")
     err = started.stderr.decode("utf-8", errors="replace")

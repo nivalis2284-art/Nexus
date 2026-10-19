@@ -14,7 +14,6 @@ from __future__ import annotations
 import ast
 import pathlib
 
-import pytest
 from pydantic import BaseModel
 
 from nexus.tools import build, tool_specs
@@ -32,50 +31,129 @@ LAYERS = {
 }
 
 
-def _module_edges() -> list[tuple[str, str]]:
-    edges: list[tuple[str, str]] = []
-    for path in PACKAGE.rglob("*.py"):
-        parts = list(path.with_suffix("").parts)
-        if parts[-1] == "__init__":
-            parts = parts[:-1]
-        module = ".".join(parts)
-        package = module if path.name == "__init__.py" else ".".join(module.split(".")[:-1])
-        src = ".".join(module.split(".")[:2])
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            target = None
-            if isinstance(node, ast.ImportFrom):
-                if node.level:
-                    base = package.split(".")
-                    if node.level > 1:
-                        base = base[: len(base) - (node.level - 1)]
-                    target = ".".join([*base, node.module]) if node.module else ".".join(base)
-                elif node.module and node.module.startswith("nexus"):
-                    target = node.module
-            elif isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.name.startswith("nexus"):
-                        target = alias.name
-            if target and target.startswith("nexus"):
-                edges.append((src, ".".join(target.split(".")[:2])))
+def _module_name(path: pathlib.Path) -> str:
+    parts = list(path.relative_to(ROOT).with_suffix("").parts)
+    if parts[-1] == "__init__":
+        parts.pop()
+    return ".".join(parts)
+
+
+def _package_name(path: pathlib.Path, module: str) -> str:
+    if path.name == "__init__.py":
+        return module
+    return module.rpartition(".")[0]
+
+
+def _resolved_imports(
+    path: pathlib.Path, module: str, node: ast.Import | ast.ImportFrom
+) -> list[str]:
+    if isinstance(node, ast.Import):
+        return [alias.name for alias in node.names]
+
+    if not node.level:
+        return [node.module] if node.module else []
+
+    package = _package_name(path, module).split(".")
+    keep = len(package) - (node.level - 1)
+    if keep < 1:
+        return []
+    base = package[:keep]
+    if node.module:
+        return [".".join([*base, node.module])]
+    return [".".join([*base, alias.name]) for alias in node.names]
+
+
+def _edges_from_tree(path: pathlib.Path, module: str, source: str) -> set[tuple[str, str]]:
+    edges: set[tuple[str, str]] = set()
+    tree = ast.parse(source, filename=str(path))
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Import, ast.ImportFrom)):
+            continue
+        for target in _resolved_imports(path, module, node):
+            if target == "nexus" or target.startswith("nexus."):
+                edges.add((module, target))
     return edges
 
 
-def test_no_upward_layer_imports():
+def _module_edges() -> list[tuple[str, str]]:
+    edges: set[tuple[str, str]] = set()
+    for path in PACKAGE.rglob("*.py"):
+        module = _module_name(path)
+        edges.update(_edges_from_tree(path, module, path.read_text(encoding="utf-8")))
+    return sorted(edges)
+
+
+def _layer(module: str) -> str | None:
+    parts = module.split(".")
+    if len(parts) > 1 and parts[0] == "nexus":
+        return parts[1]
+    return None
+
+
+def _layer_violations(edges: list[tuple[str, str]]) -> list[str]:
     violations = []
-    for src, dst in _module_edges():
-        name_src = src.split(".")[-1]
-        name_dst = dst.split(".")[-1]
-        if name_src in LAYERS and name_dst in LAYERS:
-            if LAYERS[name_dst] > LAYERS[name_src]:
-                violations.append(f"{src} -> {dst}")
+    for src, dst in edges:
+        src_layer = _layer(src)
+        dst_layer = _layer(dst)
+        if (
+            src_layer in LAYERS
+            and dst_layer in LAYERS
+            and LAYERS[dst_layer] > LAYERS[src_layer]
+        ):
+            violations.append(f"{src} -> {dst}")
+    return violations
+
+
+def test_edges_are_real_and_relative_imports_resolve():
+    edges = set(_module_edges())
+    assert edges
+    assert ("nexus.__main__", "nexus.web.server") in edges
+    # This import is relative (from ..model), so it only appears when the
+    # source package is computed from the repository-relative module name.
+    assert ("nexus.core.agent", "nexus.model") in edges
+    assert ("nexus.core.effort", "nexus.model") in edges
+
+
+def test_import_extraction_handles_relative_and_multiple_imports():
+    source = """
+import nexus.model, nexus.session.store
+from .. import mcp, skills
+from . import prompt, retry
+from ..tools.registry import Registry, ToolResult
+"""
+    path = PACKAGE / "core" / "example.py"
+    assert _edges_from_tree(path, "nexus.core.example", source) == {
+        ("nexus.core.example", "nexus.mcp"),
+        ("nexus.core.example", "nexus.model"),
+        ("nexus.core.example", "nexus.session.store"),
+        ("nexus.core.example", "nexus.skills"),
+        ("nexus.core.example", "nexus.core.prompt"),
+        ("nexus.core.example", "nexus.core.retry"),
+        ("nexus.core.example", "nexus.tools.registry"),
+    }
+
+
+def test_layer_guard_can_discover_a_violation():
+    source = "from ..web import server\nfrom ..tools import registry\n"
+    path = PACKAGE / "core" / "violating.py"
+    edges = _edges_from_tree(path, "nexus.core.violating", source)
+    assert _layer_violations(sorted(edges)) == [
+        "nexus.core.violating -> nexus.web",
+    ]
+    source = "from ..model import types\nfrom ..core.protocol import request_body\n"
+    edges = _edges_from_tree(path, "nexus.core.violating", source)
+    assert _layer_violations(sorted(edges)) == []
+
+
+def test_no_upward_layer_imports():
+    violations = _layer_violations(_module_edges())
     assert not violations, "layer violation: " + ", ".join(violations)
 
 
 def test_web_is_not_imported_by_lower_layers():
     for src, dst in _module_edges():
-        if dst == "nexus.web":
-            assert src == "nexus.web" or src == "nexus.__main__", (
+        if dst == "nexus.web" or dst.startswith("nexus.web."):
+            assert _layer(src) == "web" or src == "nexus.__main__", (
                 f"{src} must not import the web layer"
             )
 
@@ -129,7 +207,7 @@ def test_core_does_not_import_tools_implementation_details():
     """core may use the registry, but must not reach into individual tools."""
     allowed = {"nexus.tools", "nexus.tools.registry"}
     for src, dst in _module_edges():
-        if src == "nexus.core" and dst.startswith("nexus.tools"):
+        if _layer(src) == "core" and dst.startswith("nexus.tools"):
             assert dst in allowed, f"core should not import {dst}"
 
 

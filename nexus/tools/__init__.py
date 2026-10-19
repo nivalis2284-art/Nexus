@@ -78,9 +78,15 @@ def build(
     *,
     root: Path | None = None,
     config: dict[str, Any] | None = None,
+    mcp: Any = None,
+    jobs: Any = None,
+    cancel_event: Any = None,
 ) -> tuple[Registry, ToolContext]:
     """Assemble a registry. ``config`` decides which optional tools exist."""
     context = ToolContext(root or Path.cwd(), skills)
+    context.mcp = mcp
+    context.jobs = jobs
+    context.cancel_event = cancel_event
     settings = config or {}
     allowlist = settings.get("webfetch_hosts") or []
     if isinstance(allowlist, str):

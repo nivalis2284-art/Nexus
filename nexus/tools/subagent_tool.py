@@ -43,7 +43,9 @@ def spawn(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     text = getattr(result, "text", "") or "(subagent returned nothing)"
     return {
         "content": text,
+        "ok": getattr(result, "stopped", "complete") not in ("error", "cancelled"),
         "subagent": True,
+        "stopped": getattr(result, "stopped", "complete"),
         "steps": getattr(result, "steps", 0),
         "depth": getattr(result, "depth", 1),
     }

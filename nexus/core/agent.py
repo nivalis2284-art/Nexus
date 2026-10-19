@@ -9,21 +9,19 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..core import prompt
-from ..core import compaction
-from ..core.permission import ALLOW, ASK, DENY, Policy, default_policy, target
+from ..core import compaction, prompt
+from ..core.permission import ASK, DENY, Policy, default_policy, target
 from ..core.protocol import request_body
 from ..core.retry import RetryPolicy, should_retry
 from ..core.workspace import Workspace
 from ..model import (
-    APIFamily,
     ModelError,
-    ModelEvent,
     ModelGateway,
     ModelProfile,
     RuntimeCredentials,
@@ -78,6 +76,7 @@ class Agent:
         effort: str | None = None,
         retry: RetryPolicy | None = None,
         skills: str = "",
+        cancel_event: threading.Event | None = None,
     ) -> None:
         self.profile = profile
         self.credentials = credentials
@@ -95,7 +94,10 @@ class Agent:
         self.last_compaction: compaction.CompactionReport | None = None
         self.compaction_epochs = 0
         self.max_epochs = 16
-        self.stopped = False
+        self.cancel_event = cancel_event or threading.Event()
+        self.context.cancel_event = self.cancel_event
+        # The durable turn output must not depend on the size of compacted history.
+        self.new_messages: list[dict[str, Any]] = []
 
     # --- public -----------------------------------------------------------
 
@@ -105,7 +107,31 @@ class Agent:
         Safe checkpoints are before a model request and before each tool run, so
         a file write is never interrupted halfway through.
         """
-        self.stopped = True
+        self.cancel_event.set()
+
+    @property
+    def stopped(self) -> bool:
+        return self.cancel_event.is_set()
+
+    def _record(self, messages: list[dict[str, Any]], message: dict[str, Any]) -> None:
+        messages.append(message)
+        self.new_messages.append(message)
+
+    def close_pending_calls(self, messages: list[dict[str, Any]]) -> None:
+        """Keep replay valid if transport fails while a tool exchange is open."""
+        pending: dict[str, dict[str, Any]] = {}
+        for message in self.new_messages:
+            for call in message.get("tool_calls") or []:
+                pending[call["id"]] = call
+            if message.get("role") == "tool":
+                pending.pop(message.get("tool_call_id"), None)
+        for call in pending.values():
+            self._record(messages, {
+                "role": "tool", "tool_call_id": call["id"], "name": call["name"],
+                "arguments": _safe_json(call["arguments"]),
+                "content": "No result was recorded: run interrupted.",
+                "ok": False, "error": "interrupted",
+            })
 
     async def _fold(
         self,
@@ -195,6 +221,7 @@ class Agent:
     async def run(self, messages: list[dict[str, Any]]) -> AsyncIterator[RunEvent]:
         """Yield events; mutate ``messages`` in place so callers can persist."""
         result = RunResult()
+        self.new_messages = []
         budget = prompt.Budget(
             context_limit=self.context_limit or self.profile.context_window_tokens or 64_000,
             output_reserve=self.profile.max_output_tokens or 8_000,
@@ -266,7 +293,6 @@ class Agent:
                 body = request_body(
                     self.profile, system, context.messages, tools, effort=self.effort
                 )
-                turns: list[ModelEvent] = []
                 text_parts: list[str] = []
                 thinking_parts: list[str] = []
                 calls: list[dict[str, Any]] = []
@@ -279,7 +305,6 @@ class Agent:
                     async for event in gateway.stream(
                         self.profile, body, credentials=self.credentials
                     ):
-                        turns.append(event)
                         if event.type == "text_delta" and event.text:
                             produced = True
                             text_parts.append(event.text)
@@ -315,6 +340,19 @@ class Agent:
                         produced_output=produced,
                     ) or attempt > self.retry.max_retries:
                         result.stopped = failure.message or "model error"
+                        if text_parts or thinking_parts or calls:
+                            self._record(messages, {
+                                "role": "assistant", "content": "".join(text_parts),
+                                "thinking": "".join(thinking_parts) or None,
+                                "tool_calls": calls,
+                            })
+                            for call in calls:
+                                self._record(messages, {
+                                    "role": "tool", "tool_call_id": call["id"],
+                                    "name": call["name"], "arguments": _safe_json(call["arguments"]),
+                                    "content": "Not executed: model stream failed.",
+                                    "ok": False, "error": "model_error",
+                                })
                         yield RunEvent("error", result.stopped)
                         return
                     delay = self.retry.delay_for(attempt, retry_after)
@@ -332,43 +370,53 @@ class Agent:
                     text_parts.clear()
                     thinking_parts.clear()
                     calls.clear()
-                    await asyncio.sleep(delay)
+                    deadline = time.monotonic() + delay
+                    while not self.stopped and time.monotonic() < deadline:
+                        await asyncio.sleep(min(0.1, max(0, deadline - time.monotonic())))
+                    if self.stopped:
+                        break
                 text = "".join(text_parts)
                 thinking = "".join(thinking_parts)
                 result.text = text
                 result.thinking = thinking
                 result.steps = step
                 if not calls:
-                    messages.append(
+                    self._record(messages,
                         {"role": "assistant", "content": text,
                          "thinking": thinking or None,
                          "usage": result.usage or None}
                     )
-                    result.stopped = "complete"
-                    yield RunEvent("done", data={"usage": result.usage, "steps": step})
+                    result.stopped = "cancelled" if self.stopped else "complete"
+                    yield RunEvent("done", data={"usage": result.usage, "steps": step,
+                                                 "stopped": result.stopped})
                     return
-                messages.append(
+                self._record(messages,
                     {"role": "assistant", "content": text, "tool_calls": calls,
                      "thinking": thinking or None,
                      "usage": result.usage or None}
                 )
                 for call in calls:
-                    if self.stopped:
-                        result.stopped = "cancelled"
-                        break
                     result.tool_calls += 1
                     yield RunEvent(
                         "tool_start",
                         data={"id": call["id"], "name": call["name"],
                               "arguments": _safe_json(call["arguments"])},
                     )
-                    outcome = await self._invoke(call, yield_event=None)
-                    messages.append(
+                    if self.stopped:
+                        result.stopped = "cancelled"
+                        outcome = ToolResult(False, "Not executed: run cancelled.",
+                                             error_code="cancelled")
+                    else:
+                        outcome = await self._invoke(call, yield_event=None)
+                    self._record(messages,
                         {
                             "role": "tool",
                             "tool_call_id": call["id"],
                             "name": call["name"],
                             "content": outcome.content,
+                            "arguments": _safe_json(call["arguments"]),
+                            "ok": outcome.ok,
+                            "error": outcome.error_code,
                         }
                     )
                     yield RunEvent(
@@ -376,6 +424,7 @@ class Agent:
                         data={
                             "id": call["id"],
                             "name": call["name"],
+                            "arguments": _safe_json(call["arguments"]),
                             "ok": outcome.ok,
                             "content": outcome.content,
                             "error": outcome.error_code,
@@ -412,6 +461,8 @@ class Agent:
             )
             if not allowed:
                 return ToolResult(False, "The user declined this call.", error_code="declined")
+        if self.stopped:
+            return ToolResult(False, "Not executed: run cancelled.", error_code="cancelled")
         return await asyncio.to_thread(self.registry.execute, name, arguments, self.context)
 
 

@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from .. import mcp, skills
 from ..core import effort as reasoning
 from ..core import subagent
 from ..core.agent import Agent, ApprovalRequest
@@ -43,10 +44,9 @@ from ..core.permission import default_policy
 from ..core.workspace import inspect
 from ..model import RuntimeCredentials
 from ..session import Message, SessionStore
-from .. import mcp
 from ..skills import SkillSet
-from .. import skills
-from ..tools import build
+from ..tools import build, mcp_tools
+from ..tools._jobs import JobRegistry
 
 APPROVAL_TIMEOUT = 600.0
 
@@ -54,6 +54,7 @@ APPROVAL_TIMEOUT = 600.0
 # of those is already a large request, which is why the count is capped too.
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_IMAGES_PER_TURN = 8
+MAX_REQUEST_BYTES = MAX_IMAGES_PER_TURN * ((MAX_IMAGE_BYTES + 2) // 3 * 4) + 4_000_000
 ALLOWED_IMAGE_MIMES = frozenset(
     {"image/png", "image/jpeg", "image/webp", "image/gif"}
 )
@@ -218,6 +219,7 @@ class Approvals:
 APPROVALS = Approvals()
 STATE: dict[str, Any] = {}
 BUSY = threading.Lock()
+RESOURCES = threading.Lock()
 # The agent of the run in progress, so another request can ask it to stop.
 RUNNING: dict[str, Any] = {"agent": None}
 
@@ -237,7 +239,7 @@ def _read_json(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
         length = int(handler.headers.get("Content-Length") or 0)
     except ValueError:
         return {}
-    if length <= 0 or length > 4_000_000:
+    if length <= 0 or length > MAX_REQUEST_BYTES:
         return {}
     try:
         value = json.loads(handler.rfile.read(length))
@@ -260,6 +262,7 @@ def _transcript(session) -> list[dict[str, Any]]:
                     "usage": item.data.get("usage") or None,
                     "elapsed": item.data.get("elapsed"),
                     "at": item.at,
+                    "images": item.data.get("images") or [],
                 }
             )
         elif item.kind == "tool":
@@ -270,6 +273,7 @@ def _transcript(session) -> list[dict[str, Any]]:
                     "text": item.text,
                     "ok": bool(item.data.get("ok", True)),
                     "arguments": item.data.get("arguments"),
+                    "error": item.data.get("error", ""),
                     "at": item.at,
                 }
             )
@@ -339,7 +343,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_DELETE(self) -> None:
         path = urlparse(self.path).path
         if path.startswith("/api/sessions/"):
-            removed = STATE["sessions"].delete(path.rsplit("/", 1)[-1])
+            session_id = path.rsplit("/", 1)[-1]
+            if RUNNING.get("session_id") == session_id:
+                return _json(self, 409, {"error": "请先停止当前会话，再删除。"})
+            removed = STATE["sessions"].delete(session_id)
+            if removed:
+                jobs = STATE.get("jobs", {}).pop(session_id, None)
+                if jobs is not None:
+                    jobs.close_all()
             return _json(self, 200 if removed else 404, {"removed": removed})
         if path.startswith("/api/providers/"):
             provider_id = path.rsplit("/", 1)[-1]
@@ -422,6 +433,11 @@ class Handler(BaseHTTPRequestHandler):
             for provider in store.providers()
         ]
         family = settings.provider.family
+        # An unconfigured or invalid endpoint must remain editable in Settings.
+        try:
+            profile = settings.profile
+        except ValueError:
+            profile = None
         return {
             "providers": providers,
             "current": {
@@ -433,11 +449,11 @@ class Handler(BaseHTTPRequestHandler):
                 "levels": list(reasoning.LEVELS),
                 "labels": reasoning.LABELS,
                 "current": settings.effort,
-                "mapping": reasoning.describe(family, settings.effort or "", settings.profile)
+                "mapping": reasoning.describe(family, settings.effort or "", profile)
                 if settings.effort
                 else None,
             },
-            "profile": json.loads(settings.profile.model_dump_json()),
+            "profile": json.loads(profile.model_dump_json()) if profile else None,
             "has_key": bool(settings.api_key),
             "permission": settings.permission,
             "max_steps": settings.max_steps,
@@ -510,7 +526,20 @@ class Handler(BaseHTTPRequestHandler):
         target = Path(raw.strip()).expanduser()
         if not target.is_dir():
             raise ValueError(f"not a directory: {target}")
-        STATE["store"].save_preferences(workspace=str(target.resolve()))
+        if not BUSY.acquire(blocking=False):
+            return _json(self, 409, {"error": "请等当前任务停止后再切换工作目录。"})
+        try:
+            workspace = target.resolve()
+            store = STATE["store"]
+            live = _start_mcp(store, workspace)
+            previous = STATE.get("mcp")
+            STATE["mcp"] = live
+            if previous is not None:
+                previous.close()
+            store.save_preferences(workspace=str(workspace))
+            STATE["skills"] = _load_skills(store, workspace)
+        finally:
+            BUSY.release()
         return _json(self, 200, self._state())
 
     def _approve(self, value: dict[str, Any]) -> None:
@@ -540,9 +569,13 @@ class Handler(BaseHTTPRequestHandler):
         started is allowed to finish.
         """
         agent = RUNNING.get("agent")
-        if agent is None:
+        cancellation = RUNNING.get("cancel_event")
+        if agent is None and cancellation is None:
             return _json(self, 200, {"stopped": False, "reason": "idle"})
-        agent.stop()
+        if agent is not None:
+            agent.stop()
+        if cancellation is not None:
+            cancellation.set()
         # Waking the waiters matters as much as the flag: if the loop is parked
         # in an approval or question, the flag alone would not be seen until the
         # timeout, and the run lock would stay held the whole time.
@@ -576,15 +609,19 @@ class Handler(BaseHTTPRequestHandler):
                 self, 400,
                 {"error": "当前模型没有声明图片能力，请先在设置里启用。"},
             )
+        # Validate before opening the stream or saving a user message.
+        build_profile(settings.provider, settings.model)
         if not BUSY.acquire(blocking=False):
             return _json(self, 409, {"error": "上一条还在运行。"})
 
         try:
+            if STATE.get("closing"):
+                return _json(self, 503, {"error": "服务正在关闭。"})
             store: SessionStore = STATE["sessions"]
             store.append(session, Message(kind="user", text=text, data={"images": images} if images else {}))
             if not session.title:
                 session.title = (text or "图片")[:40]
-                store.rewrite(session)
+                store.rename(session.id, session.title, only_if_empty=True)
 
             self.send_response(200)
             self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
@@ -622,9 +659,24 @@ class Handler(BaseHTTPRequestHandler):
             "webfetch_hosts": settings.webfetch_hosts,
             "search_endpoint": settings.search_endpoint,
         }
-        skill_set: SkillSet = STATE.get("skills") or SkillSet()
-        registry, context = build(skill_set.bodies(), config=tool_config)
-        context.root = workspace.root
+        # Resolve project skills for the actual workspace on every turn.
+        skill_set = _load_skills(STATE["store"], workspace.root)
+        STATE["skills"] = skill_set
+        with RESOURCES:
+            if STATE.get("closing"):
+                emit({"type": "error", "message": "服务正在关闭。"})
+                return
+            session_jobs = STATE.setdefault("jobs", {}).setdefault(session.id, JobRegistry())
+            cancel_event = threading.Event()
+            RUNNING["cancel_event"] = cancel_event
+
+        def toolset():
+            return build(
+                skill_set.bodies(), root=workspace.root, config=tool_config,
+                mcp=STATE.get("mcp"), jobs=session_jobs, cancel_event=cancel_event,
+            )
+
+        registry, context = toolset()
 
         def ask_owner(questions: list[dict[str, Any]]) -> list[str] | None:
             """Block on the same human channel that approvals use.
@@ -632,7 +684,12 @@ class Handler(BaseHTTPRequestHandler):
             ``questions`` is a list of ``{question, options}``. All of them are
             sent in one event and answered in one submit.
             """
+            if cancel_event.is_set():
+                return None
             token = APPROVALS.create("question")
+            if cancel_event.is_set():
+                APPROVALS.forget(token)
+                return None
             try:
                 emit({"type": "question", "token": token, "questions": questions})
             except OSError:
@@ -653,12 +710,16 @@ class Handler(BaseHTTPRequestHandler):
         context.ask = ask_owner
         policy = default_policy(settings.permission, settings.permission_rules)
         history = _internal(session)
-        before = len(history)
         started = time.monotonic()
         profile = build_profile(settings.provider, settings.model)
 
         async def approve(request: ApprovalRequest) -> bool:
+            if cancel_event.is_set():
+                return False
             token = APPROVALS.create()
+            if cancel_event.is_set():
+                APPROVALS.forget(token)
+                return False
             try:
                 emit(
                     {
@@ -694,6 +755,7 @@ class Handler(BaseHTTPRequestHandler):
             approve=approve,
             effort=settings.effort,
             skills=skill_set.manifest(),
+            cancel_event=cancel_event,
         )
 
         # A subagent is a whole nested run. The tool handler is synchronous (it
@@ -703,12 +765,8 @@ class Handler(BaseHTTPRequestHandler):
             request = subagent.SubagentRequest(task=task, max_steps=max_steps, depth=1)
 
             async def factory(prompt: str, budget: int):
-                child_registry, child_context = build(skill_set.bodies(), config=tool_config)
-                child_context.root = workspace.root
+                child_registry, child_context = toolset()
                 child_context.ask = ask_owner
-                # MCP connections are process-wide; share them rather than
-                # spawning a second copy of every server.
-                child_context.mcp = context.mcp
                 child = Agent(
                     profile=profile,
                     credentials=RuntimeCredentials(settings.api_key),
@@ -720,6 +778,8 @@ class Handler(BaseHTTPRequestHandler):
                     context_limit=settings.context_limit,
                     effort=settings.effort,
                     skills=skill_set.manifest(),
+                    approve=approve,
+                    cancel_event=cancel_event,
                 )
                 async for event in child.run([{"role": "user", "content": prompt}]):
                     yield event
@@ -748,6 +808,8 @@ class Handler(BaseHTTPRequestHandler):
                     emit({"type": "retrying", "data": event.data})
                 elif event.type == "context":
                     emit({"type": "context", "data": event.data})
+                elif event.type == "compacted":
+                    emit({"type": "compacted", "data": event.data})
                 elif event.type == "tool_start":
                     emit({"type": "tool_start", "tool": event.data})
                 elif event.type == "tool_result":
@@ -760,7 +822,7 @@ class Handler(BaseHTTPRequestHandler):
                     # Attach usage and elapsed to this turn's last assistant
                     # message so both survive a reload; the stream alone would
                     # forget them.
-                    for message in reversed(history):
+                    for message in reversed(agent.new_messages):
                         if message.get("role") == "assistant":
                             message["usage"] = usage
                             message["elapsed"] = elapsed
@@ -768,6 +830,7 @@ class Handler(BaseHTTPRequestHandler):
                     emit({"type": "done", "data": event.data | {"elapsed": elapsed}})
 
         RUNNING["agent"] = agent
+        RUNNING["session_id"] = session.id
         try:
             asyncio.run(drive())
         except (BrokenPipeError, ConnectionResetError):
@@ -783,8 +846,14 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:
                 pass
         finally:
-            RUNNING["agent"] = None
-            self._persist(session, history[before:])
+            APPROVALS.cancel_all()
+            agent.close_pending_calls(history)
+            try:
+                self._persist(session, agent.new_messages)
+            finally:
+                RUNNING["agent"] = None
+                RUNNING.pop("session_id", None)
+                RUNNING.pop("cancel_event", None)
 
     def _persist(self, session, new_messages: list[dict[str, Any]]) -> None:
         store: SessionStore = STATE["sessions"]
@@ -822,9 +891,11 @@ class Handler(BaseHTTPRequestHandler):
                         data={
                             "tool_call_id": message.get("tool_call_id", ""),
                             "name": message.get("name", ""),
-                            "ok": not str(message.get("content", "")).startswith(
+                            "arguments": message.get("arguments"),
+                            "error": message.get("error", ""),
+                            "ok": message.get("ok", not str(message.get("content", "")).startswith(
                                 ("The user declined", "Blocked by policy", "Unknown tool")
-                            ),
+                            )),
                         },
                     ),
                 )
@@ -835,7 +906,7 @@ def _load_skills(store: ConfigStore, workspace: Path | None = None) -> SkillSet:
     return skills.discover(skills.default_roots(workspace, store.home))
 
 
-def _start_mcp(store: ConfigStore, workspace: Path) -> MCPRegistry | None:
+def _start_mcp(store: ConfigStore, workspace: Path) -> mcp.MCPRegistry | None:
     """Connect configured MCP servers once, at startup.
 
     A server that fails to start is reported and skipped: one broken MCP entry
@@ -848,7 +919,7 @@ def _start_mcp(store: ConfigStore, workspace: Path) -> MCPRegistry | None:
     problems = mcp_tools.config_problems(entries)
     for problem in problems:
         print(f"mcp: {problem}")
-    registry = MCPRegistry()
+    registry = mcp.MCPRegistry()
     for raw in entries:
         config = mcp.ServerConfig.from_dict(raw)
         if config is None or not config.enabled:
@@ -871,6 +942,8 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
         store.save_preferences(workspace=str(Path(workspace).resolve()))
     STATE["store"] = store
     STATE["sessions"] = SessionStore(store.sessions_dir)
+    STATE["jobs"] = {}
+    STATE["closing"] = False
     STATE["skills"] = _load_skills(store, Path(store.load().workspace))
     STATE["mcp"] = _start_mcp(store, Path(store.load().workspace))
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
@@ -883,6 +956,18 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
     except KeyboardInterrupt:
         pass
     finally:
+        with RESOURCES:
+            STATE["closing"] = True
+            session_jobs = list(STATE.pop("jobs", {}).values())
+            cancellation = RUNNING.get("cancel_event")
+            if cancellation is not None:
+                cancellation.set()
+        agent = RUNNING.get("agent")
+        if agent is not None:
+            agent.stop()
+        APPROVALS.cancel_all()
+        for jobs in session_jobs:
+            jobs.close_all()
         server.server_close()
         live = STATE.get("mcp")
         if live is not None:

@@ -159,7 +159,7 @@ def write(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     _check_expected(path, args.get("expected_sha256"))
     path.parent.mkdir(parents=True, exist_ok=True)
     body = args["content"].encode("utf-8")
-    with open_file(path, "write") as handle:
+    with open_file(path, "write" if existed else "create") as handle:
         handle.write(body)
     lines = args["content"].count("\n") + (1 if args["content"] else 0)
     return {

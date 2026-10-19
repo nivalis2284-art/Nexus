@@ -360,7 +360,20 @@ function nodeFor(item) {
   }
   if (item.role === "user") {
     const wrap = el("div", "msg user");
-    wrap.appendChild(el("div", "bubble", item.text || ""));
+    if (item.text) wrap.appendChild(el("div", "bubble", item.text));
+    const images = Array.isArray(item.images) ? item.images : [];
+    if (images.length) {
+      const gallery = el("div", "msg-images");
+      images.forEach((image, index) => {
+        if (!image || typeof image.mime !== "string" || typeof image.data !== "string") return;
+        const picture = el("img");
+        picture.src = "data:" + image.mime + ";base64," + image.data;
+        picture.alt = "用户发送的图片 " + (index + 1);
+        picture.loading = "lazy";
+        gallery.appendChild(picture);
+      });
+      if (gallery.children.length) wrap.appendChild(gallery);
+    }
     wrap.appendChild(el("div", "stamp", clock(item.at)));
     return wrap;
   }
@@ -434,6 +447,10 @@ function updateStats() {
 // watch.
 async function send(text) {
   if (state.running) return;
+  // Freeze the attachments for this turn. A new session request may yield, and
+  // the composer's array must not decide later what was actually sent.
+  const sentItems = pendingImages.slice();
+  const images = sentItems.map((image) => ({ mime: image.mime, data: image.data }));
   if (!state.sessionId) await newSession();
   if (!state.sessionId) return;
 
@@ -445,10 +462,11 @@ async function send(text) {
   state.items.push({
     role: "user",
     text,
-    images: pendingImages.map((image) => ({ mime: image.mime })),
+    images,
     at: new Date().toISOString(),
   });
-  pendingImages = [];
+  pendingImages = pendingImages.filter((image) => !sentItems.includes(image));
+  renderAttachments();
   const box = $("transcript");
   box.innerHTML = "";
   box.classList.remove("empty");
@@ -500,7 +518,7 @@ async function send(text) {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: state.sessionId, text, images: pendingImages }),
+      body: JSON.stringify({ session_id: state.sessionId, text, images }),
     });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
@@ -548,16 +566,19 @@ async function send(text) {
             text: "运行中…",
           });
           step.dataset.live = "1";
+          step._toolArguments = event.tool.arguments;
           pbody.appendChild(step);
           scrollDown();
         } else if (event.type === "tool_result") {
           const steps = pbody.querySelectorAll('.step[data-live="1"]');
           const last = steps[steps.length - 1];
           if (last) {
+            const argumentsValue =
+              event.tool.arguments === undefined ? last._toolArguments : event.tool.arguments;
             last.replaceWith(
               stepTool({
                 name: event.tool.name,
-                arguments: event.tool.arguments,
+                arguments: argumentsValue,
                 text: event.tool.content,
                 ok: event.tool.ok,
               })
@@ -630,6 +651,9 @@ async function send(text) {
 // Images waiting to be sent. Kept outside `state` because they are transient
 // per composition, not session data.
 let pendingImages = [];
+// Files still being read. Sending before these settle would silently omit the
+// picture the user just attached, so the composer waits for read completion.
+let readingImages = 0;
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGES = 8;
@@ -669,6 +693,7 @@ function addImages(files) {
       setStatus("图片超过 5MB：" + file.name, true);
       continue;
     }
+    readingImages += 1;
     const reader = new FileReader();
     reader.onload = () => {
       const result = String(reader.result || "");
@@ -678,10 +703,20 @@ function addImages(files) {
         data: comma >= 0 ? result.slice(comma + 1) : result,
         name: file.name,
       });
-      renderAttachments();
+      finishImageRead();
     };
+    reader.onerror = () => {
+      setStatus("读取图片失败：" + file.name, true);
+      finishImageRead();
+    };
+    reader.onabort = finishImageRead;
     reader.readAsDataURL(file);
   }
+}
+
+function finishImageRead() {
+  readingImages = Math.max(0, readingImages - 1);
+  renderAttachments();
 }
 
 // ---------------------------------------------------------------- usage
@@ -1112,6 +1147,10 @@ $("composer").addEventListener("submit", (event) => {
   const text = input.value.trim();
   if (state.running) {
     abortRun();
+    return;
+  }
+  if (readingImages) {
+    setStatus("图片还在读取，请稍候再发送", true);
     return;
   }
   if (!text && !pendingImages.length) return;

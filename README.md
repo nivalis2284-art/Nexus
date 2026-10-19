@@ -12,6 +12,8 @@ Nexus 是一个正在迭代的个人 Agent 项目。**当前版本**围绕「用
 2. 在浏览器打开 `http://127.0.0.1:8766`（通常由启动脚本打开）。
 3. 在设置中填写模型提供商的 Base URL、模型名称、协议及 API Key，然后开始对话。
 
+启动脚本会检查 Python 3.12 和项目依赖。若现有 `.venv` 已失效，会先保留为同目录下的 `.venv.invalid-<时间>` 备份，再创建环境；不会删除原环境或覆盖会话数据。环境准备失败时，终端会显示具体原因。
+
 仓库不预置可直接使用的模型服务与密钥。依赖和 Python 版本范围以 [`pyproject.toml`](pyproject.toml) 为准。
 
 ## 当前功能概览
@@ -65,6 +67,8 @@ skills/*.md          可选 Skill 文档
 
 耗时操作可使用后台任务工具；如需查看其细节或具体参数，请以工具定义和当前实现为准。
 
+后台任务按会话保存，在同一会话的后续轮次可继续查看输出或停止；其他会话有独立列表。服务退出时清理后台任务，重启后不恢复。停止当前 Agent 运行与停止后台任务是不同操作，后者使用 `job_kill`。
+
 ## 可选能力
 
 **网络工具**默认不注册；需要时在配置中提供允许访问的站点或搜索服务：
@@ -117,6 +121,7 @@ AGENTS.md    开发协作说明
 安装开发依赖后，在仓库根目录运行：
 
 ```powershell
+.venv\Scripts\python.exe -m pip install -e ".[dev]"
 .venv\Scripts\python.exe -m pytest tests -q
 ```
 
@@ -125,6 +130,10 @@ AGENTS.md    开发协作说明
 ## 文档导航
 
 - [`AGENTS.md`](AGENTS.md)：给开发 Agent 的简洁协作说明，不代替具体 PRD。
+- [`docs/PRD.md`](docs/PRD.md)：当前优化及功能业务关系图需求。
+- [`docs/RESEARCH.md`](docs/RESEARCH.md)：开发前调查、问题证据与技术取舍的快照。
+- [`docs/PROGRESS.md`](docs/PROGRESS.md)：本轮交付、验证结果、复核方法与限制。
+- [`docs/BUSINESS-MAP.html`](docs/BUSINESS-MAP.html)：独立功能业务关系图，可直接用本地浏览器打开。
 - [`docs/愿景/01-概念与原则.md`](docs/愿景/01-概念与原则.md)：长期方向与所有者控制原则。
 - [`docs/愿景/02-抽象需求.md`](docs/愿景/02-抽象需求.md)：长期期望的能力与体验；**并非当前阶段待办清单**。
 - [`docs/参考/`](docs/参考/)：历史对话、变更及曾经暂缓或待定的事项；其中的判断不自动代表当前产品决定。

@@ -53,9 +53,9 @@ class Policy:
 
 def target(tool: str, arguments: dict) -> str:
     """The value a rule matches against."""
-    if tool in ("read_file", "write_file", "edit_file", "glob", "grep"):
+    if tool in ("read_file", "write_file", "edit_file", "apply_patch", "glob", "grep"):
         return str(arguments.get("path") or ".")
-    if tool == "bash":
+    if tool in ("bash", "bash_background"):
         return str(arguments.get("command") or "")
     if tool == "read_skill":
         return str(arguments.get("name") or "")
@@ -87,16 +87,14 @@ def default_policy(mode: str = "ask", rules: list[dict] | None = None) -> Policy
         return Policy(default=ALLOW, rules=parsed)
     return Policy(
         default=ALLOW,
-        rules=[
-            Rule("write_file", "*", ASK),
-            Rule("edit_file", "*", ASK),
-            Rule("bash", "*", ASK),
-        ],
+        rules=[Rule(**item) for item in DEFAULT_RULES],
     )
 
 
 DEFAULT_RULES = [
     {"tool": "write_file", "pattern": "*", "action": ASK},
     {"tool": "edit_file", "pattern": "*", "action": ASK},
+    {"tool": "apply_patch", "pattern": "*", "action": ASK},
     {"tool": "bash", "pattern": "*", "action": ASK},
+    {"tool": "bash_background", "pattern": "*", "action": ASK},
 ]

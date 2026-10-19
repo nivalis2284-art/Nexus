@@ -14,6 +14,7 @@ Design notes carried over from a working system:
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -37,12 +38,14 @@ class ToolSpec:
     # failing when called. Learned from Cordis's `inject`: a plugin whose
     # dependencies are missing never starts.
     requires: tuple[str, ...] = ()
+    input_schema: dict[str, Any] | None = None
 
     def schema(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "description": self.description,
-            "parameters": _model_schema(self.parameters),
+            "parameters": deepcopy(self.input_schema) if self.input_schema is not None
+            else _model_schema(self.parameters),
         }
 
     def available(self, config: dict[str, Any]) -> bool:
@@ -103,6 +106,9 @@ class Registry:
         return [spec.schema() for spec in self._tools.values()]
 
     def execute(self, name: str, arguments: dict[str, Any], context: Any) -> ToolResult:
+        cancellation = getattr(context, "cancel_event", None)
+        if cancellation is not None and cancellation.is_set():
+            return ToolResult(False, "Not executed: run cancelled.", error_code="cancelled")
         spec = self._tools.get(name)
         if spec is None:
             return ToolResult(False, f"Unknown tool: {name}", error_code="unknown_tool")
@@ -131,7 +137,9 @@ class Registry:
             content = str(content)
         content, truncated = clip(content)
         payload["truncated"] = truncated
-        return ToolResult(True, content, data=payload)
+        ok = payload.get("ok", True) is not False and not payload.get("mcp_error", False)
+        error_code = str(payload.get("error") or "execution_failed") if not ok else ""
+        return ToolResult(ok, content, data=payload, error_code=error_code)
 
     def declarations(self) -> str:
         """Compact tool list for the system prompt (names + one-line meaning)."""

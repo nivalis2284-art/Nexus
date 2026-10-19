@@ -15,6 +15,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from ..mcp import MCPError
 from .registry import ToolSpec
 
 
@@ -44,6 +45,7 @@ def specs_for(context: Any) -> list[ToolSpec]:
                 MCPArguments,
                 _make_handler(registry, qualified),
                 read_only=False,
+                input_schema=declaration.input_schema,
             )
         )
     return specs
@@ -60,7 +62,11 @@ def _make_handler(registry: Any, qualified: str):
         if entry is None:
             raise ValueError(f"MCP tool '{qualified}' is no longer available")
         server, declaration = entry
-        result = server.call_tool(declaration.name, args)
+        try:
+            result = server.call_tool(declaration.name, args)
+        except MCPError as error:
+            return {"content": f"MCP call failed: {error}", "mcp_error": True,
+                    "server": server.name, "tool": declaration.name}
         if not result.ok:
             # An error result is data the model should read, not an exception.
             return {

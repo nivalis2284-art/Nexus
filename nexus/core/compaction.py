@@ -25,9 +25,14 @@ Three rules make compaction safe, all learned from reading those packages:
 
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, field
-from typing import Any, Callable
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
+
+# The prompt builder and compaction share these estimates so that budgeting,
+# split points and reports cannot disagree about the same message.
+IMAGE_TOKEN_ALLOWANCE = 1_600
+MESSAGE_OVERHEAD = 8
 
 # --- pruning constants, from dsh-compaction-tool-result-pruner --------------
 
@@ -142,6 +147,26 @@ def prune(
     return out, report
 
 
+def estimate(text: str) -> int:
+    """Conservative token estimate: UTF-8 bytes / 3 (CJK is about 3 bytes/token)."""
+    return len(text.encode("utf-8")) // 3 + 1
+
+
+def _value(value: Any) -> str:
+    return "" if value is None else str(value)
+
+
+def _call_field(call: dict[str, Any], name: str) -> Any:
+    """Read a field from the internal flat shape or the legacy nested shape."""
+    value = call.get(name)
+    if value is not None:
+        return value
+    function = call.get("function")
+    if isinstance(function, dict):
+        return function.get(name)
+    return None
+
+
 def _text_of(message: dict[str, Any]) -> str:
     parts: list[str] = []
     content = message.get("content")
@@ -150,22 +175,130 @@ def _text_of(message: dict[str, Any]) -> str:
     elif isinstance(content, list):
         for block in content:
             if isinstance(block, dict):
+                # Image payloads are base64, not text. Their fixed allowance is
+                # applied by image_tokens instead.
+                if block.get("type") == "image":
+                    continue
                 parts.append(str(block.get("text", "")))
                 parts.append(str(block.get("content", "")))
+            elif isinstance(block, str):
+                parts.append(block)
+    for key in ("arguments", "tool_call_id", "name"):
+        value = message.get(key)
+        if value is not None:
+            parts.append(_value(value))
     for call in message.get("tool_calls") or []:
-        if isinstance(call, dict):
-            function = call.get("function") or {}
-            parts.append(str(function.get("name", "")))
-            parts.append(str(function.get("arguments", "")))
+        if not isinstance(call, dict):
+            continue
+        # Current sessions store tool calls flat ({id, name, arguments}).
+        # Older sessions use OpenAI's nested function object. Count both.
+        parts.append(_value(call.get("id")))
+        parts.append(_value(_call_field(call, "name")))
+        parts.append(_value(_call_field(call, "arguments")))
     return "".join(parts)
+
+
+def image_tokens(message: dict[str, Any]) -> int:
+    content = message.get("content")
+    if not isinstance(content, list):
+        return 0
+    count = sum(
+        1
+        for block in content
+        if isinstance(block, dict) and block.get("type") == "image"
+    )
+    return count * IMAGE_TOKEN_ALLOWANCE
+
+
+def message_tokens(message: dict[str, Any]) -> int:
+    """Estimated cost of one message, including its fixed framing overhead."""
+    return estimate(_text_of(message)) + MESSAGE_OVERHEAD + image_tokens(message)
 
 
 def approx_tokens(messages: list[dict[str, Any]]) -> int:
     """Same estimator the prompt builder uses: bytes / 3."""
-    total = 0
-    for message in messages:
-        total += len(_text_of(message).encode("utf-8")) // 3 + 8
-    return total
+    return sum(message_tokens(message) for message in messages)
+
+
+def paired(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop only tool messages that cannot be paired from model input.
+
+    Complete exchanges are preserved, including several results for one
+    assistant call. A complete call keeps its matching results and drops any
+    extra result in the same group. An unfinished call is dropped as a whole;
+    a standalone result is dropped by itself. Session history is untouched.
+    """
+    out: list[dict[str, Any]] = []
+    for start, end, _ in message_units(messages):
+        ids = _call_ids(messages[start])
+        if not ids:
+            if messages[start].get("role") != "tool":
+                out.extend(messages[start:end])
+            continue
+        results: dict[str, dict[str, Any]] = {}
+        for index in range(start + 1, end):
+            call_id = messages[index].get("tool_call_id")
+            if call_id is not None:
+                results.setdefault(str(call_id), messages[index])
+        if not all(call_id in results for call_id in ids):
+            continue
+        out.append(messages[start])
+        out.extend(results[call_id] for call_id in ids)
+    return out
+
+
+def _call_ids(message: dict[str, Any]) -> list[str]:
+    if message.get("role") != "assistant":
+        return []
+    ids: list[str] = []
+    for call in message.get("tool_calls") or []:
+        if isinstance(call, dict) and call.get("id") is not None:
+            ids.append(str(call["id"]))
+    return ids
+
+
+def message_units(
+    messages: list[dict[str, Any]],
+) -> list[tuple[int, int, bool]]:
+    """Return atomic ranges as (start, end, valid).
+
+    An assistant message with tool calls and all of its consecutive results is
+    one unit. Splitting a request or a compacted tail at any other boundary can
+    leave a tool result without its call. ``valid`` is false for unfinished tool
+    calls and orphan tool results; callers that build model input omit them.
+    """
+    units: list[tuple[int, int, bool]] = []
+    index = 0
+    while index < len(messages):
+        ids = _call_ids(messages[index])
+        if ids:
+            pending = set(ids)
+            matched = True
+            end = index + 1
+            while end < len(messages) and messages[end].get("role") == "tool":
+                call_id = messages[end].get("tool_call_id")
+                normalized = None if call_id is None else str(call_id)
+                if normalized in pending:
+                    pending.remove(normalized)
+                else:
+                    # A result that does not belong to this call makes the
+                    # boundary unsafe to treat as a complete interaction.
+                    matched = False
+                end += 1
+            units.append((index, end, matched and not pending))
+            index = end
+        elif messages[index].get("role") == "tool":
+            # Consecutive orphan results are one unit. Keeping the newest one
+            # alone as a fallback could still send a result without its call.
+            end = index + 1
+            while end < len(messages) and messages[end].get("role") == "tool":
+                end += 1
+            units.append((index, end, False))
+            index = end
+        else:
+            units.append((index, index + 1, True))
+            index += 1
+    return units
 
 
 # ---------------------------------------------------------------- pairing
@@ -179,27 +312,10 @@ class CompactionBlocked(RuntimeError):
         super().__init__(reason)
 
 
-def _open_calls(messages: list[dict[str, Any]]) -> set[str]:
-    """Ids of tool calls that have no matching result yet."""
-    pending: set[str] = set()
-    for message in messages:
-        for call in message.get("tool_calls") or []:
-            if isinstance(call, dict) and call.get("id"):
-                pending.add(str(call["id"]))
-        if message.get("role") == "tool":
-            call_id = message.get("tool_call_id")
-            if call_id is not None:
-                pending.discard(str(call_id))
-    return pending
-
-
 def assert_paired(messages: list[dict[str, Any]]) -> None:
-    """Refuse to compact a transcript that contains an unfinished tool call."""
-    pending = _open_calls(messages)
-    if pending:
-        raise CompactionBlocked(
-            f"unfinished tool call(s): {', '.join(sorted(pending))}"
-        )
+    """Refuse to compact a transcript containing an invalid tool exchange."""
+    if any(not valid for _, _, valid in message_units(messages)):
+        raise CompactionBlocked("unpaired tool interaction(s)")
 
 
 def split_for_summary(
@@ -207,37 +323,37 @@ def split_for_summary(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Split into (to summarise, verbatim tail), never cutting a pair.
 
-    Walks backwards accumulating the tail until it reaches ``retain_tokens``,
-    then extends the tail backwards until it does not start in the middle of a
-    tool exchange.
+    Walks backwards by complete message units. A unit is an ordinary message or
+    one assistant tool-call message together with every consecutive result.
     """
     if not messages:
         return [], []
-    tail: list[dict[str, Any]] = []
+    units = message_units(messages)
+    if any(not valid for _, _, valid in units):
+        # There is no safe cut in a transcript with a half-finished exchange.
+        return [], list(messages)
+    tail_start = len(messages)
     used = 0
-    for message in reversed(messages):
-        cost = len(_text_of(message).encode("utf-8")) // 3 + 8
-        if tail and used + cost > retain_tokens:
+    for start, end, _ in reversed(units):
+        cost = approx_tokens(messages[start:end])
+        if tail_start < len(messages) and used + cost > retain_tokens:
             break
-        tail.append(message)
+        tail_start = start
         used += cost
-    tail.reverse()
 
-    # If the tail begins with a tool result, its matching call lives just
-    # before it and must be pulled in too.
-    while tail and tail[0].get("role") == "tool":
-        index = len(messages) - len(tail)
-        if index == 0:
-            break
-        tail.insert(0, messages[index - 1])
-    head = messages[: len(messages) - len(tail)]
+    head = messages[:tail_start]
+    tail = messages[tail_start:]
     # A single enormous message (a pasted log, one giant tool result) can fill
     # the whole retained tail, leaving nothing to summarise. That is exactly the
     # case where compaction is needed, so keep only the newest message verbatim
     # and summarise the rest.
     if not head and len(messages) > 1:
-        head = messages[:-1]
-        tail = messages[-1:]
+        last_start, _, valid = units[-1]
+        # A giant last interaction can only be split after a complete assistant
+        # message. A pure tool tail cannot be cut away from its call.
+        if valid and messages[last_start].get("role") != "tool":
+            head = messages[:last_start]
+            tail = messages[last_start:]
     return head, tail
 
 

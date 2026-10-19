@@ -16,12 +16,12 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-
 
 TITLE_LIMIT = 80
 DEFAULT_TITLE = "新会话"
@@ -77,6 +77,7 @@ class SessionStore:
     def __init__(self, directory: Path) -> None:
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.RLock()
 
     def path_for(self, session_id: str) -> Path:
         if not session_id or not session_id.replace("_", "").isalnum():
@@ -172,6 +173,10 @@ class SessionStore:
         return message
 
     def _append(self, session: Session, record: dict[str, Any]) -> None:
+        with self._lock:
+            self._append_record(session, record)
+
+    def _append_record(self, session: Session, record: dict[str, Any]) -> None:
         path = session.path
         if path is None:
             path = self.path_for(session.id)
@@ -193,6 +198,10 @@ class SessionStore:
 
     def rewrite(self, session: Session) -> None:
         """Replace the file with the in-memory items (used by edits/pruning)."""
+        with self._lock:
+            self._rewrite(session)
+
+    def _rewrite(self, session: Session) -> None:
         path = session.path or self.path_for(session.id)
         session._path = path
         lines = [
@@ -210,26 +219,29 @@ class SessionStore:
         temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
         temporary.replace(path)
 
-    def rename(self, session_id: str, title: str) -> bool:
+    def rename(self, session_id: str, title: str, *, only_if_empty: bool = False) -> bool:
         """Set a session's title, persisting it through the meta record.
 
         Returns False when the session does not exist. The title is trimmed,
         defaults to "新会话" when empty, and is capped at 80 characters.
         """
-        session = self.load(session_id)
-        if session is None:
-            return False
-        session.title = normalize_title(title)
-        self.rewrite(session)
-        return True
+        with self._lock:
+            session = self.load(session_id)
+            if session is None:
+                return False
+            if not only_if_empty or not session.title:
+                session.title = normalize_title(title)
+                self.rewrite(session)
+            return True
 
     def delete(self, session_id: str) -> bool:
         try:
             path = self.path_for(session_id)
         except ValueError:
             return False
-        try:
-            path.unlink()
-            return True
-        except OSError:
-            return False
+        with self._lock:
+            try:
+                path.unlink()
+                return True
+            except OSError:
+                return False

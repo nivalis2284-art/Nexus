@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nexus · 功能业务关系图</title>
+<style>
+  :root {
+    --paper: #f8f7f3;
+    --card: #ffffff;
+    --ink: #1d2528;
+    --ink-2: #475354;
+    --muted: #758182;
+    --line: #d8ddd8;
+    --line-strong: #b8c3bc;
+    --green: #2d7458;
+    --green-bg: #e7f1eb;
+    --blue: #386683;
+    --blue-bg: #e8f0f6;
+    --amber: #8b651c;
+    --amber-bg: #f7efdb;
+    --violet: #695385;
+    --violet-bg: #f0eaf5;
+    --danger: #8f3f38;
+    --danger-bg: #f8eae8;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background: var(--paper);
+    font: 14px/1.7 -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--blue); }
+  code {
+    font: 12px/1.55 var(--mono);
+    background: #eef0ec;
+    color: #33403f;
+    padding: 1px 5px;
+    border-radius: 4px;
+    overflow-wrap: anywhere;
+  }
+  .page { max-width: 1480px; margin: 0 auto; padding: 28px 26px 64px; }
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(300px, .75fr);
+    gap: 20px;
+    border-top: 4px solid var(--ink);
+    border-bottom: 1px solid var(--line);
+    padding: 25px 0 23px;
+  }
+  .eyebrow {
+    margin: 0 0 6px;
+    color: var(--green);
+    font: 11px/1.4 var(--mono);
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+  h1 { margin: 0; font-size: clamp(28px, 3.3vw, 44px); line-height: 1.2; letter-spacing: -.035em; }
+  .lede { margin: 12px 0 0; max-width: 730px; color: var(--ink-2); font-size: 15px; }
+  .hero-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    align-content: end;
+  }
+  .fact {
+    padding: 10px 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .fact b { display: block; font: 16px/1.4 var(--mono); }
+  .fact span { color: var(--muted); font-size: 11.5px; }
+  .fact.ok b { color: var(--green); }
+  .fact.pending b { color: var(--amber); }
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 11px 0;
+    background: rgba(248, 247, 243, .96);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .search-wrap { position: relative; flex: 1 1 250px; max-width: 430px; }
+  .search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 12px; }
+  #search {
+    width: 100%;
+    height: 36px;
+    padding: 6px 10px 6px 30px;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+  }
+  #search:focus { outline: 2px solid #89abc0; outline-offset: 1px; }
+  .segmented { display: flex; flex-wrap: wrap; gap: 5px; }
+  .segmented button, .tool-button {
+    min-height: 32px;
+    padding: 4px 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: 7px;
+    background: var(--card);
+    color: var(--ink-2);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .segmented button:hover, .tool-button:hover { border-color: var(--ink-2); color: var(--ink); }
+  .segmented button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .tool-button[aria-pressed="true"] { background: var(--violet-bg); border-color: var(--violet); color: var(--violet); }
+  .count { margin-left: auto; color: var(--muted); font: 11.5px/1.4 var(--mono); white-space: nowrap; }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 16px;
+    padding: 9px 0;
+    color: var(--ink-2);
+    font-size: 11.5px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .line-key { display: inline-block; width: 30px; height: 0; border-top: 2px solid var(--green); }
+  .line-key.dashed { border-top: 2px dashed var(--violet); }
+  .line-key.dotted { border-top: 2px dotted var(--amber); }
+  .chip {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 20px;
+    font: 10.5px/1.6 var(--mono);
+    font-weight: 600;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .chip.done { color: var(--green); background: var(--green-bg); border-color: #c7ddd0; }
+  .chip.limit { color: var(--danger); background: var(--danger-bg); border-color: #ebd1cd; }
+  .chip.pending { color: var(--amber); background: var(--amber-bg); border-color: #e9d9b4; }
+  .chip.vision { color: var(--violet); background: var(--violet-bg); border-color: #d8c9e3; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+  .stage-card {
+    min-width: 0;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .stage-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px 14px;
+    padding: 15px 18px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .stage-head h2 { margin: 0; font-size: 16px; letter-spacing: -.01em; }
+  .stage-head p { margin: 0; color: var(--muted); font-size: 11.5px; }
+  .stage-scroll { overflow-x: auto; padding: 13px 18px 10px; }
+  #business-map { display: block; min-width: 880px; width: 100%; height: auto; }
+  .node-card { cursor: pointer; }
+  .node-card .node-shell {
+    fill: #fff;
+    stroke: var(--line-strong);
+    stroke-width: 1.25;
+    transition: fill .14s, stroke .14s, stroke-width .14s;
+  }
+  .node-card:hover .node-shell, .node-card:focus .node-shell { stroke: var(--ink); stroke-width: 2; }
+  .node-card.is-selected .node-shell { stroke: var(--blue); stroke-width: 2.6; }
+  .node-card .node-band { fill: var(--blue-bg); }
+  .node-card.k-data .node-band { fill: #eef0e8; }
+  .node-card.k-agent .node-band { fill: #e8f0f6; }
+  .node-card.k-capability .node-band { fill: #edf4ee; }
+  .node-card.k-extension .node-band { fill: #f1edeb; }
+  .node-card .band-line { stroke: var(--line); stroke-width: 1; }
+  .node-card .node-kicker { fill: var(--muted); font: 9.5px var(--mono); letter-spacing: .08em; }
+  .node-card .node-title { fill: var(--ink); font-size: 14px; font-weight: 650; }
+  .node-card .node-path { fill: var(--ink-2); font: 10.2px var(--mono); }
+  .node-card .node-note { fill: var(--ink-2); font-size: 10.6px; }
+  .node-card.is-compact .node-path { font-size: 9.8px; }
+  .node-card.is-compact .node-note { font-size: 10px; }
+  .node-card .state-dot { fill: var(--green); }
+  .node-card[data-state="未验证"] .state-dot { fill: var(--amber); }
+  .node-card[data-state="限制"] .state-dot { fill: var(--danger); }
+  .node-card .state-text { fill: var(--ink-2); font: 9.6px var(--mono); }
+  .node-card[data-state="未验证"] .state-text { fill: var(--amber); }
+  .node-card[data-state="限制"] .state-text { fill: var(--danger); }
+  .node-card.is-dimmed { opacity: .2; }
+  .edge { fill: none; stroke-width: 1.6; }
+  .edge.call { stroke: var(--green); }
+  .edge.data { stroke: var(--violet); stroke-dasharray: 7 5; }
+  .edge.config { stroke: var(--amber); stroke-dasharray: 2 4; stroke-width: 1.7; }
+  .arrow-call { fill: var(--green); }
+  .arrow-data { fill: var(--violet); }
+  .arrow-config { fill: var(--amber); }
+  .map-caption { margin: 0; padding: 9px 18px 12px; border-top: 1px solid #eef0ec; color: var(--muted); font-size: 11px; }
+  .map-caption b { color: var(--ink-2); font-weight: 600; }
+  aside.detail { position: sticky; top: 63px; display: grid; gap: 12px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
+  .detail-main { padding: 16px; }
+  .detail-kicker { margin: 0 0 3px; color: var(--muted); font: 10px/1.5 var(--mono); letter-spacing: .08em; }
+  .detail-main h2 { margin: 0 30px 3px 0; font-size: 19px; line-height: 1.35; letter-spacing: -.015em; }
+  .status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 7px 0 11px; }
+  .status-line .hint { color: var(--muted); font-size: 10.5px; }
+  #detail-text { margin: 0; color: var(--ink-2); font-size: 12.5px; }
+  .detail-section { margin-top: 13px; padding-top: 11px; border-top: 1px solid #eef0ec; }
+  .detail-section h3 { margin: 0 0 4px; color: var(--muted); font: 9.8px/1.5 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+  .detail-section ul { margin: 0; padding-left: 17px; color: var(--ink-2); font-size: 11.8px; }
+  .detail-section li + li { margin-top: 3px; }
+  .source { display: block; margin-top: 3px; font: 10.5px/1.55 var(--mono); overflow-wrap: anywhere; }
+  .related { display: flex; flex-wrap: wrap; gap: 4px; }
+  .related button { padding: 1px 7px; border: 1px solid var(--line); border-radius: 20px; background: #fbfbf8; color: var(--ink-2); font: 10.5px/1.6 var(--mono); cursor: pointer; }
+  .related button:hover { border-color: var(--ink-2); color: var(--ink); }
+  .side-label { padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 650; }
+  .side-list { list-style: none; margin: 0; padding: 6px; }
+  .side-list button { width: 100%; display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 6px; border: 0; background: transparent; border-radius: 6px; padding: 5px 7px; color: var(--ink-2); font: inherit; font-size: 11.5px; text-align: left; cursor: pointer; }
+  .side-list button:hover { background: #f3f5f1; color: var(--ink); }
+  .side-list .num { color: var(--muted); font: 9.5px/1.8 var(--mono); }
+  .side-list .state { display: block; grid-column: 2; color: var(--muted); font-size: 9.8px; }
+  .note-panel { padding: 13px 14px; color: var(--ink-2); font-size: 11.5px; }
+  .note-panel p { margin: 0; }
+  .note-panel p + p { margin-top: 7px; }
+  .note-panel strong { color: var(--ink); }
+  .content { margin-top: 22px; }
+  .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 5px 14px; margin: 0 0 11px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  .section-head h2 { margin: 0; font-size: 18px; letter-spacing: -.015em; }
+  .section-head p { margin: 0; color: var(--muted); font-size: 11.5px; }
+  .column-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .group { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 13px 14px; }
+  .group h3 { margin: 0 0 3px; font-size: 13px; }
+  .group p { margin: 0 0 7px; color: var(--muted); font-size: 10.5px; }
+  .group ul { list-style: none; margin: 0; padding: 0; }
+  .group li { padding: 6px 0; border-top: 1px solid #eff1ec; font-size: 11.5px; }
+  .group li:first-child { border-top: 0; }
+  .group .fname { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .group .fname b { font-weight: 600; }
+  .group .desc { display: block; color: var(--ink-2); margin-top: 1px; }
+  .group .src { color: var(--muted); font: 9.8px var(--mono); display: block; margin-top: 1px; overflow-wrap: anywhere; }
+  .cross-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .cross { background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--green); border-radius: 8px; padding: 10px 12px; font-size: 11.5px; }
+  .cross.data { border-left-color: var(--violet); }
+  .cross.config { border-left-color: var(--amber); }
+  .cross b { display: block; margin-bottom: 2px; font-size: 12px; }
+  .cross .meaning { color: var(--ink-2); }
+  .cross .uses { color: var(--muted); font: 10px var(--mono); margin-top: 3px; }
+  .footer-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); gap: 12px; }
+  .wide-card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .wide-card h3 { margin: 0 0 7px; font-size: 13px; }
+  .facts { margin: 0; padding: 0; list-style: none; }
+  .facts li { position: relative; padding: 5px 0 5px 15px; color: var(--ink-2); font-size: 11.5px; border-top: 1px solid #eff1ec; }
+  .facts li:first-child { border-top: 0; }
+  .facts li::before { content: ""; position: absolute; left: 2px; top: 13px; width: 5px; height: 5px; border-radius: 50%; background: var(--line-strong); }
+  .facts li.good::before { background: var(--green); }
+  .facts li.warn::before { background: var(--amber); }
+  .facts li.bad::before { background: var(--danger); }
+  .vision-card { border-left: 3px solid var(--violet); }
+  .vision-card h3 { color: var(--violet); }
+  .vision-card .facts li::before { background: var(--violet); }
+  .vision-card .vision-tag { display: inline-block; margin-left: 4px; color: var(--violet); font: 9.5px var(--mono); }
+  .footer { margin-top: 22px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+  .no-results { display: none; margin: 10px 0 0; color: var(--muted); font-size: 12px; }
+  .no-results.show { display: block; }
+  .top-link { color: var(--muted); text-decoration: none; font-size: 11px; }
+  .top-link:hover { color: var(--ink); text-decoration: underline; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  @media (max-width: 1120px) {
+    .layout { grid-template-columns: minmax(0, 1fr) 300px; }
+    .column-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 900px) {
+    .page { padding: 20px 15px 48px; }
+    .hero { grid-template-columns: 1fr; }
+    .layout { grid-template-columns: 1fr; }
+    aside.detail { position: static; grid-template-columns: minmax(0, 1fr) minmax(0, .9fr); }
+    .column-grid { grid-template-columns: 1fr; }
+    .footer-grid { grid-template-columns: 1fr; }
+    .count { width: 100%; margin-left: 0; }
+  }
+  @media (max-width: 620px) {
+    aside.detail { grid-template-columns: 1fr; }
+    .cross-list { grid-template-columns: 1fr; }
+    .hero-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .toolbar { position: static; }
+  }
+  @media print {
+    body { background: #fff; }
+    .toolbar, aside.detail, .top-link { display: none !important; }
+    .layout { grid-template-columns: 1fr; }
+    .page { max-width: none; padding: 0; }
+    .stage-card, .group, .cross, .wide-card { break-inside: avoid; }
+    @page { margin: 12mm; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .node-card .node-shell { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Nexus · 当前实现 / 业务关系图</p>
+      <h1>从一句话，到真正做成一件事</h1>
+      <p class="lede">这份图说明 Nexus 现在怎样把网页发来的任务、模型判断、工具行动与会话保存串成一条链路。图中绿色连线表示直接调用，紫色虚线表示数据保存或回灌，琥珀色点线表示设置和运行环境对业务的影响；“愿景”另列在页面末尾，不计入现状。</p>
+    </div>
+    <div class="hero-facts">
+      <div class="fact ok"><b>11 个业务节点</b><span>主链路与功能分组，不按函数平铺</span></div>
+      <div class="fact ok"><b>3 类协议</b><span>Anthropic Messages · Chat · Responses</span></div>
+      <div class="fact pending"><b>未接真实模型</b><span>本轮完成本地行为验证，未验证账号与计费</span></div>
+      <div class="fact ok"><b>本地 · 离线</b><span>单文件 HTML，无 CDN、无外部脚本</span></div>
+    </div>
+  </header>
+
+  <div class="toolbar" role="toolbar" aria-label="关系图筛选">
+    <span class="sr-only" id="search-label">搜索业务功能</span>
+    <div class="search-wrap"><span class="search-icon" aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜索业务、工具、源码路径…" aria-labelledby="search-label" autocomplete="off"></div>
+    <div class="segmented" aria-label="按业务分组显示">
+      <button type="button" data-group="all" aria-pressed="true">全部</button>
+      <button type="button" data-group="main" aria-pressed="false">主流程</button>
+      <button type="button" data-group="capabilities" aria-pressed="false">能力</button>
+      <button type="button" data-group="extension" aria-pressed="false">扩展</button>
+    </div>
+    <span class="count" id="result-count">显示全部 11 个节点</span>
+  </div>
+  <div class="legend" aria-label="连线与状态图例">
+    <span><i class="line-key"></i>调用 / 回灌</span>
+    <span><i class="line-key dashed"></i>数据保存 / 读取</span>
+    <span><i class="line-key dotted"></i>配置 / 工作环境</span>
+    <span><span class="chip done">已验证</span>有 Edge UI smoke、行为测试或受控运行</span>
+    <span><span class="chip pending">未验证</span>代码存在，真实服务未验收</span>
+    <span><span class="chip limit">限制</span>已知运行边界</span>
+  </div>
+
+  <div class="layout">
+    <section class="stage-card" aria-labelledby="stage-title">
+      <div class="stage-head">
+        <h2 id="stage-title">业务主流程</h2>
+        <p>点击节点查看功能说明、子能力与对应源码</p>
+      </div>
+      <div class="stage-scroll">
+        <svg id="business-map" viewBox="0 0 905 515" role="img" aria-labelledby="map-svg-title map-svg-desc">
+          <title id="map-svg-title">Nexus 当前功能业务关系图</title>
+          <desc id="map-svg-desc">浏览器提交任务后，服务端装配配置与会话，Agent 调用模型并执行工具，结果回灌模型并保存会话；扩展能力接入同一工具注册表，工作目录和设置影响装配。</desc>
+          <defs>
+            <marker id="arrow-call" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path class="arrow-call" d="M0,0 L7,3.5 L0,7 z"/></marker>
+            <marker id="arrow-data" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path class="arrow-data" d="M0,0 L7,3.5 L0,7 z"/></marker>
+            <marker id="arrow-config" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path class="arrow-config" d="M0,0 L7,3.5 L0,7 z"/></marker>
+          </defs>
+          <g id="map-edges" aria-label="关系连线">
+            <path class="edge call" data-from="ui" data-to="runtime" d="M 225 180 H 325" marker-end="url(#arrow-call)"><title>网页把任务交给服务端与 Agent</title></path>
+            <path class="edge call" data-from="runtime" data-to="model" d="M 530 180 H 630" marker-end="url(#arrow-call)"><title>Agent 向模型发送请求并接收流式事件</title></path>
+            <path class="edge data" data-from="config" data-to="runtime" d="M 225 65 H 270 V 112 H 415 V 125" marker-end="url(#arrow-data)"><title>配置、密钥与权限规则装配本轮运行</title></path>
+            <path class="edge call" data-from="runtime" data-to="tools" d="M 425 235 V 265" marker-end="url(#arrow-call)"><title>Agent 调用工具执行操作</title></path>
+            <path class="edge call" data-from="tools" data-to="model" d="M 530 320 H 555 V 247 H 660 V 235" marker-end="url(#arrow-call)"><title>工具结果回灌下一轮模型请求</title></path>
+            <path class="edge call" data-from="permission" data-to="tools" d="M 630 310 H 530" marker-end="url(#arrow-call)"><title>需要时先确认，再允许工具执行</title></path>
+            <path class="edge data" data-from="runtime" data-to="session" d="M 325 220 H 225 V 265" marker-end="url(#arrow-data)"><title>本轮消息与工具结果写入会话</title></path>
+            <path class="edge data" data-from="session" data-to="runtime" d="M 225 330 H 300 V 238" marker-end="url(#arrow-data)"><title>打开会话时读取历史并重建上下文</title></path>
+            <path class="edge config" data-from="workspace" data-to="runtime" d="M 530 65 H 550 V 100 H 575 V 125" marker-end="url(#arrow-config)"><title>工作目录影响路径、说明文件与项目 Skill</title></path>
+            <path class="edge call" data-from="network" data-to="tools" d="M 225 430 H 255 V 400 H 315 V 375" marker-end="url(#arrow-call)"><title>配置网络工具后加入工具声明与调用</title></path>
+            <path class="edge data" data-from="context" data-to="runtime" d="M 427 405 V 395 H 445 V 238" marker-end="url(#arrow-data)"><title>上下文预算、摘要与重试保障模型循环收束</title></path>
+            <path class="edge call" data-from="extensions" data-to="tools" d="M 625 15 H 590 V 295 H 325" marker-end="url(#arrow-call)"><title>Skill, MCP and subagents join the same tool run</title></path>
+          </g>
+          <g id="map-nodes"></g>
+        </svg>
+      </div>
+      <p class="map-caption"><b>怎么读：</b>先沿左上的“提交任务”进入服务端，再看到“模型判断”与“执行操作”往复；会话负责历史，工作目录与配置在装配时生效，扩展工具与内置工具走同一注册表和授权通道。虚线不是并列的重复模块，而表示跨阶段的数据来源或去向。</p>
+    </section>
+
+    <aside class="detail" aria-label="节点详情">
+      <section class="panel detail-main" id="detail" aria-live="polite"></section>
+      <section class="panel">
+        <div class="side-label">节点索引 <span class="top-link" style="float:right">↑ <a class="top-link" href="#business-map">回到图</a></span></div>
+        <ul class="side-list" id="node-index"></ul>
+      </section>
+      <section class="panel note-panel">
+        <p><strong>验证边界：</strong>本轮用 Node VM 执行原始前端函数，并用真实 Edge 对模拟本地服务完成 UI smoke：仅图片发送、授权、真实临时文件写入、刷新后图片展示、离线关系图与无外部请求。没有调用真实模型、账户或计费服务。</p>
+        <p>工具结果、授权、停止与扩展接线的结论来自当前源码和仓库测试，不等同于每一种提供商组合的端到端验收。</p>
+      </section>
+    </aside>
+  </div>
+
+  <p class="no-results" id="no-results">没有匹配的业务节点。可以把筛选切回“全部”，或缩短搜索词。</p>
+
+  <main class="content">
+    <section aria-labelledby="capabilities-title">
+      <div class="section-head">
+        <h2 id="capabilities-title">当前功能地图</h2>
+        <p>业务说明在前，源码路径用于追溯；不收录纯工具函数</p>
+      </div>
+      <div class="column-grid">
+        <article class="group">
+          <h3>使用与配置</h3><p>用户进入系统、选择模型、管理自己的工作目录。</p>
+          <ul>
+            <li><span class="fname"><b>会话与配置</b><span class="chip done">已验证</span></span><span class="desc">新建、打开、重命名、删除会话；选择提供商、模型和思考强度；调整权限与工作目录。</span><span class="src">nexus/web/app.js · server.py · core/config.py</span></li>
+            <li><span class="fname"><b>对话与过程展示</b><span class="chip done">已验证</span></span><span class="desc">文字与图片输入、流式回答、思考过程、工具步骤、用量和上下文提示。</span><span class="src">nexus/web/app.js · app.css · index.html</span></li>
+            <li><span class="fname"><b>人工协作</b><span class="chip done">已验证</span></span><span class="desc">写文件、执行命令前确认；需要补充选择时向用户提问。</span><span class="src">core/permission.py · tools/ask.py · server.py::Approvals</span></li>
+          </ul>
+        </article>
+        <article class="group">
+          <h3>模型与 Agent</h3><p>把任务变成可执行步骤，再把真实结果带回模型。</p>
+          <ul>
+            <li><span class="fname"><b>三类模型协议</b><span class="chip pending">未验证</span></span><span class="desc">Anthropic Messages、OpenAI Chat Completions、OpenAI Responses，支持流式事件解析与用量读取。</span><span class="src">model/gateway.py · _sse.py · _parsers.py · core/protocol.py</span></li>
+            <li><span class="fname"><b>Agent 执行循环</b><span class="chip done">已验证</span></span><span class="desc">判断是否调用工具、等待授权、执行、回灌结果；到达上限或停止请求时收束。</span><span class="src">core/agent.py · tools/registry.py</span></li>
+            <li><span class="fname"><b>上下文与摘要</b><span class="chip limited">限制</span></span><span class="desc">预算估算、裁剪工具结果、必要时请求模型生成压缩摘要；重载只从保存的会话记录重建。</span><span class="src">core/prompt.py · compaction.py · session/store.py</span></li>
+            <li><span class="fname"><b>重试与停止</b><span class="chip done">已验证</span></span><span class="desc">在尚未产生可见输出时按策略重试；停止是检查点式请求，不强制中断已开始的文件操作。</span><span class="src">core/retry.py · server.py::_abort · agent.py::stop</span></li>
+          </ul>
+        </article>
+        <article class="group">
+          <h3>执行、扩展与数据</h3><p>工具、Skill、MCP 和子代理共享同一轮运行环境。</p>
+          <ul>
+            <li><span class="fname"><b>文件与补丁</b><span class="chip done">已验证</span></span><span class="desc">读、写、编辑、查找、Glob/Grep 与补丁应用；写操作可要求确认。</span><span class="src">tools/files.py · patch.py · _paths.py</span></li>
+            <li><span class="fname"><b>命令与后台任务</b><span class="chip done">已验证</span></span><span class="desc">前台有界命令；后台任务按会话保留，可读增量输出、列出和终止。</span><span class="src">tools/shell.py · jobs.py · _jobs.py · _process.py</span></li>
+            <li><span class="fname"><b>待办、提问与子代理</b><span class="chip done">已验证</span></span><span class="desc">维护任务清单；中断并询问用户；子代理独立运行，只把最终报告交回父级。</span><span class="src">tools/todo.py · ask.py · subagent_tool.py · core/subagent.py</span></li>
+            <li><span class="fname"><b>Skill、MCP、网络工具</b><span class="chip limited">限制</span></span><span class="desc">Skill 正文按需读取；配置的 MCP 子进程工具加入注册表；网络工具只有配置后可用。</span><span class="src">skills.py · mcp.py · tools/mcp_tools.py · tools/web.py</span></li>
+            <li><span class="fname"><b>会话 JSONL</b><span class="chip done">已验证</span></span><span class="desc">服务和用户消息、思考、工具调用及结果写入本地 JSONL；打开会话时重新构建展示与模型上下文。</span><span class="src">session/store.py · web/server.py::_persist · _transcript</span></li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="cross-title" style="margin-top:24px">
+      <div class="section-head">
+        <h2 id="cross-title">跨模块关系与连线含义</h2>
+        <p>每条重要关系都写明“发生了什么”；箭头方向就是信息或控制流方向</p>
+      </div>
+      <div class="cross-list">
+        <article class="cross"><b>网页 → 服务端 → Agent</b><span class="meaning">网页提交一条任务后，服务端加载会话、取出设置、规划上下文，并开始同一轮 Agent。服务端保持单运行锁；同一时间只推进一条任务。</span><span class="uses">app.js send → /api/chat → serverHandler._run_turn → Agent.run</span></article>
+        <article class="cross"><b>Agent → 模型协议</b><span class="meaning">Agent 把系统说明、历史和工具声明按选中协议的请求形状发送；模型返回文字、思考、工具调用或错误信号。</span><span class="uses">protocol.request_body → gateway.ModelGateway → _sse / _parsers</span></article>
+        <article class="cross data"><b>Agent → 工具 → 模型</b><span class="meaning">需要行动时 Agent 调用注册表；结果连同名称、参数和成功状态回到对话，下一轮模型据此继续判断，直到完成或达到上限。</span><span class="uses">Agent._invoke → Registry.execute → tool_result → 下一轮 request</span></article>
+        <article class="cross data"><b>页面 → 会话文件</b><span class="meaning">会话列表来自 JSONL 文件；打开会话会把用户消息（含图片）、回答、工具过程和用量重新变为可见记录。发送图片时，真实图片数据也随请求交给服务端校验并保存。</span><span class="uses">SessionStore.list/load · _internal · _transcript</span></article>
+        <article class="cross"><b>扩展 → 工具注册表</b><span class="meaning">内置工具和 MCP 公开的工具进入同一声明表；Skill 通过 read_skill 读取正文。它们不是另一条聊天入口。</span><span class="uses">tools.build → tool_specs → mcp_tool_specs</span></article>
+        <article class="cross config"><b>工作目录与配置 → 本轮装配</b><span class="meaning">工作目录决定路径根、Git/说明文件背景和项目 Skill；分组的 MCP 服务启动时使用工作目录。权限模式与规则决定工具是否需要人工确认。</span><span class="uses">workspace.inspect · default_policy · _start_mcp</span></article>
+      </div>
+    </section>
+
+    <section aria-labelledby="evidence-title" style="margin-top:24px">
+      <div class="section-head">
+        <h2 id="evidence-title">已验证现状、限制与未验证事项</h2>
+        <p>“已验证”只覆盖这里写出的验证范围</p>
+      </div>
+      <div class="footer-grid">
+        <article class="wide-card">
+          <h3>本轮可复核的现状</h3>
+          <ul class="facts">
+            <li class="good">用户在图片读取完成后发送，请求携带附件数据；发送之前的附件快照不会在新建会话等待中被替换。</li>
+            <li class="good">会话记录中的用户图片由 <code>items[*].images = [{mime,data}]</code> 返回，网页按原消息展示；仅图片消息也保留正文之外的内容。</li>
+            <li class="good">工具步骤显示调用参数，结果事件携带参数时以结果为准，未携带时沿用对应调用参数。</li>
+            <li class="good">后台任务按会话持有；服务退出时关闭任务。停止与人工等待都在当前运行中处理。</li>
+            <li class="good">三类协议解析、工具声明、权限和会话读写的既有自动化测试可供追溯。</li>
+          </ul>
+        </article>
+        <article class="wide-card vision-card">
+          <h3>明确尚未实现的长期方向</h3>
+          <ul class="facts">
+            <li>持续在用户输入之外自主活动、反思和形成新意图。<span class="vision-tag">愿景</span></li>
+            <li>由经历持续更新、影响后续行为的长期记忆与自我理解。<span class="vision-tag">愿景</span></li>
+            <li>人格在长期使用中形成稳定而可变化的状态；当前会话记录不是这样的状态系统。<span class="vision-tag">愿景</span></li>
+            <li>跨会话共享的子代理上下文、并行编排或由继承父上下文产生的派生运行。<span class="vision-tag">未实现</span></li>
+          </ul>
+        </article>
+        <article class="wide-card">
+          <h3>真实使用边界</h3>
+          <ul class="facts">
+            <li class="warn">没有连接当前提供商的真实模型，未验收真实账号、配额、计费、模型能力声明或供应商兼容差异。</li>
+            <li class="warn">图片能力需在模型中声明；文件写入、命令运行和 MCP 进程的权限仍取决于本机环境与配置，应用层授权不是操作系统沙箱。</li>
+            <li class="warn">摘要与停止是运行时策略；重载后的历史、压缩后的模型输入及已开始的外部操作不是同一件事，不能把“已停止”理解为所有外部动作已回滚。</li>
+            <li class="bad">全新本地数据目录在填写模型 Base URL 前，状态接口会因无效默认配置报错；要使用界面，需先准备有效提供商设置。这是当前启动边界。</li>
+          </ul>
+        </article>
+        <article class="wide-card">
+          <h3>查看与源码定位</h3>
+          <p style="margin:0 0 6px;color:var(--ink-2);font-size:11.5px">Nexus 网页入口为 <code>http://127.0.0.1:8766</code>（由 <code>start.bat</code> 启动）。本关系图独立存放在仓库的 <code>docs/BUSINESS-MAP.html</code>，双击或拖入浏览器即可打开。</p>
+          <p style="margin:0;color:var(--muted);font-size:10.5px">页面内源码路径均相对仓库根目录；浏览器直接打开 HTML 时，文本路径用于核对，不依赖仓库目录中的绝对路径。</p>
+        </article>
+      </div>
+    </section>
+  </main>
+  <footer class="footer">源码基线：当前工作区；视图依据近期 <code>nexus/</code> 与 <code>tests/</code> 的实际实现。业务关系图本身不增加 Nexus 产品功能。</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const NODES = [
+    {
+      id: "ui", x: 20, y: 125, w: 205, h: 110, group: "main", kind: "interface",
+      kicker: "01 · 进入", title: "网页对话界面", path: "nexus/web/", state: "已验证",
+      note: "输入任务与图片，查看过程", text: "页面是唯一的网页业务入口：用户在这里发起任务、选择模型和思考强度、查看流式回答与工具步骤，并管理会话和配置。",
+      capabilities: ["文字和图片输入；图片读取完成后才允许发送", "新建、打开、重命名和删除会话", "展示思考、工具参数、是否完成、用量和上下文"],
+      sources: ["nexus/web/app.js — 会话、发送、展示与附件", "nexus/web/index.html — 页面结构与对话框", "nexus/web/app.css — 布局、附件和历史图片样式"],
+      limit: "没有健康检查或启动恢复界面；真实模型账户与响应未在本轮验收。", related: ["runtime", "session", "config"]
+    },
+    {
+      id: "runtime", x: 325, y: 125, w: 205, h: 110, group: "main", kind: "agent",
+      kicker: "02 · 运行装配", title: "服务端与 Agent", path: "nexus/web/server.py", state: "已验证",
+      note: "选择设置，推进模型与工具循环", text: "服务端接收任务后加载会话与配置，装配本轮工具和运行环境，再交给 Agent 推进。一个进程同时只推进一条任务，停止通过当前运行的 Agent 发出。",
+      capabilities: ["HTTP 静态页面、配置与会话接口、NDJSON 对话事件流", "组织系统说明、历史、工具声明、权限与停止信号", "模型未调用工具时结束；有工具调用时执行并回灌继续判断"],
+      sources: ["nexus/web/server.py — 路由、_chat、_run_turn、_persist", "nexus/core/agent.py — Agent.run 与工具执行", "nexus/core/prompt.py — 系统说明与上下文预算"],
+      limit: "单运行锁限制并行任务；真实模型流式事件、重试与用量只做过程序级测试。", related: ["ui", "model", "tools", "session", "config", "workspace"]
+    },
+    {
+      id: "model", x: 630, y: 125, w: 205, h: 110, group: "main", kind: "model",
+      kicker: "03 · 判断", title: "模型协议与流", path: "nexus/model/", state: "未验证",
+      note: "三种协议，统一事件", text: "按所选提供商协议发出请求，并把文字、思考、工具调用、用量和错误变成内部统一事件。流式接收让用户可以先看到过程，再看到最终回答。",
+      capabilities: ["Anthropic Messages、OpenAI Chat Completions、OpenAI Responses", "流式解析、继续输出与请求体适配", "思考强度映射、用量与缓存信息；可重试时等待后重试"],
+      sources: ["nexus/model/gateway.py — 发送、认证与重试边界", "nexus/model/_sse.py · _parsers.py — 流读取与三类协议解析", "nexus/core/protocol.py · effort.py — 请求形状与思考字段"],
+      limit: "未连接真实服务，不把 fixture/单元测试当作真实账号、模型或供应商组合已通过。", related: ["runtime", "tools"]
+    },
+    {
+      id: "tools", x: 325, y: 265, w: 205, h: 110, group: "capabilities", kind: "capability",
+      kicker: "04 · 行动", title: "工具执行", path: "nexus/tools/", state: "已验证",
+      note: "按声明调用，结果回灌", text: "Agent 只调用注册表中声明的工具；写文件和运行命令先经过权限规则，必要时等待用户确认。工具结果会裁剪并带回模型，推动下一轮判断。",
+      capabilities: ["文件读写/编辑/查找/Glob/Grep 与补丁", "前台命令、后台任务、待办、向用户提问", "参数校验、结果裁剪、授权或拒绝、成功/失败状态"],
+      sources: ["nexus/tools/registry.py · files.py · patch.py", "nexus/tools/shell.py · jobs.py · _jobs.py", "nexus/tools/todo.py · ask.py · __init__.py"],
+      limit: "停止采用检查点，不能回滚已开始的外部操作；后台进程与系统权限仍受本机环境约束。", related: ["runtime", "model", "permission", "extensions", "session"]
+    },
+    {
+      id: "session", x: 20, y: 265, w: 205, h: 110, group: "main", kind: "data",
+      kicker: "05 · 记录", title: "会话与历史", path: "nexus/session/store.py", state: "已验证",
+      note: "保存一轮，按需重建历史", text: "会话是本地 JSONL 文件。每轮结束后保存产生的消息和工具结果，连接已保存记录的调用与结果；打开会话时重建可见历史，并组织给模型的内部历史。",
+      capabilities: ["创建、读取、重命名、删除；列表按更新时间排序", "保存用户文字/图片、助手回答与思考、工具调用及结果", "用保存的历史重建下一轮上下文；长历史有裁剪与摘要策略"],
+      sources: ["nexus/session/store.py — JSONL 读写", "nexus/web/server.py — _transcript、_internal、_persist", "nexus/core/compaction.py — 裁剪与摘要边界"],
+      limit: "显示历史与压缩后的模型上下文是不同层次；重载不等于恢复停止前的所有现场。", related: ["ui", "runtime", "tools"]
+    },
+    {
+      id: "config", x: 20, y: 25, w: 205, h: 80, group: "main", kind: "data",
+      kicker: "06 · 设置", title: "配置与密钥", path: "core/config.py", state: "已验证",
+      note: "提供商、模型、权限与规则", text: "配置保存在本机数据目录：提供商、模型和已选项写入 config.json，API Key 单独写 credentials.json。权限模式与规则也在这里读取。",
+      capabilities: ["多提供商与模型行；当前模型和思考强度选择", "API Key 独立保存，不进入样式或页面源代码", "ask / yolo 与按工具、目标匹配的授权规则"],
+      sources: ["nexus/core/config.py — ConfigStore 与 Settings", "nexus/core/permission.py — default_policy、规则匹配", "nexus/web/server.py — 设置接口"],
+      limit: "全新数据目录需先填写有效 Base URL；配置错误会阻碍状态接口及后续对话。", related: ["ui", "runtime", "permission"]
+    },
+    {
+      id: "permission", x: 630, y: 265, w: 205, h: 110, group: "capabilities", kind: "capability",
+      kicker: "人工协作", title: "确认与提问", path: "core/permission.py", state: "已验证",
+      note: "需要时暂停，由用户决定", text: "当规则要求确认时，服务端向页面发起确认或提问，等待用户响应再继续。取消、停止和浏览器断开都会释放等待，避免运行锁被长期占用。",
+      capabilities: ["写文件、编辑、补丁、前台和后台命令", "自定义 allow / ask / deny 规则，最后匹配覆盖前匹配", "单轮人工等待的授权、回答与取消处理"],
+      sources: ["nexus/core/permission.py — 规则与应用目标", "nexus/web/server.py — Approvals、_approve、_answer", "nexus/web/app.js — 确认与问题对话框"],
+      limit: "应用层确认不能替代操作系统沙箱；yolo 仍会扩大本机操作范围。", related: ["config", "tools", "runtime"]
+    },
+    {
+      id: "workspace", x: 325, y: 25, w: 205, h: 80, group: "main", kind: "data",
+      kicker: "07 · 环境", title: "工作目录上下文", path: "core/workspace.py", state: "已验证",
+      note: "路径根、Git 与说明文件", text: "每轮按设置中的工作目录解析路径根，读取 Git 状态、最近提交和向上查找的说明文件。项目 Skill 也按该目录发现，让 Agent 理解正在处理的项目。",
+      capabilities: ["工作目录和路径根；Git 分支、状态和最近提交", "AGENTS.md / CLAUDE.md / NEXUS.md 背景说明", "项目 Skill 优先于用户 Skill；切换目录前要求空闲"],
+      sources: ["nexus/core/workspace.py — inspect、load_instructions", "nexus/skills.py — default_roots、discover", "nexus/web/server.py — _workspace"],
+      limit: "切换目录会重启配置中的 MCP 服务，但不会改写已保存的会话；已经开始的运行不能切换。", related: ["runtime", "config", "extensions"]
+    },
+    {
+      id: "extensions", x: 630, y: 25, w: 205, h: 80, group: "extension", kind: "extension",
+      kicker: "08 · 扩展", title: "Skill · MCP · 子代理", path: "nexus/skills.py", state: "限制",
+      note: "同一工具集，按需加载", text: "扩展不是第二条业务流程。Skill 提供按需读取的说明，MCP 把外部进程工具适配为注册表条目，子代理用独立上下文完成子任务后只回传报告。",
+      capabilities: ["项目与用户 Skill 发现；正文由 read_skill 按需读取", "stdio MCP 启动、工具声明和调用；连接随服务与目录设置变化", "子代理独立预算与报告；父子共享停止信号与确认通道"],
+      sources: ["nexus/skills.py · nexus/mcp.py", "nexus/tools/mcp_tools.py · subagent_tool.py", "nexus/core/subagent.py · web/server.py::spawn_subagent"],
+      limit: "MCP 与第三方工具的行为取决于本机命令、配置与权限；未来记忆或并行多代理不属于现状。", related: ["tools", "workspace", "runtime"]
+    },
+    {
+      id: "network", x: 20, y: 405, w: 205, h: 75, group: "extension", kind: "extension",
+      kicker: "可选能力", title: "网络工具", path: "nexus/tools/web.py", state: "限制",
+      note: "有配置才注册", text: "网页抓取与搜索只在配置了允许站点或搜索端点时才会成为可用工具；因此它们会随配置出现在工具声明中，而不会默认获得网络访问能力。",
+      capabilities: ["受限站点抓取并转成可读文本", "可选搜索端点调用", "无配置时不注册，模型不能误调用必然失败的工具"],
+      sources: ["nexus/tools/web.py — fetch、search 与可用条件", "nexus/tools/__init__.py — 配置驱动的注册", "nexus/core/config.py — 网络相关设置"],
+      limit: "本轮没有对外部网络服务做真实可用性验收。", related: ["tools", "config", "extensions"]
+    },
+    {
+      id: "context", x: 325, y: 405, w: 205, h: 75, group: "capabilities", kind: "agent",
+      kicker: "运行保障", title: "预算 · 摘要 · 重试", path: "core/compaction.py", state: "限制",
+      note: "让运行收束，不改变目标", text: "上下文预算估算系统说明、工具声明、消息和工具结果，超出时先裁剪、再按策略摘要。模型请求在产生可见输出前可重试；达到步数或停止条件时结束。",
+      capabilities: ["按完整工具交互保留必要的调用与结果配对", "裁剪大工具结果；候选摘要更小才采用", "按错误类型、状态与退避策略限定重试；停止在检查点生效"],
+      sources: ["nexus/core/prompt.py · compaction.py", "nexus/core/retry.py · agent.py::_fold", "nexus/web/server.py — context / retrying 事件"],
+      limit: "预算基于估算；模拟模型压缩后的持久化集成已通过，真实模型摘要质量、成本和重试结果未验收。", related: ["runtime", "model", "session"]
+    }
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const nodesById = new Map(NODES.map((node) => [node.id, node]));
+  const svgNS = "http://www.w3.org/2000/svg";
+  const state = { selected: "ui", query: "", group: "all" };
+
+  function svgEl(tag, attrs, textValue) {
+    const node = document.createElementNS(svgNS, tag);
+    for (const name of Object.keys(attrs || {})) node.setAttribute(name, String(attrs[name]));
+    if (textValue !== undefined) node.textContent = textValue;
+    return node;
+  }
+
+  function createNode(node) {
+    const compact = node.h < 90;
+    const group = svgEl("g", {
+      class: "node-card k-" + node.kind + (compact ? " is-compact" : ""),
+      "data-id": node.id,
+      "data-group": node.group,
+      "data-state": node.state,
+      tabindex: "0",
+      role: "button",
+      "aria-label": node.title + "。" + node.state + "。点击查看详情",
+    });
+    group.appendChild(svgEl("rect", {
+      class: "node-shell", x: node.x, y: node.y, width: node.w, height: node.h, rx: 8,
+    }));
+    group.appendChild(svgEl("path", {
+      class: "node-band",
+      d: "M " + (node.x + 8) + " " + node.y + " H " + (node.x + node.w - 8) + " Q " + (node.x + node.w) + " " + node.y + " " + (node.x + node.w) + " " + (node.y + 8) + " V " + (node.y + 23) + " H " + node.x + " V " + (node.y + 8) + " Q " + node.x + " " + node.y + " " + (node.x + 8) + " " + node.y + " Z",
+    }));
+    group.appendChild(svgEl("line", {
+      class: "band-line", x1: node.x, y1: node.y + 24, x2: node.x + node.w, y2: node.y + 24,
+    }));
+    group.appendChild(svgEl("text", { class: "node-kicker", x: node.x + 12, y: node.y + 17 }, node.kicker));
+    group.appendChild(svgEl("text", { class: "node-title", x: node.x + 12, y: node.y + 44 }, node.title));
+    if (!compact) {
+      group.appendChild(svgEl("text", { class: "node-path", x: node.x + 12, y: node.y + 62 }, node.path));
+      group.appendChild(svgEl("text", { class: "node-note", x: node.x + 12, y: node.y + 78 }, node.note));
+    }
+    // Compact cards carry only the status footer; taller cards put it below
+    // their path and note so no three lines share a baseline.
+    const stateY = node.y + node.h - 8;
+    group.appendChild(svgEl("circle", { class: "state-dot", cx: node.x + 15, cy: stateY - 3, r: 3 }));
+    group.appendChild(svgEl("text", { class: "state-text", x: node.x + 23, y: stateY }, node.state));
+    const choose = () => selectNode(node.id);
+    group.addEventListener("click", choose);
+    group.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(); }
+    });
+    return group;
+  }
+
+  const nodesGroup = $("map-nodes");
+  for (const node of NODES) nodesGroup.appendChild(createNode(node));
+
+  function chip(stateValue) {
+    const cls = stateValue === "已验证" ? "done" : stateValue === "限制" ? "limit" : "pending";
+    return `<span class="chip ${cls}">${stateValue}</span>`;
+  }
+
+  function renderDetail() {
+    const node = nodesById.get(state.selected) || NODES[0];
+    const detail = $("detail");
+    const capabilities = node.capabilities.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+    const sources = node.sources.map((item) => `<span class="source">${escapeHtml(item)}</span>`).join("");
+    const related = node.related.map((id) => `<button type="button" data-related="${id}">${escapeHtml(nodesById.get(id).title)}</button>`).join("");
+    detail.innerHTML = `
+      <p class="detail-kicker">${escapeHtml(node.kicker)} · ${escapeHtml(node.path)}</p>
+      <h2>${escapeHtml(node.title)}</h2>
+      <div class="status-line">${chip(node.state)}<span class="hint">${node.state === "已验证" ? "本轮或现有行为测试覆盖了所述路径" : node.state === "限制" ? "存在明确的运行或验证边界" : "代码存在，真实服务未验收"}</span></div>
+      <p id="detail-text">${escapeHtml(node.text)}</p>
+      <div class="detail-section"><h3>主要子功能</h3><ul>${capabilities}</ul></div>
+      <div class="detail-section"><h3>源码追溯</h3>${sources}</div>
+      <div class="detail-section"><h3>关系</h3><div class="related">${related}</div></div>
+      <div class="detail-section"><h3>边界说明</h3><p id="detail-limit" style="margin:0;color:var(--ink-2);font-size:11.5px">${escapeHtml(node.limit)}</p></div>`;
+    detail.querySelectorAll("[data-related]").forEach((button) => {
+      button.addEventListener("click", () => selectNode(button.getAttribute("data-related")));
+    });
+    document.querySelectorAll(".node-card").forEach((card) => {
+      const selected = card.getAttribute("data-id") === node.id;
+      card.classList.toggle("is-selected", selected);
+      card.setAttribute("aria-pressed", String(selected));
+    });
+    document.querySelectorAll("#node-index button").forEach((button) => {
+      button.setAttribute("aria-current", button.getAttribute("data-node") === node.id ? "true" : "false");
+    });
+  }
+
+  function selectNode(id) {
+    if (!nodesById.has(id)) return;
+    state.selected = id;
+    renderDetail();
+    const detail = $("detail");
+    if (window.matchMedia && window.matchMedia("(max-width: 900px)").matches) detail.scrollIntoView({ block: "start" });
+  }
+
+  function createIndex() {
+    const list = $("node-index");
+    NODES.forEach((node, index) => {
+      const item = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.setAttribute("data-node", node.id);
+      button.innerHTML = `<span class="num">${String(index + 1).padStart(2, "0")}</span><span>${escapeHtml(node.title)}<span class="state">${escapeHtml(node.state)} · ${escapeHtml(node.path)}</span></span>`;
+      button.addEventListener("click", () => selectNode(node.id));
+      item.appendChild(button);
+      list.appendChild(item);
+    });
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[character]));
+  }
+
+  function nodeSearchText(node) {
+    return [node.title, node.path, node.note, node.text, ...node.capabilities, ...node.sources].join(" ").toLowerCase();
+  }
+
+  function applyFilters() {
+    const query = state.query.trim().toLowerCase();
+    let visible = 0;
+    for (const node of NODES) {
+      const inGroup = state.group === "all" || node.group === state.group;
+      const matches = !query || nodeSearchText(node).includes(query);
+      const show = inGroup && matches;
+      const card = document.querySelector('.node-card[data-id="' + node.id + '"]');
+      card.classList.toggle("is-dimmed", !show);
+      card.setAttribute("aria-hidden", String(!show));
+      if (show) visible += 1;
+    }
+    document.querySelectorAll("#map-edges [data-from]").forEach((edge) => {
+      const from = nodesById.get(edge.getAttribute("data-from"));
+      const to = nodesById.get(edge.getAttribute("data-to"));
+      const both = [from, to].every((node) => node && (state.group === "all" || node.group === state.group) && (!query || nodeSearchText(node).includes(query)));
+      edge.style.opacity = both ? "1" : ".12";
+    });
+    $("result-count").textContent = query || state.group !== "all" ? `显示 ${visible} / ${NODES.length} 个节点` : `显示全部 ${NODES.length} 个节点`;
+    $("no-results").classList.toggle("show", visible === 0);
+    document.querySelectorAll("[data-group]").forEach((button) => {
+      if (button.classList.contains("node-card")) return;
+      button.setAttribute("aria-pressed", String(button.getAttribute("data-group") === state.group));
+    });
+  }
+
+  $("search").addEventListener("input", (event) => {
+    state.query = event.target.value;
+    applyFilters();
+  });
+  document.querySelectorAll(".segmented [data-group]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.group = button.getAttribute("data-group");
+      applyFilters();
+    });
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && document.activeElement === $("search") && $("search").value) {
+      $("search").value = "";
+      state.query = "";
+      applyFilters();
+    }
+  });
+
+  createIndex();
+  renderDetail();
+  applyFilters();
+})();
+</script>
+</body>
+</html>

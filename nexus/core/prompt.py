@@ -15,6 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import compaction
 from .workspace import Workspace
 
 ROLE = """You are Nexus, a coding agent working inside the user's workspace.
@@ -62,7 +63,7 @@ def estimate(text: str) -> int:
     Deliberately not presented as the provider's own count. A real usage number
     arrives after the call; this only decides how much to send.
     """
-    return len(text.encode("utf-8")) // 3 + 1
+    return compaction.estimate(text)
 
 
 def build_system_prompt(
@@ -117,6 +118,8 @@ def select(
 
     ``messages`` are already provider-shaped. The returned list is a slice, so
     callers must not assume it starts at the original first message.
+    Tool calls and their results are selected as one atomic interaction. Stray
+    or unfinished tool messages are omitted from model input.
 
     ``fixed`` is the old combined budget for the prompt and tool schemas. New
     callers pass ``system_tokens`` and ``tools_tokens`` separately so the UI can
@@ -130,20 +133,22 @@ def select(
     overhead = system_tokens + tools_tokens
 
     limit = budget.input_limit - overhead
+    safe = compaction.paired(messages)
     used = 0
-    selected: list[dict[str, Any]] = []
-    dropped = 0
-    for message in reversed(messages):
-        cost = estimate(_text_of(message)) + 8 + image_tokens(message)
-        if selected and used + cost > limit:
-            dropped = len(messages) - len(selected)
+    selected_groups: list[list[dict[str, Any]]] = []
+    units = compaction.message_units(safe)
+    for start, end, _ in reversed(units):
+        group = safe[start:end]
+        cost = compaction.approx_tokens(group)
+        if selected_groups and used + cost > limit:
             break
-        selected.append(message)
+        selected_groups.append(group)
         used += cost
-    selected.reverse()
-    if not selected and messages:
-        selected = [messages[-1]]
-        dropped = len(messages) - 1
+    selected = [message for group in reversed(selected_groups) for message in group]
+    if not selected and safe:
+        last_start, last_end, _ = units[-1]
+        selected = safe[last_start:last_end]
+    dropped = len(messages) - len(selected)
     manifest = {
         "sent": len(selected),
         "dropped": dropped,
@@ -161,42 +166,12 @@ def select(
 # An image costs a fixed conservative allowance. Exact counts depend on the
 # provider's tiling of the image, which nobody can compute before sending, so
 # this is deliberately a rough upper bound and is presented as an estimate.
-IMAGE_TOKEN_ALLOWANCE = 1_600
+IMAGE_TOKEN_ALLOWANCE = compaction.IMAGE_TOKEN_ALLOWANCE
 
 
 def image_tokens(message: dict[str, Any]) -> int:
-    content = message.get("content")
-    if not isinstance(content, list):
-        return 0
-    count = sum(
-        1
-        for block in content
-        if isinstance(block, dict) and block.get("type") == "image"
-    )
-    return count * IMAGE_TOKEN_ALLOWANCE
+    return compaction.image_tokens(message)
 
 
 def _text_of(message: dict[str, Any]) -> str:
-    parts: list[str] = []
-    content = message.get("content")
-    if isinstance(content, str):
-        parts.append(content)
-    elif isinstance(content, list):
-        for block in content:
-            if isinstance(block, dict):
-                # Image payloads are base64, not text; counting their bytes as
-                # tokens would be wildly wrong, so only the text block counts.
-                if block.get("type") == "image":
-                    continue
-                parts.append(str(block.get("text", "")))
-                parts.append(str(block.get("content", "")))
-    for key in ("arguments", "tool_call_id", "name"):
-        value = message.get(key)
-        if value:
-            parts.append(str(value))
-    for call in message.get("tool_calls") or []:
-        function = call.get("function") if isinstance(call, dict) else None
-        if isinstance(function, dict):
-            parts.append(str(function.get("name", "")))
-            parts.append(str(function.get("arguments", "")))
-    return "".join(parts)
+    return compaction._text_of(message)
