@@ -73,6 +73,7 @@ def build_system_prompt(
     platform: str,
     date: str,
     skills: str = "",
+    task_context: str = "",
 ) -> str:
     sections = [ROLE]
     env = ENVIRONMENT.format(
@@ -96,6 +97,14 @@ def build_system_prompt(
             "Reusable procedures installed in this environment. When one applies, "
             "call read_skill with its exact name before doing the work.\n"
             + skills
+        )
+    if task_context:
+        sections.append(
+            "# Persistent task state\n"
+            "This state is maintained by the task controller. It outranks old model summaries. "
+            "Follow the latest user goal, use recorded evidence rather than assuming it, and "
+            "record material progress, blockers, and remaining work with the task tools.\n\n"
+            + task_context
         )
     if tools:
         sections.append(

@@ -305,6 +305,11 @@ class JobRegistry:
             jobs = list(self._jobs.values())
         return [job.snapshot() for job in jobs]
 
+    @property
+    def closed(self) -> bool:
+        with self._lock:
+            return self._closed
+
     def close_all(self) -> None:
         with self._lock:
             self._closed = True

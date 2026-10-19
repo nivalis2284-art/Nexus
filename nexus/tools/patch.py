@@ -30,7 +30,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ._paths import open_file, reject_link
+from ._paths import atomic_write_file, open_file, reject_link
 from .files import resolve
 from .registry import ToolSpec
 
@@ -421,9 +421,8 @@ def apply_patch(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     if changed:
         # open_file opens a write handle without truncating, so a shorter result
         # would leave the tail of the old file behind. Truncate explicitly.
-        with open_file(path, "write") as handle:
+        with atomic_write_file(path) as handle:
             handle.write(body)
-            handle.truncate()
 
     return {
         "content": (

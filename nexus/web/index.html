@@ -15,6 +15,11 @@
       <span class="brand-tag" id="brand-tag">preview</span>
     </div>
     <button id="new" class="side-new" type="button">＋ 新建会话</button>
+    <button id="task-new" class="side-new" type="button">＋ 新建任务</button>
+    <div class="side-group">
+      <div class="side-title">任务</div>
+      <ul id="tasks" aria-label="任务列表"></ul>
+    </div>
     <div class="side-group">
       <div class="side-title">会话</div>
       <ul id="sessions" aria-label="会话列表"></ul>
@@ -39,6 +44,37 @@
     <div id="scroller">
       <div id="transcript" aria-live="polite"></div>
     </div>
+
+    <section id="task-panel" hidden>
+      <div class="task-head">
+        <div>
+          <div id="task-title" class="task-title"></div>
+          <div id="task-status" class="small"></div>
+        </div>
+        <div class="task-actions">
+          <button id="task-start" type="button">开始／继续</button>
+          <button id="task-pause" type="button">挂起</button>
+          <button id="task-cancel" type="button" class="danger-link">取消</button>
+          <button id="task-reopen" type="button">重新启用</button>
+          <button id="task-mark-complete" type="button">用户确认完成</button>
+        </div>
+      </div>
+      <div id="task-summary" class="task-summary"></div>
+      <div id="task-steps" class="task-steps"></div>
+      <div id="task-interactions" class="task-interactions"></div>
+      <details class="task-schedule">
+        <summary>定时安排</summary>
+        <label>时间 <input id="task-due" type="datetime-local"></label>
+        <label>时区 <input id="task-timezone" type="text" placeholder="Asia/Tokyo"></label>
+        <label>方式
+          <select id="task-mode">
+            <option value="auto">到时自动恢复</option>
+            <option value="confirm">到时等待确认</option>
+          </select>
+        </label>
+        <button id="task-schedule-save" type="button">保存安排</button>
+      </details>
+    </section>
 
     <form id="composer">
       <div class="composer-card">
@@ -148,6 +184,23 @@
   </div>
 </dialog>
 
+<dialog id="task-dialog">
+  <div class="dialog-body">
+    <div class="dialog-head">
+      <h2>新建任务</h2>
+      <button class="dialog-x" type="button" data-close="task-dialog">×</button>
+    </div>
+    <label>标题 <input id="task-name" type="text" maxlength="160" placeholder="例如：实现任务生命周期"></label>
+    <label>目标 <textarea id="task-goal" rows="5" placeholder="说明最终目标与约束"></textarea></label>
+    <label>约束 <textarea id="task-constraints" rows="2" placeholder="可选"></textarea></label>
+    <p id="task-error" class="error small"></p>
+    <menu>
+      <button class="link" type="button" data-close="task-dialog">取消</button>
+      <button id="task-create" class="primary" type="button">创建任务（不执行）</button>
+    </menu>
+  </div>
+</dialog>
+
 <dialog id="approval-dialog">
   <div class="dialog-body">
     <div class="dialog-head">
@@ -163,5 +216,6 @@
 </dialog>
 
 <script src="/app.js"></script>
+<script src="/tasks.js"></script>
 </body>
 </html>

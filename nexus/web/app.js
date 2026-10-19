@@ -225,6 +225,11 @@ async function openSession(id) {
     { input: 0, output: 0, cached: 0, created: 0 }
   );
   $("title").textContent = value.title || "新会话";
+  if (typeof taskView !== "undefined") {
+    taskView.current = null;
+    $("task-panel").hidden = true;
+    renderTasks();
+  }
   renderSessions();
   renderTranscript();
   $("input").focus();
@@ -1145,6 +1150,23 @@ $("composer").addEventListener("submit", (event) => {
   event.preventDefault();
   const input = $("input");
   const text = input.value.trim();
+  if (typeof taskView !== "undefined" && !state.running) {
+    naturalTaskControl(text).then((handled) => {
+      if (handled) {
+        input.value = "";
+        input.style.height = "auto";
+        return;
+      }
+      if (!taskView.current) {
+        setStatus("请先打开一个任务，或使用“创建任务：…”", true);
+        return;
+      }
+      input.value = "";
+      input.style.height = "auto";
+      sendTaskMessage(text).catch((error) => setStatus(error.message, true));
+    });
+    return;
+  }
   if (state.running) {
     abortRun();
     return;

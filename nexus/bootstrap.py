@@ -134,7 +134,7 @@ def _install_dependencies(python: Path, *, root: Path, run: Run) -> None:
 def _dependencies_import(python: Path, *, root: Path, run: Run) -> bool:
     try:
         result = run(
-            [str(python), "-c", "import httpx, pydantic"],
+            [str(python), "-c", "import httpx, pydantic, tzdata"],
             root=root,
             timeout=30,
         )

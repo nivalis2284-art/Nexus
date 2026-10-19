@@ -108,6 +108,25 @@ html, body {
 }
 
 #sessions li:hover { background: #f0f0f2; }
+
+#tasks { list-style: none; margin: 0; padding: 0; max-height: 170px; overflow-y: auto; }
+#tasks li { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+#tasks li:hover { background: #f0f0f2; }
+#tasks li.active { background: #eceefb; color: var(--ink); }
+
+#task-panel { border-top: 1px solid var(--line); padding: 12px 24px 18px; background: var(--panel); max-height: 42vh; overflow-y: auto; }
+.task-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.task-title { font-weight: 650; }
+.task-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.task-actions button { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 5px 10px; font: inherit; cursor: pointer; }
+.danger-link { color: var(--danger); }
+.task-summary { margin-top: 10px; white-space: pre-wrap; }
+.task-steps { margin-top: 10px; display: grid; gap: 5px; }
+.task-step { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+.task-step .badge { color: var(--muted); white-space: nowrap; }
+.task-interactions { margin-top: 10px; }
+.task-schedule { margin-top: 12px; }
+.task-schedule label { display: block; margin: 5px 0; }
 #sessions li.active { background: #eceefb; color: var(--ink); }
 
 #sessions .label {

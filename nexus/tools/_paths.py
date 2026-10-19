@@ -131,6 +131,73 @@ def open_file(path: Path, operation: str):
 
 
 @contextmanager
+def atomic_write_file(path: Path):
+    """Write a sibling temp file and replace the leaf after flush/fsync.
+
+    ``open_file(path, 'write')`` intentionally holds the existing leaf. Replacing
+    a leaf is a different operation, so ancestry is validated first and the new
+    file is created exclusively in the same directory. This keeps a crash from
+    leaving a half-truncated original while preserving the no-link guarantee.
+    """
+    with ExitStack() as stack:
+        if os.name == "nt":
+            # Every ancestor strictly above the leaf's own directory. Calling
+            # open_parent(path) would also open the target leaf and fail for a
+            # file that is about to be created.
+            for parent in reversed(path.parent.parents):
+                _check_windows_dir_no_delete(parent, stack)
+        else:
+            directory_flag = getattr(os, "O_DIRECTORY", None)
+            nofollow = getattr(os, "O_NOFOLLOW", None)
+            if directory_flag is None or nofollow is None:
+                raise FileAccessDenied("This platform lacks secure no-follow directory opens")
+            descriptor = os.open(path.anchor, os.O_RDONLY | directory_flag)
+            stack.callback(os.close, descriptor)
+            # path.parent is held by the root descriptor initially; open each
+            # part below the filesystem root and finally the parent directory.
+            for part in path.parent.parts[1:]:
+                descriptor = os.open(part, os.O_RDONLY | directory_flag | nofollow,
+                                     dir_fd=descriptor)
+                stack.callback(os.close, descriptor)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        candidate = path.with_name(f".{path.name}.nexus-{os.getpid()}-{os.urandom(4).hex()}.tmp")
+        try:
+            with open(candidate, "xb") as handle:
+                yield handle
+                handle.flush()
+                os.fsync(handle.fileno())
+            if candidate.is_symlink():
+                raise FileAccessDenied("replacement became a link")
+            os.replace(candidate, path)
+        finally:
+            try:
+                candidate.unlink()
+            except OSError:
+                pass
+
+
+def _check_windows_dir_no_delete(path: Path, stack: ExitStack) -> None:
+    import ctypes
+    from ctypes import wintypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    create = kernel.CreateFileW
+    create.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
+                       wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    create.restype = wintypes.HANDLE
+    close = kernel.CloseHandle
+    close.argtypes = [wintypes.HANDLE]
+    close.restype = wintypes.BOOL
+    handle = create(str(path), 0, 0x1 | 0x2, None, 3, 0x00200000 | 0x02000000, None)
+    if handle == wintypes.HANDLE(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    stack.callback(close, handle)
+    reject_link(path.lstat())
+    if not stat.S_ISDIR(path.lstat().st_mode):
+        raise NotADirectoryError(str(path))
+
+
+@contextmanager
 def open_parent(path: Path):
     """Hold each verified ancestor while replacing a leaf in its directory."""
     with ExitStack() as stack:

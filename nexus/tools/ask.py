@@ -46,8 +46,16 @@ class AskArgs(BaseModel):
 def ask(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     asker = getattr(context, "ask", None)
     if asker is None:
-        raise PermissionError(
-            "Nobody is available to answer questions in this context."
+        # In a persistent task, no answer must be faked. The runtime supplies a
+        # callback that persists the question and unwinds the current run; the
+        # small fallback keeps ordinary tool callers fail-closed.
+        from .registry import TaskSuspension
+        raise TaskSuspension(
+            "等待用户回答", kind="question",
+            questions=[
+                {"question": item["question"], "options": list(item.get("options") or [])}
+                for item in args["questions"]
+            ],
         )
 
     questions = [

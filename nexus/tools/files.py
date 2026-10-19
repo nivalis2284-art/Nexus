@@ -15,7 +15,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ._paths import FileAccessDenied, open_file, reject_link
+from ._paths import FileAccessDenied, atomic_write_file, open_file, reject_link
 from .registry import ToolSpec
 
 MAX_READ_LINES = 2000
@@ -92,7 +92,9 @@ def resolve(context: Any, raw: str) -> Path:
 
 def _read_text(path: Path, *, offset: int, limit: int) -> dict[str, Any]:
     with open_file(path, "read") as handle:
-        data = handle.read(MAX_READ_BYTES + 1)
+        # Hash the complete file while returning only a bounded body. Hashing
+        # just the display prefix breaks expected_sha256 for large files.
+        data = handle.read()
     oversized = len(data) > MAX_READ_BYTES
     text = data[:MAX_READ_BYTES].decode("utf-8", errors="replace")
     lines = text.splitlines()
@@ -153,14 +155,49 @@ def _check_expected(path: Path, expected: str | None) -> None:
         )
 
 
+def file_effect(context: Any, args: dict[str, Any]) -> dict[str, Any] | None:
+    """Describe a file mutation and its expected replacement safely.
+
+    The intent records hashes, not the replacement body. If the process dies
+    after a write, recovery can compare the live file with these hashes without
+    exposing file contents in the task database.
+    """
+    if not isinstance(args, dict):
+        return None
+    operation = str(getattr(context, "_pending_tool_name", ""))
+    if operation not in ("write_file", "edit_file", "apply_patch"):
+        return None
+    raw = args.get("path")
+    if not isinstance(raw, str):
+        return None
+    try:
+        path = resolve(context, raw)
+        before = path.read_bytes() if path.exists() else None
+    except (OSError, ValueError):
+        return None
+    # A replacement's exact bytes are not needed in the task ledger. The tool's
+    # own return data records the final hash after it succeeds.
+    return {
+        "path": str(path),
+        "operation": operation,
+        "before_sha256": _sha256(before) if before is not None else None,
+        "expected_changed": operation in ("edit_file", "apply_patch") or before is None
+        or before != args.get("content", "").encode("utf-8"),
+    }
+
+
 def write(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     path = resolve(context, args["path"])
     existed = path.exists()
     _check_expected(path, args.get("expected_sha256"))
     path.parent.mkdir(parents=True, exist_ok=True)
     body = args["content"].encode("utf-8")
-    with open_file(path, "write" if existed else "create") as handle:
-        handle.write(body)
+    if existed:
+        with atomic_write_file(path) as handle:
+            handle.write(body)
+    else:
+        with open_file(path, "create") as handle:
+            handle.write(body)
     lines = args["content"].count("\n") + (1 if args["content"] else 0)
     return {
         "content": f"{'Overwrote' if existed else 'Created'} {path} ({lines} lines)",
@@ -195,7 +232,12 @@ def edit(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     _check_expected(path, args.get("expected_sha256"))
     with open_file(path, "read") as handle:
         raw = handle.read()
-    original = raw.decode("utf-8", errors="replace")
+    try:
+        original = raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ValueError(
+            f"{path} is not valid UTF-8 ({error}); edit_file only edits UTF-8 text."
+        ) from error
     old = args["old_text"]
     count = original.count(old)
     if count == 0:
@@ -222,13 +264,15 @@ def edit(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     updated = original.replace(old, args["new_text"]) if args["replace_all"] else (
         original.replace(old, args["new_text"], 1)
     )
-    with open_file(path, "write") as handle:
-        handle.write(updated.encode("utf-8"))
+    body = updated.encode("utf-8")
+    with atomic_write_file(path) as handle:
+        handle.write(body)
     replaced = count if args["replace_all"] else 1
     return {
         "content": f"Edited {path} ({replaced} replacement{'s' if replaced != 1 else ''})",
         "path": str(path),
         "replaced": replaced,
+        "sha256": _sha256(body),
     }
 
 

@@ -28,7 +28,7 @@ from ..model import (
     StreamLimits,
 )
 from ..tools import Registry, ToolContext
-from ..tools.registry import ToolResult
+from ..tools.registry import TaskSuspension, ToolResult
 
 
 @dataclass
@@ -60,6 +60,43 @@ class RunResult:
     stopped: str = ""
 
 
+class AgentSuspended(Exception):
+    """The task controller wants this run to yield to the user.
+
+    This is deliberately separate from a tool failure: an approval or question
+    that has not received an answer must leave the operation pending rather than
+    turning it into a failed operation the model is encouraged to retry.
+    """
+
+    def __init__(self, reason: str = "等待用户", **details: Any) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.details = details
+
+    @property
+    def control(self) -> str:
+        """A controller-facing reason for a durable, resumable pause."""
+        return str(self.details.get("kind") or "question")
+
+    @classmethod
+    def from_tool(cls, error: "TaskSuspension") -> "AgentSuspended":
+        return cls(error.reason, **error.details)
+
+
+class ApprovalRequired(AgentSuspended):
+    """A task needs a persisted decision before dispatching a tool."""
+
+    def __init__(self, request: "ApprovalRequest") -> None:
+        super().__init__("等待工具审批", kind="approval", request=request)
+
+
+class QuestionRequired(AgentSuspended):
+    """A task is waiting for an answer that must survive a restart."""
+
+    def __init__(self, questions: list[dict[str, Any]]) -> None:
+        super().__init__("等待用户回答", kind="question", questions=questions)
+
+
 class Agent:
     def __init__(
         self,
@@ -77,6 +114,11 @@ class Agent:
         retry: RetryPolicy | None = None,
         skills: str = "",
         cancel_event: threading.Event | None = None,
+        task_context: str = "",
+        on_message: Callable[[dict[str, Any]], None] | None = None,
+        execute_prepared: Callable[[Any], ToolResult] | None = None,
+        on_tool_intent: Callable[[str, Any, Any], None] | None = None,
+        on_tool_result: Callable[[dict[str, Any], dict[str, Any], ToolResult], None] | None = None,
     ) -> None:
         self.profile = profile
         self.credentials = credentials
@@ -96,6 +138,11 @@ class Agent:
         self.max_epochs = 16
         self.cancel_event = cancel_event or threading.Event()
         self.context.cancel_event = self.cancel_event
+        self.task_context = task_context
+        self.on_message = on_message
+        self.execute_prepared = execute_prepared
+        self.on_tool_intent = on_tool_intent
+        self.on_tool_result = on_tool_result
         # The durable turn output must not depend on the size of compacted history.
         self.new_messages: list[dict[str, Any]] = []
 
@@ -116,6 +163,8 @@ class Agent:
     def _record(self, messages: list[dict[str, Any]], message: dict[str, Any]) -> None:
         messages.append(message)
         self.new_messages.append(message)
+        if self.on_message is not None:
+            self.on_message(message)
 
     def close_pending_calls(self, messages: list[dict[str, Any]]) -> None:
         """Keep replay valid if transport fails while a tool exchange is open."""
@@ -131,6 +180,27 @@ class Agent:
                 "arguments": _safe_json(call["arguments"]),
                 "content": "No result was recorded: run interrupted.",
                 "ok": False, "error": "interrupted",
+            })
+
+    def seal_pending_calls(self, messages: list[dict[str, Any]]) -> None:
+        """Mark unfinished task calls as interrupted without claiming they ran.
+
+        Task execution persists its own operation facts. This helper only keeps
+        the provider-facing transcript legal when a run is being closed for
+        recovery. ``unknown`` is intentionally different from a tool failure.
+        """
+        pending: dict[str, dict[str, Any]] = {}
+        for message in self.new_messages:
+            for call in message.get("tool_calls") or []:
+                pending[call["id"]] = call
+            if message.get("role") == "tool":
+                pending.pop(message.get("tool_call_id"), None)
+        for call in pending.values():
+            self._record(messages, {
+                "role": "tool", "tool_call_id": call["id"], "name": call["name"],
+                "arguments": _safe_json(call["arguments"]),
+                "content": "No result was recorded: operation outcome is unknown.",
+                "ok": False, "error": "unknown",
             })
 
     async def _fold(
@@ -240,6 +310,7 @@ class Agent:
                     platform=_platform(),
                     date=time.strftime("%Y-%m-%d"),
                     skills=self.skills,
+                    task_context=self.task_context,
                 )
                 # Trim oversized tool results before budgeting. Deterministic,
                 # no model call: see core.compaction for why this goes first.
@@ -395,7 +466,7 @@ class Agent:
                      "thinking": thinking or None,
                      "usage": result.usage or None}
                 )
-                for call in calls:
+                for call_index, call in enumerate(calls):
                     result.tool_calls += 1
                     yield RunEvent(
                         "tool_start",
@@ -407,9 +478,21 @@ class Agent:
                         outcome = ToolResult(False, "Not executed: run cancelled.",
                                              error_code="cancelled")
                     else:
-                        outcome = await self._invoke(call, yield_event=None)
-                    self._record(messages,
-                        {
+                        try:
+                            outcome = await self._invoke(call, yield_event=None)
+                        except TaskSuspension as tool_suspension:
+                            suspended = AgentSuspended.from_tool(tool_suspension)
+                            suspended.details.setdefault("current_call", call)
+                            suspended.details.setdefault("remaining_calls", calls[call_index + 1:])
+                            raise suspended from tool_suspension
+                        except AgentSuspended as suspended:
+                            # The current tool call and every call after it remain
+                            # unresolved. The task runtime persists the whole
+                            # pending batch so no fabricated result is replayed.
+                            suspended.details.setdefault("current_call", call)
+                            suspended.details.setdefault("remaining_calls", calls[call_index + 1:])
+                            raise
+                    tool_message = {
                             "role": "tool",
                             "tool_call_id": call["id"],
                             "name": call["name"],
@@ -418,7 +501,9 @@ class Agent:
                             "ok": outcome.ok,
                             "error": outcome.error_code,
                         }
-                    )
+                    self._record(messages, tool_message)
+                    if self.on_tool_result is not None:
+                        self.on_tool_result(call, _safe_json(call["arguments"]), outcome)
                     yield RunEvent(
                         "tool_result",
                         data={
@@ -443,9 +528,9 @@ class Agent:
         if not isinstance(arguments, dict):
             return ToolResult(False, "Arguments must be a JSON object.",
                               error_code="bad_arguments")
-        spec = self.registry.get(name)
-        if spec is None:
-            return ToolResult(False, f"Unknown tool: {name}", error_code="unknown_tool")
+        prepared = self.registry.prepare(name, arguments, self.context)
+        if isinstance(prepared, ToolResult):
+            return prepared
         decision = self.policy.decide(name, target(name, arguments))
         if decision == DENY:
             return ToolResult(False, f"Blocked by policy: {name}", error_code="denied")
@@ -463,7 +548,12 @@ class Agent:
                 return ToolResult(False, "The user declined this call.", error_code="declined")
         if self.stopped:
             return ToolResult(False, "Not executed: run cancelled.", error_code="cancelled")
-        return await asyncio.to_thread(self.registry.execute, name, arguments, self.context)
+        executor = self.execute_prepared or (
+            lambda ready: self.registry.execute_prepared(ready, self.context)
+        )
+        if self.on_tool_intent is not None:
+            await asyncio.to_thread(self.on_tool_intent, str(call.get("id") or ""), prepared, self.context)
+        return await asyncio.to_thread(executor, prepared)
 
 
 def _client():

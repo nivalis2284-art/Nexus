@@ -88,6 +88,18 @@ async function main() {
     assert.deepEqual(errors, []);
     await page.screenshot({ path: path.join(root, '.artifacts', 'browser-smoke.png'), fullPage: true });
 
+    await page.locator('#task-new').click();
+    await page.locator('#task-name').fill('browser task');
+    await page.locator('#task-goal').fill('remain available without a model call');
+    await page.locator('#task-create').click();
+    await page.locator('#task-panel').waitFor();
+    assert.ok((await page.locator('#task-status').innerText()).includes('待执行'));
+    assert.equal(requests.length, 2, 'creating a task must not invoke a model');
+    await page.reload();
+    await page.locator('#tasks li').filter({ hasText: 'browser task' }).click();
+    await page.locator('#task-panel').waitFor();
+    assert.ok((await page.locator('#task-status').innerText()).includes('待执行'));
+
     const map = await browser.newPage({ viewport: { width: 1360, height: 960 } });
     const external = [];
     map.on('request', r => { if (r.url().startsWith('http')) external.push(r.url()); });
@@ -126,7 +138,7 @@ async function main() {
     assert.deepEqual(errors, []);
     await map.screenshot({ path: path.join(root, '.artifacts', 'business-map.png'), fullPage: true });
     await map.locator('.stage-card').screenshot({ path: path.join(root, '.artifacts', 'business-map-detail.png') });
-    console.log('Browser smoke passed: image-only send, approval, real file creation, reload, thumbnail, offline business map, no page errors.');
+    console.log('Browser smoke passed: image/approval chat, persistent task creation without a model call, reload, and offline business map.');
   } finally {
     if (browser) await browser.close();
     if (python && python.exitCode === null) {

@@ -25,6 +25,23 @@ CLIP_HEAD = 24_000
 CLIP_TAIL = 14_000
 
 
+class TaskSuspension(Exception):
+    """A tool needs a persisted human decision before it can finish."""
+
+    def __init__(self, reason: str, **details: Any) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.details = details
+
+
+@dataclass(frozen=True)
+class PreparedCall:
+    """Validated tool arguments, before any side effect is dispatched."""
+
+    spec: ToolSpec
+    arguments: dict[str, Any]
+
+
 @dataclass(frozen=True)
 class ToolSpec:
     name: str
@@ -106,6 +123,15 @@ class Registry:
         return [spec.schema() for spec in self._tools.values()]
 
     def execute(self, name: str, arguments: dict[str, Any], context: Any) -> ToolResult:
+        prepared = self.prepare(name, arguments, context)
+        if isinstance(prepared, ToolResult):
+            return prepared
+        return self.execute_prepared(prepared, context)
+
+    def prepare(
+        self, name: str, arguments: dict[str, Any], context: Any
+    ) -> "PreparedCall | ToolResult":
+        """Validate before the caller records a durable intent."""
         cancellation = getattr(context, "cancel_event", None)
         if cancellation is not None and cancellation.is_set():
             return ToolResult(False, "Not executed: run cancelled.", error_code="cancelled")
@@ -124,8 +150,27 @@ class Registry:
                 f"Invalid arguments for {name}: {detail}",
                 error_code="invalid_arguments",
             )
+        return PreparedCall(spec, args)
+
+    def execute_prepared(self, prepared: PreparedCall, context: Any) -> ToolResult:
+        cancellation = getattr(context, "cancel_event", None)
+        if cancellation is not None and cancellation.is_set():
+            return ToolResult(False, "Not executed: run cancelled.", error_code="cancelled")
+        name = prepared.spec.name
         try:
-            payload = spec.handler(context, args)
+            # A task runtime may set an optional effect callback. Ordinary chat
+            # remains unchanged, while task file edits leave a durable hash fact.
+            effect = getattr(context, "tool_effect", None)
+            if effect is not None:
+                context._pending_tool_name = name
+                effect(name, prepared.arguments)
+            payload = prepared.spec.handler(context, prepared.arguments)
+        except TaskSuspension as suspension:
+            # A direct tool caller has no task run to persist and resume this
+            # decision. Fail closed instead of treating the pause as success.
+            return ToolResult(
+                False, f"Not executed: {suspension.reason}.", error_code="waiting_user"
+            )
         except PermissionError as error:
             return ToolResult(False, str(error), error_code="denied")
         except FileNotFoundError as error:

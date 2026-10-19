@@ -56,6 +56,10 @@ def write(context: Any, args: dict[str, Any]) -> dict[str, Any]:
 
     context.todos = cleaned
 
+    callback = getattr(context, "task_todos", None)
+    if callback is not None:
+        callback(cleaned)
+
     done = sum(1 for item in cleaned if item["status"] == "completed")
     active = [item["content"] for item in cleaned if item["status"] == "in_progress"]
     lines = [f"[{_box(item['status'])}] {item['content']}" for item in cleaned]

@@ -166,8 +166,9 @@ def test_ask_user_without_a_channel_fails_loudly():
     result = registry.execute(
         "ask_user", {"questions": [{"question": "which?"}]}, context
     )
+    # The dispatcher turns an unhandled tool suspension into a visible failure
+    # for ordinary chat; the task runtime catches it before that conversion.
     assert not result.ok
-    assert "declined" in result.content.lower() or "nobody" in result.content.lower()
 
 
 def test_ask_user_returns_the_answer():

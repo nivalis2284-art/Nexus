@@ -42,6 +42,7 @@ class ToolContext:
         self.ask: Any = None
         # Live MCP connection registry, injected by the caller when configured.
         self.mcp: Any = None
+        self.task_callbacks: Any = None
 
 
 def _skill(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -81,12 +82,14 @@ def build(
     mcp: Any = None,
     jobs: Any = None,
     cancel_event: Any = None,
+    task_callbacks: Any = None,
 ) -> tuple[Registry, ToolContext]:
     """Assemble a registry. ``config`` decides which optional tools exist."""
     context = ToolContext(root or Path.cwd(), skills)
     context.mcp = mcp
     context.jobs = jobs
     context.cancel_event = cancel_event
+    context.task_callbacks = task_callbacks
     settings = config or {}
     allowlist = settings.get("webfetch_hosts") or []
     if isinstance(allowlist, str):
@@ -105,6 +108,11 @@ def build(
             registry.add(spec)
     for spec in mcp_tool_specs(context):
         registry.add(spec)
+    if task_callbacks is not None:
+        from .tasks import TOOLS as task_tools
+
+        for spec in task_tools:
+            registry.add(spec)
     return registry, context
 
 

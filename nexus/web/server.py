@@ -33,7 +33,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from .. import mcp, skills
 from ..core import effort as reasoning
@@ -43,10 +43,15 @@ from ..core.config import ConfigStore, build_profile
 from ..core.permission import default_policy
 from ..core.workspace import inspect
 from ..model import RuntimeCredentials
+from ..runtime import TaskController
+from ..runtime.assembly import TaskAssembler
+from ..runtime.scheduler import TaskScheduler
+from ..task import TaskConflict, TaskNotFound, TaskStore, TaskValidationError
 from ..session import Message, SessionStore
 from ..skills import SkillSet
 from ..tools import build, mcp_tools
 from ..tools._jobs import JobRegistry
+from .task_api import TaskHTTP
 
 APPROVAL_TIMEOUT = 600.0
 
@@ -224,6 +229,15 @@ RESOURCES = threading.Lock()
 RUNNING: dict[str, Any] = {"agent": None}
 
 
+def _task_http() -> TaskHTTP:
+    return TaskHTTP(STATE, _json)
+
+
+def _task_error(handler: BaseHTTPRequestHandler, error: BaseException) -> None:
+    status = 404 if isinstance(error, TaskNotFound) else 409 if isinstance(error, TaskConflict) else 400
+    _json(handler, status, {"error": str(error)})
+
+
 def _json(handler: BaseHTTPRequestHandler, status: int, value: Any) -> None:
     body = json.dumps(value, ensure_ascii=False).encode("utf-8")
     handler.send_response(status)
@@ -329,6 +343,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._file("index.html", "text/html; charset=utf-8")
         if path == "/app.js":
             return self._file("app.js", "text/javascript; charset=utf-8")
+        if path == "/tasks.js":
+            return self._file("tasks.js", "text/javascript; charset=utf-8")
         if path == "/app.css":
             return self._file("app.css", "text/css; charset=utf-8")
         if path == "/api/state":
@@ -336,12 +352,41 @@ class Handler(BaseHTTPRequestHandler):
                 return _json(self, 200, self._state())
             except (OSError, ValueError) as error:
                 return _json(self, 500, {"error": str(error)})
+        if path == "/api/tasks":
+            try:
+                return _task_http().list(self, parse_qs(urlparse(self.path).query))
+            except (OSError, ValueError) as error:
+                return _task_error(self, error)
+        if path.startswith("/api/tasks/") and path.endswith("/events"):
+            task_id = path.split("/")[3]
+            try:
+                return _task_http().events(self, task_id, parse_qs(urlparse(self.path).query))
+            except (OSError, ValueError) as error:
+                return _task_error(self, error)
+        if path.startswith("/api/tasks/"):
+            task_id = path.rsplit("/", 1)[-1]
+            try:
+                return _task_http().detail(self, task_id)
+            except (OSError, ValueError) as error:
+                return _task_error(self, error)
         if path.startswith("/api/sessions/"):
             return self._session(path.rsplit("/", 1)[-1])
         return _json(self, 404, {"error": "not found"})
 
     def do_DELETE(self) -> None:
         path = urlparse(self.path).path
+        if path.startswith("/api/tasks/") and path.endswith("/schedule"):
+            task_id = path.split("/")[3]
+            try:
+                return _task_http().clear_schedule(self, task_id)
+            except (OSError, ValueError) as error:
+                return _task_error(self, error)
+        if path.startswith("/api/tasks/"):
+            task_id = path.rsplit("/", 1)[-1]
+            try:
+                return _task_http().delete(self, task_id, _read_json(self))
+            except (OSError, ValueError) as error:
+                return _task_error(self, error)
         if path.startswith("/api/sessions/"):
             session_id = path.rsplit("/", 1)[-1]
             if RUNNING.get("session_id") == session_id:
@@ -364,6 +409,18 @@ class Handler(BaseHTTPRequestHandler):
     def do_PUT(self) -> None:
         path = urlparse(self.path).path
         body = _read_json(self)
+        if path.startswith("/api/tasks/") and path.endswith("/schedule"):
+            task_id = path.split("/")[3]
+            try:
+                return _task_http().schedule(self, task_id, body)
+            except (OSError, ValueError) as error:
+                return _task_error(self, error)
+        if path.startswith("/api/tasks/"):
+            task_id = path.rsplit("/", 1)[-1]
+            try:
+                return _task_http().update(self, task_id, body)
+            except (OSError, ValueError) as error:
+                return _task_error(self, error)
         if path.startswith("/api/providers/"):
             provider_id = path.rsplit("/", 1)[-1]
             try:
@@ -377,6 +434,22 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         body = _read_json(self)
         try:
+            if path == "/api/tasks":
+                return _task_http().create(self, body)
+            if path == "/api/task-control":
+                return _task_http().task_control(self, body)
+            if path.startswith("/api/tasks/") and path.endswith("/commands"):
+                return _task_http().command(self, path.split("/")[3], body)
+            if path.startswith("/api/tasks/") and path.endswith("/lifecycle"):
+                return _task_http().lifecycle(self, path.split("/")[3], body)
+            if path.startswith("/api/tasks/") and path.endswith("/messages"):
+                return _task_http().messages(self, path.split("/")[3], body)
+            if path.startswith("/api/tasks/") and "/interactions/" in path and path.endswith("/answer"):
+                pieces = path.split("/")
+                return _task_http().answer(self, pieces[3], pieces[5], body)
+            if path.startswith("/api/tasks/") and "/interactions/" in path and path.endswith("/confirm"):
+                pieces = path.split("/")
+                return _task_http().start_confirmation(self, pieces[3], pieces[5], body)
             if path == "/api/sessions":
                 return self._create()
             if path.startswith("/api/sessions/") and path.endswith("/rename"):
@@ -398,7 +471,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/chat/abort":
                 return self._abort()
         except ValueError as error:
-            return _json(self, 400, {"error": str(error)})
+            return _task_error(self, error)
         except OSError as error:
             return _json(self, 500, {"error": str(error)})
         return _json(self, 404, {"error": "not found"})
@@ -936,6 +1009,12 @@ def _start_mcp(store: ConfigStore, workspace: Path) -> mcp.MCPRegistry | None:
 
 
 def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None = None) -> None:
+    previous_scheduler = STATE.get("task_scheduler")
+    if previous_scheduler is not None:
+        previous_scheduler.close()
+    previous_controller = STATE.get("task_controller")
+    if previous_controller is not None:
+        previous_controller.close()
     store = ConfigStore(home)
     store.ensure()
     if workspace is not None:
@@ -946,6 +1025,17 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
     STATE["closing"] = False
     STATE["skills"] = _load_skills(store, Path(store.load().workspace))
     STATE["mcp"] = _start_mcp(store, Path(store.load().workspace))
+    task_store = TaskStore(store.home / "tasks.sqlite3")
+    task_store.recover_interrupted()
+    task_store.hold_queued_at_startup()
+    task_runner = TaskAssembler(task_store, store)
+    task_controller = TaskController(task_store, run=task_runner)
+    task_controller.start()
+    task_scheduler = TaskScheduler(task_store, task_controller)
+    task_scheduler.start()
+    STATE["tasks"] = task_store
+    STATE["task_controller"] = task_controller
+    STATE["task_scheduler"] = task_scheduler
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     server.daemon_threads = True
     actual = server.server_address[1]
@@ -956,6 +1046,17 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
     except KeyboardInterrupt:
         pass
     finally:
+        scheduler = STATE.get("task_scheduler")
+        if scheduler is not None:
+            scheduler.close()
+        controller = STATE.get("task_controller")
+        if controller is not None:
+            controller.close()
+        # Stop task-owned background processes only. Ordinary chat's historical
+        # stop semantics and its own session job registries remain untouched.
+        jobs = getattr(task_runner, "_jobs", {})
+        for registry in list(jobs.values()):
+            registry.close_all()
         with RESOURCES:
             STATE["closing"] = True
             session_jobs = list(STATE.pop("jobs", {}).values())
