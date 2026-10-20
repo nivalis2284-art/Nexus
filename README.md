@@ -173,7 +173,8 @@ AGENTS.md    开发协作说明
 
 - [`AGENTS.md`](AGENTS.md)：给开发 Agent 的简洁协作说明，不代替具体 PRD。
 - [`docs/PRODUCT.md`](docs/PRODUCT.md)、[`docs/ROADMAP.md`](docs/ROADMAP.md)：产品构想与路线图。
-- [`docs/PRD.md`](docs/PRD.md)：当前**自主性技术可行性探究**的研究型 PRD，尚待用户确认，本轮不开发。
+- [`docs/PRD.md`](docs/PRD.md)：当前**自主性第一版雏形**开发型 PRD（草案待确认），下一步 4A 研究可实施方案，不代表已进入编码。
+- [自主性预研历史 PRD](docs/archive/2026-10-20-autonomy-prestudy/PRD.md)、[主研究](docs/archive/2026-10-20-autonomy-prestudy/RESEARCH.md)、[多模型补充](docs/archive/2026-10-20-autonomy-prestudy/RESEARCH-MULTI-MODEL.md)：已归档，不构成当前交付目标。
 - [持续性 PRD](docs/archive/2026-10-20-ling-continuity/PRD.md)、[研究](docs/archive/2026-10-20-ling-continuity/RESEARCH.md)、[交付验证](docs/archive/2026-10-20-ling-continuity/PROGRESS.md)：归档旧阶段；持续性独立验收仍在进行，不代表已通过。
 - [`附件交付记录`](docs/archive/2026-10-20-attachments/PROGRESS.md)：上一轮附件实现、验证证据与读取限制。
 - [`docs/archive/`](docs/archive/)：历史阶段需求、研究、重要决策与交付证据；不构成当前待办。

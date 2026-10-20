@@ -1,6 +1,6 @@
 # LingNexus 自主性补充研究：多模型按需协同决策
 
-研究日期：2026-10-20（Asia/Tokyo）。本地基线：[468fdb7](https://github.com/nivalis2284-art/Nexus/commit/468fdb7e7b90dff85d4069ae522f8639f99cfa5b)。依据：[自主性研究 PRD](PRD.md)、[上一轮研究](RESEARCH.md)、[产品定位](PRODUCT.md)及[愿景](愿景/01-概念与原则.md)。
+研究日期：2026-10-20（Asia/Tokyo）。本地基线：[468fdb7](https://github.com/nivalis2284-art/Nexus/commit/468fdb7e7b90dff85d4069ae522f8639f99cfa5b)。依据：[自主性研究 PRD](PRD.md)、[上一轮研究](RESEARCH.md)、[产品定位](../../PRODUCT.md)及[愿景](../../愿景/01-概念与原则.md)。
 
 **研究范围：独立补充研究，保留原报告；不开发、不部署、不执行收费模型实验。** 研究阶段按当时要求仅在本地整理；2026-10-20 所有者另行授权安全合并远端变更并推送研究成果。本文中的调用配额、路由比例、延迟和费用情景均不是所有者已批准预算或实测表现。研究使用三个 DeepSeek Max 子代理，分别调查超轻量模型、Flash API、路由与评价证据；主代理负责整合、源码适配和成本推导。
 
@@ -88,7 +88,7 @@
 
 **S：**DeepSeek Chat 现行 `reasoning_effort` 支持 none/low/high/max，默认 high；JSON object 不等于任意字段语义正确，严格工具模式是 Beta。[Gemini 兼容文档](https://ai.google.dev/gemini-api/docs/openai)可将 reasoning_effort 映射到 thinking，不能同时混用原生 thinking 配置。基础兼容请求可研究，不能假定所有原生工具、签名和 SSE 已被 Nexus 覆盖。
 
-**F/S 适配警示：**本地 [effort.py](../nexus/core/effort.py) 会把 none/off 归一为不发字段；对默认思考的端点，省略字段不等于强制关闭。Anthropic 分支启用推理时发送 `thinking:{type:enabled,budget_tokens:...}`，而 [Haiku 5.5 官方迁移说明](https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide)明确该旧形状返回 400。故“none 基线”和 Haiku thinking 都不能当作目前只换模型 ID 就已可运行；本轮只记录，不修改。
+**F/S 适配警示：**本地 [effort.py](../../../nexus/core/effort.py) 会把 none/off 归一为不发字段；对默认思考的端点，省略字段不等于强制关闭。Anthropic 分支启用推理时发送 `thinking:{type:enabled,budget_tokens:...}`，而 [Haiku 5.5 官方迁移说明](https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide)明确该旧形状返回 400。故“none 基线”和 Haiku thinking 都不能当作目前只换模型 ID 就已可运行；本轮只记录，不修改。
 
 本轮上述生成模型官方页未提供可迁移到中文短请求的完整 TTFT/端到端分位数，因此延迟保留未知，不能将 Fastest 等相对标签当 SLA。在 ≤100K 的所列无缓存价格中 Haiku 单位价更低，但 tokenizer、质量、推理消耗与适配成本会改变总费用，不能据此排名实际方案。
 
@@ -345,11 +345,11 @@ C_平均判断 = nU u + nF f + nM m + c_route + c_handoff
 
 | 本地事实 F | 源码 | 对候选设计的约束 D |
 |---|---|---|
-| 配置包含多个提供商/模型与显式能力；任务按绑定模型读取 | [config.py](../nexus/core/config.py) L119 起；[assembly.py](../nexus/runtime/assembly.py) L61 起 | 有模型接入基础，不代表已有自动多模型角色路由 |
-| 当前模型网关支持三种流式生成协议，单次请求返回统一事件 | [types.py](../nexus/model/types.py) L12–48；[gateway.py](../nexus/model/gateway.py) | 专用分类/decision JSON API 不一定可直接复用现有生成网关；不能假装所有端点都是聊天 |
-| 任务子代理由父任务 profile/key/effort 构造 | [assembly.py](../nexus/runtime/assembly.py) L184–195 | 有子代理不等于已可为 U/F/M 独立选模型；当前结构不构成未来必须限制 |
-| 供应商续传材料与显示事件分离 | [types.py](../nexus/model/types.py) L174 起 | 不假定原生续传可跨模型重放，需明确交接边界 |
-| 网关费用估算要求已知单价且无缓存，事件投影未保留 cost_usd | [gateway.py](../nexus/model/gateway.py) L62 起；[agent.py](../nexus/core/agent.py) L615 起 | 未补齐实际账本前不能证明多模型硬成本上限，摘要/子代理也要汇总 |
+| 配置包含多个提供商/模型与显式能力；任务按绑定模型读取 | [config.py](../../../nexus/core/config.py) L119 起；[assembly.py](../../../nexus/runtime/assembly.py) L61 起 | 有模型接入基础，不代表已有自动多模型角色路由 |
+| 当前模型网关支持三种流式生成协议，单次请求返回统一事件 | [types.py](../../../nexus/model/types.py) L12–48；[gateway.py](../../../nexus/model/gateway.py) | 专用分类/decision JSON API 不一定可直接复用现有生成网关；不能假装所有端点都是聊天 |
+| 任务子代理由父任务 profile/key/effort 构造 | [assembly.py](../../../nexus/runtime/assembly.py) L184–195 | 有子代理不等于已可为 U/F/M 独立选模型；当前结构不构成未来必须限制 |
+| 供应商续传材料与显示事件分离 | [types.py](../../../nexus/model/types.py) L174 起 | 不假定原生续传可跨模型重放，需明确交接边界 |
+| 网关费用估算要求已知单价且无缓存，事件投影未保留 cost_usd | [gateway.py](../../../nexus/model/gateway.py) L62 起；[agent.py](../../../nexus/core/agent.py) L615 起 | 未补齐实际账本前不能证明多模型硬成本上限，摘要/子代理也要汇总 |
 
 上一轮指出的 MCP 默认授权覆盖、任务恢复和共享工作区边界仍适用；本轮没有改动或重做运行时安全验证。新增模型供应商意味着新增数据接收方；本地 U 能减少发送原文，也可能因反复升级实际把同一资料发给更多供应商。资格过滤不能在 fallback 时被绕过。
 

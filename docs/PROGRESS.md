@@ -5,7 +5,8 @@
 **关联：** 验收报告 [`archive/2026-10-20-ling-continuity/ACCEPTANCE.md`](archive/2026-10-20-ling-continuity/ACCEPTANCE.md)、归档 PRD / RESEARCH / 交付记录。
 
 > 说明：持续性阶段的 PRD / RESEARCH / PROGRESS 已按产品文档整理归档到
-> `docs/archive/2026-10-20-ling-continuity/`，`docs/PRD.md` 现为自主性可行性研究。
+> `docs/archive/2026-10-20-ling-continuity/`。`docs/PRD.md` 已更新为自主性第一版开发型 PRD 草案；
+> 本文件仍仅记录旧持续性验收缺陷修复，不属于新自主性阶段。
 > 本文件记录**持续性验收所发现缺陷的修复**，不改变当前阶段的 PRD 与验收标准。
 
 ---

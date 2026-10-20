@@ -9,4 +9,6 @@
 
 - [灵的持续性 PRD](2026-10-20-ling-continuity/PRD.md)、[研究记录](2026-10-20-ling-continuity/RESEARCH.md)、[交付和验收条件](2026-10-20-ling-continuity/PROGRESS.md)：2026-10-20 进入自主性研究任务时归档；旧阶段仍未正式验收，留存全部证据和限制。
 
-当前研究任务见 [自主性技术可行性探究 PRD](../PRD.md)（待用户确认）。旧持续性阶段资料见 [PRD](2026-10-20-ling-continuity/PRD.md)、[研究](2026-10-20-ling-continuity/RESEARCH.md)、[交付记录](2026-10-20-ling-continuity/PROGRESS.md)。**持续性正在独立全量验收，归档不是验收通过。** 愿景和其他历史参考继续保留在原目录。
+- [自主性旧研究型 PRD](2026-10-20-autonomy-prestudy/PRD.md)、[首轮可行性研究](2026-10-20-autonomy-prestudy/RESEARCH.md)、[多模型补充研究](2026-10-20-autonomy-prestudy/RESEARCH-MULTI-MODEL.md)：2026-10-20 转入自主性第一版开发型 PRD 时归档，保留其研究结果与未验证限制；此前成本/Flash 分工研究不再作为最新产品要求。
+
+当前阶段见 [自主性第一版开发型 PRD](../PRD.md)（草案待确认、准备 4A）。旧持续性阶段资料见 [PRD](2026-10-20-ling-continuity/PRD.md)、[研究](2026-10-20-ling-continuity/RESEARCH.md)、[交付记录](2026-10-20-ling-continuity/PROGRESS.md)。**持续性正在独立全量验收，归档不是验收通过。** 愿景和其他历史参考继续保留在原目录。

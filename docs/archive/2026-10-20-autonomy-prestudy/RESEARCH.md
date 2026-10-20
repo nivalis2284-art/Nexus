@@ -1,8 +1,8 @@
 # LingNexus · 灵的自主性技术可行性研究
 
-研究日期：2026-10-20（Asia/Tokyo）。源码基线：[a99f9746aca5ea9d423f2e06362263d31ea7735e](https://github.com/nivalis2284-art/Nexus/commit/a99f9746aca5ea9d423f2e06362263d31ea7735e)。依据：[研究型 PRD](PRD.md)、[产品定位](PRODUCT.md)、[路线图](ROADMAP.md)、[概念与原则](愿景/01-概念与原则.md)、[抽象需求](愿景/02-抽象需求.md)。
+研究日期：2026-10-20（Asia/Tokyo）。源码基线：[a99f9746aca5ea9d423f2e06362263d31ea7735e](https://github.com/nivalis2284-art/Nexus/commit/a99f9746aca5ea9d423f2e06362263d31ea7735e)。依据：[研究型 PRD](PRD.md)、[产品定位](../../PRODUCT.md)、[路线图](../../ROADMAP.md)、[概念与原则](../../愿景/01-概念与原则.md)、[抽象需求](../../愿景/02-抽象需求.md)。
 
-**状态：研究报告；供所有者判断下一步，不构成开发许可、产品验收或真实模型实验结果。** 用户本轮已明确授权研究，PRD 内“待确认”不阻碍研究，也不意味着预算、离线行为等产品变量已经确认。本轮仅新增本文，不改业务代码、不运行自主原型、不调用 Nexus 付费模型、不创建后台自动任务。既有持续性仍以[归档交付记录](archive/2026-10-20-ling-continuity/PROGRESS.md)为准，未据其工程交付宣布独立验收通过。
+**状态：研究报告；供所有者判断下一步，不构成开发许可、产品验收或真实模型实验结果。** 用户本轮已明确授权研究，PRD 内“待确认”不阻碍研究，也不意味着预算、离线行为等产品变量已经确认。本轮仅新增本文，不改业务代码、不运行自主原型、不调用 Nexus 付费模型、不创建后台自动任务。既有持续性仍以[归档交付记录](../2026-10-20-ling-continuity/PROGRESS.md)为准，未据其工程交付宣布独立验收通过。
 
 研究由主代理综合，四名 DeepSeek Max 子代理分别调查目标形成论文、持久运行与安全、API 成本、项目现状。外部项目没有在本机部署复现；源码阅读、公开资料核查和成本算术复算是本轮的验证范围。
 
@@ -358,23 +358,23 @@ C_period = Σ c_j                      # 判断、目标生成、主执行、子
 
 | 能力/边界 | 源码证据 | 对自主性研究的意义 |
 |---|---|---|
-| 稳定灵身份与持久输入队列 | [ling.py](../nexus/ling.py) L230–330 | 已接收输入可有序处理；无输入时 Worker 不自行产生目标。未来系统事件须保留来源，不能伪装用户输入 |
-| 工作监督与独立任务 | [ling.py](../nexus/ling.py) L67–214；[work.py](../nexus/tools/work.py) L52–84 | 可借用 work_start/list/read/message/control 和证据分页；任务事实不会全部进入主体上下文 |
-| 持久状态与通知 | [store.py](../nexus/task/store.py) L37–205、L208–293 | 任务、运行、操作、交互和事件已有事务基础；通知持久化并不自动唤醒灵作新决策 |
-| 有限续跑 | [assembly.py](../nexus/runtime/assembly.py) L30–41、L264–300、L382–391 | 灵委派任务在既定条件下最多正常续跑 4 次、连续 3 次无进展阻塞；不能拿它当无限自主调度器 |
-| 一次性安排 | [scheduler.py](../nexus/runtime/scheduler.py) L12–77 | 只启动已有任务，不形成新的活动目标；可参考到期认领，不能直接循环创建任务 |
-| 模型边界输入和审批 | [callbacks.py](../nexus/runtime/callbacks.py) L282–403；[store.py](../nexus/task/store.py) L874–931 | 补充要求在下一模型边界采用，审批核对版本、工具/参数并一次消费；当前长时自主授权不是同一机制 |
-| 重启恢复 | [store.py](../nexus/task/store.py) L759–824；[ling.py](../nexus/ling.py) L236–275 | 任务中断/未知操作与输入 held/interrupted 已区分，默认保守人工恢复。自动自主恢复需另定策略 |
-| 执行容量 | [controller.py](../nexus/runtime/controller.py) L34–56；[server.py](../nexus/web/server.py) L227–232；[ling.py](../nexus/ling.py) L290 | 任务模型单 Worker；普通聊天和灵共享 BUSY，任务通道独立。自主后台直接占主体队列可能影响交流 |
-| 完成证据 | [callbacks.py](../nexus/runtime/callbacks.py) L96–148 | 完成需引用成功验证记录，但记录仍可由模型提交；须另核对实际成果 |
+| 稳定灵身份与持久输入队列 | [ling.py](../../../nexus/ling.py) L230–330 | 已接收输入可有序处理；无输入时 Worker 不自行产生目标。未来系统事件须保留来源，不能伪装用户输入 |
+| 工作监督与独立任务 | [ling.py](../../../nexus/ling.py) L67–214；[work.py](../../../nexus/tools/work.py) L52–84 | 可借用 work_start/list/read/message/control 和证据分页；任务事实不会全部进入主体上下文 |
+| 持久状态与通知 | [store.py](../../../nexus/task/store.py) L37–205、L208–293 | 任务、运行、操作、交互和事件已有事务基础；通知持久化并不自动唤醒灵作新决策 |
+| 有限续跑 | [assembly.py](../../../nexus/runtime/assembly.py) L30–41、L264–300、L382–391 | 灵委派任务在既定条件下最多正常续跑 4 次、连续 3 次无进展阻塞；不能拿它当无限自主调度器 |
+| 一次性安排 | [scheduler.py](../../../nexus/runtime/scheduler.py) L12–77 | 只启动已有任务，不形成新的活动目标；可参考到期认领，不能直接循环创建任务 |
+| 模型边界输入和审批 | [callbacks.py](../../../nexus/runtime/callbacks.py) L282–403；[store.py](../../../nexus/task/store.py) L874–931 | 补充要求在下一模型边界采用，审批核对版本、工具/参数并一次消费；当前长时自主授权不是同一机制 |
+| 重启恢复 | [store.py](../../../nexus/task/store.py) L759–824；[ling.py](../../../nexus/ling.py) L236–275 | 任务中断/未知操作与输入 held/interrupted 已区分，默认保守人工恢复。自动自主恢复需另定策略 |
+| 执行容量 | [controller.py](../../../nexus/runtime/controller.py) L34–56；[server.py](../../../nexus/web/server.py) L227–232；[ling.py](../../../nexus/ling.py) L290 | 任务模型单 Worker；普通聊天和灵共享 BUSY，任务通道独立。自主后台直接占主体队列可能影响交流 |
+| 完成证据 | [callbacks.py](../../../nexus/runtime/callbacks.py) L96–148 | 完成需引用成功验证记录，但记录仍可由模型提交；须另核对实际成果 |
 
 ### 9.1 两项与无人值守直接相关的已确认缺口
 
-**权限覆盖不能根据 `ask` 名称推断。** [permission.py](../nexus/core/permission.py) L65–100 的默认策略是默认允许，仅将写文件、补丁、bash 等列为询问；[mcp_tools.py](../nexus/tools/mcp_tools.py) L34–50 虽将 MCP 工具注册为非只读，但没有因此自动获得默认询问规则，通用 MCP 参数的 target 也没有专用范围映射。配置额外规则时行为可以不同。因此，**没有匹配自定义规则的 MCP 动作不能被当成已由默认 ask 完整保护**。这是静态确认的策略覆盖边界，不是本轮已复现的攻击事件；本轮按研究范围不修改它。任何未来有副作用的自主试验应先明确工具实际权限。
+**权限覆盖不能根据 `ask` 名称推断。** [permission.py](../../../nexus/core/permission.py) L65–100 的默认策略是默认允许，仅将写文件、补丁、bash 等列为询问；[mcp_tools.py](../../../nexus/tools/mcp_tools.py) L34–50 虽将 MCP 工具注册为非只读，但没有因此自动获得默认询问规则，通用 MCP 参数的 target 也没有专用范围映射。配置额外规则时行为可以不同。因此，**没有匹配自定义规则的 MCP 动作不能被当成已由默认 ask 完整保护**。这是静态确认的策略覆盖边界，不是本轮已复现的攻击事件；本轮按研究范围不修改它。任何未来有副作用的自主试验应先明确工具实际权限。
 
-**现有 token 展示不是完整费用账本。** [gateway.py](../nexus/model/gateway.py) L62–80 只在已知价格且无缓存字段时估算 cost；[agent.py](../nexus/core/agent.py) L615–629 的 usage 投影不包含 cost_usd；L246–273 的摘要调用没有汇总其 usage；[subagent.py](../nexus/core/subagent.py) L128–144 的报告不累计费用；失败重试路径也可能丢失已经产生的费用信息。配置有步数等限制，尚无跨主体/任务/子代理的日/月额度闸门。**不能用旧运行记录汇总出的金额批准无人值守长期消费。**
+**现有 token 展示不是完整费用账本。** [gateway.py](../../../nexus/model/gateway.py) L62–80 只在已知价格且无缓存字段时估算 cost；[agent.py](../../../nexus/core/agent.py) L615–629 的 usage 投影不包含 cost_usd；L246–273 的摘要调用没有汇总其 usage；[subagent.py](../../../nexus/core/subagent.py) L128–144 的报告不累计费用；失败重试路径也可能丢失已经产生的费用信息。配置有步数等限制，尚无跨主体/任务/子代理的日/月额度闸门。**不能用旧运行记录汇总出的金额批准无人值守长期消费。**
 
-另外，[assembly.py](../nexus/runtime/assembly.py) L61–82 在任务运行时重新读取全局权限，任务约束主要是文本而非可执行授权记录。后续需要区分历史授权依据与当前撤销状态，不能让旧任务因全局配置变化悄悄扩权。聊天、任务及后台工具可能共享工作区，SQLite 锁不保护任意文件操作；本轮没有实测冲突率。
+另外，[assembly.py](../../../nexus/runtime/assembly.py) L61–82 在任务运行时重新读取全局权限，任务约束主要是文本而非可执行授权记录。后续需要区分历史授权依据与当前撤销状态，不能让旧任务因全局配置变化悄悄扩权。聊天、任务及后台工具可能共享工作区，SQLite 锁不保护任意文件操作；本轮没有实测冲突率。
 
 ### 9.2 推荐的复用边界
 
