@@ -1,0 +1,8 @@
+STEP approval interaction {"type":"approval","tool":"write_file","arguments":{"path":"approve-probe.txt","content":"probe-ok"}}
+STEP interaction box visible true
+STEP approval placeholder 允许 / 拒绝，或说明
+STEP file after qualified approval false
+STEP transcript after [["tool","The user declined this call."],["assistant","写入调用被拒绝了，文件没有创建，因此也没有内容可以读回核对。\n\n如果你希望在拒绝之后继续，请再明确授权一次，我会重试同一个操作。"]]
+STEP notification list metrics {"exists":true,"scrollHeight":0,"clientHeight":0,"before":0}
+STEP draft after in-flight typing "这段文字是在提交后输入的"
+STEP page errors []

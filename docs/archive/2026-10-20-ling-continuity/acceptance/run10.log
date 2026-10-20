@@ -1,0 +1,9 @@
+STEP task {"id":"task_372f53f2efa445b6","state":"waiting_user"}
+STEP in legacy view, ling label hidden true
+STEP pending reached true
+STEP notification region visible while in legacy true
+STEP ling bar visible in legacy false
+STEP legacy transcript intact "legacy: 只回复 legacy-view。\n14:20\nlegacy-view\n用时 4.1 秒"
+STEP stop {"stopButtonVisible":true,"lingRunning":false,"lastInputStatus":"cancelled","taskBefore":"waiting_user","taskAfter":"waiting_user"}
+STEP 4xx/5xx responses [[409,"/api/task-control"]]
+STEP page errors []

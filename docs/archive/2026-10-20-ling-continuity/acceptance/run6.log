@@ -1,0 +1,5 @@
+STEP resume button visible true
+STEP inputs text "○\n这条必须保持待处理直到我点继续。\n重启后暂停；需要你确认继续\n○\n请从 1 数到 500，每个数字一行，中文数字，不要省略。\n上次处理已中断；检查已生效操作后发送新消息继续\n○\n这条消息应该在重启后保持待处理（held）。\n上次处理已中断；检查已生效操作后发送新消息继续\n○\n请从 1 数到 400，每个数字占一行，用中文写出，不要省略任何数字。\n上次处理已中断；检查已生效操作后发送新消息继续"
+STEP after clicking resume {"running":true,"queue_count":0,"inputs":[[15,"running"],[14,"interrupted"],[13,"interrupted"]]}
+STEP resume button still visible false
+STEP page errors []

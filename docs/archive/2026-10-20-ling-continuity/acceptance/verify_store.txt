@@ -1,0 +1,48 @@
+﻿home H:\文档\LingNexus\Nexus\.accept\store-verify-05qpps00
+
+=== F1: pending interaction orphaned by pause ===
+waiting; pending: 1 task cv: 4 interaction cv: 4
+paused -> paused pending: 1
+after pause: state paused task cv 5 interaction cv 4
+ANSWER REJECTED: TaskConflict task changed before this answer
+
+=== F1b: shorter path — user lifecycle change invalidates the pending answer ===
+before mark_paused: waiting_user cv 4
+after pause: paused task cv 5 interaction cv 4
+ANSWER REJECTED: TaskConflict task changed before this answer
+reopen rejected: TaskConflict only a cancelled task can be re-enabled
+pending still: 1
+
+=== F2: completed task still writable / re-completable ===
+completed: completed
+SECOND COMPLETE ACCEPTED: completed
+write after completion ACCEPTED: completed blocked: still blocked
+notifications: ['interaction', 'paused', 'interaction', 'paused', 'completed', 'completed', 'blocked']
+
+=== F3: resume while worker still active loses the queue ===
+pause() -> pausing | controller.active: task_7a5c0231d45e40dc
+resume() -> queued | queued: []
+after worker exits: queued: [] state: queued -> nobody will run it
+
+=== F4: approval matched across goal change ===
+pending for: deploy to staging cv 4
+goal changed -> deploy to production cv 5 interaction status pending
+answered_approval on NEW goal returned: None
+
+=== F5: interaction answer moved to the end of the model transcript ===
+stored: [('user', 'start'), ('assistant', 'asking now'), ('user', 'User answered the save'), ('assistant', 'deploying'), ('tool', 'done'), ('assistant', 'finished')]
+model order: ['user', 'assistant', 'assistant', 'tool', 'assistant', 'user']
+
+=== F6: scheduler hot loop on waiting task ===
+events before: 8 notifications: 11
+events after 30 ticks: 38 notifications: 11 schedule: {'due_at': '2020-01-01T00:00:00+00:00', 'timezone': 'UTC', 'mode': 'auto', 'version': 1, 'status': 'pending'}
+
+=== F7: claim ignores due_at/version (stale tick eats a new schedule) ===
+stale row version: 1 due: 2020-01-01T00:00:00+00:00
+new schedule: 2031-06-01T00:00:00+00:00 version 2 mode confirm
+STALE CLAIM RESULT: {'task_id': 'task_09cf0657d3284eb2', 'mode': 'confirm', 'operation': 'waiting_user'}
+schedule after stale claim: {'due_at': '2031-06-01T00:00:00+00:00', 'timezone': 'UTC', 'mode': 'confirm', 'version': 2, 'status': 'claimed'}
+after complete: {'due_at': '2031-06-01T00:00:00+00:00', 'timezone': 'UTC', 'mode': 'confirm', 'version': 2, 'status': 'consumed'}
+
+=== F8: events counting on a plain task (baseline) ===
+done

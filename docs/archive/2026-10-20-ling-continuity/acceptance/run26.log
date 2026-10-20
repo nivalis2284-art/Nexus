@@ -1,0 +1,7 @@
+STEP public origin http://192.168.2.10:8873/
+STEP page origin seen by browser http://192.168.2.10:8873
+STEP fetch results {"settings":"sent","ling":"sent"}
+STEP isSecureContext false
+STEP permission now yolo
+STEP file exists true
+STEP file content pwned-from-public-origin

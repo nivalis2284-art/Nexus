@@ -1,0 +1,5 @@
+STEP workspace shown in UI "H:\\文档\\LingNexus\\Nexus\""
+STEP sidebar workspace text "…/LingNexus/Nexus\""
+STEP transcript tail [["user","请只回复两个字：收到。"],["assistant","收到"]]
+STEP task create status 201 {"id": "task_fb434dc2cebe4bd1", "title": "workspace probe", "goal": "列出当前工作目录下的文件。", "constraints": "", "effective_goal": "列出当前工作目录下的文件。", "state": "pending", "wait_reason": "", "archived": false, "workspace": "H:\\文档\\LingNexus\\Nexus\"", "provider_id": "prov_d32bb42910", "model_id": "deepseek-v4.1
+STEP page errors []

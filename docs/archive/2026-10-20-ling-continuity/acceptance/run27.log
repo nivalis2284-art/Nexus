@@ -1,0 +1,6 @@
+STEP GET /api/state Host=127.0.0.1:8872 200 {'providers': [{'id': 'prov_d32bb42910', 'name': 'DS', 'family': 'openai_respons
+STEP GET /api/state Host=evil.example 200 {'providers': [{'id': 'prov_d32bb42910', 'name': 'DS', 'family': 'openai_respons
+STEP GET /api/state Host=attacker.test:1234 200 {'providers': [{'id': 'prov_d32bb42910', 'name': 'DS', 'family': 'openai_respons
+STEP GET /api/state Host=localhost 200 {'providers': [{'id': 'prov_d32bb42910', 'name': 'DS', 'family': 'openai_respons
+STEP POST /api/workspace Host=evil.example 200 {"providers": [{"id": "prov_d32bb42910", "name": "DS", "family": "openai_responses", "base_url": "https://cf.hetune.top"
+STEP workspace after (witnessed via evil Host) null

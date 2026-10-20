@@ -1,0 +1,4 @@
+STEP both pending {"A":"task_83dd9e6c362d46c7","B":"task_3da99abd804748ae"}
+STEP race {"ran":true,"alphaPanelBefore":1,"alphaPanelNow":1,"clickedIn":"ALPHA row"}
+STEP outcome {"A_state":"waiting_user","A_pending":1,"B_state":"running","B_pending":0,"files":[]}
+STEP feed [["A","pending","unread"],["B","answered","read"]]

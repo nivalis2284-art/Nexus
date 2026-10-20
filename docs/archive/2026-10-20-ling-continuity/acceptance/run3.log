@@ -1,0 +1,10 @@
+STEP file before approval false
+STEP ling session sdfd5a9852e20431d
+STEP notification text "灵的通知\n2 条未读\n全部已读\n收起\n在工作目录创建 pause-test.txt 并写入 paused-ok\n13:59\n任务需要你的处理：在工作目录创建 pause-test.txt 并写入 paused-ok\n查看关联任务\n处理请求\n标为已读\n创建工作目录下的 work-a.txt 与 work-b.txt 并读回核对\n13:57\n任务已完成：创建工作目录下的 work-a.txt 与 work-b.txt 并读回核对\n已在 H:\\文档\\LingNexus\\Nexus\\.accept\\ws 中按序创建两个文件并逐一读回核对：work-a.txt 写入 alpha，read_file 读回 \"1: alpha\"；work-b.txt 写入 beta，read_file 读回 \"1: beta\"。两项内容均与要求一致。目录中原无其他无关文件被创建或修改。\n查看关联任务\n标为已读"
+STEP after mark-read: file exists false
+STEP notifications after read [{"id":1,"kind":"completed","read":false,"interaction":null},{"id":2,"kind":"interaction","read":true,"interaction":"int_09d4880ff2ce4753"}]
+STEP handle button still present 1
+STEP approved in notification panel
+STEP task after approval {"state":"waiting_user","blocked":"","pending":1,"steps":[["登记步骤：即将在工作目录创建 pause-test.txt（内容 paused-ok）","in_progress"],["创建 pause-test.txt，写入 paused-ok","pending"],["用 read_file 读回核对内容为 paused-ok，记录验证证据","pending"]]}
+STEP file after approval null
+STEP page errors []
