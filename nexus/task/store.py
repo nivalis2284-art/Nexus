@@ -24,6 +24,12 @@ NOTIFICATION_KINDS = frozenset({
     "interrupted", "paused",
 })
 
+# Task facts a saved human decision was granted against. Changing one of these
+# makes the decision cover work the user never approved, so it must be
+# requested again. Lifecycle transitions (suspend, archive, recovery) leave
+# these untouched and keep the decision valid.
+AUTHORIZATION_SCOPE_FIELDS = ("goal", "effective_goal", "workspace")
+
 
 class TaskStore:
     """One local database. Each operation opens a short-lived connection."""
@@ -298,6 +304,53 @@ class TaskStore:
             raise TaskNotFound(f"task {task_id} not found")
         return row
 
+    @staticmethod
+    def _advance_control_version(
+        connection: sqlite3.Connection, task_id: str, *, previous_version: int,
+        new_version: int, target_changed: bool,
+    ) -> None:
+        """Move every still-live record to the task's new control version.
+
+        ``control_version`` identifies the task state a human decision belongs
+        to. Every writer that advances it must move pending interactions and
+        their unread notices in the same transaction; otherwise a decision is
+        left at a version nothing will ever be answered at again (it can be
+        neither answered nor dismissed). A target change is the opposite case:
+        the earlier version no longer describes the task, so its pending
+        decisions are ended explicitly and visibly instead of being carried
+        forward or silently stranded.
+        """
+        if target_changed:
+            connection.execute(
+                "UPDATE interactions SET status='expired',updated_at=? "
+                "WHERE task_id=? AND status='pending'",
+                (now_iso(), task_id),
+            )
+            # An answered-but-not-yet-consumed approval is also an authorization
+            # for the previous target. Retire it here so a record written before
+            # the target was stored cannot be replayed against the new one.
+            connection.execute(
+                "UPDATE interactions SET status='expired',updated_at=? "
+                "WHERE task_id=? AND kind='approval' AND status='answered'",
+                (now_iso(), task_id),
+            )
+            connection.execute(
+                "UPDATE notifications SET control_version=? "
+                "WHERE task_id=? AND interaction_id IS NOT NULL AND read_at IS NULL",
+                (new_version, task_id),
+            )
+            return
+        connection.execute(
+            "UPDATE interactions SET control_version=? WHERE task_id=? "
+            "AND status='pending' AND control_version=?",
+            (new_version, task_id, previous_version),
+        )
+        connection.execute(
+            "UPDATE notifications SET control_version=? "
+            "WHERE task_id=? AND interaction_id IS NOT NULL AND read_at IS NULL",
+            (new_version, task_id),
+        )
+
     def create(
         self, *, title: str, goal: str, constraints: str = "", workspace: str,
         provider_id: str = "", model_id: str = "", effort: str | None = None,
@@ -457,11 +510,21 @@ class TaskStore:
                     "goal", "constraints", "effective_goal", "workspace",
                     "provider_id", "model_id", "effort",
                 }
+                # A different goal or workspace is different work, so decisions
+                # saved for the previous target must be requested again.
+                target_changed = any(
+                    values[field] != row[field]
+                    for field in AUTHORIZATION_SCOPE_FIELDS if field in values
+                )
                 values["control_version"] = expected_version + 1
                 values["updated_at"] = now_iso()
                 assignments = ", ".join(f"{key}=?" for key in values)
                 connection.execute(f"UPDATE tasks SET {assignments} WHERE id=?",
                                    (*values.values(), task_id))
+                self._advance_control_version(
+                    connection, task_id, previous_version=expected_version,
+                    new_version=expected_version + 1, target_changed=target_changed,
+                )
                 if touched_schedule:
                     connection.execute("DELETE FROM schedules WHERE task_id=?", (task_id,))
                 self._event(connection, task_id, "task.user_edit",
@@ -551,19 +614,13 @@ class TaskStore:
                 "UPDATE tasks SET state=?,wait_reason=?,archived=?,control_version=?,updated_at=? WHERE id=?",
                 (target, wait_reason, int(archived), control_version, now_iso(), task_id),
             )
-            if operation == "waiting_user":
-                connection.execute(
-                    "UPDATE interactions SET control_version=? WHERE task_id=? "
-                    "AND status='pending' AND control_version=?",
-                    (control_version, task_id, row["control_version"]),
-                )
-                # A waiting request stays answerable across its own version
-                # transition. A later task change invalidates it as before.
-                connection.execute(
-                    "UPDATE notifications SET control_version=? "
-                    "WHERE task_id=? AND interaction_id IS NOT NULL AND read_at IS NULL",
-                    (control_version, task_id),
-                )
+            # Lifecycle commands (suspend, resume, reopen, archive, ...) change
+            # the task's state, not the work it was authorized to do, so a
+            # still-pending decision stays answerable at the new version.
+            self._advance_control_version(
+                connection, task_id, previous_version=row["control_version"],
+                new_version=control_version, target_changed=False,
+            )
             result = {"task_id": task_id, "state": target}
             self._remember_command(connection, request_id, task_id, operation, result)
             self._event(connection, task_id, "task.control", {
@@ -597,6 +654,12 @@ class TaskStore:
                 "UPDATE tasks SET state=?,wait_reason=?,control_version=?,updated_at=? WHERE id=?",
                 (target, wait_reason,
                  expected_version + 1, now_iso(), task_id),
+            )
+            # A human lifecycle correction changes status only; a decision the
+            # user already opened stays answerable at the new version.
+            self._advance_control_version(
+                connection, task_id, previous_version=expected_version,
+                new_version=expected_version + 1, target_changed=False,
             )
             self._remember_command(connection, request_id, task_id, operation, {"state": target})
             self._event(connection, task_id, "task.user_lifecycle", {
@@ -784,6 +847,13 @@ class TaskStore:
                         ("服务上次意外结束；请核查未知操作后手动继续",
                          task["control_version"] + 1, now_iso(), row["task_id"]),
                     )
+                    # Restart recovery is a status change: a decision recorded
+                    # before the crash stays answerable instead of becoming an
+                    # orphan that can be neither answered nor dismissed.
+                    self._advance_control_version(
+                        connection, row["task_id"], previous_version=task["control_version"],
+                        new_version=task["control_version"] + 1, target_changed=False,
+                    )
                 self._event(connection, row["task_id"], "run.interrupted", {
                     "run_id": row["id"],
                     "wait_reason": "服务上次意外结束；请核查未知操作后手动继续",
@@ -816,6 +886,13 @@ class TaskStore:
                 connection.execute(
                     "UPDATE tasks SET state='waiting_user',wait_reason=?,control_version=control_version+1,updated_at=? WHERE id=?",
                     ("重启前任务已排队但尚未开始，等待用户确认", stamp, task["id"]),
+                )
+                # Holding the queue entry is a status change. Any decision that
+                # was already pending must follow the new version rather than
+                # being stranded at a version that can never be answered.
+                self._advance_control_version(
+                    connection, task["id"], previous_version=task["control_version"],
+                    new_version=task["control_version"] + 1, target_changed=False,
                 )
                 self._event(connection, task["id"], "start.held_after_restart",
                             {"interaction_id": interaction_id,
@@ -864,6 +941,12 @@ class TaskStore:
                 "UPDATE tasks SET state='waiting_user',wait_reason=?,control_version=control_version+1,updated_at=? WHERE id=?",
                 ("定时安排已到期，等待用户确认开始", stamp, task_id),
             )
+            # Earlier pending decisions belong to the state before this start
+            # request but still describe the same target, so they stay answerable.
+            self._advance_control_version(
+                connection, task_id, previous_version=row["control_version"],
+                new_version=row["control_version"] + 1, target_changed=False,
+            )
             self._remember_command(connection, request_id, task_id, "confirm_wait",
                                    {"interaction_id": interaction_id})
             self._event(connection, task_id, "interaction.pending",
@@ -876,9 +959,17 @@ class TaskStore:
             row = connection.execute("SELECT * FROM interactions WHERE id=?", (interaction_id,)).fetchone()
             if row is None:
                 raise TaskNotFound(f"interaction {interaction_id} not found")
+            if row["status"] == "expired":
+                raise TaskConflict(
+                    "task target changed after this decision was requested; "
+                    "request approval again"
+                )
             if row["status"] != "pending":
                 raise TaskConflict("interaction has already been answered")
             task = self._row(connection, row["task_id"])
+            # Lifecycle transitions keep pending decisions at the current
+            # version, so a mismatch means the target was changed or the
+            # request the user is holding no longer describes this task.
             if row["control_version"] != task["control_version"]:
                 raise TaskConflict("task changed before this answer")
             if expected_version is not None and row["control_version"] != expected_version:
@@ -905,7 +996,13 @@ class TaskStore:
             return {"id": interaction_id, "task_id": row["task_id"], "operation_id": row["operation_id"], "answer": answer}
 
     def answered_approval(self, task_id: str, *, tool: str, arguments: dict[str, Any]) -> dict[str, Any] | None:
-        """Find one exact, still-unconsumed answer for this task and tool call."""
+        """Find one exact, still-unconsumed answer for this task and tool call.
+
+        Only a decision that is still usable may be replayed. Changing the goal
+        or workspace retires the approvals taken for the previous target (see
+        ``_advance_control_version``), so this can only match answers granted
+        for the work the task is doing now.
+        """
         connection = self._connect()
         try:
             self._row(connection, task_id)

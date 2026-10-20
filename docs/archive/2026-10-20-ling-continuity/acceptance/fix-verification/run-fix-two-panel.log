@@ -1,0 +1,6 @@
+STEP server http://127.0.0.1:8873
+STEP both pending {"A":"task_b4c5dd191b5d4782","B":"task_dd37e28c63b84bed"}
+STEP both panels open 2 OK
+STEP clicked ALPHA allow true
+STEP outcome {"A_state":"running","A_pending":0,"B_state":"waiting_user","B_pending":1}
+STEP verdict APPROVED A ONLY (fixed)

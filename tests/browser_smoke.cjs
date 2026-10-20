@@ -146,12 +146,11 @@ async function main() {
     await page.locator('#task-create').click();
     await page.locator('#task-title').filter({ hasText: 'approval resume' }).waitFor();
     await page.locator('#task-start').click();
-    await page.locator('#task-interactions input').waitFor();
+    await page.locator('#task-interactions button').filter({ hasText: '允许' }).waitFor();
     assert.equal(fs.existsSync(path.join(workspace, 'task-result.txt')), false);
     await page.reload();
     await page.locator('#tasks li').filter({ hasText: 'approval resume' }).click();
-    await page.locator('#task-interactions input').fill('允许');
-    await page.locator('#task-interactions button').click();
+    await page.locator('#task-interactions button').filter({ hasText: '允许' }).click();
     await page.locator('#transcript .answer').filter({ hasText: 'Task smoke complete.' }).waitFor();
     assert.equal(fs.readFileSync(path.join(workspace, 'task-result.txt'), 'utf8'), 'browser verified');
     assert.equal(taskRequests, 3, 'task approval must resume the exact call and continue to its answer');
@@ -159,8 +158,11 @@ async function main() {
     await page.screenshot({ path: path.join(root, '.artifacts', 'task-approval-smoke.png'), fullPage: true });
 
     const fixtures = path.join(temporary, 'fixtures');
+    // The fixture generator imports the package; make the checkout importable
+    // regardless of whether the caller exported PYTHONPATH.
     execFileSync(process.env.NEXUS_TEST_PYTHON || 'python', ['tests/attachment_fixtures.py', fixtures],
-      {cwd: root, windowsHide: true});
+      {cwd: root, windowsHide: true,
+       env: {...process.env, PYTHONPATH: [root, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter)}});
     await page.locator('#new').click();
     await page.locator('#task-panel').waitFor({state: 'hidden'});
     const fileNames = ['notes.md', 'report.docx', 'table.xlsx', 'deck.pptx', 'report.pdf', 'archive.zip'];

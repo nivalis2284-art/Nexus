@@ -143,7 +143,17 @@ def test_orphaned_run_is_paused_and_dispatching_is_unknown(tmp_path):
     assert unfinished[0]["status"] == "unknown"
 
 
-def test_interaction_answer_cannot_authorize_a_changed_task(tmp_path):
+def test_interaction_answer_requires_the_answers_current_version(tmp_path):
+    """A status change keeps the decision live, but an old version still fails.
+
+    The earlier form of this test asserted that any ``control_version`` change
+    made the pending decision permanently unanswerable. That was the defect
+    it was written around: suspending a task with an approval open left the
+    approval with no possible outcome (and no dismissal) until the task was
+    deleted. Lifecycle transitions now carry the decision to the new version;
+    what remains rejected is answering on behalf of a version the user is no
+    longer looking at, and replaying an answer for a changed target.
+    """
     store = make_store(tmp_path)
     item = create(store)
     pending = store.interaction_create(
@@ -153,4 +163,7 @@ def test_interaction_answer_cannot_authorize_a_changed_task(tmp_path):
     )
     store.command(item.id, "queued", request_id="control-change")
     with pytest.raises(TaskConflict):
-        store.interaction_answer(pending, answer=True, expected_version=2)
+        store.interaction_answer(pending, answer=True, expected_version=1)
+    assert store.interaction(pending)["status"] == "pending"
+    store.interaction_answer(pending, answer=True, expected_version=2)
+    assert store.interaction(pending)["status"] == "answered"

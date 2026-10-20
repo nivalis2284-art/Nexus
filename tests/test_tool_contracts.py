@@ -43,7 +43,10 @@ def test_foreground_command_observes_shared_stop_signal(tmp_path):
     import time
     marker = tmp_path / "ready"
     script = tmp_path / "long.py"
-    script.write_text(f"from pathlib import Path\nimport time\nPath({str(marker)!r}).touch()\ntime.sleep(30)\n")
+    script.write_text(
+        f"from pathlib import Path\nimport time\nPath({str(marker)!r}).touch()\ntime.sleep(30)\n",
+        encoding="utf-8",
+    )
     stopped = threading.Event()
     registry, context = build(root=tmp_path, cancel_event=stopped)
     results = []

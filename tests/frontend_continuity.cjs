@@ -310,13 +310,36 @@ async function testInteractionDraftSurvivesPolling() {
   const data = h.snapshot();
   data.interaction = { type: "approval", token: "tok", tool: "bash", arguments: { command: "ls" } };
   await h.evaluate("openLing()");
-  const answer = h.ids.get("ling-interaction").querySelector(".ling-approval-answer");
-  answer.value = "说明尚未提交";
-  answer.handlers.input();
+  const box = h.ids.get("ling-interaction");
+  const choices = box.querySelector(".ling-approval-choices");
+  assert.ok(choices, "an approval renders explicit allow and deny buttons");
+  assert.equal(box.querySelector(".ling-approval-answer"), null,
+    "an approval is no longer a free-text field");
   await h.evaluate("pollLing()");
-  assert.equal(h.ids.get("ling-interaction").querySelector(".ling-approval-answer").value,
-    "说明尚未提交", "polling keeps the live interaction input");
-  console.log("ok - Ling interaction draft survives a matching poll");
+  assert.equal(h.ids.get("ling-interaction").querySelector(".ling-approval-choices"), choices,
+    "polling keeps the live approval panel instead of rebuilding it");
+  console.log("ok - Ling approval buttons survive a matching poll");
+}
+
+async function testLingApprovalButtonsSendBooleans() {
+  const h = await harness();
+  const data = h.snapshot();
+  data.interaction = { type: "approval", token: "tok-yes", tool: "bash", arguments: { command: "ls" } };
+  await h.evaluate("openLing()");
+  h.ids.get("ling-interaction").querySelector(".ling-approval-allow").handlers.click();
+  await new Promise((resolve) => setImmediate(resolve));
+  const allowed = h.calls.bodies.find((call) => call.path === "/api/approval");
+  assert.equal(allowed.body.allowed, true, "允许 submits allowed=true");
+  assert.equal(allowed.body.token, "tok-yes");
+
+  const denied = await harness();
+  denied.snapshot().interaction = { type: "approval", token: "tok-no", tool: "bash", arguments: { command: "ls" } };
+  await denied.evaluate("openLing()");
+  denied.ids.get("ling-interaction").querySelector(".ling-approval-deny").handlers.click();
+  await new Promise((resolve) => setImmediate(resolve));
+  const refused = denied.calls.bodies.find((call) => call.path === "/api/approval");
+  assert.equal(refused.body.allowed, false, "拒绝 submits allowed=false");
+  console.log("ok - Ling approval buttons submit explicit booleans");
 }
 
 async function testInteractionClearsOnceWithoutEchoingHandledText() {
@@ -361,7 +384,7 @@ async function testNotificationsDedupeAndAnswerThroughTaskApi() {
   assert.equal(h.evaluate("lingView.notifications.length"), 2, "startup backfill is deduplicated by id");
   const interaction = { kind: "approval", task_id: "t1", interaction_id: "i1", control_version: 7 };
   h.evaluate(`lingView.interaction = ${JSON.stringify(interaction)}`);
-  await h.evaluate("answerLingInteraction('允许')");
+  await h.evaluate("answerLingInteraction(true)");
   const answer = h.calls.bodies.find((call) => call.path.endsWith("/interactions/i1/answer"));
   assert.equal(answer.body.answer, true);
   assert.equal(answer.body.expected_version, 7);
@@ -451,6 +474,69 @@ async function testNotificationFeedKeepsOpenDraftAcrossPoll() {
   console.log("ok - notification interaction drafts survive feed updates");
 }
 
+async function testTwoOpenNotificationPanelsKeepTheirOwnApproval() {
+  const h = await harness();
+  const data = h.snapshot();
+  data.notifications = [{
+    id: 11, task_id: "t1", kind: "interaction", title: "审批 A", text: "",
+    interaction_id: "i-a", read_at: null, created_at: "2026-10-20T01:00:00Z",
+  }, {
+    id: 12, task_id: "t1", kind: "interaction", title: "审批 B", text: "",
+    interaction_id: "i-b", read_at: null, created_at: "2026-10-20T01:01:00Z",
+  }];
+  h.setTaskDetail({
+    id: "t1", control_version: 5, pending_interactions: [{
+      id: "i-a", kind: "approval", control_version: 5,
+      payload: { tool: "write_file", arguments: { path: "a" } },
+    }, {
+      id: "i-b", kind: "approval", control_version: 5,
+      payload: { tool: "write_file", arguments: { path: "b" } },
+    }],
+  });
+  await h.evaluate("openLing()");
+  h.evaluate("$('notification-region').hidden = false");
+  const rows = () => h.ids.get("notification-list").querySelectorAll(".notification-item");
+  const rowFor = (id) => rows().find((row) => row.dataset.notificationId === String(id));
+  assert.ok(rowFor(11) && rowFor(12), "both pending notifications are listed");
+
+  rowFor(11).querySelector(".notification-handle").handlers.click();
+  await new Promise((resolve) => setImmediate(resolve));
+  rowFor(12).querySelector(".notification-handle").handlers.click();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(rowFor(11).querySelector(".notification-action-panel"),
+    "opening the second panel does not discard the first");
+  assert.ok(rowFor(12).querySelector(".notification-action-panel"));
+  assert.match(rowFor(11).querySelector(".notification-action-tool").textContent, /write_file/);
+
+  // A poll redraws the feed; both panels must keep their own binding.
+  await h.evaluate("renderNotifications()");
+  const first = rows().find((row) => row.dataset.notificationId === "11");
+  assert.ok(first.querySelector(".notification-action-panel"),
+    "the first panel survives a feed redraw");
+  first.querySelector(".notification-allow").handlers.click();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const answers = h.calls.bodies.filter((call) => call.path.includes("/interactions/"));
+  assert.equal(answers.length, 1, "exactly one interaction is answered");
+  assert.match(answers[0].path, /\/interactions\/i-a\/answer$/,
+    "the first panel approves its own notification, not the newest one");
+  assert.equal(answers[0].body.answer, true);
+
+  // The other panel is neither answered nor closed by the first submission.
+  const second = rows().find((row) => row.dataset.notificationId === "12");
+  assert.ok(second.querySelector(".notification-action-panel"),
+    "the second panel stays open after the first is approved");
+  assert.doesNotMatch(second.querySelector(".notification-action-message")?.textContent || "",
+    /已处理/, "the second notification is still awaiting its own answer");
+
+  // Marking read is not an approval and must not answer anything.
+  h.evaluate("markNotificationRead(lingView.notifications.find((item) => item.id === 12))");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(h.calls.bodies.filter((call) => call.path.includes("/interactions/")).length, 1,
+    "标为已读 never submits an approval");
+  console.log("ok - two open notification panels each approve their own interaction");
+}
+
 async function testNotificationSubmitStaysBoundDuringPolling() {
   const h = await harness();
   const data = h.snapshot();
@@ -471,9 +557,9 @@ async function testNotificationSubmitStaysBoundDuringPolling() {
   h.evaluate(`
     __notificationGate = new Promise((resolve) => { __releaseNotification = resolve; });
     __originalSubmitNotification = submitNotificationAction;
-    submitNotificationAction = async (approval) => {
+    submitNotificationAction = async (approval, target) => {
       await __notificationGate;
-      return __originalSubmitNotification(approval);
+      return __originalSubmitNotification(approval, target);
     };
     __sendGate = new Promise((resolve) => { __releaseSend = resolve; });
     __originalAnswerWithGate = answerLingInteraction;
@@ -574,11 +660,13 @@ async function main() {
   await testPollingDoesNotRedrawStableMessages();
   await testPollingKeepsDraftAndAttachment();
   await testInteractionDraftSurvivesPolling();
+  await testLingApprovalButtonsSendBooleans();
   await testInteractionClearsOnceWithoutEchoingHandledText();
   await testNotificationsDedupeAndAnswerThroughTaskApi();
   await testNotificationHandlesRequestInline();
   await testStaleNotificationShowsHandledState();
   await testNotificationFeedKeepsOpenDraftAcrossPoll();
+  await testTwoOpenNotificationPanelsKeepTheirOwnApproval();
   await testNotificationSubmitStaysBoundDuringPolling();
   await testNotificationAutoOpensOnlyForFreshUnread();
   await testLegacyEntryRemains();

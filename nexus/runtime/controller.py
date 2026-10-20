@@ -92,7 +92,15 @@ class TaskController:
 
     def _enqueue(self, task_id: str) -> None:
         with self._lock:
-            if self._closed or task_id == self._active or task_id in self._queue:
+            if self._closed or task_id in self._queue:
+                return
+            if task_id == self._active:
+                # The single worker still owns this task, so a second entry
+                # cannot be queued without risking two runs of one task. The
+                # persisted state keeps the request: when that worker releases
+                # the task it re-reads the state and re-queues it if it still
+                # asks to run. Dropping the request here loses it forever once
+                # the worker exits with an empty queue.
                 return
             self._queue.append(task_id)
             self._change.notify_all()
@@ -132,6 +140,19 @@ class TaskController:
                     self._active_run = None
                     self._cancel_events.pop(task_id, None)
                     self._change.notify_all()
+                # The persisted state is the authority for "this task still
+                # wants to run". A resume that arrived while this task was
+                # active could not be queued then; re-queue it now that the
+                # task is released, otherwise it stays ``queued`` with no
+                # worker left to claim it. Done outside the controller lock so
+                # the storage read cannot nest locks; _enqueue de-duplicates,
+                # so a resume that already queued it is not added twice.
+                try:
+                    still_queued = self.store.get(task_id).state == "queued"
+                except Exception:
+                    still_queued = False
+                if still_queued:
+                    self._enqueue(task_id)
 
     def _execute(self, task: Task, cancel: threading.Event, *, run_id: str) -> None:
         # Queued tasks begin paused in storage; mark strict internal ownership

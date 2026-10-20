@@ -206,10 +206,20 @@ function renderTaskInteractions(interactions) {
       accept.addEventListener("click", () => confirmTaskStart(interaction));
       row.appendChild(accept);
     }
-    if (interaction.kind === "question" || interaction.kind === "approval") {
+    if (interaction.kind === "approval") {
+      // Approval is an explicit binary choice, so no free text is parsed.
+      const allow = el("button", "", "允许");
+      allow.type = "button";
+      allow.addEventListener("click", () => answerTaskInteraction(interaction, true));
+      const deny = el("button", "", "拒绝");
+      deny.type = "button";
+      deny.addEventListener("click", () => answerTaskInteraction(interaction, false));
+      row.appendChild(allow);
+      row.appendChild(deny);
+    } else if (interaction.kind === "question") {
       const answer = el("input", "question-free");
       answer.type = "text";
-      answer.placeholder = interaction.kind === "approval" ? "允许 / 拒绝" : "回答";
+      answer.placeholder = "回答";
       const submit = el("button", "", "提交并继续");
       submit.type = "button";
       submit.addEventListener("click", () => answerTaskInteraction(interaction, answer.value));
@@ -237,10 +247,10 @@ async function confirmTaskStart(interaction) {
 
 async function answerTaskInteraction(interaction, value) {
   const current = taskView.current;
-  if (!current || !String(value).trim()) return;
-  const answer = interaction.kind === "approval"
-    ? /^(allow|yes|允许|同意)$/i.test(String(value).trim())
-    : String(value).trim();
+  if (!current) return;
+  const approval = interaction.kind === "approval";
+  if (approval ? typeof value !== "boolean" : !String(value).trim()) return;
+  const answer = approval ? value : String(value).trim();
   try {
     await taskPost("/api/tasks/" + encodeURIComponent(current.id) + "/interactions/" +
       encodeURIComponent(interaction.id) + "/answer", {

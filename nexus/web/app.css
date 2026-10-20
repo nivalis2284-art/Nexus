@@ -133,6 +133,7 @@ html, body {
 .task-steps { margin-top: 10px; display: grid; gap: 5px; }
 .task-step { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
 .task-step .badge { color: var(--muted); white-space: nowrap; }
+.task-step button { border: 1px solid var(--line); background: #fff; border-radius: 7px; padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; }
 .task-interactions { margin-top: 10px; }
 .task-schedule { margin-top: 12px; }
 .task-schedule label { display: block; margin: 5px 0; }
@@ -379,6 +380,10 @@ html, body {
 .ling-interaction-detail { max-height: 150px; overflow: auto; margin: 0; padding: 7px 8px; border-radius: 6px; background: #f4f3fa; font-family: var(--mono); font-size: 10.5px; white-space: pre-wrap; }
 .ling-interaction input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; font: inherit; font-size: 12px; }
 .ling-interaction > .primary { align-self: flex-end; border: 0; border-radius: 7px; padding: 5px 10px; background: var(--accent); color: #fff; font: inherit; font-size: 12px; cursor: pointer; }
+.ling-approval-choices { display: flex; gap: 7px; flex-wrap: wrap; }
+.ling-approval-choices button { border: 1px solid var(--line); border-radius: 7px; padding: 5px 12px; background: #fff; color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+.ling-approval-choices .ling-approval-allow { border-color: var(--accent); background: var(--accent); color: #fff; }
+.ling-approval-choices .ling-approval-deny { color: var(--ink-2); }
 .ling-question-block { padding: 5px 0; border-top: 1px solid #f0eff8; }
 .ling-question-text { margin: 0 0 4px; font-size: 12px; color: var(--ink-2); white-space: pre-wrap; }
 .ling-question-choices { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 5px; }

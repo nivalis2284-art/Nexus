@@ -33,7 +33,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, urlsplit
 
 from .. import mcp, skills
 from ..attachments import AttachmentStore, message_text
@@ -286,6 +286,150 @@ def _read_json(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+# --- request origin ------------------------------------------------------
+#
+# Binding to loopback is not an authorization boundary: every page the user
+# visits can reach 127.0.0.1, and DNS rebinding can point a hostile hostname
+# here. Three checks run before any route, outermost first:
+#
+#   Host    must be this service's own loopback authority. A rebound name no
+#           longer matches, so the request dies before it is routed.
+#   Origin  when present, must be this service's own origin. A browser always
+#           sends it on the cross-site writes this blocks.
+#   Type    a write that carries a body must be application/json. A browser
+#           cannot send that cross-origin without a CORS preflight, which this
+#           server never grants; text/plain is the shape an attacker can send.
+#
+# A missing Origin is accepted: curl and the existing tests do not send one,
+# and a browser cannot omit it on a cross-site write.
+
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def _service_port(handler: BaseHTTPRequestHandler) -> int | None:
+    """The port this process actually bound, for comparing Host and Origin."""
+    address = getattr(getattr(handler, "server", None), "server_address", None)
+    if isinstance(address, tuple) and len(address) >= 2:
+        try:
+            return int(address[1])
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _parsed_port(url) -> int | None:
+    """``url.port`` with its ValueError turned into "no usable port"."""
+    try:
+        return url.port
+    except ValueError:
+        return None
+
+
+def _authority_allowed(url, expected: int | None) -> bool:
+    """True when ``url`` names loopback on the port this service bound.
+
+    A browser omits the port when it is the scheme default (80), so that one
+    spelling is accepted; everything else must match exactly.
+    """
+    if expected is None or url is None or url.hostname not in LOOPBACK_HOSTS:
+        return False
+    port = _parsed_port(url)
+    return port == expected or (port is None and expected == 80)
+
+
+def _host_allowed(value: str, expected: int | None) -> bool:
+    """Check a Host header. Rejects delimiters, userinfo and unknown ports."""
+    if not value or any(ch in value for ch in " \t\r\n/,@"):
+        return False
+    try:
+        parsed = urlsplit("//" + value)
+    except ValueError:
+        return False
+    return _authority_allowed(parsed, expected)
+
+
+def _origin_allowed(value: str, expected: int | None) -> bool:
+    """Check an Origin header: an http origin on this service, nothing else."""
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return False
+    if parsed.scheme != "http" or parsed.username or parsed.password:
+        return False
+    # An Origin is only ever scheme://host[:port]; a path or query means this
+    # is not a browser origin, or someone is probing.
+    if parsed.path not in ("", "/") or parsed.query or parsed.fragment:
+        return False
+    return _authority_allowed(parsed, expected)
+
+
+def _body_present(handler: BaseHTTPRequestHandler) -> bool:
+    """Whether this request declares a body worth guarding."""
+    raw = handler.headers.get("Content-Length")
+    if raw is not None:
+        try:
+            if int(raw) > 0:
+                return True
+        except ValueError:
+            return True  # unparsable length: assume a body
+    return bool(handler.headers.get("Transfer-Encoding"))
+
+
+def _json_content_type(value: str | None) -> bool:
+    """``application/json`` with an optional parameter such as charset."""
+    if not value:
+        return False
+    return value.split(";", 1)[0].strip().lower() == "application/json"
+
+
+# Enough to swallow any body these tests and a browser will send, without
+# letting a refused request spend unbounded time reading.
+# Enough to swallow any body a browser or these tests will send. A request
+# declaring more than this is refused without draining: a refused request must
+# not be a way to make the server read arbitrarily much.
+DRAIN_BYTES = 1024 * 1024
+
+
+def _drain(handler: BaseHTTPRequestHandler) -> None:
+    """Read a refused request's body so the response is not lost to a reset.
+
+    Closing a socket that still has unread inbound bytes makes the OS answer
+    with RST, and the client then sees a connection error instead of the 403.
+    Reading the declared body first lets the response land. Bounded, so this
+    cannot be used to make the server read forever.
+    """
+    try:
+        length = int(handler.headers.get("Content-Length") or 0)
+    except ValueError:
+        return
+    if length <= 0 or length > DRAIN_BYTES:
+        return
+    remaining = length
+    try:
+        while remaining > 0:
+            chunk = handler.rfile.read(min(remaining, 65536))
+            if not chunk:
+                return
+            remaining -= len(chunk)
+    except OSError:
+        return
+
+
+def _is_attachment_upload(path: str) -> bool:
+    """Mirror attachments.route's POST shape: raw bytes, never JSON.
+
+    Uploads carry a browser-chosen Content-Type and stream the file directly,
+    so the JSON requirement must not apply to them. Host and Origin still do.
+    """
+    parts = path.strip("/").split("/")
+    return (
+        len(parts) == 4
+        and parts[0] == "api"
+        and parts[1] in ("sessions", "tasks")
+        and parts[3] == "attachments"
+    )
+
+
 def _transcript(session) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for item in session.items:
@@ -359,6 +503,58 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt: str, *args: Any) -> None:
         return
+
+    # --- request guard ---------------------------------------------------
+
+    def parse_request(self) -> bool:
+        """Parse, then refuse anything not addressed to this loopback service.
+
+        This runs for every method, so a refused request never reaches a route,
+        an attachment store or the agent. It is the only place that decides
+        admission; the individual do_* methods assume it already passed.
+        """
+        if not super().parse_request():
+            return False
+        return self._admit()
+
+    def _admit(self) -> bool:
+        port = _service_port(self)
+        if not _host_allowed(self.headers.get("Host") or "", port):
+            # Also covers DNS rebinding: a hostile name does not spell loopback.
+            return self._refuse(403, "Host 头不是本机地址，已拒绝。")
+        origin = self.headers.get("Origin")
+        if origin is not None and not _origin_allowed(origin, port):
+            return self._refuse(403, "跨来源请求已拒绝。")
+        if self.command in ("POST", "PUT", "DELETE"):
+            path = urlparse(self.path).path
+            # Uploads stream raw browser bytes with a caller-chosen type.
+            if not _is_attachment_upload(path):
+                content_type = self.headers.get("Content-Type")
+                if (_body_present(self) or content_type is not None) and not _json_content_type(
+                    content_type
+                ):
+                    return self._refuse(415, "写请求必须使用 application/json。")
+        return True
+
+    def _refuse(self, status: int, message: str) -> bool:
+        """Answer and close, without letting the body reach a route."""
+        # Unread bytes in the socket turn the close into an RST, which would
+        # lose this response on the wire; swallow the declared body first.
+        _drain(self)
+        self.close_connection = True
+        body = json.dumps({"error": message}, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+        try:
+            self.wfile.flush()
+        except OSError:
+            pass
+        return False
 
     # --- routing ---------------------------------------------------------
 
