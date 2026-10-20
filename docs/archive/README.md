@@ -7,4 +7,6 @@
 - [系统维护 PRD](2026-10-20-maintenance/PRD.md)、[维护交付与验收证据](2026-10-20-maintenance/PROGRESS.md)：2026-10-20 进入附件功能阶段时归档，保留上一轮 354 passed / 1 skipped、真实 Edge 验证和全部限制。
 - [通用附件 PRD](2026-10-20-attachments/PRD.md)、[附件交付与验收证据](2026-10-20-attachments/PROGRESS.md)：2026-10-20 进入灵的持续性研究阶段时归档，保留 370 passed / 1 skipped、六种文件格式的 Edge 验证、读取范围及未验证项。对应代码提交为 `31f3bbc`。
 
-当前需求见 [PRD](../PRD.md)，持续性开发前调查、用户补充确认和技术取舍见 [RESEARCH](../RESEARCH.md)，当前实现、验证证据及未验证条件见 [PROGRESS](../PROGRESS.md)。愿景和其他历史参考继续保留在原目录。
+- [灵的持续性 PRD](2026-10-20-ling-continuity/PRD.md)、[研究记录](2026-10-20-ling-continuity/RESEARCH.md)、[交付和验收条件](2026-10-20-ling-continuity/PROGRESS.md)：2026-10-20 进入自主性研究任务时归档；旧阶段仍未正式验收，留存全部证据和限制。
+
+当前研究任务见 [自主性技术可行性探究 PRD](../PRD.md)（待用户确认）。旧持续性阶段资料见 [PRD](2026-10-20-ling-continuity/PRD.md)、[研究](2026-10-20-ling-continuity/RESEARCH.md)、[交付记录](2026-10-20-ling-continuity/PROGRESS.md)。**持续性正在独立全量验收，归档不是验收通过。** 愿景和其他历史参考继续保留在原目录。

@@ -172,9 +172,9 @@ AGENTS.md    开发协作说明
 ## 文档导航
 
 - [`AGENTS.md`](AGENTS.md)：给开发 Agent 的简洁协作说明，不代替具体 PRD。
-- [`docs/PRD.md`](docs/PRD.md)：当前「灵的第一阶段 · 持续性」PRD，保留上传原文。
-- [`docs/RESEARCH.md`](docs/RESEARCH.md)：持续性开发前的需求复核、用户补充确认、现状差距与方案研究快照；后续实现见交付记录。
-- [`docs/PROGRESS.md`](docs/PROGRESS.md)：当前持续性实现、PRD 覆盖、验证证据、独立复核步骤与未验证项；不代替用户验收。
+- [`docs/PRODUCT.md`](docs/PRODUCT.md)、[`docs/ROADMAP.md`](docs/ROADMAP.md)：产品构想与路线图。
+- [`docs/PRD.md`](docs/PRD.md)：当前**自主性技术可行性探究**的研究型 PRD，尚待用户确认，本轮不开发。
+- [持续性 PRD](docs/archive/2026-10-20-ling-continuity/PRD.md)、[研究](docs/archive/2026-10-20-ling-continuity/RESEARCH.md)、[交付验证](docs/archive/2026-10-20-ling-continuity/PROGRESS.md)：归档旧阶段；持续性独立验收仍在进行，不代表已通过。
 - [`附件交付记录`](docs/archive/2026-10-20-attachments/PROGRESS.md)：上一轮附件实现、验证证据与读取限制。
 - [`docs/archive/`](docs/archive/)：历史阶段需求、研究、重要决策与交付证据；不构成当前待办。
 - [`docs/BUSINESS-MAP.html`](docs/BUSINESS-MAP.html)：原 Coding Agent 基线的独立业务关系图，不含新增持续性链路，可直接用本地浏览器打开。
