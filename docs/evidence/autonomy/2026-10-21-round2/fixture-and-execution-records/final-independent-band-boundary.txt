@@ -1,0 +1,59 @@
+Independent exact two-decimal tolerance-boundary fixture.
+exit=0
+==============================================================================
+Sensor 240-sample analysis  (script v2.0)
+NOTE: this is a recomputation of the recorded table only. Printing it does not
+      verify the numbers; check them independently.
+==============================================================================
+File: C:\Users\Nivalis\Documents\LingNexus\Nexus\.artifacts\autonomy-real\run-20261021-133638\data\band-boundary.md
+Parsed 2 'ID | A | B' rows (0 non-data non-blank lines skipped)
+B/2 = B / 2 for every row (calibration.md line 1: B uses a x2 scale)
+Reference 4.000000 mV, per-reading tolerance +/- 0.150000 mV (repeated-measurements.md line 2)
+==============================================================================
+
+[1] Descriptives (mV)
+  A (as recorded)
+    n                = 2
+    mean             = 4.000000
+    std (population) = 0.150000
+    std (sample, n-1)= 0.212132
+    min              = 3.850000
+    median           = 4.000000
+    max              = 4.150000
+
+  B/2 (B divided by 2)
+    n                = 2
+    mean             = 4.000000
+    std (population) = 0.150000
+    std (sample, n-1)= 0.212132
+    min              = 3.850000
+    median           = 4.000000
+    max              = 4.150000
+
+[2] Readings outside 4.000000 +/- 0.150000 mV  (x < 3.850000 or x > 4.150000):
+
+  A outliers: 0
+    (none)
+
+  B outliers (B/2): 0
+      ID  line     B raw       B/2         A    excess
+
+[3] ID deltas between consecutive B outliers
+    need at least two B outliers; none printed
+
+[4] Per B-outlier residuals to neighbours (B/2, mV)
+    prev  = B/2 of the row immediately before the outlier
+    next  = B/2 of the row immediately after the outlier
+    nb6   = mean of the six nearest NON-outlier rows (k-3..k-1, k+1..k+3)
+    dev to X = outlier value minus X
+
+      ID       B/2      prev      next  nb6 mean dev to nb6 dev to prev dev to next
+
+[5] Lattice check (descriptive; no cause is claimed)
+
+[6] Trend / bias check (endpoints, descriptive)
+    A first 1 rows mean = 3.850000, last 1 rows mean = 4.150000, difference = 0.300000 mV
+    B/2 first 1 rows mean = 3.850000, last 1 rows mean = 4.150000, difference = 0.300000 mV
+    ID monotonically non-decreasing 1..1+n-1: True
+
+Done. (Recomputation only; no verification implied by this output.)
