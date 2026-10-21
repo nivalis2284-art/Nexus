@@ -1,6 +1,6 @@
 # LingNexus · 第一版自主性雏形：可实施方案研究与取舍（4A）
 
-研究日期：2026-10-20（Asia/Tokyo）。本地源码基线：[`aae0635`](https://github.com/nivalis2284-art/Nexus/commit/aae06351912b8fb0e031d3d2ee6e374737c1f045)。需求依据：[PRD](PRD.md)、[PRODUCT](PRODUCT.md)、[ROADMAP](ROADMAP.md)、[概念与原则](愿景/01-概念与原则.md)、[抽象需求](愿景/02-抽象需求.md)。
+研究日期：2026-10-20（Asia/Tokyo）。本地源码基线：[`aae0635`](https://github.com/nivalis2284-art/Nexus/commit/aae06351912b8fb0e031d3d2ee6e374737c1f045)。需求依据：[PRD](PRD.md)、[PRODUCT](PRODUCT.md)、[ROADMAP](ROADMAP.md)、[概念与原则](../../愿景/01-概念与原则.md)、[抽象需求](../../愿景/02-抽象需求.md)。
 
 **状态：4A 研究与方案选型完成，推荐方向待所有者确认；未进入 4B 计划或开发。** 本轮只新增研究文档，不修改业务代码、不运行自主性原型、不开展付费模型实验。三名 DeepSeek high 子代理分别调查源码适配、目标形成证据、用户体验与验收，主代理复核、整合并承担最终选型判断。
 
@@ -25,7 +25,7 @@
 | D 建议/推导 | 对产品边界、实现与取舍的工程判断 | 待所有者确认的建议不写成既定需求 |
 | H 待验证假设 | 预期的模型效果和组合机制收益 | 必须通过真实模型、反例和结果检查验证 |
 
-两份旧自主性研究完整保留在[预研归档](archive/2026-10-20-autonomy-prestudy/)。沿用其中有依据的来源追溯、等待条件、实际反馈和运行控制思路；不沿用“先比较 U/F/M 路由再证明自主性”的次序，也不采用与最新唯一主 Agent 原则冲突的 Flash 独立回复建议。本文不改写 PRD、产品方向或受保护愿景。
+两份旧自主性研究完整保留在[预研归档](../2026-10-20-autonomy-prestudy/)。沿用其中有依据的来源追溯、等待条件、实际反馈和运行控制思路；不沿用“先比较 U/F/M 路由再证明自主性”的次序，也不采用与最新唯一主 Agent 原则冲突的 Flash 独立回复建议。本文不改写 PRD、产品方向或受保护愿景。
 
 ## 2. 需求复核：本版应证明的行为
 
@@ -59,20 +59,20 @@
 
 ## 3. 当前系统事实与差距
 
-以下为当前源码 F。历史持续性[独立验收](archive/2026-10-20-ling-continuity/ACCEPTANCE.md)已有真实模型与浏览器证明的核心体验，并报告缺陷；当前 [PROGRESS](PROGRESS.md)记录 A–F 修复与复验，仍未声明最终验收通过。不能继续照抄旧预研“完全没有真实联调”的过时表述，也不能把持续性修复记录当作自主性已经实现。
+以下为当前源码 F。历史持续性[独立验收](../2026-10-20-ling-continuity/ACCEPTANCE.md)已有真实模型与浏览器证明的核心体验，并报告缺陷；当前 [PROGRESS](PROGRESS.md)记录 A–F 修复与复验，仍未声明最终验收通过。不能继续照抄旧预研“完全没有真实联调”的过时表述，也不能把持续性修复记录当作自主性已经实现。
 
 | 已有能力及代码位置 | 可以复用 | 本版实际缺口 |
 |---|---|---|
-| [`LingInbox`](../nexus/ling.py) 的 `enqueue/_work/projection`，[`server._ling`](../nexus/web/server.py) | 固定灵身份、服务端输入队列、断网后继续、现有主 Agent 组装 | 无输入时不自行审议；队列输入会写成用户消息，不能塞入伪造的“用户让我想一想”；启动时还是懒初始化，需要自主服务独立启动 |
-| [`WorkService`](../nexus/ling.py)、[`work` 工具](../nexus/tools/work.py) | 启动、查询、分页读证据、发补充要求、暂停/恢复/取消工作 | `work_start` 描述与来源假定用户授权；幂等键依赖 `input_id`，默认附件来自最近用户消息。自主活动必须绑定审议/目标版本和明确附件，不能直接借用最近输入 |
-| [`TaskStore`](../nexus/task/store.py) | SQLite 事务、任务/操作/交互/事件、版本检查、恢复 | 缺候选目标、沉默/放弃理由、认识修订与等待条件；任务暂停不等于自主部分暂停 |
-| `TaskStore.notifications`、[`ling.js`](../nexus/web/ling.js) | 持久通知、页内提示、未读与审批入口 | 表中 `task_id` 非空且查询 JOIN tasks；无任务的自主消息不能直接写入，需要明确增加灵消息来源和稳定消息标识 |
-| [`TaskAssembler`](../nexus/runtime/assembly.py)、[`TaskCallbacks`](../nexus/runtime/callbacks.py) | 保存进展/证据/操作，持久审批，有限续跑，无进展止损 | 获准行动可复用；执行结束后还缺把结果交回灵修订认识的机制；完成工具成功不等于结论正确 |
-| [`TaskScheduler`](../nexus/runtime/scheduler.py) | 到期、认领、错过与确认的实现经验 | 目前是已有任务的一次性安排，不会从经历形成新目标；不能直接循环创建伪任务充当自主性 |
-| [`Agent`](../nexus/core/agent.py) 的 `before_model/on_message/on_tool_intent/execute_prepared` | 模型边界刷新、消息检查点、工具执行接入点、取消检查 | 需增加自主轮次准入、版本检查和交互让行；已有取消不是安全的任意行抢占，也不是操作回滚 |
-| [`server._run_turn`](../nexus/web/server.py) 与全局 `BUSY` | 原有主 Agent、MCP/Skill/附件/子代理组装 | 直接运行会把输出 checkpoint 为对话，审批通过进程内等待；直接接后台会出现不该展示的内容和阻塞，不能原样调用了事 |
-| [`tools.build`](../nexus/tools/__init__.py)、[`permission`](../nexus/core/permission.py)、[`mcp_tools`](../nexus/tools/mcp_tools.py) | 工具能力与现有权限策略 | 默认 ask 不是自主活动预授权；MCP 设 `read_only=False`，但默认规则未因这个标记自动询问。需按实际工具和对象核对自主授权 |
-| [`SessionStore`](../nexus/session/store.py) 与 [`TaskStore`](../nexus/task/store.py) | 原聊天 JSONL、任务 SQLite 均可保留 | 二者不在同一事务；正式自主消息应有单一权威记录与可重建投影，不能承诺双写天然原子 |
+| [`LingInbox`](../../../nexus/ling.py) 的 `enqueue/_work/projection`，[`server._ling`](../../../nexus/web/server.py) | 固定灵身份、服务端输入队列、断网后继续、现有主 Agent 组装 | 无输入时不自行审议；队列输入会写成用户消息，不能塞入伪造的“用户让我想一想”；启动时还是懒初始化，需要自主服务独立启动 |
+| [`WorkService`](../../../nexus/ling.py)、[`work` 工具](../../../nexus/tools/work.py) | 启动、查询、分页读证据、发补充要求、暂停/恢复/取消工作 | `work_start` 描述与来源假定用户授权；幂等键依赖 `input_id`，默认附件来自最近用户消息。自主活动必须绑定审议/目标版本和明确附件，不能直接借用最近输入 |
+| [`TaskStore`](../../../nexus/task/store.py) | SQLite 事务、任务/操作/交互/事件、版本检查、恢复 | 缺候选目标、沉默/放弃理由、认识修订与等待条件；任务暂停不等于自主部分暂停 |
+| `TaskStore.notifications`、[`ling.js`](../../../nexus/web/ling.js) | 持久通知、页内提示、未读与审批入口 | 表中 `task_id` 非空且查询 JOIN tasks；无任务的自主消息不能直接写入，需要明确增加灵消息来源和稳定消息标识 |
+| [`TaskAssembler`](../../../nexus/runtime/assembly.py)、[`TaskCallbacks`](../../../nexus/runtime/callbacks.py) | 保存进展/证据/操作，持久审批，有限续跑，无进展止损 | 获准行动可复用；执行结束后还缺把结果交回灵修订认识的机制；完成工具成功不等于结论正确 |
+| [`TaskScheduler`](../../../nexus/runtime/scheduler.py) | 到期、认领、错过与确认的实现经验 | 目前是已有任务的一次性安排，不会从经历形成新目标；不能直接循环创建伪任务充当自主性 |
+| [`Agent`](../../../nexus/core/agent.py) 的 `before_model/on_message/on_tool_intent/execute_prepared` | 模型边界刷新、消息检查点、工具执行接入点、取消检查 | 需增加自主轮次准入、版本检查和交互让行；已有取消不是安全的任意行抢占，也不是操作回滚 |
+| [`server._run_turn`](../../../nexus/web/server.py) 与全局 `BUSY` | 原有主 Agent、MCP/Skill/附件/子代理组装 | 直接运行会把输出 checkpoint 为对话，审批通过进程内等待；直接接后台会出现不该展示的内容和阻塞，不能原样调用了事 |
+| [`tools.build`](../../../nexus/tools/__init__.py)、[`permission`](../../../nexus/core/permission.py)、[`mcp_tools`](../../../nexus/tools/mcp_tools.py) | 工具能力与现有权限策略 | 默认 ask 不是自主活动预授权；MCP 设 `read_only=False`，但默认规则未因这个标记自动询问。需按实际工具和对象核对自主授权 |
+| [`SessionStore`](../../../nexus/session/store.py) 与 [`TaskStore`](../../../nexus/task/store.py) | 原聊天 JSONL、任务 SQLite 均可保留 | 二者不在同一事务；正式自主消息应有单一权威记录与可重建投影，不能承诺双写天然原子 |
 
 任务模型仍由单 Worker 串行运行，灵/普通聊天通过另一通道执行；已有背景命令还可能并存。第一版可让多项关注/工作保存和排队，**不承诺多个模型任务真正并行推进**。自主审议也不应长时间霸占主交互通道。
 

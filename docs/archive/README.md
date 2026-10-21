@@ -11,4 +11,6 @@
 
 - [自主性旧研究型 PRD](2026-10-20-autonomy-prestudy/PRD.md)、[首轮可行性研究](2026-10-20-autonomy-prestudy/RESEARCH.md)、[多模型补充研究](2026-10-20-autonomy-prestudy/RESEARCH-MULTI-MODEL.md)：2026-10-20 转入自主性第一版开发型 PRD 时归档，保留其研究结果与未验证限制；此前成本/Flash 分工研究不再作为最新产品要求。
 
-当前阶段见 [自主性第一版开发型 PRD](../PRD.md)（草案待确认、准备 4A）。旧持续性阶段资料见 [PRD](2026-10-20-ling-continuity/PRD.md)、[研究](2026-10-20-ling-continuity/RESEARCH.md)、[交付记录](2026-10-20-ling-continuity/PROGRESS.md)。**持续性正在独立全量验收，归档不是验收通过。** 愿景和其他历史参考继续保留在原目录。
+- [第一阶段基线整体归档](2026-10-21-phase1-baseline/)：2026-10-21 所有者决定停止开发新功能、转入对现有功能的优化与重构，因此把当时的顶层文档整体移入此处，`docs/` 顶层只保留索引。含 [产品构想](2026-10-21-phase1-baseline/PRODUCT.md)、[路线图](2026-10-21-phase1-baseline/ROADMAP.md)、[自主性主 PRD](2026-10-21-phase1-baseline/PRD.md)、[补充 PRD](2026-10-21-phase1-baseline/PRD-AUTONOMY-SUPPLEMENT.md)、[较早的架构补充 PRD](2026-10-21-phase1-baseline/PRD-AUTONOMY-ARCHITECTURE-SUPPLEMENT.md)、[4A 研究](2026-10-21-phase1-baseline/RESEARCH.md)、[增量研究](2026-10-21-phase1-baseline/RESEARCH-AUTONOMY-SUPPLEMENT.md)、[维护交付记录](2026-10-21-phase1-baseline/PROGRESS.md) 与 [业务关系图](2026-10-21-phase1-baseline/BUSINESS-MAP.html)。移动只改位置与链接，未改写结论；其中"当前""下一步"均指当时阶段。**阶段 6 独立验收并未通过，归档不代表验收结论。**
+
+当前活跃文档见 [`docs/` 索引](../README.md)。旧持续性阶段资料见 [PRD](2026-10-20-ling-continuity/PRD.md)、[研究](2026-10-20-ling-continuity/RESEARCH.md)、[交付记录](2026-10-20-ling-continuity/PROGRESS.md)。**持续性仍未正式验收，归档不是验收通过。** 愿景和其他历史参考继续保留在原目录。

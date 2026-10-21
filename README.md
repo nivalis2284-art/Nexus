@@ -2,7 +2,7 @@
 
 Nexus 是一个正在迭代的个人 Agent 项目。**当前版本**提供灵的持续交流入口与独立持久任务：用户可以继续交流，由灵发起、了解和干预工作，并接收重要事件。原有 Coding Agent 的网页会话、模型接入、工具与运行控制继续保留。
 
-当前暂停新增功能，维护重点为减少重复实现、厘清运行与业务边界、精简历史验证产物。Demo 的使用方式和已有产品目标保持不变；本轮变更、验证结果和保留的技术债务见 [`docs/PROGRESS.md`](docs/PROGRESS.md)。
+当前暂停新增功能，维护重点为减少重复实现、厘清运行与业务边界、精简历史验证产物。Demo 的使用方式和已有产品目标保持不变；本轮变更、验证结果和保留的技术债务见 [`docs/archive/2026-10-21-phase1-baseline/PROGRESS.md`](docs/archive/2026-10-21-phase1-baseline/PROGRESS.md)。
 
 当前项目尚未实现长期记忆或人格等愿景能力；这只是版本现状，**不代表未来的功能限制**。长期方向见 [`docs/愿景/`](docs/愿景/)，当前要做什么以已确认的需求为准。
 
@@ -89,7 +89,7 @@ skills/*.md          可选 Skill 文档
 
 授权内读取和写入成果目录可以直接进行；其他具体调用仍走现有持久任务审批。高级设置中的 MCP 工具名单只决定暴露哪些工具，不代表预先批准外部写入。每次自主模型请求（含子代理、摘要与重试）先预留额度，成功后按服务商 usage 结算；中断或 usage 不明时保留预留额。额度为累计总量，修改设置、暂停或重启不会清零。UTF-8 字节预留是保守估算，并非服务商精确账单或绝对计费上限。
 
-当前交付证据与尚未验证的真实模型行为见 [docs/PROGRESS.md](docs/PROGRESS.md)。工程联通测试不等于自主性产品验收通过。
+当前交付证据与尚未验证的真实模型行为见 [docs/archive/2026-10-21-phase1-baseline/PROGRESS.md](docs/archive/2026-10-21-phase1-baseline/PROGRESS.md)。工程联通测试不等于自主性产品验收通过。
 
 ## 上传和使用附件
 
@@ -192,13 +192,13 @@ AGENTS.md    开发协作说明
 ## 文档导航
 
 - [`AGENTS.md`](AGENTS.md)：给开发 Agent 的简洁协作说明，不代替具体 PRD。
-- [`docs/PRODUCT.md`](docs/PRODUCT.md)、[`docs/ROADMAP.md`](docs/ROADMAP.md)：产品构想与路线图。
-- [`docs/PRD.md`](docs/PRD.md) 与 [`docs/PRD-AUTONOMY-SUPPLEMENT.md`](docs/PRD-AUTONOMY-SUPPLEMENT.md)：当前已确认的**自主性第一版雏形**需求；所有者已授权跳过 4B、进入阶段 5，交付和真实验证状态见 [`docs/PROGRESS.md`](docs/PROGRESS.md)，阶段 6 独立验收尚未通过。
+- [`docs/archive/2026-10-21-phase1-baseline/PRODUCT.md`](docs/archive/2026-10-21-phase1-baseline/PRODUCT.md)、[`docs/archive/2026-10-21-phase1-baseline/ROADMAP.md`](docs/archive/2026-10-21-phase1-baseline/ROADMAP.md)：产品构想与路线图。
+- [`docs/archive/2026-10-21-phase1-baseline/PRD.md`](docs/archive/2026-10-21-phase1-baseline/PRD.md) 与 [`docs/archive/2026-10-21-phase1-baseline/PRD-AUTONOMY-SUPPLEMENT.md`](docs/archive/2026-10-21-phase1-baseline/PRD-AUTONOMY-SUPPLEMENT.md)：当前已确认的**自主性第一版雏形**需求；所有者已授权跳过 4B、进入阶段 5，交付和真实验证状态见 [`docs/archive/2026-10-21-phase1-baseline/PROGRESS.md`](docs/archive/2026-10-21-phase1-baseline/PROGRESS.md)，阶段 6 独立验收尚未通过。
 - [自主性预研历史 PRD](docs/archive/2026-10-20-autonomy-prestudy/PRD.md)、[主研究](docs/archive/2026-10-20-autonomy-prestudy/RESEARCH.md)、[多模型补充](docs/archive/2026-10-20-autonomy-prestudy/RESEARCH-MULTI-MODEL.md)：已归档，不构成当前交付目标。
 - [持续性 PRD](docs/archive/2026-10-20-ling-continuity/PRD.md)、[研究](docs/archive/2026-10-20-ling-continuity/RESEARCH.md)、[交付验证](docs/archive/2026-10-20-ling-continuity/PROGRESS.md)：归档旧阶段；持续性独立验收仍在进行，不代表已通过。
 - [`附件交付记录`](docs/archive/2026-10-20-attachments/PROGRESS.md)：上一轮附件实现、验证证据与读取限制。
 - [`docs/archive/`](docs/archive/)：历史阶段需求、研究、重要决策与交付证据；不构成当前待办。
-- [`docs/BUSINESS-MAP.html`](docs/BUSINESS-MAP.html)：原 Coding Agent 基线的独立业务关系图，不含新增持续性链路，可直接用本地浏览器打开。
+- [`docs/archive/2026-10-21-phase1-baseline/BUSINESS-MAP.html`](docs/archive/2026-10-21-phase1-baseline/BUSINESS-MAP.html)：原 Coding Agent 基线的独立业务关系图，不含新增持续性链路，可直接用本地浏览器打开。
 - [`docs/愿景/01-概念与原则.md`](docs/愿景/01-概念与原则.md)：长期方向与所有者控制原则。
 - [`docs/愿景/02-抽象需求.md`](docs/愿景/02-抽象需求.md)：长期期望的能力与体验；**并非当前阶段待办清单**。
 - [`docs/参考/`](docs/参考/)：历史对话、变更及曾经暂缓或待定的事项；其中的判断不自动代表当前产品决定。

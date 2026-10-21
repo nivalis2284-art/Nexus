@@ -1,6 +1,6 @@
 # LingNexus · 灵的自主性技术可行性研究
 
-研究日期：2026-10-20（Asia/Tokyo）。源码基线：[a99f9746aca5ea9d423f2e06362263d31ea7735e](https://github.com/nivalis2284-art/Nexus/commit/a99f9746aca5ea9d423f2e06362263d31ea7735e)。依据：[研究型 PRD](PRD.md)、[产品定位](../../PRODUCT.md)、[路线图](../../ROADMAP.md)、[概念与原则](../../愿景/01-概念与原则.md)、[抽象需求](../../愿景/02-抽象需求.md)。
+研究日期：2026-10-20（Asia/Tokyo）。源码基线：[a99f9746aca5ea9d423f2e06362263d31ea7735e](https://github.com/nivalis2284-art/Nexus/commit/a99f9746aca5ea9d423f2e06362263d31ea7735e)。依据：[研究型 PRD](PRD.md)、[产品定位](../2026-10-21-phase1-baseline/PRODUCT.md)、[路线图](../2026-10-21-phase1-baseline/ROADMAP.md)、[概念与原则](../../愿景/01-概念与原则.md)、[抽象需求](../../愿景/02-抽象需求.md)。
 
 **状态：研究报告；供所有者判断下一步，不构成开发许可、产品验收或真实模型实验结果。** 用户本轮已明确授权研究，PRD 内“待确认”不阻碍研究，也不意味着预算、离线行为等产品变量已经确认。本轮仅新增本文，不改业务代码、不运行自主原型、不调用 Nexus 付费模型、不创建后台自动任务。既有持续性仍以[归档交付记录](../2026-10-20-ling-continuity/PROGRESS.md)为准，未据其工程交付宣布独立验收通过。
 

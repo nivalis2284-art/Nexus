@@ -6,7 +6,7 @@
 >
 > **任务性质：** 研究，不是开发。本轮交付物是可信的研究结论及可选方向，不是软件功能或原型。
 >
-> **依据：** [产品构想](../../PRODUCT.md)、[路线图](../../ROADMAP.md)、[最高愿景](../../愿景/01-概念与原则.md)；[持续性 PRD](../2026-10-20-ling-continuity/PRD.md)、[持续性研究](../2026-10-20-ling-continuity/RESEARCH.md)、[持续性交付记录](../2026-10-20-ling-continuity/PROGRESS.md)。持续性虽已工程交付，独立全量验收仍未得出最终结论。
+> **依据：** [产品构想](../2026-10-21-phase1-baseline/PRODUCT.md)、[路线图](../2026-10-21-phase1-baseline/ROADMAP.md)、[最高愿景](../../愿景/01-概念与原则.md)；[持续性 PRD](../2026-10-20-ling-continuity/PRD.md)、[持续性研究](../2026-10-20-ling-continuity/RESEARCH.md)、[持续性交付记录](../2026-10-20-ling-continuity/PROGRESS.md)。持续性虽已工程交付，独立全量验收仍未得出最终结论。
 
 ## 1. 需求
 

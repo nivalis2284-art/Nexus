@@ -1,6 +1,6 @@
 # LingNexus 自主性：方案 A、三源触发与可替换能力增量研究（4A）
 
-研究日期：2026-10-21（Asia/Tokyo）。Nexus 源码基线：[`7d6293a`](https://github.com/nivalis2284-art/Nexus/commit/7d6293a67907d9395f539a1a86027f104c8d6b4f)。本文与 [原研究](RESEARCH.md)并存；依据 [主 PRD](PRD.md)和[补充 PRD](PRD-AUTONOMY-SUPPLEMENT.md)，参照 [PRODUCT](PRODUCT.md)、[ROADMAP](ROADMAP.md)及两份[概念与原则](愿景/01-概念与原则.md)、[抽象需求](愿景/02-抽象需求.md)。
+研究日期：2026-10-21（Asia/Tokyo）。Nexus 源码基线：[`7d6293a`](https://github.com/nivalis2284-art/Nexus/commit/7d6293a67907d9395f539a1a86027f104c8d6b4f)。本文与 [原研究](RESEARCH.md)并存；依据 [主 PRD](PRD.md)和[补充 PRD](PRD-AUTONOMY-SUPPLEMENT.md)，参照 [PRODUCT](PRODUCT.md)、[ROADMAP](ROADMAP.md)及两份[概念与原则](../../愿景/01-概念与原则.md)、[抽象需求](../../愿景/02-抽象需求.md)。
 
 **阶段边界：仅增量 4A 研究与方案取舍。** 方案 A 已作为本轮研究主方向，下面的具体架构、运行授权与验证预算仍待所有者确认。未修改业务代码，未部署监听器，未运行 Nexus 付费模型或自主性实验；源码检查不等于运行实测。三名 DeepSeek high 子代理分别调查本地 DSH、MCP 与外部架构、Nexus 接入，主代理负责三源协调设计、证据复核与综合取舍。
 
@@ -44,17 +44,17 @@
 
 | 源码事实 | 对设计的影响 |
 |---|---|
-| [`nexus/mcp.py`](../nexus/mcp.py)：协议常量 `2025-06-18`；仅 stdio；`initialize` 的客户端 capabilities 为 `{}`；`_read_loop` 忽略无 id 通知 | 不能直接接资源变化推送。无需为了首个观察源扩建全部 HTTP、sampling、资源订阅 |
-| 同文件 `call_tool` 主要拼接文本 content，未保留任意结构化返回；[`mcp_tools.py`](../nexus/tools/mcp_tools.py)进入普通工具结果裁剪 | 后台事件导入不能解析被裁剪的自然语言。需专用、严格校验、有限分页的机器读取；可约定单一 JSON text 内容并在进入通用裁剪前解析，或局部保留 structuredContent |
-| [`runtime/connections.py`](../nexus/runtime/connections.py) 与 [`assembly.py`](../nexus/runtime/assembly.py)：每次任务执行启动自己的 MCP registry，结束关闭 | 长期观察服务不能直接放入普通每任务 MCP 配置，否则多份进程/观察、任务结束即停止。需要唯一服务生命周期所有者 |
-| [`ling.py`](../nexus/ling.py) `LingInbox` 只处理用户输入，写入 `kind=user`；[`server.py`](../nexus/web/server.py) `_ling` 懒初始化 | 自主入口应随服务生命周期启动，不能伪造用户消息唤醒，也不能依赖用户先打开灵页 |
+| [`nexus/mcp.py`](../../../nexus/mcp.py)：协议常量 `2025-06-18`；仅 stdio；`initialize` 的客户端 capabilities 为 `{}`；`_read_loop` 忽略无 id 通知 | 不能直接接资源变化推送。无需为了首个观察源扩建全部 HTTP、sampling、资源订阅 |
+| 同文件 `call_tool` 主要拼接文本 content，未保留任意结构化返回；[`mcp_tools.py`](../../../nexus/tools/mcp_tools.py)进入普通工具结果裁剪 | 后台事件导入不能解析被裁剪的自然语言。需专用、严格校验、有限分页的机器读取；可约定单一 JSON text 内容并在进入通用裁剪前解析，或局部保留 structuredContent |
+| [`runtime/connections.py`](../../../nexus/runtime/connections.py) 与 [`assembly.py`](../../../nexus/runtime/assembly.py)：每次任务执行启动自己的 MCP registry，结束关闭 | 长期观察服务不能直接放入普通每任务 MCP 配置，否则多份进程/观察、任务结束即停止。需要唯一服务生命周期所有者 |
+| [`ling.py`](../../../nexus/ling.py) `LingInbox` 只处理用户输入，写入 `kind=user`；[`server.py`](../../../nexus/web/server.py) `_ling` 懒初始化 | 自主入口应随服务生命周期启动，不能伪造用户消息唤醒，也不能依赖用户先打开灵页 |
 | `LingInbox` 有持久输入队列；普通 `_chat` 在 `BUSY` 占用时返回 409；`RUNNING`/内存审批是共享状态 | 保留用户优先、安全边界让行与独立取消归属；不能让后台审议新增长时间拒聊，不能复制一个不受协调的主执行器 |
-| [`TaskScheduler`](../nexus/runtime/scheduler.py) 处理已有任务的一次性 `schedules`；错过启动时刻走确认；任务表是任务外键 | 可以借鉴认领/幂等/错过处理，不把自主回顾塞成假任务，也不改旧任务重启语义 |
-| [`TaskStore`](../nexus/task/store.py) 有 SQLite 事务、events 表全局自增 seq、任务版本、操作/审批/结果；但 events() 接口按 task_id 查询；通知 JOIN tasks，带任务外键及级联删除 | 复用事务底座与真实结果，不声称已有跨任务自主事件流。新增自主权威记录不能被任务删除级联清空；任务外正式消息另有归属 |
-| [`WorkService.start`](../nexus/ling.py) 依赖用户 `input_id` 和最近用户附件；[`work` 工具](../nexus/tools/work.py)以用户委派为语义 | 自主启动需审议/事项版本、授权引用、显式附件、稳定请求键；不能借最近聊天扩大授权 |
-| [`assembly.py`](../nexus/runtime/assembly.py) `_is_ling_task` 依靠带 `source_session_id` 的 user 记录识别灵委派续跑 | 自主归属须显式接入续跑判定与控制，不为获得续跑而伪造用户记录 |
-| [`Agent`](../nexus/core/agent.py) 有模型前/工具前/结果检查点、`execute_prepared`；[`TaskCallbacks`](../nexus/runtime/callbacks.py) 有持久操作和审批、续跑/止损 | 复用模型循环与任务执行。目标控制、观察管理和自主预算须传播到续跑/子代理，不能仅检查建任务时 |
-| [`ToolSpec`](../nexus/tools/registry.py) 已支持依赖键、注册和统一调度；[`skills.py`](../nexus/skills.py)已有技能发现 | 先采用普通模块＋明确适配器与现有能力注册，未显示需要一套 Cordis 依赖图宿主 |
+| [`TaskScheduler`](../../../nexus/runtime/scheduler.py) 处理已有任务的一次性 `schedules`；错过启动时刻走确认；任务表是任务外键 | 可以借鉴认领/幂等/错过处理，不把自主回顾塞成假任务，也不改旧任务重启语义 |
+| [`TaskStore`](../../../nexus/task/store.py) 有 SQLite 事务、events 表全局自增 seq、任务版本、操作/审批/结果；但 events() 接口按 task_id 查询；通知 JOIN tasks，带任务外键及级联删除 | 复用事务底座与真实结果，不声称已有跨任务自主事件流。新增自主权威记录不能被任务删除级联清空；任务外正式消息另有归属 |
+| [`WorkService.start`](../../../nexus/ling.py) 依赖用户 `input_id` 和最近用户附件；[`work` 工具](../../../nexus/tools/work.py)以用户委派为语义 | 自主启动需审议/事项版本、授权引用、显式附件、稳定请求键；不能借最近聊天扩大授权 |
+| [`assembly.py`](../../../nexus/runtime/assembly.py) `_is_ling_task` 依靠带 `source_session_id` 的 user 记录识别灵委派续跑 | 自主归属须显式接入续跑判定与控制，不为获得续跑而伪造用户记录 |
+| [`Agent`](../../../nexus/core/agent.py) 有模型前/工具前/结果检查点、`execute_prepared`；[`TaskCallbacks`](../../../nexus/runtime/callbacks.py) 有持久操作和审批、续跑/止损 | 复用模型循环与任务执行。目标控制、观察管理和自主预算须传播到续跑/子代理，不能仅检查建任务时 |
+| [`ToolSpec`](../../../nexus/tools/registry.py) 已支持依赖键、注册和统一调度；[`skills.py`](../../../nexus/skills.py)已有技能发现 | 先采用普通模块＋明确适配器与现有能力注册，未显示需要一套 Cordis 依赖图宿主 |
 
 还有两项必须纳入真实接入的 F 类限制：`ServerConfig` 没有 timeout 字段，stdio 默认请求超时 30s、单行上限 8MiB，不能向现有配置填一个 timeout 就声称长轮询已支持；Skill 只加载工作方法/指令，不注册后台生命周期或权限，任务运行中也不自动热重载。当前 MCP 测试主要验证文本工具调用与目录分页，没有覆盖观察事件/结构化结果/通知或规则控制，不能当作新链路的验证证据。
 

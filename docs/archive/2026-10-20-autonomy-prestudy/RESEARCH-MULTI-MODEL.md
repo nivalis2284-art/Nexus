@@ -1,6 +1,6 @@
 # LingNexus 自主性补充研究：多模型按需协同决策
 
-研究日期：2026-10-20（Asia/Tokyo）。本地基线：[468fdb7](https://github.com/nivalis2284-art/Nexus/commit/468fdb7e7b90dff85d4069ae522f8639f99cfa5b)。依据：[自主性研究 PRD](PRD.md)、[上一轮研究](RESEARCH.md)、[产品定位](../../PRODUCT.md)及[愿景](../../愿景/01-概念与原则.md)。
+研究日期：2026-10-20（Asia/Tokyo）。本地基线：[468fdb7](https://github.com/nivalis2284-art/Nexus/commit/468fdb7e7b90dff85d4069ae522f8639f99cfa5b)。依据：[自主性研究 PRD](PRD.md)、[上一轮研究](RESEARCH.md)、[产品定位](../2026-10-21-phase1-baseline/PRODUCT.md)及[愿景](../../愿景/01-概念与原则.md)。
 
 **研究范围：独立补充研究，保留原报告；不开发、不部署、不执行收费模型实验。** 研究阶段按当时要求仅在本地整理；2026-10-20 所有者另行授权安全合并远端变更并推送研究成果。本文中的调用配额、路由比例、延迟和费用情景均不是所有者已批准预算或实测表现。研究使用三个 DeepSeek Max 子代理，分别调查超轻量模型、Flash API、路由与评价证据；主代理负责整合、源码适配和成本推导。
 

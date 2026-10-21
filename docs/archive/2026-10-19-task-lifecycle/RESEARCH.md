@@ -29,7 +29,7 @@
 - [系统优化 PRD 归档](../2026-10-19-系统优化/PRD.md)
 - [系统优化开发前研究归档](../2026-10-19-系统优化/RESEARCH.md)
 
-归档研究只调整移动后需要修正的链接并注明归档，原调查结论不作事后改写。[PROGRESS.md](PROGRESS.md) 仍记录上一轮优化交付，仅修正历史需求链接；[BUSINESS-MAP.html](../../BUSINESS-MAP.html) 和 [EXECUTION-RESEARCH.md](EXECUTION-RESEARCH.md) 保留为既有成果/背景。README 导航改为指向当前文档含义。
+归档研究只调整移动后需要修正的链接并注明归档，原调查结论不作事后改写。[PROGRESS.md](PROGRESS.md) 仍记录上一轮优化交付，仅修正历史需求链接；[BUSINESS-MAP.html](../2026-10-21-phase1-baseline/BUSINESS-MAP.html) 和 [EXECUTION-RESEARCH.md](EXECUTION-RESEARCH.md) 保留为既有成果/背景。README 导航改为指向当前文档含义。
 
 ### 1.3 本会话已经确认的产品边界
 
