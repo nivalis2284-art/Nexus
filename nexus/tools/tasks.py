@@ -52,6 +52,11 @@ class AttemptArgs(BaseModel):
     next_reason: str = Field(default="", max_length=2000)
 
 
+class PauseArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    reason: str = Field(min_length=1, max_length=8000)
+
+
 class ResolveArgs(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     operation_id: str = Field(min_length=1, max_length=100)
@@ -91,9 +96,17 @@ def finish(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     if method is None:
         raise PermissionError("Task completion callback is not connected.")
     result = method(args)
-    # The callback raises if required work is still open; a success signal is
-    # here visible to the model only after the server-side gate passed.
-    return {"content": "Task completion accepted with recorded evidence.", **result}
+    # Lifecycle checks belong to the callback; process records are optional.
+    return {"content": "Task completed with the reported result and limitations.", **result}
+
+
+def pause(context: Any, args: dict[str, Any]) -> dict[str, Any]:
+    callbacks = _callbacks(context)
+    method = getattr(callbacks, "pause", None)
+    if method is None:
+        raise PermissionError("Task pause callback is not connected.")
+    method(args)
+    return {"content": "Task paused."}
 
 
 def attempt(context: Any, args: dict[str, Any]) -> dict[str, Any]:
@@ -129,10 +142,12 @@ TOOLS = [
     ),
     ToolSpec(
         "task_finish",
-        "Declare the whole task complete only after recording evidence covering its agreed goal. "
-        "The server rejects completion while required steps, interactions, or unknown operations remain.",
+        "Finish this task with its actual result and any limitations. "
+        "Plans and evidence are optional; do not claim work that was not performed.",
         FinishArgs, finish,
     ),
+    ToolSpec("task_pause", "Pause this task when it cannot usefully continue. Explain why it should "
+             "wait; it stays paused until explicitly resumed.", PauseArgs, pause),
     ToolSpec(
         "task_attempt",
         "Record a failed or inconclusive attempt, its premise, any genuinely new information, and why a next attempt is justified.",

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import threading
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -26,26 +25,10 @@ from .callbacks import TaskCallbacks
 from .connections import start_mcp
 from .controller import RunFnResult, TaskConflict
 
-CONTINUATION_LIMIT = 4
-NO_PROGRESS_LIMIT = 3
-
-
-def _is_ling_task(task: Task, rows: list[dict[str, Any]]) -> bool:
-    """Only delegated Ling work continues automatically.
-
-    User-created and pre-existing tasks keep their established manual
-    end-of-turn behavior.
-    """
-    return any(
-        row.get("kind") == "user" and row.get("source_session_id")
-        for row in rows
-    )
-
-
 def _subagent_registry(registry: Registry) -> Registry:
     """Keep observation tools, but never the parent's lifecycle controls."""
     child = Registry()
-    excluded = {"task_finish", "task_update", "task_attempt", "task_resolve_operation"}
+    excluded = {"task_finish", "task_pause", "task_update", "task_attempt", "task_resolve_operation"}
     for spec in registry.specs():
         if spec.name not in excluded:
             child.add(spec)
@@ -175,15 +158,16 @@ class TaskAssembler:
         messages = callbacks.snapshot_history(include_images=profile.capabilities.images)
         if not messages:
             self.store.add_message(task.id, kind="user", text=(
-                "Work on this persistent task. Start by understanding the goal, then use the task tools "
-                "to record material decisions and verified outcomes. Do not claim completion without evidence.\n\n"
+                "Work on this persistent task until it is finished or there is a reason to pause. "
+                "Finish with task_finish(summary=the actual result and limitations), or use "
+                "task_pause(reason=why you cannot usefully continue). Progress and evidence are optional "
+                "records; use them when helpful. Investigate failures and change approach when needed.\n\n"
                 f"Goal: {task.effective_goal or task.goal}\nConstraints: {task.constraints or '(none)'}"
             ))
             messages = callbacks.snapshot_history(include_images=profile.capabilities.images)
 
-        ling_task = _is_ling_task(task, self.store.messages(task.id))
-
         async def approve(request):
+            require_running()
             callbacks.approve(request)
             return True
 
@@ -218,26 +202,38 @@ class TaskAssembler:
 
         agent: Agent
 
+        def require_running() -> None:
+            current = self.store.get(task.id)
+            if current.state != "running":
+                raise TaskSuspension(current.wait_reason or "任务已结束或挂起", kind=current.state)
+
         def before_model(history: list[dict[str, Any]]) -> None:
+            require_running()
             callbacks.before_model(
                 history, agent=agent, include_images=profile.capabilities.images,
                 attachment_contexts=[context, child_context],
             )
 
+        def execute_task_tool(prepared):
+            require_running()
+            return callbacks.wrap_execute(prepared, context, registry.execute_prepared)
+
+        def prepare_task_tool(call_id, prepared, tool_context):
+            require_running()
+            callbacks.prepare_dispatch(call_id, prepared, tool_context)
+
         agent = Agent(
             profile=profile, credentials=RuntimeCredentials(key), registry=registry,
             context=context, workspace=workspace, policy=policy,
-            max_steps=self.config.load().max_steps,
+            max_steps=None,
             context_limit=self.config.load().context_limit,
             approve=approve, effort=task.effort, skills=skill_set.manifest(),
             cancel_event=cancel,
             task_context=system_task_state,
             on_message=callbacks.on_message,
             before_model=before_model,
-            on_tool_intent=callbacks.prepare_dispatch,
-            execute_prepared=lambda prepared: callbacks.wrap_execute(
-                prepared, context, registry.execute_prepared
-            ),
+            on_tool_intent=prepare_task_tool,
+            execute_prepared=execute_task_tool,
         )
 
 
@@ -287,30 +283,22 @@ class TaskAssembler:
                         task.id, kind="notice",
                         text="模型请求失败，本轮结果未确认：" + "; ".join(errors[-3:]),
                     )
-                    return {"stopped": "model_error", "steps": agent.max_steps,
+                    return {"stopped": "model_error",
                             "finish_reason": None}
                 return final
             final = asyncio.run(drive())
-            continuation = 0
-            no_progress = 0
-            while self._can_continue(task.id, final, cancel, ling_task):
-                if continuation >= CONTINUATION_LIMIT:
-                    return self._block(task.id, "任务正常回复后仍未完成；可解释的续跑次数已用尽。")
-                continuation += 1
-                callbacks.begin_continuation()
+            while self._can_continue(task.id, final, cancel):
                 messages = callbacks.snapshot_history(
                     include_images=profile.capabilities.images, repeat_last=True,
                 )
                 final = asyncio.run(drive())
-                if callbacks.continuation_progress() or self.store.input_status(task.id)["pending_count"]:
-                    no_progress = 0
-                else:
-                    no_progress += 1
-                    if no_progress >= NO_PROGRESS_LIMIT:
-                        return self._block(task.id, "续跑未产生新的保存进度、证据或决定。")
-        except AgentSuspended:
-            incomplete = True
+        except AgentSuspended as suspension:
             current = self.store.get(task.id)
+            if current.state == "completed":
+                return RunFnResult(status="complete", text=current.work_summary)
+            incomplete = True
+            if current.state in ("paused", "pausing", "cancelled") or suspension.control == "paused":
+                return RunFnResult(status="paused", wait_reason=suspension.reason)
             if current.state == "running":
                 current = self.store.command(
                     task.id, "waiting_user", request_id=f"wait-{task.id}"
@@ -332,8 +320,10 @@ class TaskAssembler:
             # A declined approval or other tool-side stop is durable. A
             # subagent suspension is translated to AgentSuspended before it
             # reaches here; this branch covers the parent and compact requests.
-            incomplete = True
             current = self.store.get(task.id)
+            if current.state == "completed":
+                return RunFnResult(status="complete", text=current.work_summary)
+            incomplete = True
             if current.state == "running":
                 self.store.command(
                     task.id, "paused", request_id=f"suspended-{task.id}",
@@ -352,11 +342,8 @@ class TaskAssembler:
             raise
         except TaskValidationError as error:
             incomplete = True
-            # A rejected task tool call (e.g. claiming completion without
-            # evidence) is feedback for the model. The agent loop catches only
-            # tool failures inside its worker, so a deliberate tool-side gate
-            # is surfaced as a visible task pause instead of a silent success.
-            self.store.add_message(task.id, kind="notice", text=f"任务规则阻止继续: {error}")
+            # A failed task-state update is visible and resumable.
+            self.store.add_message(task.id, kind="notice", text=f"任务状态更新失败: {error}")
             current = self.store.get(task.id)
             if current.state == "running":
                 self.store.command(
@@ -405,26 +392,10 @@ class TaskAssembler:
 
 
     def _can_continue(self, task_id: str, final: dict[str, Any] | None,
-                      cancel: threading.Event, ling_task: bool) -> bool:
-        if cancel.is_set() or not ling_task:
+                      cancel: threading.Event) -> bool:
+        if cancel.is_set():
             return False
         if str((final or {}).get("stopped") or "") != "complete":
             return False
         task = self.store.get(task_id)
-        return (task.state == "running" and not task.blocked
-                and not self.store.pending_interactions(task_id)
-                and not self.store.unfinished_operations(task_id))
-
-    def _block(self, task_id: str, reason: str) -> RunFnResult:
-        task = self.store.get(task_id)
-        updated = self.store.update_progress(
-            task_id, expected_version=task.progress_version,
-            changes={"blocked": reason},
-        )
-        self.store.add_message(task_id, kind="notice", text=f"任务无法继续：{reason}")
-        if self.store.get(task_id).state == "running":
-            self.store.command(
-                task_id, "paused", request_id=f"blocked-{task_id}-{time.time_ns()}",
-                expected_version=updated.control_version,
-            )
-        return RunFnResult(status="stalled", wait_reason=reason)
+        return task.state == "running" and not self.store.pending_interactions(task_id)

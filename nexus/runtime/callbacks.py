@@ -28,9 +28,7 @@ class TaskCallbacks:
         self._operation_scope = ""
         self._finished = False
         self.waiting: dict[str, Any] | None = None
-        self._failure_streak: tuple[tuple[str, str], int, bool] | None = None
         self._saved_messages: dict[int, dict[str, Any]] = {}
-        self._progress_marker: tuple[int, int, int] | None = None
 
     # --- task work -------------------------------------------------------
 
@@ -44,8 +42,6 @@ class TaskCallbacks:
                 steps.append(step.to_dict())
             changes = {**changes, "steps": steps}
         task = self.store.get(self.task_id)
-        if "steps" in changes or "decisions" in changes:
-            self._failure_streak = None
         updated = self.store.update_progress(
             self.task_id, expected_version=task.progress_version, changes=changes
         )
@@ -88,47 +84,24 @@ class TaskCallbacks:
                 self.task_id, expected_version=task.progress_version,
                 changes={"decisions": current[-100:]},
             )
-            recent = self._failure_streak
-            if recent is not None and raw.get("new_information"):
-                self._failure_streak = (recent[0], recent[1], True)
             return {"attempt_count": len(self._attempts)}
 
     def finish(self, raw: dict[str, Any]) -> dict[str, Any]:
         task = self.store.get(self.task_id)
-        if not task.steps:
-            raise TaskValidationError("completion requires at least one recorded task step")
+        if self.cancel.is_set() or task.state != "running":
+            raise TaskConflict("only a running task can finish")
         if self.waiting is not None or self.store.pending_interactions(self.task_id):
             raise TaskValidationError("cannot finish while a user interaction is pending")
-        unknown = self.store.unfinished_operations(self.task_id)
-        if unknown:
-            raise TaskValidationError(
-                "cannot finish while an operation result is unknown; resolve the operation first"
-            )
-        if any(item.status != "completed" for item in task.steps):
-            raise TaskValidationError("cannot finish while steps remain incomplete")
-        if task.blocked:
-            raise TaskValidationError("cannot finish while a blocker is recorded")
         evidence_ids = set(raw.get("evidence_ids") or [])
         existing_ids = {str(index + 1) for index in range(len(task.evidence))}
         if evidence_ids - existing_ids:
             raise TaskValidationError("completion cites evidence that does not exist")
         limitations = raw.get("unresolved") or []
-        if not evidence_ids:
-            raise TaskValidationError("task completion needs a cited verification observation")
-        cited_verified = [
-            item for index, item in enumerate(task.evidence, start=1)
-            if str(index) in evidence_ids and item.kind == "verification" and item.ok
-        ]
-        if not cited_verified:
-            raise TaskValidationError(
-                "task completion needs a cited successful verification observation"
-            )
-        if any(step.verification != "verified" for step in task.steps):
-            raise TaskValidationError("every task step must be verified before completion")
         updated = self.store.update_progress(
             self.task_id, expected_version=task.progress_version,
             changes={
                 "work_summary": raw["summary"],
+                "blocked": "",
                 "decisions": [
                     *task.decisions,
                     {
@@ -146,6 +119,19 @@ class TaskCallbacks:
         self._finished = True
         return {"state": completed.state, "evidence_ids": sorted(evidence_ids),
                 "limitations": limitations, "progress_version": updated.progress_version}
+
+    def pause(self, raw: dict[str, Any]) -> None:
+        task = self.store.get(self.task_id)
+        if self.cancel.is_set() or task.state != "running":
+            raise TaskConflict("only a running task can pause itself")
+        reason = raw["reason"]
+        self.store.update_progress(self.task_id, expected_version=task.progress_version,
+                                   changes={"next_step": reason})
+        self.store.command(self.task_id, "paused", request_id=f"pause-{self.run_id}",
+                           expected_version=task.control_version, reason=reason)
+        self.store.add_message(self.task_id, kind="notice", text=f"任务已挂起：{reason}")
+        from ..tools.registry import TaskSuspension
+        raise TaskSuspension(reason, kind="paused")
 
     def resolve_operation(self, raw: dict[str, Any]) -> dict[str, Any]:
         self.store.resolve_operation(
@@ -167,7 +153,7 @@ class TaskCallbacks:
 
     def before_dispatch(self, prepared: PreparedCall, context: Any) -> str | None:
         """Record an intent only for tools whose effects cannot be read-only."""
-        if prepared.spec.name in ("task_update", "task_evidence", "task_finish",
+        if prepared.spec.name in ("task_update", "task_evidence", "task_finish", "task_pause",
                                   "task_attempt", "task_resolve_operation"):
             # These tools update task state themselves. Treating them as an
             # arbitrary side effect would make the operation ledger refer to its
@@ -175,13 +161,6 @@ class TaskCallbacks:
             return None
         if prepared.spec.read_only:
             return None
-        signature = (prepared.spec.name, json.dumps(prepared.arguments, sort_keys=True, ensure_ascii=False))
-        recent = getattr(self, "_failure_streak", None)
-        if recent and recent[0] == signature and not recent[2]:
-            raise TaskConflict(
-                "The same call failed repeatedly with no newly recorded evidence. "
-                "Read the error, investigate the cause, or record a changed premise before retrying."
-            )
         if self.cancel.is_set():
             raise TaskConflict("task is suspended; tool was not dispatched")
         effect = self.effect_for(prepared, context)
@@ -204,18 +183,6 @@ class TaskCallbacks:
             operation_id, ok=bool(outcome.ok), content=outcome.content,
             data=getattr(outcome, "data", None),
         )
-        if not outcome.ok:
-            operation = self.store.get_operation(operation_id)
-            signature = (operation["tool_name"], json.dumps(operation["arguments"], sort_keys=True, ensure_ascii=False))
-            prior = getattr(self, "_failure_streak", None)
-            count = prior[1] + 1 if prior and prior[0] == signature and not prior[2] else 1
-            self._failure_streak = (signature, count, False)
-            if count >= 3:
-                raise TaskConflict(
-                    "Repeated identical failure with no new evidence; stop this path and report the blocker."
-                )
-        else:
-            self._failure_streak = None
 
     def wrap_execute(self, prepared: Any, context: Any, runner: Any) -> Any:
         """Run the already-recorded effect and commit its result."""
@@ -281,7 +248,7 @@ class TaskCallbacks:
 
     def apply_new_inputs(self, history: list[dict[str, Any]], *,
                          include_images: bool = False, snapshot: bool = False,
-                         advance: bool = True, repeat_last: bool = False) -> int:
+                         advance: bool = True) -> int:
         """Merge durable user input at the model-request boundary.
 
         On a fresh run the already loaded snapshot is marked first. Later
@@ -298,15 +265,6 @@ class TaskCallbacks:
                 self.store.mark_inputs_applied(self.task_id, through)
             return through
         new_rows = [row for row in user_rows if int(row["seq"]) > applied]
-        if (not new_rows and repeat_last and user_rows
-                and history and history[-1].get("role") == "assistant"):
-            # A model response always needs a following user turn before the
-            # next request. Do not resend assistant text or mutate old calls.
-            prior = message_content(
-                str(user_rows[-1].get("text") or ""), user_rows[-1].get("attachments") or [],
-                include_images=include_images,
-            )
-            history.append({"role": "user", "content": prior})
         history.extend({
             "role": "user",
             "content": message_content(
@@ -330,30 +288,13 @@ class TaskCallbacks:
                 self.task_id, include_images=include_images
             )
             if repeat_last and history and history[-1].get("role") == "assistant":
-                user_rows = [row for row in self.store.messages(self.task_id)
-                             if row.get("kind") == "user"]
-                if user_rows:
-                    history.append({
-                        "role": "user",
-                        "content": message_content(
-                            str(user_rows[-1].get("text") or ""),
-                            user_rows[-1].get("attachments") or [],
-                            include_images=include_images,
-                        ),
-                    })
+                history.append({"role": "user", "content": (
+                    "[Nexus task continuation] Continue the existing task from its saved state. "
+                    "This is not a new owner request. Finish with task_finish, or pause with task_pause "
+                    "if you cannot usefully continue."
+                )})
             self.apply_new_inputs(history, include_images=include_images, snapshot=True)
             return history
-
-    def capture_progress(self) -> tuple[int, int, int]:
-        task = self.store.get(self.task_id)
-        return (task.progress_version, len(task.evidence), len(task.decisions))
-
-    def continuation_progress(self) -> bool:
-        """Whether saved work facts changed since this checkpoint began."""
-        return self._progress_marker is None or self.capture_progress() != self._progress_marker
-
-    def begin_continuation(self) -> None:
-        self._progress_marker = self.capture_progress()
 
     def before_model(self, history: list[dict[str, Any]], *, agent: Any,
                      include_images: bool = False,
@@ -362,7 +303,7 @@ class TaskCallbacks:
         agent.task_context = self.context_text()
         through = self.apply_new_inputs(
             history, include_images=include_images,
-            advance=False, repeat_last=True,
+            advance=False,
         )
         # The caller has completed its preparation and this hook is invoked
         # immediately before the request. Persist the consumed boundary now.
@@ -422,6 +363,10 @@ class TaskCallbacks:
     def context_text(self) -> str:
         task = self.store.get(self.task_id)
         lines = [
+            "Continue this task until finished or explicitly paused. Use task_finish(summary=actual "
+            "result and limitations) or task_pause(reason=why work should wait). Plans, evidence, "
+            "and attempt records are optional. Investigate errors and adapt; pause if you cannot "
+            "make useful progress. Do not invent success or bypass pending user decisions.",
             f"Task: {task.title}", f"State: {task.state}",
             f"Original goal: {task.goal}", f"Current goal: {task.effective_goal or task.goal}",
             f"Constraints: {task.constraints or '(none recorded)'}",

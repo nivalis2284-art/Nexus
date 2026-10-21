@@ -99,3 +99,20 @@ def test_empty_input_is_rejected_without_persisting(tmp_path):
     with pytest.raises(TaskValidationError):
         api.messages(None, task.id, {"text": "", "request_id": "empty"})
     assert store.messages(task.id) == []
+
+
+@pytest.mark.parametrize("resume", [None, True, False])
+def test_paused_task_input_only_saves_even_with_legacy_resume_flag(tmp_path, resume):
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    task = store.create(title="paused", goal="wait", workspace=str(tmp_path))
+    store.command(task.id, "paused", request_id="pause")
+    controller = Controller()
+    api, response = api_for(store, controller)
+    body = {"text": "new requirement", "request_id": "saved-input"}
+    if resume is not None:
+        body["resume"] = resume
+    api.messages(None, task.id, body)
+    assert response.value["delivery"] == "pending"
+    assert controller.submissions == []
+    assert store.get(task.id).state == "paused"
+    assert store.input_status(task.id)["pending_count"] == 1

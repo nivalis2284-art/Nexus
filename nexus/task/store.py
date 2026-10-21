@@ -554,7 +554,8 @@ class TaskStore:
                             {"version": row["progress_version"] + 1})
             return task_from_row(self._row(connection, task_id))
 
-    def command(self, task_id: str, operation: str, *, request_id: str, expected_version: int | None = None) -> Task:
+    def command(self, task_id: str, operation: str, *, request_id: str,
+                expected_version: int | None = None, reason: str = "") -> Task:
         if operation not in ACTIVITY_STATES and operation not in ("reopen", "archive", "unarchive", "confirm_wait"):
             raise TaskValidationError(f"unknown task operation: {operation}")
         with self._lock, self._transaction() as connection:
@@ -587,7 +588,7 @@ class TaskStore:
                 if state not in ("pending", "running", "pausing", "waiting_user", "queued"):
                     raise TaskConflict(f"cannot suspend a {state} task")
                 target = "paused"
-                wait_reason = "已挂起；未完成的安排仍会显示"
+                wait_reason = reason or "已挂起；未完成的安排仍会显示"
             elif operation == "confirm_wait":
                 if state in ("cancelled", "completed"):
                     raise TaskConflict("inactive task cannot await a start confirmation")

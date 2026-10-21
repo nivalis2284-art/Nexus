@@ -32,8 +32,5 @@ def accept_input(store: TaskStore, controller: TaskController, config: ConfigSto
     message = store.accept_user_message(
         task_id, text=text, request_id=request_id, data={"attachments": attachments},
     )
-    if previous is None and task.state == "paused" and body.get("resume", True) is True:
-        controller.submit(task_id, request_id=request_id + "-run",
-                          expected_version=task.control_version)
     return {"task_id": task_id, "text": text, "request_id": request_id,
             "seq": message["seq"], "delivery": "pending"}

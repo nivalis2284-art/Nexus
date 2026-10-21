@@ -7,7 +7,9 @@ import threading
 import pytest
 
 from nexus.runtime.callbacks import TaskCallbacks
-from nexus.task import Evidence, TaskStore, TaskValidationError
+from nexus.task import Evidence, TaskConflict, TaskStore, TaskValidationError
+from nexus.tools import build
+from nexus.tools.registry import ToolResult
 
 
 def make(tmp_path):
@@ -18,47 +20,71 @@ def make(tmp_path):
     return store, task, TaskCallbacks(store, task.id, run["id"], cancel=threading.Event())
 
 
-def test_completion_requires_verified_or_explicit_limitations(tmp_path):
+def test_completion_requires_only_a_result_summary(tmp_path):
     store, task, callbacks = make(tmp_path)
-    store.update_progress(task.id, expected_version=task.progress_version, changes={
-        "steps": [{"content": "verified action", "status": "completed"}]
-    })
-    with pytest.raises(TaskValidationError):
-        callbacks.finish({"summary": "looks good", "evidence_ids": [], "unresolved": []})
-    store.add_evidence(task.id, Evidence(
-        kind="verification", source="test", summary="target file matches", ok=True
-    ))
-    current = store.get(task.id)
-    store.update_progress(task.id, expected_version=current.progress_version, changes={
-        "steps": [{"content": "verified action", "status": "completed",
-                   "verification": "verified", "evidence": ["1"]}]
-    })
-    completed = callbacks.finish({"summary": "tested", "evidence_ids": ["1"], "unresolved": []})
+    completed = callbacks.finish({"summary": "The requested draft is ready."})
     assert completed["state"] == "completed"
+    assert store.get(task.id).work_summary == "The requested draft is ready."
+    assert not store.get(task.id).steps
+    assert not store.get(task.id).evidence
 
 
-def test_unverified_step_cannot_finish_even_with_a_limitation(tmp_path):
+def test_optional_steps_and_limitations_survive_completion(tmp_path):
     store, task, callbacks = make(tmp_path)
     store.update_progress(task.id, expected_version=task.progress_version, changes={
-        "steps": [{"content": "not checked", "status": "completed"}]
+        "steps": [{"content": "not checked", "status": "pending"}],
+        "blocked": "old blocker",
     })
     store.add_evidence(task.id, Evidence(kind="verification", source="test",
                                          summary="one check", ok=True))
-    with pytest.raises(TaskValidationError):
-        callbacks.finish({"summary": "partial", "unresolved": ["manual review"]})
+    result = callbacks.finish({"summary": "Draft ready", "unresolved": ["manual review"]})
+    assert result["limitations"] == ["manual review"]
+    restored = store.get(task.id)
+    assert restored.state == "completed"
+    assert restored.steps[0].status == "pending"
+    assert restored.steps[0].verification == "unverified"
+    assert not restored.blocked
 
 
-def test_unknown_operation_blocks_completion(tmp_path):
+def test_unknown_operation_is_preserved_without_forcing_completion_paperwork(tmp_path):
     store, task, callbacks = make(tmp_path)
-    store.update_progress(task.id, expected_version=task.progress_version, changes={
-        "steps": [{"content": "action", "status": "completed",
-                   "verification": "verified", "evidence": ["1"]}]
-    })
-    store.add_evidence(task.id, Evidence(kind="verification", source="test", summary="ok", ok=True))
-    store.operation_begin(run_id=store.begin_run(task.id)["id"], tool_call_id="o1",
-                          tool_name="write_file", arguments={})
+    operation = store.operation_begin(run_id=callbacks.run_id, tool_call_id="o1",
+                                      tool_name="write_file", arguments={})
+    store.mark_dispatching_unknown(callbacks.run_id)
+    result = callbacks.finish({"summary": "Investigation done; earlier write remains unconfirmed.",
+                               "unresolved": ["Unconfirmed earlier write"]})
+    assert result["state"] == "completed"
+    assert store.get_operation(operation)["status"] == "unknown"
+
+
+@pytest.mark.parametrize("state", ["paused", "cancelled"])
+def test_stopped_task_cannot_be_marked_complete_by_old_execution(tmp_path, state):
+    store, task, callbacks = make(tmp_path)
+    store.command(task.id, state, request_id="owner-stop")
+    with pytest.raises(TaskConflict):
+        callbacks.finish({"summary": "late result"})
+    assert store.get(task.id).state == state
+
+
+def test_pending_user_decision_is_not_bypassed_by_completion(tmp_path):
+    store, task, callbacks = make(tmp_path)
+    store.interaction_create(task_id=task.id, run_id=callbacks.run_id, kind="approval",
+                             payload={"tool": "write_file"}, control_version=task.control_version)
     with pytest.raises(TaskValidationError):
-        callbacks.finish({"summary": "done", "evidence_ids": [], "unresolved": []})
+        callbacks.finish({"summary": "not authorized"})
+    assert store.pending_interactions(task.id)
+
+
+def test_repeated_failed_call_does_not_require_attempt_paperwork(tmp_path):
+    store, task, callbacks = make(tmp_path)
+    registry, context = build(root=tmp_path, task_callbacks=callbacks)
+    for index in range(5):
+        prepared = registry.prepare("write_file", {"path": "result.txt", "content": "x"}, context)
+        call_id = f"failed-{index}"
+        callbacks.prepare_dispatch(call_id, prepared, context)
+        callbacks.after_dispatch(call_id, ToolResult(False, "temporary tool error"))
+    assert store.get(task.id).state == "running"
+    assert not store.unfinished_operations(task.id)
 
 
 def test_attempt_is_persistent_and_reused_after_reopen(tmp_path):

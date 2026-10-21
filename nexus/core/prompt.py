@@ -105,8 +105,8 @@ def build_system_prompt(
         sections.append(
             "# Persistent task state\n"
             "This state is maintained by the task controller. It outranks old model summaries. "
-            "Follow the latest user goal, use recorded evidence rather than assuming it, and "
-            "record material progress, blockers, and remaining work with the task tools.\n\n"
+            "Follow the latest user goal and check actual results before claiming success. "
+            "Progress, plans, and supporting records are optional; update them when useful.\n\n"
             + task_context
         )
     if tools:

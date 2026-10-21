@@ -97,7 +97,7 @@ def test_new_input_and_attachment_are_applied_once_at_the_next_request(tmp_path,
         "tasks", task.id, "new.txt", "text/plain", io.BytesIO(b"new attachment"), 14,
     )
     responses = [call_frames("c1", "read_attachment", {"attachment_id": attachment["id"]}),
-                 text_frames("finished")]
+                 call_frames("finish", "task_finish", {"summary": "finished"})]
     seen = []
     install_stream(monkeypatch, responses, seen)
     # New input arrives only after the first request has actually gone out.
@@ -157,6 +157,7 @@ def test_child_registry_cannot_finish_or_rewrite_parent_steps(tmp_path):
         from nexus.runtime.assembly import _subagent_registry
         child = _subagent_registry(registry)
     assert child.get("task_finish") is None
+    assert child.get("task_pause") is None
     assert child.get("task_update") is None
     assert child.get("task_attempt") is None
     assert child.get("task_resolve_operation") is None
@@ -204,7 +205,7 @@ def test_subagent_trace_retains_arguments_and_bounded_content(tmp_path):
     assert result.trace[1]["truncated"] is True
 
 
-def test_completion_requires_a_cited_successful_verification(tmp_path):
+def test_completion_can_preserve_optional_verification_references(tmp_path):
     _config, tasks, task = started_task(tmp_path)
     callbacks = TaskCallbacks(
         tasks, task.id, tasks.current_run(task.id), cancel=threading.Event(),
@@ -222,8 +223,6 @@ def test_completion_requires_a_cited_successful_verification(tmp_path):
             "verification": "verified", "evidence": ["1"],
         }]},
     )
-    with pytest.raises(Exception, match="cited"):
-        callbacks.finish({"summary": "done", "evidence_ids": [], "unresolved": []})
     completed = callbacks.finish({
         "summary": "done", "evidence_ids": ["1"], "unresolved": [],
     })
@@ -241,7 +240,7 @@ def test_subagent_approval_resumes_with_the_shared_async_channel(tmp_path, monke
         # for it again with the same accepted arguments.
         call_frames("c0", "write_file", {"path": "child.txt", "content": "child"}),
         text_frames("child complete"),
-        text_frames("parent complete"),
+        call_frames("finish", "task_finish", {"summary": "parent complete"}),
     ]
     seen = []
     install_stream(monkeypatch, responses, seen)
@@ -261,24 +260,31 @@ def test_subagent_approval_resumes_with_the_shared_async_channel(tmp_path, monke
     assert not reopened.pending_interactions(task.id)
 
 
-def test_no_progress_continuation_becomes_blocked_without_spinning(tmp_path, monkeypatch):
-    config, tasks, task = started_task(tmp_path, ling=True)
+@pytest.mark.parametrize("ling", [False, True])
+def test_continuation_exceeds_old_limit_without_mandatory_progress_records(tmp_path, monkeypatch, ling):
+    config, tasks, task = started_task(tmp_path, ling=ling)
     seen = []
-    install_stream(monkeypatch, [text_frames("still working")] * 5, seen)
-    result = TaskAssembler(tasks, config)(tasks.get(task.id), threading.Event())
-    assert result.status == "stalled"
-    assert tasks.get(task.id).state == "paused"
-    assert tasks.get(task.id).blocked
-    assert len(seen) == 4
-
-
-def test_legacy_task_keeps_single_turn_behavior(tmp_path, monkeypatch):
-    config, tasks, task = started_task(tmp_path)
-    seen = []
-    install_stream(monkeypatch, [text_frames("one reply")], seen)
+    install_stream(monkeypatch, [text_frames("still working")] * 8 + [
+        call_frames("finish", "task_finish", {"summary": "Finished the investigation."})], seen)
     result = TaskAssembler(tasks, config)(tasks.get(task.id), threading.Event())
     assert result.status == "complete"
-    assert len(seen) == 1
+    assert tasks.get(task.id).state == "completed"
+    assert not tasks.get(task.id).blocked
+    assert len(seen) == 9
+    for request in seen:
+        assert sum(m.get("role") == "user" and m.get("content") == "begin"
+                   for m in request["messages"]) == 1
+
+
+def test_manually_created_task_continues_until_explicit_pause(tmp_path, monkeypatch):
+    config, tasks, task = started_task(tmp_path)
+    seen = []
+    install_stream(monkeypatch, [text_frames("one reply"),
+        call_frames("pause", "task_pause", {"reason": "Waiting for more source material."})], seen)
+    result = TaskAssembler(tasks, config)(tasks.get(task.id), threading.Event())
+    assert result.status == "paused"
+    assert tasks.get(task.id).state == "paused"
+    assert len(seen) == 2
 
 
 def test_mcp_startup_returns_no_shared_registry_when_disabled(tmp_path):
@@ -289,7 +295,7 @@ def test_mcp_startup_returns_no_shared_registry_when_disabled(tmp_path):
 def test_task_borrows_a_shared_mcp_registry_without_closing_it(tmp_path, monkeypatch):
     config, tasks, task = started_task(tmp_path)
     seen = []
-    install_stream(monkeypatch, [text_frames("done")], seen)
+    install_stream(monkeypatch, [call_frames("finish", "task_finish", {"summary": "done"})], seen)
     shared = MCPRegistry()
     shared.add(ServerConfig.from_dict({
         "name": "stub", "command": sys.executable, "args": [str(STUB)],

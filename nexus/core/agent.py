@@ -13,6 +13,7 @@ import threading
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
+from itertools import count
 from typing import Any
 
 from ..core import compaction, prompt
@@ -113,7 +114,7 @@ class Agent:
         context: ToolContext,
         workspace: Workspace,
         policy: Policy | None = None,
-        max_steps: int = 40,
+        max_steps: int | None = 40,
         context_limit: int | None = None,
         approve: Approval | None = None,
         effort: str | None = None,
@@ -323,7 +324,8 @@ class Agent:
         tool_text = self.registry.declarations()
         async with _client() as client:
             gateway = ModelGateway(client, limits=StreamLimits())
-            for step in range(1, self.max_steps + 1):
+            steps = count(1) if self.max_steps is None else range(1, self.max_steps + 1)
+            for step in steps:
                 if self.stopped:
                     result.stopped = "cancelled"
                     break

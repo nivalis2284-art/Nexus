@@ -193,7 +193,7 @@ class TaskController:
                 self.store.command(
                     task.id, "paused", request_id=f"complete-{task.id}-{int(time.time_ns())}"
                 )
-                self.store.add_message(task.id, kind="notice", text="本轮结束；任务完成状态需独立验证。")
+                self.store.add_message(task.id, kind="notice", text="本轮结束，尚未标记任务完成；已挂起，可恢复继续。")
         elif result.status == "paused":
             if self.store.get(task.id).state == "running":
                 self.store.command(

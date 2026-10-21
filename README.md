@@ -35,7 +35,7 @@ Nexus 是一个正在迭代的个人 Agent 项目。**当前版本**提供灵的
 | 重要事件反馈 | 页内主动提示和决策作答，完成/受阻/等待用户等事件持久保存，离线回来补看 |
 | 最简自主活动 | 定时任务、间隔唤醒、每日规划、公开网页变化监听，沿用主会话能力；回复或保存一句话静默经历 |
 | 执行安排 | 默认手动；可选一次性到时自动恢复或等待确认，错过后等待用户 |
-| 任务止损 | 记录尝试和已排除路线；同前提无新依据的重复失败会停止该路线 |
+| 任务过程记录 | 可选记录进度、证据与尝试；模型根据实际情况调整路线或主动挂起 |
 | 网页交互 | 聊天界面、思考与工具过程展示、授权确认 |
 | 文件附件 | 普通会话与持久任务上传、保存和下载原件；Agent 按段读取文本、PDF、DOCX、XLSX/XLSM、PPTX |
 
@@ -75,7 +75,9 @@ skills/*.md          可选 Skill 文档
 
 重要事件会主动展开页内通知，保留关联任务、结果或阻碍；需要审批/回答时可在通知里处理，也可进入原任务页。提示已读与工具授权分开：标为已读不会批准操作；过期请求会重新核对当前状态。切换会话不会清空草稿或停止独立工作，离线回来可以补看通知。
 
-独立工作按安全边界保存消息与操作结果，新的补充要求在下一模型请求边界送入，查询可见待送入数量。通过灵补充要求不会自动恢复已挂起的工作；任务页原有的「发送到挂起任务即继续」行为保留。新的灵委派工作在正常轮次结束但目标尚未完成时有限继续，无进展、预算/步数限制、明确阻碍、权限等待或用户暂停会清楚停止；旧手动任务保留原来的轮末挂起行为。恢复会利用保存状态并核查未知结果，不恢复旧进程或自动重放可能产生副作用的输入。
+独立工作保存消息与操作结果，新的补充要求在下一模型请求边界送入，查询可见待送入数量。所有入口向挂起任务补充消息都只保存，需通过「恢复」或明确的工作控制命令继续执行。手动创建与灵委派的持久任务使用同一续跑行为：普通文字回复后继续执行，由模型调用 `task_finish` 完成、调用 `task_pause` 主动挂起，或由用户暂停/取消；等待真实审批、提问或遇到运行错误时保留现场。后台任务不再受原有 40 步、4 次续跑、3 次无进度记录限制；普通会话和临时子代理的限制保持原状。完成只要求实际结果摘要，计划、过程证据和尝试记录均可选。恢复利用保存状态，不恢复旧进程或自动重放历史输入。
+
+本次持续性简化及代码验证见 [持续性重构交付记录](docs/CONTINUITY-REFACTOR.md)。Dot 可借鉴的产品设计、现有能力差距和后续建议见 [Dot 参考报告](docs/DOT-REFERENCE.md)，报告中的后续建议尚未实现。
 
 重启后，未开始的灵输入等待用户明确继续；上次正在处理的输入标为中断，需检查已生效操作后发新消息继续，不盲目重放。独立任务沿用已有的中断核查和手动恢复边界。完整长期记忆、人格演化和站外系统推送仍不在本阶段。
 
@@ -193,10 +195,12 @@ AGENTS.md    开发协作说明
 ## 文档导航
 
 - [`AGENTS.md`](AGENTS.md)：给开发 Agent 的简洁协作说明，不代替具体 PRD。
+- [持续性重构交付记录](docs/CONTINUITY-REFACTOR.md)：当前持续性行为、简化范围与本轮代码验证。
+- [Dot 参考报告](docs/DOT-REFERENCE.md)：官方资料核对与后续方向建议；不自动构成开发需求。
 - [`docs/archive/2026-10-21-phase1-baseline/PRODUCT.md`](docs/archive/2026-10-21-phase1-baseline/PRODUCT.md)、[`docs/archive/2026-10-21-phase1-baseline/ROADMAP.md`](docs/archive/2026-10-21-phase1-baseline/ROADMAP.md)：产品构想与路线图。
 - [`docs/archive/2026-10-21-phase1-baseline/PRD.md`](docs/archive/2026-10-21-phase1-baseline/PRD.md) 与 [`docs/archive/2026-10-21-phase1-baseline/PRD-AUTONOMY-SUPPLEMENT.md`](docs/archive/2026-10-21-phase1-baseline/PRD-AUTONOMY-SUPPLEMENT.md)：当前已确认的**自主性第一版雏形**需求；所有者已授权跳过 4B、进入阶段 5，交付和真实验证状态见 [`docs/archive/2026-10-21-phase1-baseline/PROGRESS.md`](docs/archive/2026-10-21-phase1-baseline/PROGRESS.md)，阶段 6 独立验收尚未通过。
 - [自主性预研历史 PRD](docs/archive/2026-10-20-autonomy-prestudy/PRD.md)、[主研究](docs/archive/2026-10-20-autonomy-prestudy/RESEARCH.md)、[多模型补充](docs/archive/2026-10-20-autonomy-prestudy/RESEARCH-MULTI-MODEL.md)：已归档，不构成当前交付目标。
-- [持续性 PRD](docs/archive/2026-10-20-ling-continuity/PRD.md)、[研究](docs/archive/2026-10-20-ling-continuity/RESEARCH.md)、[交付验证](docs/archive/2026-10-20-ling-continuity/PROGRESS.md)：归档旧阶段；持续性独立验收仍在进行，不代表已通过。
+- [持续性 PRD](docs/archive/2026-10-20-ling-continuity/PRD.md)、[研究](docs/archive/2026-10-20-ling-continuity/RESEARCH.md)、[交付验证](docs/archive/2026-10-20-ling-continuity/PROGRESS.md)：旧阶段归档，保留当时的需求与验证结论；当前行为以本轮持续性重构交付记录为准。
 - [`附件交付记录`](docs/archive/2026-10-20-attachments/PROGRESS.md)：上一轮附件实现、验证证据与读取限制。
 - [`自动化旧接口手动验收脚本`](docs/archive/2026-10-22-automation-manual-checks/README.md)：清理时保留的历史探测脚本，依赖旧接口，不能作为当前验收依据。
 - [`docs/archive/`](docs/archive/)：历史阶段需求、研究、重要决策与交付证据；不构成当前待办。

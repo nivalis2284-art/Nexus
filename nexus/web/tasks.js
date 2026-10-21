@@ -69,7 +69,9 @@ async function openTask(id) {
   const description = [];
   if (value.effective_goal || value.goal) description.push("目标：" + (value.effective_goal || value.goal));
   if (value.constraints) description.push("约束：" + value.constraints);
-  if (value.next_step) description.push("下一步：" + value.next_step);
+  if (value.work_summary) description.push("结果／进展：" + value.work_summary);
+  if (value.next_step && value.state !== "completed") description.push("下一步：" + value.next_step);
+  if (value.state === "paused") description.push("补充信息只保存；请点击恢复后继续执行。");
   if (value.evidence && value.evidence.length) {
     description.push("证据：" + value.evidence.map((item) => item.summary).join("；"));
   }
@@ -115,6 +117,7 @@ async function sendTaskMessage(text) {
     await taskPost("/api/tasks/" + encodeURIComponent(current.id) + "/messages", {
       text,
       attachments: attachments.map(file => file.id),
+      resume: false,
       request_id: newControlId("message"),
     });
     pendingFiles = pendingFiles.filter(file => !files.includes(file));

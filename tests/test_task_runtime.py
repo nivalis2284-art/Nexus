@@ -58,7 +58,7 @@ def test_continue_after_reopen_uses_saved_context(tmp_path, monkeypatch):
     reopened = TaskStore(tasks.path)
     reopened.command(item.id, "running", request_id="resume-start")
     reopened.begin_run(item.id)
-    responses = [text_frames("resumed")]
+    responses = [call_frames("finish", "task_finish", {"summary": "resumed"})]
     seen = []
     import nexus.core.agent as module
     def handler(request):
@@ -82,6 +82,7 @@ def test_task_runner_uses_persistent_context_and_does_not_claim_completion(tmp_p
     responses = [
         call_frames("call1", "write_file", {"path": "target.txt", "content": "hello"}),
         text_frames("created it"),
+        call_frames("pause", "task_pause", {"reason": "The file is ready for review."}),
     ]
     requests = []
     def handler(request):
@@ -90,7 +91,7 @@ def test_task_runner_uses_persistent_context_and_does_not_claim_completion(tmp_p
     import nexus.core.agent as module
     monkeypatch.setattr(module, "_client", lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler)))
     result = TaskAssembler(tasks, config)(item, threading.Event())
-    assert result.status == "complete"
+    assert result.status == "paused"
     assert (tmp_path / "target.txt").read_text() == "hello"
     loaded = tasks.get(item.id)
     assert loaded.state != "completed"
@@ -134,7 +135,7 @@ def test_answering_question_survives_reopen_and_reaches_next_model_run(tmp_path,
     reopened.interaction_answer(pending["id"], answer="yes", expected_version=None)
     reopened.command(item.id, "running", request_id="resume")
     reopened.begin_run(item.id)
-    second = [text_frames("done")]
+    second = [call_frames("finish", "task_finish", {"summary": "done"})]
     seen = []
     def second_handler(request):
         seen.append(json.loads(request.content))
@@ -170,7 +171,7 @@ def test_approval_survives_reopen_and_resumes_exact_action(tmp_path, monkeypatch
     reopened.command(item.id, "running", request_id="approval-resume")
     reopened.begin_run(item.id)
     second = [call_frames("a2", "write_file", {"path": "approved.txt", "content": "ok"}),
-              text_frames("done")]
+              call_frames("finish", "task_finish", {"summary": "done"})]
     seen = []
     def handler(request):
         seen.append(json.loads(request.content))
@@ -212,7 +213,10 @@ def test_resumed_turn_does_not_duplicate_saved_history(tmp_path, monkeypatch):
                         provider_id=provider_id, model_id="fake")
     tasks.command(item.id, "running", request_id="history-run")
     tasks.begin_run(item.id)
-    responses = [text_frames("first answer"), text_frames("second answer")]
+    responses = [text_frames("first answer"),
+                 call_frames("pause", "task_pause", {"reason": "Wait for the owner's review."}),
+                 text_frames("second answer"),
+                 call_frames("finish", "task_finish", {"summary": "Finished after review."})]
     import nexus.core.agent as module
     monkeypatch.setattr(module, "_client", lambda: httpx.AsyncClient(transport=httpx.MockTransport(
         lambda request: httpx.Response(200, headers={"content-type": "text/event-stream"},
@@ -220,9 +224,11 @@ def test_resumed_turn_does_not_duplicate_saved_history(tmp_path, monkeypatch):
     )))
     TaskAssembler(tasks, config)(tasks.get(item.id), threading.Event())
     reopened = TaskStore(tasks.path)
+    reopened.command(item.id, "running", request_id="explicit-resume")
+    reopened.begin_run(item.id)
     TaskAssembler(reopened, config)(reopened.get(item.id), threading.Event())
     messages = reopened.messages(item.id)
-    assert [message["text"] for message in messages if message["kind"] == "assistant"] == [
+    assert [message["text"] for message in messages if message["kind"] == "assistant" and message["text"]] == [
         "first answer", "second answer",
     ]
     assert len([message for message in messages if message["kind"] == "user"]) == 1
