@@ -10,3 +10,7 @@ pytest-of-*/
 *.egg-info/
 build/
 dist/
+
+# Local DSH agent skills and harness state: workspace-private, never pushed.
+.dsh/
+
