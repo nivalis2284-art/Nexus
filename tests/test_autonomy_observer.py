@@ -361,6 +361,127 @@ def test_client_rejects_malformed_schema_and_error_results(tmp_path: Path):
             client._server._request = original
 
 
+def test_client_accepts_extra_diagnostics(tmp_path: Path):
+    source = tmp_path / "contract"
+    source.mkdir()
+    with _client(tmp_path, source) as client:
+        original = client._server._request
+
+        def reply(payload):
+            return {
+                "content": [{"type": "text", "text": json.dumps(payload)}],
+                "isError": False,
+            }
+
+        replacements = {
+            "status": {
+                "contract_version": "1", "epoch": "epoch-a",
+                "implementation": "replacement-observer/7",
+                "health": {"state": "waiting_lease", "reason": "no lease",
+                           "diagnostics": {"queue_depth": 0}},
+                "limits": {"undecided": "free-form"}, "owner_pid": "diagnostic",
+            },
+            "watches_list": {
+                "epoch": "epoch-a",
+                "watches": [{
+                    "watch_id": "extra", "path": str(source), "spec_version": 2,
+                    "status": "active", "diagnostic_timestamp": 1234567890,
+                }],
+            },
+            "events_read": {
+                "epoch": "epoch-a", "next_cursor": 1, "has_more": False,
+                "events": [{"seq": 1, "event_id": "event-1", "watch_id": "extra",
+                            "spec_version": 2, "kind": "baseline",
+                            "observed_at": "2026-10-21T00:00:00.000Z", "path": str(source),
+                            "content": "evidence\n", "hash": "a" * 64, "truncated": False,
+                            "details": {}, "diagnostic_bytes": "not-the-contract"}],
+            },
+        }
+
+        def mocked(_method, params=None):
+            return reply(replacements[params["name"]])
+
+        client._server._request = mocked
+        try:
+            assert client.call("status", {})["implementation"] == "replacement-observer/7"
+            assert client.call("watches_list", {})["watches"][0]["diagnostic_timestamp"] == 1234567890
+            assert client.call("events_read", {"after": 0, "limit": 1})["events"][0]["seq"] == 1
+        finally:
+            client._server._request = original
+
+
+def test_client_allows_extra_tools_but_requires_nexus_tools(tmp_path: Path, monkeypatch):
+    source = tmp_path / "tools"
+    source.mkdir()
+    client = ObserverClient(tmp_path / "data", [str(source)])
+
+    class Declaration:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+    monkeypatch.setattr(client._server, "start", lambda: None)
+    monkeypatch.setattr(client._server, "close", lambda: None)
+    monkeypatch.setattr(client._server, "initialize", lambda: {
+        "protocolVersion": "2025-06-18", "serverInfo": {"name": "observer", "version": "1"},
+    })
+    monkeypatch.setattr(client._server, "list_tools", lambda: [
+        Declaration(name) for name in (*client.TOOLS, "optional_diagnostics")
+    ])
+    client.start()
+    assert client._started
+
+    missing = ObserverClient(tmp_path / "missing", [str(source)])
+    monkeypatch.setattr(missing._server, "start", lambda: None)
+    monkeypatch.setattr(missing._server, "close", lambda: None)
+    monkeypatch.setattr(missing._server, "initialize", lambda: {
+        "protocolVersion": "2025-06-18", "serverInfo": {"name": "observer", "version": "1"},
+    })
+    monkeypatch.setattr(missing._server, "list_tools", lambda: [
+        Declaration(name) for name in sorted(missing.TOOLS)[1:]
+    ])
+    with pytest.raises(ObserverClientError, match="tool contract mismatch"):
+        missing.start()
+
+
+def test_observer_process_runs_standalone(tmp_path: Path):
+    source = tmp_path / "standalone"
+    source.mkdir()
+    data = tmp_path / "standalone-data"
+    command = [sys.executable, str(ROOT / "nexus" / "autonomy" / "observer.py"), "--data", str(data),
+               "--roots-json", json.dumps([str(source)])]
+    process = subprocess.Popen(
+        command, cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, text=True, encoding="utf-8",
+        env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
+    )
+    try:
+        assert process.stdin is not None
+        assert process.stdout is not None
+        process.stdin.write(json.dumps({
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": {"protocolVersion": "2025-06-18", "capabilities": {},
+                       "clientInfo": {"name": "test", "version": "1"}},
+        }) + "\n")
+        process.stdin.flush()
+        initialized = json.loads(process.stdout.readline())
+        assert initialized["result"]["protocolVersion"] == "2025-06-18"
+        process.stdin.write(json.dumps({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": {"name": "status", "arguments": {}},
+        }) + "\n")
+        process.stdin.flush()
+        status = json.loads(json.loads(process.stdout.readline())["result"]["content"][0]["text"])
+        assert status["contract_version"] == "1"
+    finally:
+        if process.stdin is not None and not process.stdin.closed:
+            process.stdin.close()
+        process.wait(timeout=10)
+        for stream in (process.stdout, process.stderr):
+            if stream is not None:
+                stream.close()
+    assert process.returncode == 0
+
+
 def test_storage_quota_stops_collection_with_health(tmp_path: Path):
     source = tmp_path / "quota"
     source.mkdir()

@@ -1,9 +1,0 @@
-STEP task task_e55a3360eb4c48ee
-STEP waiting {"state":"waiting_user","pending":[["int_48dee7d0d2414c5c",4]],"task_cv":4}
-STEP task page status "等待你处理"
-STEP interaction controls "审批\n需要批准 write_file\n提交并继续"
-STEP after UI pause {"state":"paused","task_cv":5,"pending":[["int_48dee7d0d2414c5c",4,"approval"]]}
-STEP answer attempt 409 {"error":"task changed before this answer"}
-STEP restart 200 {"id":"task_e55a3360eb4c48ee","title":"等待审批时挂起","goal":"在工作目录创建 orphan.txt，内容 ok，读回核对后完成。先写文件。","constraints":"","effective_goal":"在工作目录创建 orphan.txt，内容 ok，读回核对
-STEP final {"state":"running","pending":1,"wait_reason":""}
-STEP feed [["interaction","pending","expired","unread"],["paused","-","live","unread"]]

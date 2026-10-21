@@ -16,7 +16,6 @@ from nexus.model import APIFamily
 from nexus.runtime import TaskController
 from nexus.task import TaskConflict, TaskStore
 from nexus.web import server as web
-from nexus.web.task_api import TaskHTTP
 
 
 def frames(text=None, calls=None):
@@ -208,11 +207,7 @@ def test_amendment_does_not_resume_paused_work_or_duplicate_forwarded_files(live
     attachment = AttachmentStore(state["store"].home).save(
         "sessions", session.id, "note.txt", "text/plain", io.BytesIO(b"note"), 4)
     state["sessions"].append(session, web.Message(kind="user", text="amend", data={"attachments": [attachment]}))
-    def intake(task_id, body):
-        values = []
-        TaskHTTP(state, lambda _, status, result: values.append(result)).messages(None, task_id, body)
-        return values[-1]
-    service = WorkService(state, session, state["store"].load(), 10, intake=intake)
+    service = WorkService(state, session, state["store"].load(), 10)
     first = service.message(task.id, "preserve this change", [attachment["id"]])
     second = service.message(task.id, "preserve this change", [attachment["id"]])
     assert first["seq"] == second["seq"]

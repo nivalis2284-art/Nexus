@@ -279,4 +279,4 @@ def test_legacy_task_keeps_single_turn_behavior(tmp_path, monkeypatch):
 
 def test_mcp_startup_returns_no_shared_registry_when_disabled(tmp_path):
     config, _ = configure(tmp_path)
-    assert start_mcp(config, tmp_path) is None
+    assert start_mcp(config.load().mcp_servers, tmp_path) is None

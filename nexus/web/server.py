@@ -1,25 +1,8 @@
-"""HTTP + static files. Standard library only: no framework, no build step.
+"""Standard-library HTTP transport and static UI for the Agent services.
 
-Routes
-    GET  /                     the single page
-    GET  /app.js, /app.css     assets
-    GET  /api/state            providers, models, selection, sessions
-    POST /api/sessions         create
-    GET  /api/sessions/<id>    transcript
-    DEL  /api/sessions/<id>    delete
-    POST /api/chat             run a turn (NDJSON stream)
-    POST /api/approval         answer a pending approval
-    POST /api/providers        add a provider
-    PUT  /api/providers/<id>   edit a provider
-    DEL  /api/providers/<id>   remove a provider
-    POST /api/select           choose provider + model + reasoning level
-    POST /api/settings         preferences (permission, max steps)
-    POST /api/workspace        change the workspace directory
-
-The chat endpoint streams newline-delimited JSON. NDJSON over a plain POST keeps
-the client trivial: no SSE parsing, no reconnection logic, no EventSource quirks.
-
-Persistence happens once per turn, after the loop finishes.
+Ordinary chat streams NDJSON and persists the turn on exit. Ling uses its
+service-owned inbox and checkpoints messages as they arrive; task execution
+and autonomous activity continue independently of the browser connection.
 """
 
 from __future__ import annotations
@@ -30,13 +13,14 @@ import os
 import secrets
 import threading
 import time
+from dataclasses import dataclass, field
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse, urlsplit
 
-from .. import mcp, skills
+from .. import skills
 from ..attachments import AttachmentStore, message_text
 from ..core import effort as reasoning
 from ..core import subagent
@@ -48,10 +32,11 @@ from ..model import RuntimeCredentials
 from ..runtime import TaskController
 from ..runtime.assembly import TaskAssembler
 from ..runtime.scheduler import TaskScheduler
+from ..runtime.connections import start_mcp
 from ..task import TaskConflict, TaskNotFound, TaskStore, TaskValidationError
 from ..session import Message, SessionStore
 from ..skills import SkillSet
-from ..tools import build, mcp_tools
+from ..tools import build
 from ..tools._jobs import JobRegistry
 from .task_api import TaskHTTP
 from .attachments import route as attachment_route
@@ -111,118 +96,68 @@ def _content_blocks(text: str, images: list[dict[str, str]]) -> Any:
     return blocks
 
 
+@dataclass
+class _Reply:
+    ready: threading.Event = field(default_factory=threading.Event)
+    answer: Any = None
+
+
 class Approvals:
-    """One pending human interaction at a time, keyed by a random token.
+    """Turn-local replies keyed by token; cancellation wakes all waiters.
 
-    Handles two shapes with one mechanism: a yes/no approval, and a free-text
-    answer to a question. Both mean "the turn is blocked until a human replies".
-
-    The wait is bound to the owning run's lifetime, the way DSH's
-    ``TimedQuestionWait`` binds to its parent turn. Without that binding, closing
-    a browser tab mid-question leaves the loop parked inside ``Event.wait`` for
-    the full timeout and the run lock unreleased, so every new message 409s.
-    ``cancel_all`` is the one place that releases waiters, and the chat handler
-    calls it on disconnect, on stop, and in its ``finally``.
+    Both approvals and questions share one pending record. An unanswered record
+    is None: a refusal for wait(), and no usable answer for wait_answer(). The
+    owning turn checks its cancellation event before and after creating tokens.
     """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._pending: dict[str, threading.Event] = {}
-        # Which shape each token carries, so a cancel can answer in kind:
-        # a declined approval, and an absent answer for a question.
-        self._kinds: dict[str, str] = {}
-        self._answers: dict[str, Any] = {}
-        self._cancelled = False
+        self._pending: dict[str, _Reply] = {}
 
-    def create(self, kind: str = "approval") -> str:
+    def create(self) -> str:
         token = secrets.token_urlsafe(12)
-        event = threading.Event()
         with self._lock:
-            # A cancel that arrives while nobody is waiting must still apply to
-            # the next waiter, or a stop during a fast tool call would be lost.
-            if self._cancelled:
-                self._cancelled = False
-            self._pending[token] = event
-            self._kinds[token] = kind
-            self._answers.pop(token, None)
+            self._pending[token] = _Reply()
         return token
 
     def wait(self, token: str, timeout: float = APPROVAL_TIMEOUT) -> bool:
-        event = self._pending.get(token)
-        if event is None:
-            return False
-        event.wait(timeout)
-        with self._lock:
-            return bool(self._answers.get(token, False))
+        return bool(self.wait_answer(token, timeout))
 
     def wait_answer(self, token: str, timeout: float = APPROVAL_TIMEOUT) -> Any:
-        """Wait for an answer. ``None`` means dismissed, cancelled or timed out.
-
-        The value is either a string (one question) or a list of strings (many),
-        so the caller gets back exactly what the client submitted.
-        """
-        event = self._pending.get(token)
-        if event is None:
-            return None
-        event.wait(timeout)
         with self._lock:
-            value = self._answers.get(token)
-        if value is None:
+            pending = self._pending.get(token)
+        if pending is None:
             return None
-        if isinstance(value, str):
-            return value
-        if isinstance(value, list):
-            return [str(item) for item in value]
-        return str(value)
+        pending.ready.wait(timeout)
+        with self._lock:
+            pending = self._pending.get(token)
+            return pending.answer if pending else None
+
+    def _resolve(self, token: str, value: Any) -> bool:
+        with self._lock:
+            pending = self._pending.get(token)
+            if pending is None:
+                return False
+            pending.answer = value
+            pending.ready.set()
+            return True
 
     def resolve(self, token: str, allowed: bool) -> bool:
-        with self._lock:
-            event = self._pending.get(token)
-            if event is None:
-                return False
-            self._answers[token] = bool(allowed)
-        event.set()
-        return True
-
-    def cancel_all(self) -> int:
-        """Release every waiter without granting anything.
-
-        Used when the turn is stopped, the client disconnects, or the handler is
-        finishing for any reason. Returns how many waiters were woken.
-        """
-        with self._lock:
-            waiting = list(self._pending.values())
-            self._cancelled = True
-            for token, kind in self._kinds.items():
-                # Answer in the shape the waiter expects: a declined approval,
-                # and "no answer at all" for a question.
-                if kind == "question":
-                    self._answers.setdefault(token, None)
-                else:
-                    self._answers.setdefault(token, False)
-        for event in waiting:
-            event.set()
-        return len(waiting)
+        return self._resolve(token, bool(allowed))
 
     def resolve_text(self, token: str, text: Any) -> bool:
-        """Store an answer. ``text`` may be a string or a list of strings."""
-        if isinstance(text, list):
-            value: Any = [str(item) for item in text]
-        else:
-            value = str(text)
+        value = [str(item) for item in text] if isinstance(text, list) else str(text)
+        return self._resolve(token, value)
+
+    def cancel_all(self) -> int:
         with self._lock:
-            event = self._pending.get(token)
-            if event is None:
-                return False
-            self._answers[token] = value
-        event.set()
-        return True
+            for pending in self._pending.values():
+                pending.ready.set()
+            return len(self._pending)
 
     def forget(self, token: str) -> None:
         with self._lock:
             self._pending.pop(token, None)
-            self._kinds.pop(token, None)
-            self._answers.pop(token, None)
 
 
 APPROVALS = Approvals()
@@ -957,7 +892,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             workspace = target.resolve()
             store = STATE["store"]
-            live = _start_mcp(store, workspace)
+            live = start_mcp(store.load().mcp_servers, workspace)
             previous = STATE.get("mcp")
             STATE["mcp"] = live
             if previous is not None:
@@ -1102,12 +1037,7 @@ class Handler(BaseHTTPRequestHandler):
             RUNNING["cancel_event"] = cancel_event
             RUNNING["session_id"] = session.id
 
-        def work_input(task_id, body):
-            results = []
-            TaskHTTP(STATE, lambda handler, status, value: results.append(value)).messages(None, task_id, body)
-            return results[-1]
-
-        work_service = WorkService(STATE, session, settings, ling.current_input, intake=work_input) if ling else None
+        work_service = WorkService(STATE, session, settings, ling.current_input) if ling else None
 
         def toolset(*, supervise=True):
             return build(
@@ -1133,7 +1063,7 @@ class Handler(BaseHTTPRequestHandler):
             """
             if cancel_event.is_set():
                 return None
-            token = APPROVALS.create("question")
+            token = APPROVALS.create()
             if cancel_event.is_set():
                 APPROVALS.forget(token)
                 return None
@@ -1377,35 +1307,6 @@ def _load_skills(store: ConfigStore, workspace: Path | None = None) -> SkillSet:
     return skills.discover(skills.default_roots(workspace, store.home))
 
 
-def _start_mcp(store: ConfigStore, workspace: Path) -> mcp.MCPRegistry | None:
-    """Connect configured MCP servers once, at startup.
-
-    A server that fails to start is reported and skipped: one broken MCP entry
-    must not stop the agent from running.
-    """
-    settings = store.load()
-    entries = settings.mcp_servers
-    if not entries:
-        return None
-    problems = mcp_tools.config_problems(entries)
-    for problem in problems:
-        print(f"mcp: {problem}")
-    registry = mcp.MCPRegistry()
-    for raw in entries:
-        config = mcp.ServerConfig.from_dict(raw)
-        if config is None or not config.enabled:
-            continue
-        try:
-            names = registry.add(config, cwd=workspace)
-        except mcp.MCPError as error:
-            print(f"mcp: '{config.name}' failed to start: {error}")
-            continue
-        print(f"mcp: '{config.name}' provided {len(names)} tool(s)")
-    if not registry.servers:
-        return None
-    return registry
-
-
 def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None = None) -> None:
     previous_autonomy = STATE.pop("autonomy", None)
     if previous_autonomy is not None:
@@ -1429,7 +1330,7 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
     STATE.pop("ling", None)
     STATE["closing"] = False
     STATE["skills"] = _load_skills(store, Path(store.load().workspace))
-    STATE["mcp"] = _start_mcp(store, Path(store.load().workspace))
+    STATE["mcp"] = start_mcp(store.load().mcp_servers, Path(store.load().workspace))
     task_store = TaskStore(store.home / "tasks.sqlite3")
     task_store.recover_interrupted()
     task_store.hold_queued_at_startup()

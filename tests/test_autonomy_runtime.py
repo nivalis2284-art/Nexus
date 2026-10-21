@@ -345,8 +345,13 @@ def test_pause_timeout_reconciles_when_worker_finally_lands_paused(runtime, monk
     runtime._reconcile_pauses()
     action = runtime.store.get("action", "a")
     assert action["autonomy_pause"]["task_version"] == runtime.tasks.get(task.id).control_version
+    after = runtime.tasks.events(task.id)[-1]["seq"]
     runtime.command("resume")
-    assert runtime.tasks.get(task.id).state == "queued"
+    # The real worker can already have claimed and paused the resumed task.
+    # Check the durable transition instead of sampling that transient state.
+    queued = [event for event in runtime.tasks.events(task.id, after=after)
+              if event["type"] == "task.control" and event["data"]["operation"] == "queued"]
+    assert len(queued) == 1 and queued[0]["data"]["state"] == "queued"
     assert runtime.store.get("action", "a")["autonomy_pause"] is None
 
 

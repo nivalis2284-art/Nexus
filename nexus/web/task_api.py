@@ -6,8 +6,9 @@ import time
 import uuid
 from typing import Any
 
-from ..attachments import AttachmentStore, IMAGE_MIMES
-from ..task import TaskConflict, TaskNotFound, TaskValidationError
+from ..attachments import AttachmentStore
+from ..runtime.input import accept_input
+from ..task import TaskConflict, TaskValidationError
 
 
 class TaskHTTP:
@@ -28,13 +29,6 @@ class TaskHTTP:
         if value is None:
             raise TaskValidationError("task service is not initialized")
         return value
-
-    def status(self, error: BaseException) -> int:
-        if isinstance(error, TaskNotFound):
-            return 404
-        if isinstance(error, TaskConflict):
-            return 409
-        return 400
 
     def list(self, handler, query: dict[str, list[str]]) -> None:
         include = query.get("archived", ["0"])[-1] in ("1", "true")
@@ -239,35 +233,8 @@ class TaskHTTP:
         self.respond(handler, 200, {"events": events, "next": events[-1]["seq"] if events else after})
 
     def messages(self, handler, task_id: str, body: dict[str, Any]) -> None:
-        """Accept user input without replacing a pending decision or run."""
-        text = str(body.get("text") or "").strip()
-        request_id = str(body.get("request_id") or "").strip()
-        if (not text and not body.get("attachments")) or not request_id:
-            raise TaskValidationError("text and request_id are required")
-        task = self.store.get(task_id)
-        previous = self.store.message_for_request(task_id, request_id)
-        if previous is None and task.state in ("cancelled", "completed"):
-            raise TaskConflict("re-enable or create a new task before adding work")
-        # Persist the user's message before a worker can start and consume it.
-        attachments = AttachmentStore(self.state["store"].home).resolve("tasks", task_id, body.get("attachments", []))
-        if any(item["mime"] in IMAGE_MIMES for item in attachments):
-            provider = next((item for item in self.state["store"].providers() if item.id == task.provider_id), None)
-            model = next((item for item in provider.models if item.get("id") == task.model_id), {}) if provider else {}
-            if not model.get("capabilities", {}).get("images"):
-                raise TaskValidationError("任务绑定的模型未声明图片能力，请更换模型或移除图片")
-            if any(item["mime"] in IMAGE_MIMES and item["size"] > 5 * 1024 * 1024 for item in attachments):
-                raise TaskValidationError("图片上限为 5 MiB")
-        message = self.store.accept_user_message(
-            task_id, text=text, request_id=request_id, data={"attachments": attachments},
-        )
-        delivery = "pending"
-        if previous is None and task.state == "paused" and body.get("resume", True) is True:
-            task = self.controller.submit(task_id, request_id=request_id + "-run",
-                                          expected_version=task.control_version)
-        self.respond(handler, 200, {
-            "task_id": task_id, "text": text, "request_id": request_id,
-            "seq": message["seq"], "delivery": delivery,
-        })
+        result = accept_input(self.store, self.controller, self.state["store"], task_id, body)
+        self.respond(handler, 200, result)
 
     def task_detail(self, task_id: str) -> dict[str, Any]:
         """Shared task projection used by pages and control helpers."""
@@ -289,13 +256,6 @@ class TaskHTTP:
             "jobs": jobs, "active": task_id == self.controller.active_task,
             "queued": task_id in self.controller.queued_ids(),
         }
-
-    def add_task_message(self, task_id: str, text: str) -> None:
-        """Append ordinary task input without starting a second run."""
-        task = self.store.get(task_id)
-        if task.state in ("cancelled", "completed"):
-            raise TaskConflict("task is inactive")
-        self.store.add_message(task_id, kind="user", text=text)
 
     def delete(self, handler, task_id: str, body: dict[str, Any]) -> None:
         expected = body.get("expected_version")

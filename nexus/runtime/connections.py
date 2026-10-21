@@ -10,18 +10,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from .. import mcp
-from ..core.config import ConfigStore
 from ..tools import mcp_tools
 
 
-def start_mcp(store: ConfigStore, workspace: Path) -> mcp.MCPRegistry | None:
+def start_mcp(entries: list[dict], workspace: Path) -> mcp.MCPRegistry | None:
     """Connect enabled MCP servers for one workspace.
 
     A broken server is reported and skipped. The caller owns the returned
     registry and must close it when that execution scope ends.
     """
-    settings = store.load()
-    entries = settings.mcp_servers
     if not entries:
         return None
     for problem in mcp_tools.config_problems(entries):

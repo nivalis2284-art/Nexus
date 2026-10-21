@@ -1,5 +1,0 @@
-STEP hostile page sent its requests
-STEP permission now yolo
-STEP file exists true
-STEP file content written-by-an-unrelated-web-page
-STEP expected mark written-by-an-unrelated-web-page

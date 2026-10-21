@@ -91,7 +91,7 @@ def test_mcp_start_schema_call_failure_and_reload(runtime, monkeypatch):
     raw["mcp"] = {"servers": [{"name": "stub", "command": sys.executable,
                                "args": [str(Path(__file__).with_name("mcp_server_stub.py"))]}]}
     store.write_config(raw)
-    web.STATE["mcp"] = web._start_mcp(store, Path(store.load().workspace))
+    web.STATE["mcp"] = web.start_mcp(store.load().mcp_servers, Path(store.load().workspace))
     assert web.STATE["mcp"] is not None
     seen = model(monkeypatch, [stream(calls=[("mcp__stub__echo", {"text": "hello MCP"}),
                                            ("mcp__stub__fail", {})]), stream(text="finished")])

@@ -36,7 +36,7 @@ def test_a_pending_wait_can_be_cancelled():
 
 def test_a_pending_question_is_cancelled_too():
     approvals = Approvals()
-    token = approvals.create("question")
+    token = approvals.create()
     result: dict = {}
 
     def waiter():
@@ -55,8 +55,8 @@ def test_a_pending_question_is_cancelled_too():
 def test_approval_and_question_are_cancelled_differently():
     """The two shapes must stay distinguishable after a cancel."""
     approvals = Approvals()
-    approve_token = approvals.create("approval")
-    ask_token = approvals.create("question")
+    approve_token = approvals.create()
+    ask_token = approvals.create()
 
     results: dict = {}
 

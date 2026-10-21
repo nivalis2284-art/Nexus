@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import threading
 import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +13,7 @@ from .. import skills
 from ..attachments import AttachmentStore
 from ..core import subagent
 from ..core.agent import Agent, AgentSuspended
-from ..core.config import ConfigStore, Settings, build_profile
+from ..core.config import ConfigStore, build_profile
 from ..core.permission import default_policy
 from ..core.workspace import Workspace, inspect
 from ..model import RuntimeCredentials
@@ -45,73 +44,11 @@ def _is_ling_task(task: Task, rows: list[dict[str, Any]]) -> bool:
     )
 
 
-def _autonomy_scope(assembler: TaskAssembler, task: Task) -> Any:
-    autonomy = getattr(assembler, "autonomy", None)
-    if autonomy is None:
-        return None
-    lookup = getattr(autonomy, "task_scope", None)
-    if lookup is None:
-        return None
-    return lookup(task.id)
-
-
-def _action_ids(task: Task, rows: list[dict[str, Any]]) -> tuple[str, str]:
-    goal = next((str(row["autonomy_goal_id"]) for row in rows
-                 if row.get("autonomy_goal_id")), "")
-    action = next((str(row["autonomy_action_id"]) for row in rows
-                   if row.get("autonomy_action_id")), "")
-    return goal, action
-
-
 def _is_action_task(task: Task, rows: list[dict[str, Any]]) -> bool:
     """An autonomy row belongs to this task even if its scope was revoked."""
     return any(row.get("kind") == "autonomy"
                or row.get("autonomy_goal_id") or row.get("autonomy_action_id")
                for row in rows)
-
-
-def _autonomy_prompt(task: Task, rows: list[dict[str, Any]]) -> str:
-    goal_id, action_id = _action_ids(task, rows)
-    return (
-        "This is a bounded autonomous work task delegated by Ling, not a new user command. "
-        "The autonomy goal, action ID and owner scope are authoritative; the user has not "
-        "made an additional request in this turn. Work only inside the admitted read and "
-        "output scope. Treat an unavailable or ambiguous action as a reason to stop and "
-        "report rather than inventing owner authorization.\n\n"
-        f"Autonomous goal: {task.effective_goal or task.goal}\n"
-        f"Autonomy goal ID: {goal_id or '(missing)'}\n"
-        f"Autonomy action ID: {action_id or '(missing)'}\n"
-        f"Constraints: {task.constraints or '(none recorded)'}"
-    )
-
-
-def _autonomy_context(task: Task, rows: list[dict[str, Any]], state: str, scope: Any = None) -> str:
-    """Persistent task facts plus the provenance of autonomous delegation."""
-    text = state + "\n\n# Autonomous work provenance\n" + _autonomy_prompt(task, rows)
-    if scope is not None:
-        current = getattr(scope, "settings", {})
-        runtime = getattr(scope, "runtime", None)
-        if runtime is not None:
-            current = runtime.store.settings()
-            goal_id, _action_id = _action_ids(task, rows)
-            concern = runtime.store.get("goal", goal_id) if goal_id else None
-            if concern is not None:
-                text += ("\nLatest owning concern (facts and understanding, NOT a new owner request "
-                         "or a replacement of this task's accepted goal/permissions). Read referenced "
-                         "sources when needed and incorporate relevant corrections; report conflicts "
-                         "instead of assuming successful work.\n" + json.dumps({
-                             "owning_concern": {key: concern.get(key) for key in
-                                 ("id", "version", "status", "question", "understanding", "sources")}
-                         }, ensure_ascii=False))
-        accepted = getattr(scope, "accepted", current)
-        fields = ("read_roots", "output_root", "allowed_mcp_tools")
-        text += ("\nUse ABSOLUTE paths within BOTH current and accepted scopes below. "
-                 "The working directory is only a common ancestor, not an authorized read root; "
-                 "do not glob or grep '.' when it is outside these roots. "
-                 "Read/write these explicit directories with file tools, not a shell.\n" +
-                 json.dumps({"current_owner_scope": {key: current.get(key) for key in fields},
-                             "accepted_action_scope": {key: accepted.get(key) for key in fields}}, ensure_ascii=False))
-    return text
 
 
 def _subagent_registry(registry: Registry) -> Registry:
@@ -124,106 +61,12 @@ def _subagent_registry(registry: Registry) -> Registry:
     return child
 
 
-def _mcp_names(scope: Any) -> set[str] | None:
-    """MCP exposure is the intersection of current and accepted owner lists.
-
-    A missing scope has no MCP filter. A real scope with no admitted names
-    exposes none; it does not fall back to every configured server.
-    """
-    if scope is None:
-        return None
-    current = getattr(scope, "settings", {}) or {}
-    accepted = getattr(scope, "accepted", {}) or {}
-    current_names = current.get("allowed_mcp_tools") or []
-    accepted_names = accepted.get("allowed_mcp_tools") or []
-    return set(current_names).intersection(accepted_names)
-
-
-def _filter_mcp(registry: Registry, allowed: set[str] | None) -> Registry:
-    if allowed is None:
-        return registry
-    filtered = Registry()
-    for spec in registry.specs():
-        if not spec.name.startswith("mcp__") or spec.name in allowed:
-            filtered.add(spec)
-    return filtered
-
-
-def _mcp_servers(settings: Settings, allowed: set[str] | None) -> list[dict[str, Any]]:
-    """Select only configured servers named by admitted MCP tools.
-
-    Launching a server is already an external capability, so a registry-level
-    filter alone is insufficient. The returned dictionaries are copies used in
-    a transient settings view; the owner's configuration is never modified.
-    """
-    if not allowed:
-        return []
-    names = set()
-    for qualified in allowed:
-        parts = qualified.split("__", 2)
-        if len(parts) == 3 and parts[0] == "mcp" and parts[1]:
-            names.add(parts[1])
-    return [dict(entry) for entry in settings.mcp_servers
+def _mcp_servers(configured: list[dict[str, Any]], allowed: set[str]) -> list[dict[str, Any]]:
+    """Configured servers reached by the admitted MCP tool names."""
+    names = {name.split("__", 2)[1] for name in allowed
+             if len(name.split("__", 2)) == 3 and name.startswith("mcp__")}
+    return [dict(entry) for entry in configured
             if str(entry.get("name") or "") in names]
-
-
-def _skill_roots(scope: Any) -> list[Path]:
-    """Workspace skills only from the current/accepted admitted roots.
-
-    ``workspace_root`` may be a common ancestor such as a drive or user home;
-    searching it would expose skills outside the owner's selection. Each
-    admitted directory is considered independently instead. Root order is
-    deterministic and the output root participates only through this exact
-    path, not through an ancestor scan.
-    """
-    current = getattr(scope, "settings", {}) or {}
-    accepted = getattr(scope, "accepted", {}) or {}
-    current_read = current.get("read_roots") or []
-    accepted_read = accepted.get("read_roots") or []
-    current_output = current.get("output_root") or ""
-    accepted_output = accepted.get("output_root") or ""
-    if (not current_read and not current_output
-            and not accepted_read and not accepted_output):
-        # Duck-typed scopes used by integrations may expose only the bounded
-        # workspace. Treat that exact path as the root; never scan its parent.
-        workspace = getattr(scope, "workspace_root", None)
-        return [Path(workspace) / ".nexus" / "skills"] if workspace else []
-    admitted: list[Path] = []
-    for key in ("read_roots", "output_root"):
-        now = current.get(key)
-        then = accepted.get(key)
-        now_values = now if isinstance(now, list) else [now] if now else []
-        then_values = then if isinstance(then, list) else [then] if then else []
-        for raw_now in now_values:
-            try:
-                path_now = Path(raw_now).expanduser().resolve()
-            except (OSError, TypeError, ValueError):
-                continue
-            for raw_then in then_values:
-                try:
-                    path_then = Path(raw_then).expanduser().resolve()
-                except (OSError, TypeError, ValueError):
-                    continue
-                if path_now == path_then or path_now.is_relative_to(path_then):
-                    admitted.append(path_now)
-                    break
-    roots: list[Path] = []
-    for root in admitted:
-        candidate = root / ".nexus" / "skills"
-        if candidate not in roots:
-            roots.append(candidate)
-    return roots
-
-
-class _ScopedConfig:
-    """A read-only ConfigStore view for one already authorized MCP start."""
-
-    def __init__(self, store: ConfigStore, mcp_servers: list[dict[str, Any]]) -> None:
-        self._store = store
-        self._mcp_servers = mcp_servers
-
-    def load(self) -> Settings:
-        return replace(self._store.load(), mcp_servers=self._mcp_servers)
 
 
 @dataclass
@@ -266,7 +109,7 @@ class TaskAssembler:
     def __call__(self, task: Task, cancel: threading.Event) -> RunFnResult:
         stored_messages = self.store.messages(task.id)
         autonomy_task = _is_action_task(task, stored_messages)
-        scope = _autonomy_scope(self, task)
+        scope = self.autonomy.task_scope(task.id) if self.autonomy is not None else None
         if autonomy_task and scope is None:
             raise TaskValidationError("自主任务没有有效的当前授权；请由灵重新审议")
         profile, key, permission, rules, model = self._strict_settings(task)
@@ -286,7 +129,7 @@ class TaskAssembler:
                     "and write only to the approved output root."
                 ),
             )
-            skill_set = skills.discover(_skill_roots(scope))
+            skill_set = skills.discover(scope.skill_roots())
             # An autonomous task may only use skills already installed under
             # an admitted read/output root. Do not inherit the common ancestor
             # or the user's global skills.
@@ -306,18 +149,16 @@ class TaskAssembler:
         self._jobs[task.id] = task_jobs
 
         raw_settings = self.config.read_config()
-        allowed_mcp = _mcp_names(scope)
-        mcp_config = self.config
         if scope is not None:
             # Recompute the intersection at each run. Pausing or narrowing an
             # accepted action must stop a server from being launched, even if
             # it was previously exposed to this task.
-            admitted_servers = _mcp_servers(self.config.load(), allowed_mcp)
-            mcp_config = _ScopedConfig(self.config, admitted_servers)
+            admitted_servers = _mcp_servers(
+                self.config.load().mcp_servers, scope.allowed_mcp(),
+            )
         else:
-            admitted_servers = None
-        mcp_registry = (start_mcp(mcp_config, workspace_path)
-                        if admitted_servers is None or admitted_servers else None)
+            admitted_servers = self.config.load().mcp_servers
+        mcp_registry = start_mcp(admitted_servers, workspace_path)
         try:
             registry, context = build(
                 context_skill_bodies, root=workspace_path,
@@ -328,7 +169,8 @@ class TaskAssembler:
                 attachment_source=(AttachmentStore(self.config.home), "tasks", task.id),
                 attachment_ids={a["id"] for item in stored_messages for a in item.get("attachments", [])},
             )
-            registry = _filter_mcp(registry, allowed_mcp)
+            if scope is not None:
+                registry = scope.filter_mcp(registry)
             return self._run(
                 task, cancel, callbacks, profile, key, permission, rules, model,
                 workspace, workspace_path, skill_set, task_jobs, registry, context,
@@ -375,7 +217,8 @@ class TaskAssembler:
                             for a in item.get("attachments", [])},
         )
         child_registry = _subagent_registry(child_registry)
-        child_registry = _filter_mcp(child_registry, _mcp_names(scope))
+        if scope is not None:
+            child_registry = scope.filter_mcp(child_registry)
         child_context.ask = callbacks.ask
         child_callbacks = callbacks.child_scope()
         child_callbacks.add_evidence = child_callbacks.add_child_evidence
@@ -403,9 +246,7 @@ class TaskAssembler:
                 # Older autonomy rows may predate the initial autonomy message.
                 # Supply the model a provider transcript without claiming that
                 # the owner issued a new command.
-                messages = [{"role": "user", "content": _autonomy_prompt(
-                    task, self.store.messages(task.id),
-                )}]
+                messages = [{"role": "user", "content": scope.prompt(task)}]
             if scope is None:
                 messages = callbacks.snapshot_history(include_images=profile.capabilities.images)
 
@@ -443,7 +284,7 @@ class TaskAssembler:
                     attachment_contexts=[child_context],
                 )
                 if scope is not None:
-                    child.task_context = _autonomy_context(task, self.store.messages(task.id), child.task_context, scope)
+                    child.task_context = scope.context_text(task, child.task_context)
             child.before_model = child_before_model
             return child.run([{"role": "user", "content": prompt}])
 
@@ -468,9 +309,7 @@ class TaskAssembler:
                 # step. Reassert autonomy provenance so later continuation
                 # requests cannot present this work as a new owner command,
                 # while retaining the freshly persisted task facts.
-                agent.task_context = _autonomy_context(
-                    task, self.store.messages(task.id), agent.task_context, scope,
-                )
+                agent.task_context = scope.context_text(task, agent.task_context)
 
         agent = Agent(
             profile=profile, credentials=RuntimeCredentials(key), registry=registry,
@@ -479,8 +318,7 @@ class TaskAssembler:
             context_limit=self.config.load().context_limit,
             approve=approve, effort=task.effort, skills=skill_set.manifest(),
             cancel_event=cancel,
-            task_context=(_autonomy_context(
-                              task, self.store.messages(task.id), system_task_state, scope)
+            task_context=(scope.context_text(task, system_task_state)
                           if scope is not None else system_task_state),
             on_message=callbacks.on_message,
             before_model=before_model,

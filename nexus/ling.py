@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .attachments import AttachmentStore
+from .runtime.input import accept_input
 from .session import Message
 from .task import TaskConflict, TaskNotFound, TaskValidationError
 from .task.models import now_iso
@@ -67,13 +68,12 @@ def task_summary(store, controller, task) -> dict[str, Any]:
 class WorkService:
     """Model-facing work operations, bound to the actual interaction input."""
 
-    def __init__(self, state, session, settings, input_id: int = 0, intake: Callable | None = None):
+    def __init__(self, state, session, settings, input_id: int = 0):
         self.state, self.session, self.settings = state, session, settings
         self.store = state["tasks"]
         self.controller = state["task_controller"]
         self.attachments = AttachmentStore(state["store"].home)
         self.input_id = input_id
-        self.intake = intake
 
     def list(self, **_) -> dict:
         return {"tasks": [task_summary(self.store, self.controller, task)
@@ -165,9 +165,6 @@ class WorkService:
                 "message": "Work accepted independently; continue talking without waiting for completion."}
 
     def message(self, task_id: str, text: str, attachments: list[str] | None = None) -> dict:
-        # The caller injects the same intake boundary used by the task page.
-        if self.intake is None:
-            raise TaskValidationError("work input service is unavailable")
         task = self.store.get(task_id)
         if task.state in ("completed", "cancelled") or task.archived:
             raise TaskConflict("task is inactive")
@@ -187,7 +184,7 @@ class WorkService:
                 with Path(item["original_path"]).open("rb") as stream:
                     copied.append(self.attachments.save(
                         "tasks", task_id, item["name"], item["mime"], stream, item["size"]))
-        result = self.intake(task_id, {"text": text, "attachments": [a["id"] for a in copied],
+        result = accept_input(self.store, self.controller, self.state["store"], task_id, {"text": text, "attachments": [a["id"] for a in copied],
                                       "request_id": request_id, "resume": False})
         return {**result,
                 "input_status": self.store.input_status(task_id),

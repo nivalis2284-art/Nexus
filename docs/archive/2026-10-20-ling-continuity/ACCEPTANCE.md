@@ -54,9 +54,9 @@
 | 浏览器 | Chrome（Playwright `channel: chrome`，headless，1360×900 与 390×844 两档） |
 | 模型 | 本机已配置的 `openai_responses` 端点，模型 `deepseek-v4.1-flash`（**真实调用，非桩**） |
 | 数据隔离 | 每个场景使用独立的临时 `NEXUS_HOME` + 独立 workspace（验收结束后已删除）；未触碰 `%LOCALAPPDATA%\Nexus` 里的日常配置、会话与凭据 |
-| 证据 | [`acceptance/`](acceptance/)：11 张关键截图 + 13 份运行日志 + 2 份 store 层验证输出（本轮实际产生，非历史材料） |
+| 证据 | [`acceptance/`](acceptance/)：保留关键界面截图与缺陷修复复验截图。逐步运行日志和 store 探测输出为控制篇幅已从工作区移出，原文仍由提交 `e4cd813` 追溯。 |
 
-**证据说明：** 截图与日志来自本轮真实操作。临时工作目录与测试驱动脚本在验收结束时清理；报告引用的结论均可在对应日志中逐行核对。
+**证据说明：** 截图来自本轮真实操作，临时工作目录与测试驱动脚本在验收结束时清理。报告引用的逐步日志可只读追溯，例如 `git show e4cd813:docs/archive/2026-10-20-ling-continuity/acceptance/run28.log`；无需恢复整个工作区。旧结论和缺陷状态不因证据精简而改写。
 
 ---
 

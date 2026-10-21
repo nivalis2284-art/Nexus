@@ -1,8 +1,10 @@
-"""Dedicated client for the Nexus local-text observation MCP service.
+"""Client for the local-text observation MCP service.
 
-This client owns exactly one stdio server.  It is intentionally separate from
-the general MCP registry so observation calls never pass through display-time
-tool text clipping and always retain the complete structured result.
+The client owns one stdio server and reads the observation contract used by
+Nexus: watch identity, specification versions, event evidence, cursors, and
+lease health.  Additional service diagnostics are passed through without
+becoming contract requirements, so an independently maintained implementation
+can evolve them.
 """
 
 from __future__ import annotations
@@ -19,6 +21,9 @@ CONTRACT_VERSION = "1"
 MAX_EVENTS_PAGE = 200
 EVENT_KINDS = frozenset({"baseline", "created", "modified", "deleted", "gap", "error"})
 WATCH_STATUSES = frozenset({"pending_lease", "active", "paused", "stopped"})
+HEALTH_STATES = frozenset({
+    "waiting_lease", "collecting", "lease_expired", "quota_exhausted", "stopped",
+})
 
 
 class ObserverClientError(RuntimeError):
@@ -56,72 +61,36 @@ class _Schema:
             raise ObserverClientError(f"observer response field {name} must be boolean")
         return value
 
-    @staticmethod
-    def number(value: Any, name: str) -> float:
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ObserverClientError(f"observer response field {name} must be a number")
-        return float(value)
-
-    @classmethod
-    def nullable_string(cls, value: Any, name: str) -> str | None:
-        if value is None:
-            return None
-        return cls.string(value, name)
-
-    @classmethod
-    def nullable_integer(cls, value: Any, name: str) -> int | None:
-        if value is None:
-            return None
-        return cls.integer(value, name)
-
-
-def _validate_watch(value: Any) -> dict[str, Any]:
+def _validate_watch(value: Any, *, require_resolved_path: bool = False) -> dict[str, Any]:
     watch = _Schema.obj(value, "watch")
-    required = (
-        "watch_id", "path", "resolved_path", "recursive", "interval",
-        "spec_version", "control_version", "status", "baseline_done",
-        "last_scan_at", "last_error", "created_at", "updated_at",
-    )
+    required = ("watch_id", "path", "spec_version", "status")
     missing = [name for name in required if name not in watch]
     if missing:
         raise ObserverClientError(f"observer watch is missing fields: {missing}")
     _Schema.string(watch["watch_id"], "watch.watch_id", allow_empty=False)
     _Schema.string(watch["path"], "watch.path", allow_empty=False)
-    _Schema.string(watch["resolved_path"], "watch.resolved_path", allow_empty=False)
-    _Schema.boolean(watch["recursive"], "watch.recursive")
-    _Schema.number(watch["interval"], "watch.interval")
     _Schema.integer(watch["spec_version"], "watch.spec_version", minimum=1)
-    _Schema.integer(watch["control_version"], "watch.control_version", minimum=1)
     if watch["status"] not in WATCH_STATUSES:
         raise ObserverClientError(f"unknown observer watch status: {watch['status']!r}")
-    _Schema.boolean(watch["baseline_done"], "watch.baseline_done")
-    _Schema.nullable_string(watch["last_scan_at"], "watch.last_scan_at")
-    _Schema.string(watch["last_error"], "watch.last_error")
-    _Schema.string(watch["created_at"], "watch.created_at", allow_empty=False)
-    _Schema.string(watch["updated_at"], "watch.updated_at", allow_empty=False)
+    if require_resolved_path:
+        _Schema.string(watch.get("resolved_path"), "watch.resolved_path", allow_empty=False)
     return watch
 
 
 def _validate_health(value: Any) -> dict[str, Any]:
     health = _Schema.obj(value, "health")
-    required = (
-        "state", "reason", "scanning", "lease_expires_at", "storage",
-        "watches", "last_service_error",
-    )
+    required = ("state", "reason")
     missing = [name for name in required if name not in health]
     if missing:
         raise ObserverClientError(f"observer health is missing fields: {missing}")
-    _Schema.string(health["state"], "health.state", allow_empty=False)
+    state = _Schema.string(health["state"], "health.state", allow_empty=False)
+    if state not in HEALTH_STATES:
+        raise ObserverClientError(f"unknown observer health state: {state!r}")
     _Schema.string(health["reason"], "health.reason")
-    _Schema.boolean(health["scanning"], "health.scanning")
-    _Schema.nullable_string(health["lease_expires_at"], "health.lease_expires_at")
-    storage = _Schema.obj(health["storage"], "health.storage")
-    _Schema.integer(storage.get("used_bytes"), "health.storage.used_bytes", minimum=0)
-    _Schema.integer(storage.get("quota_bytes"), "health.storage.quota_bytes", minimum=1)
-    watches = _Schema.obj(health["watches"], "health.watches")
-    for key in ("total", "active", "paused", "stopped", "pending_lease"):
-        _Schema.integer(watches.get(key), f"health.watches.{key}", minimum=0)
-    _Schema.string(health["last_service_error"], "health.last_service_error")
+    if "last_service_error" in health:
+        error = health["last_service_error"]
+        if error is not None:
+            _Schema.string(error, "health.last_service_error")
     return health
 
 
@@ -129,7 +98,7 @@ def _validate_event(value: Any, *, expected_epoch: str) -> dict[str, Any]:
     event = _Schema.obj(value, "event")
     required = (
         "seq", "event_id", "watch_id", "spec_version", "kind", "observed_at",
-        "path", "content", "hash", "previous_hash", "size", "truncated", "details",
+        "path", "content", "hash", "truncated", "details",
     )
     missing = [name for name in required if name not in event]
     if missing:
@@ -142,10 +111,17 @@ def _validate_event(value: Any, *, expected_epoch: str) -> dict[str, Any]:
         raise ObserverClientError(f"unknown observer event kind: {event['kind']!r}")
     _Schema.string(event["observed_at"], "event.observed_at", allow_empty=False)
     _Schema.string(event["path"], "event.path", allow_empty=False)
-    _Schema.nullable_string(event["content"], "event.content")
-    _Schema.nullable_string(event["hash"], "event.hash")
-    _Schema.nullable_string(event["previous_hash"], "event.previous_hash")
-    _Schema.nullable_integer(event["size"], "event.size")
+    for name in ("content", "hash"):
+        if event[name] is not None:
+            _Schema.string(event[name], f"event.{name}")
+    if "previous_hash" in event:
+        previous_hash = event["previous_hash"]
+        if previous_hash is not None:
+            _Schema.string(previous_hash, "event.previous_hash")
+    if "size" in event:
+        size = event["size"]
+        if size is not None:
+            _Schema.integer(size, "event.size", minimum=0)
     _Schema.boolean(event["truncated"], "event.truncated")
     _Schema.obj(event["details"], "event.details")
     if "epoch" in event and event["epoch"] != expected_epoch:
@@ -154,28 +130,13 @@ def _validate_event(value: Any, *, expected_epoch: str) -> dict[str, Any]:
 
 
 def _validate_status(result: dict[str, Any]) -> dict[str, Any]:
-    for key in ("contract_version", "implementation", "epoch", "health", "limits",
-                "roots", "event_range", "owner_pid"):
+    for key in ("contract_version", "epoch", "health"):
         if key not in result:
             raise ObserverClientError(f"observer status is missing field: {key}")
     if _Schema.string(result["contract_version"], "contract_version") != CONTRACT_VERSION:
         raise ObserverClientError("unsupported observer contract version")
-    _Schema.string(result["implementation"], "implementation", allow_empty=False)
     _Schema.string(result["epoch"], "epoch", allow_empty=False)
     _validate_health(result["health"])
-    limits = _Schema.obj(result["limits"], "limits")
-    for key in ("min_interval", "max_interval", "max_file_bytes", "max_files_per_watch",
-                "max_watches", "max_evidence_bytes", "max_events_page", "max_roots",
-                "max_directories_per_scan", "max_directory_entries_per_scan"):
-        _Schema.number(limits.get(key), f"limits.{key}")
-    roots = result["roots"]
-    if not isinstance(roots, list) or not all(isinstance(item, str) for item in roots):
-        raise ObserverClientError("observer roots must be a list of strings")
-    event_range = _Schema.obj(result["event_range"], "event_range")
-    _Schema.nullable_integer(event_range.get("earliest_seq"), "event_range.earliest_seq")
-    _Schema.nullable_integer(event_range.get("latest_seq"), "event_range.latest_seq")
-    _Schema.integer(result["owner_pid"], "owner_pid", minimum=1)
-    _Schema.string(result.get("limitations"), "limitations", allow_empty=False)
     return result
 
 
@@ -198,10 +159,10 @@ def _validate_result(name: str, result: dict[str, Any], args: dict[str, Any]) ->
             if key not in result:
                 raise ObserverClientError(f"watch_put is missing field: {key}")
         _Schema.string(result["epoch"], "epoch", allow_empty=False)
-        _validate_watch(result["watch"])
+        _validate_watch(result["watch"], require_resolved_path=True)
         baseline = _Schema.obj(result["baseline"], "baseline")
-        _Schema.string(baseline.get("status"), "baseline.status", allow_empty=False)
-        _Schema.integer(baseline.get("event_count"), "baseline.event_count", minimum=0)
+        if "status" in baseline:
+            _Schema.string(baseline["status"], "baseline.status", allow_empty=False)
         return result
     if name in ("watch_pause", "watch_resume", "watch_stop"):
         for key in ("epoch", "watch", "operation", "applied"):
@@ -211,7 +172,8 @@ def _validate_result(name: str, result: dict[str, Any], args: dict[str, Any]) ->
         _validate_watch(result["watch"])
         if result["operation"] != name.removeprefix("watch_"):
             raise ObserverClientError(f"{name} returned a mismatched operation")
-        _Schema.boolean(result["applied"], "applied")
+        if "applied" in result:
+            _Schema.boolean(result["applied"], "applied")
         return result
     if name == "events_read":
         for key in ("epoch", "events", "next_cursor", "has_more"):
@@ -234,7 +196,7 @@ def _validate_result(name: str, result: dict[str, Any], args: dict[str, Any]) ->
         if not result["events"] and next_cursor != args["after"]:
             raise ObserverClientError("empty events_read page advanced its cursor")
         _Schema.boolean(result["has_more"], "has_more")
-        if "gap" in result and result["gap"] is not None:
+        if result.get("gap") is not None:
             gap = _Schema.obj(result["gap"], "gap")
             _Schema.string(gap.get("reason"), "gap.reason", allow_empty=False)
             _Schema.integer(gap.get("from_seq"), "gap.from_seq", minimum=0)
@@ -245,17 +207,13 @@ def _validate_result(name: str, result: dict[str, Any], args: dict[str, Any]) ->
             if key not in result:
                 raise ObserverClientError(f"lease_renew is missing field: {key}")
         _Schema.string(result["epoch"], "epoch", allow_empty=False)
-        lease = _Schema.obj(result["lease"], "lease")
-        _Schema.integer(lease.get("control_version"), "lease.control_version", minimum=1)
-        _Schema.number(lease.get("ttl"), "lease.ttl")
-        _Schema.string(lease.get("expires_at"), "lease.expires_at", allow_empty=False)
         _validate_health(result["health"])
         return result
     raise ObserverClientError(f"unsupported observer tool: {name}")
 
 
 class ObserverClient:
-    """One dedicated observer stdio connection with validated JSON results."""
+    """One observer stdio connection with contract-level result checks."""
 
     TOOLS = frozenset({
         "status", "watches_list", "watch_put", "watch_pause", "watch_resume",
@@ -307,9 +265,10 @@ class ObserverClient:
                     raise ObserverClientError("observer initialize returned an invalid result")
                 declarations = self._server.list_tools()
                 names = {item.name for item in declarations}
-                if names != self.TOOLS:
+                missing = self.TOOLS - names
+                if missing:
                     raise ObserverClientError(
-                        f"observer tool contract mismatch: expected {sorted(self.TOOLS)}, got {sorted(names)}"
+                        f"observer tool contract mismatch: missing {sorted(missing)}"
                     )
             except (MCPError, OSError, ObserverClientError) as error:
                 self._server.close()
