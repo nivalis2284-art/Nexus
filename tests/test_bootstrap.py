@@ -23,6 +23,10 @@ def _version(command: list[str]) -> subprocess.CompletedProcess[str] | None:
     return None
 
 
+def _dependencies(command: list[str]) -> bool:
+    return any(str(part).startswith("import httpx, pydantic") for part in command)
+
+
 def _base(tmp_path: Path) -> Path:
     python = tmp_path / "python3.12.exe"
     python.write_bytes(b"")
@@ -55,7 +59,7 @@ def test_invalid_venv_is_preserved_before_creating_a_replacement(tmp_path):
         version = _version(command)
         if version is not None:
             return version
-        if "import httpx, pydantic, tzdata, pypdf, docx, openpyxl, pptx" in command:
+        if _dependencies(command):
             return _completed(command, 1)
         if command[-2:] == ["venv", str(root / ".venv")]:
             _venv_python(root)
@@ -75,9 +79,12 @@ def test_invalid_venv_is_preserved_before_creating_a_replacement(tmp_path):
         "pip",
         "install",
         "--quiet",
+        "--no-cache-dir",
         "--disable-pip-version-check",
         "-e",
         ".",
+        "-e",
+        "services/scheduler",
     ]
 
 
@@ -95,7 +102,7 @@ def test_base_interpreter_is_used_for_creation(tmp_path):
         version = _version(command)
         if version is not None:
             return version
-        if "import httpx, pydantic, tzdata, pypdf, docx, openpyxl, pptx" in command:
+        if _dependencies(command):
             return _completed(command)
         return _completed(command)
 
@@ -133,7 +140,7 @@ def test_missing_dependencies_are_installed_from_pyproject(tmp_path):
         version = _version(command)
         if version is not None:
             return version
-        if "import httpx, pydantic, tzdata, pypdf, docx, openpyxl, pptx" in command:
+        if _dependencies(command):
             return _completed(command, 1, stderr="ModuleNotFoundError")
         return _completed(command)
 
@@ -144,9 +151,12 @@ def test_missing_dependencies_are_installed_from_pyproject(tmp_path):
         "pip",
         "install",
         "--quiet",
+        "--no-cache-dir",
         "--disable-pip-version-check",
         "-e",
         ".",
+        "-e",
+        "services/scheduler",
     ]
 
 
@@ -195,7 +205,7 @@ def test_failed_install_keeps_environment_and_reports_error(tmp_path):
         version = _version(command)
         if version is not None:
             return version
-        if "import httpx, pydantic, tzdata, pypdf, docx, openpyxl, pptx" in command:
+        if _dependencies(command):
             return _completed(command, 1)
         if "install" in command:
             return _completed(command, 1, stderr="network is unavailable")

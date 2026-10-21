@@ -2,6 +2,8 @@
 setlocal EnableExtensions
 chcp 936 >nul
 cd /d "%~dp0"
+
+if not defined NEXUS_HOME set "NEXUS_HOME=%~dp0.nexus-data"
 title Nexus
 
 set "PY=.venv\Scripts\python.exe"

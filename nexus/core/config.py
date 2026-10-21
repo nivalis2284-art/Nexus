@@ -315,7 +315,11 @@ class ConfigStore:
         if isinstance(mcp_block, dict):
             candidate = mcp_block.get("servers")
             if isinstance(candidate, list):
-                mcp_servers = [item for item in candidate if isinstance(item, dict)]
+                mcp_servers = [dict(item) for item in candidate if isinstance(item, dict)]
+                secrets = self.read_credentials()
+                for entry in mcp_servers:
+                    if "mcp:" + str(entry.get("name", "")) in secrets:
+                        entry["token"] = secrets["mcp:" + entry["name"]]
         return Settings(
             provider=provider,
             model=model,

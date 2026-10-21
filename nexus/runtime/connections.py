@@ -1,8 +1,7 @@
-"""Per-workspace MCP connection ownership.
+"""MCP connection construction for one execution owner.
 
-The web server and persistent-task runtime use the same startup rules, but
-each execution owner gets its own live registry. Closing one task's workspace
-connections cannot interrupt an ordinary conversation.
+The service may keep one registry alive for the whole Nexus process; a task
+without such an owner starts and closes its own registry instead.
 """
 
 from __future__ import annotations
@@ -10,19 +9,17 @@ from __future__ import annotations
 from pathlib import Path
 
 from .. import mcp
-from ..tools import mcp_tools
 
 
 def start_mcp(entries: list[dict], workspace: Path) -> mcp.MCPRegistry | None:
-    """Connect enabled MCP servers for one workspace.
+    """Connect enabled stdio and HTTP servers for one workspace.
 
-    A broken server is reported and skipped. The caller owns the returned
+    A broken server is reported and skipped. Configuration diagnostics are
+    handled by the MCP registry implementation. The caller owns the returned
     registry and must close it when that execution scope ends.
     """
     if not entries:
         return None
-    for problem in mcp_tools.config_problems(entries):
-        print(f"mcp: {problem}")
     registry = mcp.MCPRegistry()
     try:
         for raw in entries:
@@ -31,14 +28,11 @@ def start_mcp(entries: list[dict], workspace: Path) -> mcp.MCPRegistry | None:
                 continue
             try:
                 names = registry.add(config, cwd=workspace)
-            except mcp.MCPError as error:
+            except (mcp.MCPError, OSError) as error:
                 print(f"mcp: '{config.name}' failed to start: {error}")
                 continue
             print(f"mcp: '{config.name}' provided {len(names)} tool(s)")
+        return registry
     except BaseException:
         registry.close()
         raise
-    if not registry.servers:
-        registry.close()
-        return None
-    return registry

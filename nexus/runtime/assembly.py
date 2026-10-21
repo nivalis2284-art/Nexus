@@ -15,7 +15,7 @@ from ..core import subagent
 from ..core.agent import Agent, AgentSuspended
 from ..core.config import ConfigStore, build_profile
 from ..core.permission import default_policy
-from ..core.workspace import Workspace, inspect
+from ..core.workspace import inspect
 from ..model import RuntimeCredentials
 from ..task import Task, TaskStore, TaskValidationError
 from ..tools import build
@@ -38,17 +38,8 @@ def _is_ling_task(task: Task, rows: list[dict[str, Any]]) -> bool:
     """
     return any(
         row.get("kind") == "user" and row.get("source_session_id")
-        or row.get("kind") == "autonomy"
-        or bool(row.get("autonomy_goal_id") or row.get("autonomy_action_id"))
         for row in rows
     )
-
-
-def _is_action_task(task: Task, rows: list[dict[str, Any]]) -> bool:
-    """An autonomy row belongs to this task even if its scope was revoked."""
-    return any(row.get("kind") == "autonomy"
-               or row.get("autonomy_goal_id") or row.get("autonomy_action_id")
-               for row in rows)
 
 
 def _subagent_registry(registry: Registry) -> Registry:
@@ -61,21 +52,15 @@ def _subagent_registry(registry: Registry) -> Registry:
     return child
 
 
-def _mcp_servers(configured: list[dict[str, Any]], allowed: set[str]) -> list[dict[str, Any]]:
-    """Configured servers reached by the admitted MCP tool names."""
-    names = {name.split("__", 2)[1] for name in allowed
-             if len(name.split("__", 2)) == 3 and name.startswith("mcp__")}
-    return [dict(entry) for entry in configured
-            if str(entry.get("name") or "") in names]
-
-
 @dataclass
 class TaskAssembler:
     """The single adapter from task facts to the existing agent runtime."""
 
     store: TaskStore
     config: ConfigStore
-    autonomy: Any = None
+    # A service-owned registry is borrowed for the task's lifetime. Without
+    # one, the task starts and closes its own connections.
+    mcp_registry: Any = None
 
     def _strict_settings(self, task: Task):
         raw = self.config.read_config()
@@ -108,38 +93,14 @@ class TaskAssembler:
 
     def __call__(self, task: Task, cancel: threading.Event) -> RunFnResult:
         stored_messages = self.store.messages(task.id)
-        autonomy_task = _is_action_task(task, stored_messages)
-        scope = self.autonomy.task_scope(task.id) if self.autonomy is not None else None
-        if autonomy_task and scope is None:
-            raise TaskValidationError("自主任务没有有效的当前授权；请由灵重新审议")
         profile, key, permission, rules, model = self._strict_settings(task)
-        if scope is not None:
-            profile = scope.constrain_profile(profile)
         workspace_path = Path(task.workspace).expanduser().resolve()
         if not workspace_path.is_dir():
             raise TaskValidationError(f"任务工作目录不存在: {workspace_path}")
-        if scope is not None:
-            # The common ancestor exists only to make file tools able to resolve
-            # multiple admitted roots. It must not import ancestor instructions
-            # or inspect a repository outside the owner's selected directories.
-            workspace = Workspace(
-                root=workspace_path,
-                instructions=(
-                    "Bounded autonomous work. Read only the owner-approved roots "
-                    "and write only to the approved output root."
-                ),
-            )
-            skill_set = skills.discover(scope.skill_roots())
-            # An autonomous task may only use skills already installed under
-            # an admitted read/output root. Do not inherit the common ancestor
-            # or the user's global skills.
-            context_skill_bodies = skill_set.bodies()
-        else:
-            workspace = inspect(workspace_path)
-            skill_set = skills.discover(skills.default_roots(workspace_path, self.config.home))
-            context_skill_bodies = skill_set.bodies()
+        workspace = inspect(workspace_path)
+        skill_set = skills.discover(skills.default_roots(workspace_path, self.config.home))
+        context_skill_bodies = skill_set.bodies()
         callbacks = TaskCallbacks(self.store, task.id, self.store.current_run(task.id), cancel=cancel)
-        callbacks.autonomy_scope = scope
         task_jobs = self.active_jobs(task.id)
         if task_jobs is None or getattr(task_jobs, "closed", True):
             task_jobs = JobRegistry()
@@ -149,16 +110,11 @@ class TaskAssembler:
         self._jobs[task.id] = task_jobs
 
         raw_settings = self.config.read_config()
-        if scope is not None:
-            # Recompute the intersection at each run. Pausing or narrowing an
-            # accepted action must stop a server from being launched, even if
-            # it was previously exposed to this task.
-            admitted_servers = _mcp_servers(
-                self.config.load().mcp_servers, scope.allowed_mcp(),
-            )
-        else:
-            admitted_servers = self.config.load().mcp_servers
-        mcp_registry = start_mcp(admitted_servers, workspace_path)
+        admitted_servers = self.config.load().mcp_servers
+        shared_mcp = self.mcp_registry
+        mcp_registry = shared_mcp if shared_mcp is not None else start_mcp(
+            admitted_servers, workspace_path
+        )
         try:
             registry, context = build(
                 context_skill_bodies, root=workspace_path,
@@ -169,15 +125,13 @@ class TaskAssembler:
                 attachment_source=(AttachmentStore(self.config.home), "tasks", task.id),
                 attachment_ids={a["id"] for item in stored_messages for a in item.get("attachments", [])},
             )
-            if scope is not None:
-                registry = scope.filter_mcp(registry)
             return self._run(
                 task, cancel, callbacks, profile, key, permission, rules, model,
                 workspace, workspace_path, skill_set, task_jobs, registry, context,
-                stored_messages, scope,
+                stored_messages,
             )
         finally:
-            if mcp_registry is not None:
+            if shared_mcp is None and mcp_registry is not None:
                 mcp_registry.close()
 
     def _run(
@@ -186,7 +140,6 @@ class TaskAssembler:
         model: Any, workspace: Any, workspace_path: Path, skill_set: Any,
         task_jobs: JobRegistry, registry: Any, context: Any,
         stored_messages: list[dict[str, Any]],
-        scope: Any = None,
     ) -> RunFnResult:
         incomplete = False
         context.ask = callbacks.ask
@@ -196,12 +149,7 @@ class TaskAssembler:
         raw_settings = self.config.read_config()
         context.web_allowlist = list(raw_settings.get("webfetch_hosts") or [])
         context.search_endpoint = str(raw_settings.get("search_endpoint") or "")
-        context.autonomy_scope = scope
-        context.model_budget = getattr(scope, "model_budget", None) if scope is not None else None
-
         policy = default_policy(permission, rules)
-        if scope is not None:
-            policy = scope.policy(policy)
         system_task_state = callbacks.context_text()
 
         # A subagent has a separate transcript and tools, but shares the parent's
@@ -217,8 +165,6 @@ class TaskAssembler:
                             for a in item.get("attachments", [])},
         )
         child_registry = _subagent_registry(child_registry)
-        if scope is not None:
-            child_registry = scope.filter_mcp(child_registry)
         child_context.ask = callbacks.ask
         child_callbacks = callbacks.child_scope()
         child_callbacks.add_evidence = child_callbacks.add_child_evidence
@@ -226,29 +172,14 @@ class TaskAssembler:
         child_context.file_effect = file_effect
         child_context.web_allowlist = list(raw_settings.get("webfetch_hosts") or [])
         child_context.search_endpoint = str(raw_settings.get("search_endpoint") or "")
-        child_context.autonomy_scope = scope
-        child_context.model_budget = context.model_budget
-        if scope is not None:
-            # The child runs inside the parent's existing call, which already
-            # passed guard_tool before its executor was entered. Running guard
-            # again could consume a durable MCP approval twice; the child's
-            # actual tools still pass guard at their own dispatch boundary.
-            child_context.autonomy_scope = None
         messages = callbacks.snapshot_history(include_images=profile.capabilities.images)
         if not messages:
-            if scope is None:
-                self.store.add_message(task.id, kind="user", text=(
-                    "Work on this persistent task. Start by understanding the goal, then use the task tools "
-                    "to record material decisions and verified outcomes. Do not claim completion without evidence.\n\n"
-                    f"Goal: {task.effective_goal or task.goal}\nConstraints: {task.constraints or '(none)'}"
-                ))
-            else:
-                # Older autonomy rows may predate the initial autonomy message.
-                # Supply the model a provider transcript without claiming that
-                # the owner issued a new command.
-                messages = [{"role": "user", "content": scope.prompt(task)}]
-            if scope is None:
-                messages = callbacks.snapshot_history(include_images=profile.capabilities.images)
+            self.store.add_message(task.id, kind="user", text=(
+                "Work on this persistent task. Start by understanding the goal, then use the task tools "
+                "to record material decisions and verified outcomes. Do not claim completion without evidence.\n\n"
+                f"Goal: {task.effective_goal or task.goal}\nConstraints: {task.constraints or '(none)'}"
+            ))
+            messages = callbacks.snapshot_history(include_images=profile.capabilities.images)
 
         ling_task = _is_ling_task(task, self.store.messages(task.id))
 
@@ -274,17 +205,10 @@ class TaskAssembler:
                 ),
             )
             def child_before_model(history: list[dict[str, Any]]) -> None:
-                if scope is not None:
-                    try:
-                        scope.check()
-                    except TaskSuspension as error:
-                        raise AgentSuspended.from_tool(error) from error
                 child_callbacks.refresh_child_context(
                     history, agent=child, include_images=profile.capabilities.images,
                     attachment_contexts=[child_context],
                 )
-                if scope is not None:
-                    child.task_context = scope.context_text(task, child.task_context)
             child.before_model = child_before_model
             return child.run([{"role": "user", "content": prompt}])
 
@@ -295,21 +219,10 @@ class TaskAssembler:
         agent: Agent
 
         def before_model(history: list[dict[str, Any]]) -> None:
-            if scope is not None:
-                try:
-                    scope.check()
-                except TaskSuspension as error:
-                    raise AgentSuspended.from_tool(error) from error
             callbacks.before_model(
                 history, agent=agent, include_images=profile.capabilities.images,
                 attachment_contexts=[context, child_context],
             )
-            if scope is not None:
-                # TaskCallbacks.before_model refreshes task context on every
-                # step. Reassert autonomy provenance so later continuation
-                # requests cannot present this work as a new owner command,
-                # while retaining the freshly persisted task facts.
-                agent.task_context = scope.context_text(task, agent.task_context)
 
         agent = Agent(
             profile=profile, credentials=RuntimeCredentials(key), registry=registry,
@@ -318,8 +231,7 @@ class TaskAssembler:
             context_limit=self.config.load().context_limit,
             approve=approve, effort=task.effort, skills=skill_set.manifest(),
             cancel_event=cancel,
-            task_context=(scope.context_text(task, system_task_state)
-                          if scope is not None else system_task_state),
+            task_context=system_task_state,
             on_message=callbacks.on_message,
             before_model=before_model,
             on_tool_intent=callbacks.prepare_dispatch,
@@ -417,17 +329,17 @@ class TaskAssembler:
             self.store.record_job_snapshots(task.id, snapshots)
             return RunFnResult(status="waiting_user", wait_reason="等待用户处理")
         except TaskSuspension as suspension:
-            # Scope revocation and budget exhaustion are durable control stops.
-            # A subagent suspension is translated to AgentSuspended before it
+            # A declined approval or other tool-side stop is durable. A
+            # subagent suspension is translated to AgentSuspended before it
             # reaches here; this branch covers the parent and compact requests.
             incomplete = True
             current = self.store.get(task.id)
             if current.state == "running":
                 self.store.command(
-                    task.id, "paused", request_id=f"autonomy-stop-{task.id}",
+                    task.id, "paused", request_id=f"suspended-{task.id}",
                 )
             self.store.add_message(
-                task.id, kind="notice", text=f"自主执行已停止：{suspension.reason}",
+                task.id, kind="notice", text=f"执行已停止：{suspension.reason}",
             )
             return RunFnResult(status="paused", wait_reason=suspension.reason)
         except TaskConflict as conflict:

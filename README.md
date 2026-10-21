@@ -2,7 +2,7 @@
 
 Nexus 是一个正在迭代的个人 Agent 项目。**当前版本**提供灵的持续交流入口与独立持久任务：用户可以继续交流，由灵发起、了解和干预工作，并接收重要事件。原有 Coding Agent 的网页会话、模型接入、工具与运行控制继续保留。
 
-当前暂停新增功能，维护重点为减少重复实现、厘清运行与业务边界、精简历史验证产物。Demo 的使用方式和已有产品目标保持不变；本轮变更、验证结果和保留的技术债务见 [`docs/archive/2026-10-21-phase1-baseline/PROGRESS.md`](docs/archive/2026-10-21-phase1-baseline/PROGRESS.md)。
+最简自主性雏形已交付：旧系统完整归档，新版以定时唤醒和公开网页变化唤醒灵，复用主会话能力；灵可以回复或保留一句静默经历。实际体验与限制见 [`docs/AUTOMATION-PHASE1.md`](docs/AUTOMATION-PHASE1.md)。
 
 当前项目尚未实现长期记忆或人格等愿景能力；这只是版本现状，**不代表未来的功能限制**。长期方向见 [`docs/愿景/`](docs/愿景/)，当前要做什么以已确认的需求为准。
 
@@ -33,7 +33,7 @@ Nexus 是一个正在迭代的个人 Agent 项目。**当前版本**提供灵的
 | 持久任务 | 任务库、并存的待执行/挂起任务、任务进度与证据、暂停/继续、跨重启恢复 |
 | 灵的持续交互 | 固定交流入口、服务端持久输入队列；灵可委派、查询和干预独立工作，执行过程留在任务内 |
 | 重要事件反馈 | 页内主动提示和决策作答，完成/受阻/等待用户等事件持久保存，离线回来补看 |
-| 自主活动（开发中，待真实模型验收） | 唯一灵主 Agent 有界审议、持久关注事项、自定回顾、独立本地资料监听、授权内独立工作与正式主动消息 |
+| 最简自主活动 | 定时任务、间隔唤醒、每日规划、公开网页变化监听，沿用主会话能力；回复或保存一句话静默经历 |
 | 执行安排 | 默认手动；可选一次性到时自动恢复或等待确认，错过后等待用户 |
 | 任务止损 | 记录尝试和已排除路线；同前提无新依据的重复失败会停止该路线 |
 | 网页交互 | 聊天界面、思考与工具过程展示、授权确认 |
@@ -51,7 +51,7 @@ Nexus 是一个正在迭代的个人 Agent 项目。**当前版本**提供灵的
 
 思考强度设为“提供商默认”时不主动传入强度字段；也提供 `low`、`medium`、`high`、`xhigh`、`max` 档位。实际支持情况取决于模型、服务端及协议实现，并非所有服务都必然接受全部档位。
 
-数据目录默认为 `%LOCALAPPDATA%\Nexus`，可用 `NEXUS_HOME` 调整。常见内容：
+通过 `start.bat` 启动时，数据目录默认使用项目内的 `.nexus-data`，与现有日常实例一致；可用 `NEXUS_HOME` 指定其他目录。直接运行 `python -m nexus` 时，仍默认使用 `%LOCALAPPDATA%\Nexus`。常见内容：
 
 ```text
 config.json          提供商及运行配置（不含 API Key）
@@ -59,7 +59,9 @@ credentials.json     API Key 等凭据
 sessions/*.jsonl     会话记录
 tasks.sqlite3        持久任务、执行证据、交互、一次性安排、通知与灵的输入队列/归属
 attachments/         按会话/任务归属保存的原文件、元数据与提取文本
-autonomy-observer/   可替换监听 MCP 的规则、基线与事件日志；重要自主记录仍在 tasks.sqlite3
+automation.sqlite3  Nexus 唤醒队列与活动记录；旧规则表保留为迁移来源
+scheduler/scheduler.sqlite3  独立 MCP 服务的定时规则、监听与网页基线
+archive/autonomy-original/  首次切换时保存的旧自主数据
 skills/*.md          可选 Skill 文档
 ```
 
@@ -77,19 +79,17 @@ skills/*.md          可选 Skill 文档
 
 重启后，未开始的灵输入等待用户明确继续；上次正在处理的输入标为中断，需检查已生效操作后发新消息继续，不盲目重放。独立任务沿用已有的中断核查和手动恢复边界。完整长期记忆、人格演化和站外系统推送仍不在本阶段。
 
-## 启用与管理自主活动
+## 定时与监听
 
-自主活动默认关闭。先配置可用模型，再打开顶部「自主」，在「设置与长期授权」中填写获准读取的资料目录、成果保存目录和有限的 Token 总额度，保存后明确启用。建议首次使用选择专门的测试资料目录。模型使用当前 Nexus 配置；保底回顾默认 6 小时，主动联系等待默认 24 小时，参数可调整。到时只提供审议机会，不保证创建工作或发送消息。
+顶部「定时与监听」可以设置间隔唤醒、每日规划时刻，管理一次性、间隔、每日、每周安排，以及公开网页监听；也可以直接在灵的主会话中提出这些要求。灵可以自行调整全部安排。
 
-灵的同一个主 Agent 负责形成关注事项、安排未来回顾、管理获准监听，以及决定行动、等待或沉默。实际调查交给现有持久工作执行，真实结果回到下一次判断。自主消息保存在服务端，出现在灵的交流历史与「主动消息」内，并有页内提示和未读数；点开来源可以读取实际记录。关闭网页不会停止仍在运行的 Nexus 服务，退出服务会停止活动。
+网页监听通过 Playwright 和本机 Microsoft Edge 读取渲染正文，支持 JavaScript 页面。首次读取建立基线，正文变化后唤醒灵；不支持登录、验证码或反爬绕过。依赖由现有启动准备流程安装。无变化的检查不调用模型。
 
-「暂停」会停止继续审议、关闭监听并暂停关联自主工作；「恢复」只继续能够确认仍由本次暂停持有的工作，未知副作用或已有决策请求仍需核查。「终止」取消自主计划和关联工作，历史与额度账本保留；再次启用需明确操作。单个关注事项可撤回，其计划、监听和旧工作不会因此被自动重新创建。普通聊天和用户自行建立的任务继续使用原有控制。
+唤醒沿用主会话的模型、思考强度、工具、Skill、MCP 和独立工作。明确提醒或汇报按要求回复；自由唤醒可以沉默，并将本次经历压缩成一句话加入后续上下文，在活动记录中查看。正式回复进入主会话并有页内未读提示。
 
-首版监听器是独立 stdio MCP，支持 UTF-8 `.txt`、`.md`、`.markdown` 文件及其目录。它检测扫描时刻的内容变化，无法保证捕获两次扫描之间短暂出现又消失的版本；基线和观察间隙会与客观变化区分。单文件读取上限 2 MiB、每项监听最多 512 个文件、单事件证据保留前 64 KiB，超限或覆盖不足有明确记录。其他文件能力仍可通过原有工具和附件使用，不代表监听器已支持其格式。
+新数据首次初始化保持自动活动关闭，预填间隔60分钟、每日09:00、网页检查5分钟。关闭网页不停止服务端；关闭自动活动不停止已接收的唤醒及已开始的独立工作。
 
-授权内读取和写入成果目录可以直接进行；其他具体调用仍走现有持久任务审批。高级设置中的 MCP 工具名单只决定暴露哪些工具，不代表预先批准外部写入。每次自主模型请求（含子代理、摘要与重试）先预留额度，成功后按服务商 usage 结算；中断或 usage 不明时保留预留额。额度为累计总量，修改设置、暂停或重启不会清零。UTF-8 字节预留是保守估算，并非服务商精确账单或绝对计费上限。
-
-当前交付证据与尚未验证的真实模型行为见 [docs/archive/2026-10-21-phase1-baseline/PROGRESS.md](docs/archive/2026-10-21-phase1-baseline/PROGRESS.md)。工程联通测试不等于自主性产品验收通过。
+调度规则与监听已迁至 `services/scheduler/` 独立 MCP 服务。该服务拥有规则和网页正文基线；Nexus 拥有唤醒队列，负责执行主会话并保存回复或一句静默经历。服务默认随 Nexus 启停，主会话与独立任务复用同一个 MCP 连接。旧规则首次连接时导入服务，活动记录仍留在 Nexus。限定范围的代码验收、测试与文档收尾已完成，但未切换日常实例，也未进行真实全量验收；阶段记录见 [MCP 重构第一阶段](docs/MCP-PHASE1.md)，上一版记录见 [自主性雏形记录](docs/AUTOMATION-PHASE1.md)。
 
 ## 上传和使用附件
 
@@ -140,17 +140,18 @@ Agent 从消息中取得文件标识和原件路径，通过 `read_attachment` �
 "search_endpoint": "https://your-search.example/api"
 ```
 
-**MCP** 可通过 stdio 服务器接入外部工具，例如：
+**MCP** 使用官方 Python SDK，支持 stdio 和 Streamable HTTP。设置中的「MCP 服务」可以添加、编辑、启停、重连和删除服务，并查看连接状态、工具数量和错误。stdio 服务填写命令、参数和环境变量；HTTP 服务填写 URL 和可选的 Bearer token，token 保存在 `credentials.json`。本阶段不包含 OAuth。占位配置示例：
 
 ```json
 "mcp": {
   "servers": [
-    {"name": "fs", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]}
+    {"name": "fs", "transport": "stdio", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]},
+    {"name": "remote", "transport": "http", "url": "https://mcp.example.com/mcp"}
   ]
 }
 ```
 
-上述 MCP 配置是示例；运行第三方服务器前需确认其来源、依赖和可访问范围。工具可用性取决于本地环境。
+`remote` 的 Bearer token 在设置页填写。上述配置是示例；运行第三方服务器前需确认其来源、依赖和可访问范围。工具可用性取决于本地环境。
 
 **Skill** 可从工作区 `.nexus/skills/<名称>/SKILL.md` 或用户目录 `~/.nexus/skills/<名称>/SKILL.md` 发现；实际读取方式由现有 Skill 机制决定。
 
@@ -183,7 +184,7 @@ AGENTS.md    开发协作说明
 安装开发依赖后，在仓库根目录运行：
 
 ```powershell
-.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.venv\Scripts\python.exe -m pip install -e ".[dev]" -e services/scheduler
 .venv\Scripts\python.exe -m pytest tests -q
 ```
 
@@ -197,6 +198,7 @@ AGENTS.md    开发协作说明
 - [自主性预研历史 PRD](docs/archive/2026-10-20-autonomy-prestudy/PRD.md)、[主研究](docs/archive/2026-10-20-autonomy-prestudy/RESEARCH.md)、[多模型补充](docs/archive/2026-10-20-autonomy-prestudy/RESEARCH-MULTI-MODEL.md)：已归档，不构成当前交付目标。
 - [持续性 PRD](docs/archive/2026-10-20-ling-continuity/PRD.md)、[研究](docs/archive/2026-10-20-ling-continuity/RESEARCH.md)、[交付验证](docs/archive/2026-10-20-ling-continuity/PROGRESS.md)：归档旧阶段；持续性独立验收仍在进行，不代表已通过。
 - [`附件交付记录`](docs/archive/2026-10-20-attachments/PROGRESS.md)：上一轮附件实现、验证证据与读取限制。
+- [`自动化旧接口手动验收脚本`](docs/archive/2026-10-22-automation-manual-checks/README.md)：清理时保留的历史探测脚本，依赖旧接口，不能作为当前验收依据。
 - [`docs/archive/`](docs/archive/)：历史阶段需求、研究、重要决策与交付证据；不构成当前待办。
 - [`docs/archive/2026-10-21-phase1-baseline/BUSINESS-MAP.html`](docs/archive/2026-10-21-phase1-baseline/BUSINESS-MAP.html)：原 Coding Agent 基线的独立业务关系图，不含新增持续性链路，可直接用本地浏览器打开。
 - [`docs/愿景/01-概念与原则.md`](docs/愿景/01-概念与原则.md)：长期方向与所有者控制原则。

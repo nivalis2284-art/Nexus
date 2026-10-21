@@ -1,0 +1,24 @@
+[project]
+name = "nexus-scheduler"
+version = "0.1.0"
+description = "Standalone scheduler service for Nexus"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "mcp>=2.3,<3",
+    "httpx>=0.28,<1",
+    "playwright>=1.50,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9"]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

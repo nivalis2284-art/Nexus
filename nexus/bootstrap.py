@@ -115,9 +115,12 @@ def _install_dependencies(python: Path, *, root: Path, run: Run) -> None:
                 "pip",
                 "install",
                 "--quiet",
+                "--no-cache-dir",
                 "--disable-pip-version-check",
                 "-e",
                 ".",
+                "-e",
+                "services/scheduler",
             ],
             root=root,
             timeout=600,
@@ -134,7 +137,7 @@ def _install_dependencies(python: Path, *, root: Path, run: Run) -> None:
 def _dependencies_import(python: Path, *, root: Path, run: Run) -> bool:
     try:
         result = run(
-            [str(python), "-c", "import httpx, pydantic, tzdata, pypdf, docx, openpyxl, pptx"],
+            [str(python), "-c", "import httpx, pydantic, tzdata, pypdf, docx, openpyxl, pptx, mcp, nexus_scheduler"],
             root=root,
             timeout=30,
         )

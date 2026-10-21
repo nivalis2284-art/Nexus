@@ -2,24 +2,28 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
+import sys
 import threading
-import asyncio
+from pathlib import Path
 
 import httpx
 import pytest
 
-from nexus.core import subagent
-
 from nexus.attachments import AttachmentStore
+from nexus.core import subagent
 from nexus.core.config import ConfigStore
+from nexus.mcp import MCPRegistry, ServerConfig
 from nexus.model import APIFamily
 from nexus.runtime.assembly import TaskAssembler
 from nexus.runtime.callbacks import TaskCallbacks
 from nexus.runtime.connections import start_mcp
 from nexus.task import TaskStore
 from nexus.tools import build
+
+STUB = Path(__file__).resolve().parent / "mcp_server_stub.py"
 
 
 def frame(delta, finish=None):
@@ -280,3 +284,45 @@ def test_legacy_task_keeps_single_turn_behavior(tmp_path, monkeypatch):
 def test_mcp_startup_returns_no_shared_registry_when_disabled(tmp_path):
     config, _ = configure(tmp_path)
     assert start_mcp(config.load().mcp_servers, tmp_path) is None
+
+
+def test_task_borrows_a_shared_mcp_registry_without_closing_it(tmp_path, monkeypatch):
+    config, tasks, task = started_task(tmp_path)
+    seen = []
+    install_stream(monkeypatch, [text_frames("done")], seen)
+    shared = MCPRegistry()
+    shared.add(ServerConfig.from_dict({
+        "name": "stub", "command": sys.executable, "args": [str(STUB)],
+    }))
+    server = shared.servers["stub"]
+    try:
+        result = TaskAssembler(tasks, config, mcp_registry=shared)(
+            tasks.get(task.id), threading.Event()
+        )
+        assert result.status == "complete"
+        assert shared.servers["stub"] is server
+        assert server.connected
+        assert "mcp__stub__echo" in [tool["function"]["name"] for tool in seen[0]["tools"]]
+    finally:
+        shared.close()
+
+
+def test_task_failure_leaves_the_shared_mcp_registry_running(tmp_path, monkeypatch):
+    config, tasks, task = started_task(tmp_path)
+    install_stream(monkeypatch, [
+        frame({"content": "cut off"}) + frame({}, "length") + "data: [DONE]\n\n",
+    ], [])
+    shared = MCPRegistry()
+    shared.add(ServerConfig.from_dict({
+        "name": "stub", "command": sys.executable, "args": [str(STUB)],
+    }))
+    server = shared.servers["stub"]
+    try:
+        result = TaskAssembler(tasks, config, mcp_registry=shared)(
+            tasks.get(task.id), threading.Event()
+        )
+        assert result.status == "paused"
+        assert shared.servers["stub"] is server
+        assert server.connected
+    finally:
+        shared.close()

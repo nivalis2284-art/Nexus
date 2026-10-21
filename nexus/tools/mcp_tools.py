@@ -69,17 +69,24 @@ def _make_handler(registry: Any, qualified: str):
                     "server": server.name, "tool": declaration.name}
         if not result.ok:
             # An error result is data the model should read, not an exception.
-            return {
+            payload: dict[str, Any] = {
                 "content": result.text,
                 "mcp_error": True,
                 "server": server.name,
                 "tool": declaration.name,
             }
-        return {
-            "content": result.text,
-            "server": server.name,
-            "tool": declaration.name,
-        }
+            if result.structured_content is not None:
+                payload["data"] = result.structured_content
+            return payload
+        payload = {"server": server.name, "tool": declaration.name}
+        if result.structured_content is not None:
+            payload["data"] = result.structured_content
+            payload["content"] = json.dumps(
+                result.structured_content, ensure_ascii=False, indent=1
+            )
+        else:
+            payload["content"] = result.text
+        return payload
 
     handler.__name__ = f"mcp_{qualified}"
     return handler
@@ -99,6 +106,8 @@ def config_problems(raw: Any) -> list[str]:
             continue
         name = str(item.get("name") or "").strip()
         command = str(item.get("command") or "").strip()
+        transport = str(item.get("transport") or "stdio").strip().lower()
+        url = str(item.get("url") or "").strip()
         if not name:
             problems.append(f"mcp.servers[{index}] has no name")
         elif not name.replace("-", "").replace("_", "").isalnum():
@@ -107,8 +116,16 @@ def config_problems(raw: Any) -> list[str]:
             problems.append(f"duplicate mcp server name '{name}'")
         else:
             seen.add(name)
-        if not command:
-            problems.append(f"mcp.servers[{index}] has no command")
+        if transport in ("http", "streamable-http", "streamable_http"):
+            if not url:
+                problems.append(f"mcp.servers[{index}] has no url")
+        elif transport == "stdio":
+            if not command:
+                problems.append(f"mcp.servers[{index}] has no command")
+        else:
+            problems.append(
+                f"mcp.servers[{index}] has unsupported transport '{transport}'"
+            )
     return problems
 
 

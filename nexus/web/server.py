@@ -14,7 +14,6 @@ import secrets
 import threading
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -33,6 +32,8 @@ from ..runtime import TaskController
 from ..runtime.assembly import TaskAssembler
 from ..runtime.scheduler import TaskScheduler
 from ..runtime.connections import start_mcp
+from ..mcp import MCPError, MCPRegistry, ServerConfig
+from . import mcp_api
 from ..task import TaskConflict, TaskNotFound, TaskStore, TaskValidationError
 from ..session import Message, SessionStore
 from ..skills import SkillSet
@@ -193,33 +194,23 @@ def _ling() -> LingInbox:
         return STATE["ling"]
 
 
-def _autonomy():
-    from ..autonomy.runtime import AutonomyRuntime
+def _automation():
+    from ..automation.runtime import AutomationRuntime
     with RESOURCES:
         if STATE.get("closing"):
             raise TaskConflict("服务正在关闭")
-        if STATE.get("autonomy") is None:
-            runtime = AutonomyRuntime(STATE, BUSY, _ling)
-            STATE["autonomy"] = runtime
-            runner = STATE.get("task_runner")
-            if runner is not None:
-                runner.autonomy = runtime
+        if STATE.get("automation") is None:
+            def run(session, emit, inbox, wake):
+                handler = object.__new__(Handler)
+                handler._run_turn(session, STATE["store"].load(), emit, ling=inbox, wake=wake)
+            runtime = AutomationRuntime(STATE, BUSY, _ling, run)
+            STATE["automation"] = runtime
             runtime.start()
-        return STATE["autonomy"]
+        return STATE["automation"]
 
 
 def _ling_items(session):
-    runtime = STATE.get("autonomy")
-    if runtime is None or session.id != ling_session_id(STATE.get("tasks")):
-        return session.items
-    items = [*session.items, *[Message(kind="assistant", text=m["text"], at=m["at"],
-        data={"autonomy_message_id": m["id"], "sources": m["sources"]}) for m in runtime.store.messages()]]
-    def key(item):
-        try:
-            return datetime.fromisoformat(item.at.replace("Z", "+00:00")).timestamp()
-        except ValueError:
-            return 0
-    return sorted(items, key=key)
+    return session.items
 
 
 def _task_error(handler: BaseHTTPRequestHandler, error: BaseException) -> None:
@@ -411,7 +402,7 @@ def _transcript(session) -> list[dict[str, Any]]:
                     "at": item.at,
                     "images": item.data.get("images") or [],
                     "attachments": item.data.get("attachments") or [],
-                    "autonomy_message_id": item.data.get("autonomy_message_id"),
+                    "automation_run_id": item.data.get("automation_run_id"),
                     "sources": item.data.get("sources") or [],
                 }
             )
@@ -461,6 +452,8 @@ def _internal(session) -> list[dict[str, Any]]:
                     "content": item.text,
                 }
             )
+        elif item.kind == "experience":
+            out.append({"role": "user", "content": "[Internal experience, not a new user instruction] " + item.text})
     return out
 
 
@@ -537,29 +530,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._file("tasks.js", "text/javascript; charset=utf-8")
         if path == "/ling.js":
             return self._file("ling.js", "text/javascript; charset=utf-8")
-        if path == "/autonomy.js":
-            return self._file("autonomy.js", "text/javascript; charset=utf-8")
-        if path == "/api/autonomy":
+        if path == "/mcp.js":
+            return self._file("mcp.js", "text/javascript; charset=utf-8")
+        if path == "/api/mcp":
+            return _json(self, 200, mcp_api.snapshot(STATE))
+        if path == "/automation.js":
+            return self._file("automation.js", "text/javascript; charset=utf-8")
+        if path == "/api/automation":
             try:
-                return _json(self, 200, _autonomy().snapshot())
-            except (ValueError, OSError) as error:
-                return _task_error(self, error)
-        if path.startswith("/api/autonomy/sources/"):
-            try:
-                source_id = unquote(path.rsplit("/", 1)[-1])
-                if not source_id.startswith("event:"):
-                    raise TaskValidationError("来源格式无效")
-                event = _autonomy().store.event(int(source_id[6:]))
-                if event is None:
-                    raise TaskNotFound("来源不存在")
-                query = parse_qs(urlparse(self.path).query)
-                offset = max(0, int(query.get("offset", [0])[-1]))
-                limit = min(16000, max(1, int(query.get("limit", [8000])[-1])))
-                text = json.dumps(event["data"], ensure_ascii=False, indent=2)
-                end = min(len(text), offset+limit)
-                return _json(self, 200, {"id": event["id"], "kind": event["kind"], "at": event["at"],
-                    "content": text[offset:end], "total_chars": len(text),
-                    "next_offset": end if end < len(text) else None})
+                return _json(self, 200, _automation().snapshot())
             except (ValueError, OSError) as error:
                 return _task_error(self, error)
         if path == "/app.css":
@@ -671,24 +650,44 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         body = _read_json(self)
         try:
-            if path.startswith("/api/autonomy/"):
-                runtime = _autonomy()
-                if path == "/api/autonomy/settings":
-                    return _json(self, 200, runtime.configure(body))
-                if path == "/api/autonomy/control":
-                    return _json(self, 200, runtime.command(body.get("operation"), body.get("expected_version")))
-                if path == "/api/autonomy/review":
-                    runtime.store.add_event("owner-review:"+secrets.token_hex(12), "owner_review", {"reason": body.get("reason", "")})
-                    return _json(self, 202, runtime.snapshot())
+            if path == "/api/mcp/servers":
+                return _json(self, 200, mcp_api.save(STATE, body))
+            if path.startswith("/api/mcp/servers/"):
                 pieces = path.split("/")
-                if len(pieces) == 6 and pieces[3] == "goals" and pieces[5] == "control":
-                    if body.get("operation") != "withdraw":
-                        raise TaskValidationError("仅支持明确撤回")
-                    return _json(self, 200, runtime.withdraw(pieces[4], body.get("expected_version")))
-                if len(pieces) == 6 and pieces[3] == "messages" and pieces[5] == "read":
-                    runtime.store.read_message(pieces[4])
-                    return _json(self, 200, runtime.snapshot())
-                raise TaskValidationError("未知自主接口")
+                if len(pieces) != 6:
+                    raise ValueError("未知 MCP 接口")
+                return _json(self, 200, mcp_api.command(STATE, unquote(pieces[4]), pieces[5]))
+            if path == "/api/automation/wake":
+                item = _automation().receive(body)
+                return _json(self, 202, {"accepted": True, "run_id": item["id"]})
+            if path.startswith("/api/automation/"):
+                runtime = _automation()
+                service = runtime.scheduler
+                if service is None:
+                    raise ValueError("调度监听服务未连接")
+                if path == "/api/automation/settings":
+                    service.call("scheduler_configure", values=body)
+                elif path == "/api/automation/schedules":
+                    service.call("schedule_save", values=body)
+                elif path == "/api/automation/watches":
+                    service.call("watch_save", values=body)
+                else:
+                    pieces = path.split("/")
+                    if len(pieces) != 6:
+                        raise ValueError("未知定时与监听接口")
+                    group, record_id, operation = pieces[3:]
+                    method = {("schedules", "delete"): "schedule_delete",
+                              ("schedules", "run"): "schedule_run",
+                              ("watches", "delete"): "watch_delete",
+                              ("watches", "check"): "watch_check"}.get((group, operation))
+                    if method:
+                        service.call(method, id=record_id)
+                    elif group == "runs" and operation == "read":
+                        from ..automation.runtime import now_iso
+                        runtime.store.update_run(record_id, read_at=now_iso())
+                    else:
+                        raise ValueError("未知定时与监听操作")
+                return _json(self, 200, runtime.snapshot())
             if path == "/api/ling/input":
                 inbox = _ling()
                 text = str(body.get("text") or "").strip()
@@ -704,9 +703,6 @@ class Handler(BaseHTTPRequestHandler):
                 if len(images) + len(attachments) > 8:
                     raise TaskValidationError("每次最多 8 个附件")
                 result = inbox.enqueue(text, images, attachments, str(body.get("request_id") or ""))
-                runtime = STATE.get("autonomy")
-                if runtime:
-                    runtime.on_user(text, result["input_id"])
                 return _json(self, 202, result)
             if path == "/api/ling/resume":
                 return _json(self, 200, _ling().resume())
@@ -754,7 +750,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._chat(body)
             if path == "/api/chat/abort":
                 return self._abort()
-        except ValueError as error:
+        except (ValueError, MCPError) as error:
             return _task_error(self, error)
         except OSError as error:
             return _json(self, 500, {"error": str(error)})
@@ -885,18 +881,22 @@ class Handler(BaseHTTPRequestHandler):
         target = Path(raw.strip()).expanduser()
         if not target.is_dir():
             raise ValueError(f"not a directory: {target}")
-        runtime = STATE.get("autonomy")
-        acquired = runtime.acquire_user_lane() if runtime else BUSY.acquire(blocking=False)
+        acquired = BUSY.acquire(blocking=False)
         if not acquired:
             return _json(self, 409, {"error": "请等当前任务停止后再切换工作目录。"})
         try:
             workspace = target.resolve()
             store = STATE["store"]
-            live = start_mcp(store.load().mcp_servers, workspace)
-            previous = STATE.get("mcp")
-            STATE["mcp"] = live
-            if previous is not None:
-                previous.close()
+            live = STATE["mcp"]
+            for entry in store.load().mcp_servers:
+                config = ServerConfig.from_dict(entry)
+                if config is not None:
+                    live.remove(config.name)
+                    if config.enabled:
+                        try:
+                            live.add(config, cwd=workspace)
+                        except MCPError:
+                            pass
             store.save_preferences(workspace=str(workspace))
             STATE["skills"] = _load_skills(store, workspace)
         finally:
@@ -975,8 +975,7 @@ class Handler(BaseHTTPRequestHandler):
             )
         # Validate before opening the stream or saving a user message.
         build_profile(settings.provider, settings.model)
-        runtime = STATE.get("autonomy")
-        acquired = runtime.acquire_user_lane() if runtime else BUSY.acquire(blocking=False)
+        acquired = BUSY.acquire(blocking=False)
         if not acquired:
             return _json(self, 409, {"error": "上一条还在运行。"})
 
@@ -1019,7 +1018,7 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             BUSY.release()
 
-    def _run_turn(self, session, settings, emit, *, ling: LingInbox | None = None) -> None:
+    def _run_turn(self, session, settings, emit, *, ling: LingInbox | None = None, wake=None) -> None:
         workspace = inspect(Path(settings.workspace))
         tool_config = {
             "webfetch_hosts": settings.webfetch_hosts,
@@ -1037,7 +1036,8 @@ class Handler(BaseHTTPRequestHandler):
             RUNNING["cancel_event"] = cancel_event
             RUNNING["session_id"] = session.id
 
-        work_service = WorkService(STATE, session, settings, ling.current_input) if ling else None
+        input_id = ("wake-" + wake["id"]) if wake else (ling.current_input if ling else 0)
+        work_service = WorkService(STATE, session, settings, input_id) if ling else None
 
         def toolset(*, supervise=True):
             return build(
@@ -1049,10 +1049,10 @@ class Handler(BaseHTTPRequestHandler):
             )
 
         registry, context = toolset()
-        runtime = STATE.get("autonomy") if ling else None
+        runtime = STATE.get("automation") if ling else None
         if runtime:
-            from ..autonomy.tools import controls
-            for spec in controls(runtime):
+            from ..automation.tools import tools
+            for spec in tools(runtime):
                 registry.add(spec)
 
         def ask_owner(questions: list[dict[str, Any]]) -> list[str] | None:
@@ -1087,6 +1087,8 @@ class Handler(BaseHTTPRequestHandler):
         context.ask = ask_owner
         policy = default_policy(settings.permission, settings.permission_rules)
         history = _internal(session)
+        if wake:
+            history.append({"role": "user", "content": runtime.context(wake)})
         started = time.monotonic()
         profile = build_profile(settings.provider, settings.model)
 
@@ -1124,7 +1126,8 @@ class Handler(BaseHTTPRequestHandler):
 
         def checkpoint(message):
             nonlocal persisted_count
-            self._persist(session, [message])
+            if not wake:
+                self._persist(session, [message])
             persisted_count += 1
             if ling:
                 # The persisted message now replaces its streaming preview.
@@ -1135,10 +1138,13 @@ class Handler(BaseHTTPRequestHandler):
             if work_service:
                 agent.interaction_context = work_service.context_text()
                 if runtime:
-                    value = runtime.snapshot()
-                    agent.interaction_context += "\nActual Ling autonomy state (use autonomy_state for details):\n" + json.dumps({
-                        "control": value["control"], "goals": value["goals"][-12:],
-                        "plans": value["plans"][-12:], "budget": value["budget"]}, ensure_ascii=False)
+                    agent.interaction_context += (
+                        "\nYou can manage schedules and public website watches with the scheduling MCP tools. "
+                        "Read the ling-automation skill for planning or automatic wakes. "
+                        "You may start independent work on your own initiative during automatic wakes."
+                    )
+                    if wake:
+                        agent.interaction_context += "\n" + runtime.context(wake)
 
         agent = Agent(
             profile=profile,
@@ -1231,6 +1237,8 @@ class Handler(BaseHTTPRequestHandler):
 
         RUNNING["agent"] = agent
         RUNNING["session_id"] = session.id
+        if wake:
+            runtime.agent = agent
         try:
             asyncio.run(drive())
         except (BrokenPipeError, ConnectionResetError):
@@ -1249,7 +1257,8 @@ class Handler(BaseHTTPRequestHandler):
             APPROVALS.cancel_all()
             agent.close_pending_calls(history)
             try:
-                self._persist(session, agent.new_messages[persisted_count:])
+                if not wake:
+                    self._persist(session, agent.new_messages[persisted_count:])
             finally:
                 RUNNING["agent"] = None
                 RUNNING.pop("session_id", None)
@@ -1304,13 +1313,14 @@ class Handler(BaseHTTPRequestHandler):
 
 def _load_skills(store: ConfigStore, workspace: Path | None = None) -> SkillSet:
     """Project skills first, then user skills; the project wins on a clash."""
-    return skills.discover(skills.default_roots(workspace, store.home))
+    return skills.discover([*skills.default_roots(workspace, store.home),
+                            Path(__file__).parents[1] / "builtin_skills"])
 
 
 def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None = None) -> None:
-    previous_autonomy = STATE.pop("autonomy", None)
-    if previous_autonomy is not None:
-        previous_autonomy.close()
+    previous_automation = STATE.pop("automation", None)
+    if previous_automation is not None:
+        previous_automation.close()
     previous_ling = STATE.get("ling")
     if previous_ling is not None:
         previous_ling.close()
@@ -1330,11 +1340,17 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
     STATE.pop("ling", None)
     STATE["closing"] = False
     STATE["skills"] = _load_skills(store, Path(store.load().workspace))
-    STATE["mcp"] = start_mcp(store.load().mcp_servers, Path(store.load().workspace))
+    previous_mcp = STATE.pop("mcp", None)
+    if previous_mcp is not None:
+        previous_mcp.close()
+    STATE["mcp"] = start_mcp(store.load().mcp_servers, Path(store.load().workspace)) or MCPRegistry()
+    STATE.pop("scheduler_service", None)
     task_store = TaskStore(store.home / "tasks.sqlite3")
+    from ..automation.legacy import archive_original
+    archive_original(store.home, task_store)
     task_store.recover_interrupted()
     task_store.hold_queued_at_startup()
-    task_runner = TaskAssembler(task_store, store)
+    task_runner = TaskAssembler(task_store, store, mcp_registry=STATE["mcp"])
     task_controller = TaskController(task_store, run=task_runner)
     task_controller.start()
     task_scheduler = TaskScheduler(task_store, task_controller)
@@ -1343,10 +1359,15 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
     STATE["task_controller"] = task_controller
     STATE["task_scheduler"] = task_scheduler
     STATE["task_runner"] = task_runner
-    _autonomy()
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     server.daemon_threads = True
     actual = server.server_address[1]
+    from ..automation.service import SchedulerService
+    entry = (store.read_config().get("mcp") or {}).get("scheduler")
+    service = SchedulerService(STATE["mcp"], store.home, entry=entry)
+    STATE["scheduler_service"] = service
+    service.start(f"http://127.0.0.1:{actual}/api/automation/wake")
+    _automation()
     print(f"Nexus: http://127.0.0.1:{actual}")
     print(f"data:  {store.home}")
     try:
@@ -1354,9 +1375,9 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
     except KeyboardInterrupt:
         pass
     finally:
-        autonomy = STATE.get("autonomy")
-        if autonomy is not None:
-            autonomy.close()
+        automation = STATE.get("automation")
+        if automation is not None:
+            automation.close()
         scheduler = STATE.get("task_scheduler")
         if scheduler is not None:
             scheduler.close()

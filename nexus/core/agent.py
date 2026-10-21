@@ -329,12 +329,6 @@ class Agent:
                     break
                 if self.before_model is not None:
                     self.before_model(messages)
-                scope = getattr(self.context, "autonomy_scope", None)
-                if scope is not None:
-                    try:
-                        scope.check()
-                    except TaskSuspension as error:
-                        raise AgentSuspended.from_tool(error) from error
                 system = prompt.build_system_prompt(
                     self.workspace,
                     tool_text,
