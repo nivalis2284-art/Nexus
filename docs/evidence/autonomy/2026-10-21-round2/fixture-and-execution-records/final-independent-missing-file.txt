@@ -1,0 +1,6 @@
+Independent Coding Agent check; actual script execution, not a task completion assertion.
+script_sha256=89ad7306b6ccf1fd4919caf13c5e9619cd6bdc2b27149f579487fe41bc9f4bfe
+exit=2
+
+ERROR: data file not found: C:\Users\Nivalis\Documents\LingNexus\Nexus\.artifacts\autonomy-real\run-20261021-133638\data\absent.md
+  Pass --data-file <path> to override.

@@ -1,0 +1,110 @@
+Independent Coding Agent check, not an Agent task completion claim.
+exit=0
+==============================================================================
+Sensor 240-sample analysis  (script v2.0)
+NOTE: this is a recomputation of the recorded table only. Printing it does not
+      verify the numbers; check them independently.
+==============================================================================
+File: C:\Users\Nivalis\Documents\LingNexus\Nexus\.artifacts\autonomy-real\run-20261021-133638\data\repeated-measurements.md
+Parsed 240 'ID | A | B' rows (4 non-data non-blank lines skipped)
+B/2 = B / 2 for every row (calibration.md line 1: B uses a x2 scale)
+Reference 4.000000 mV, per-reading tolerance +/- 0.150000 mV (repeated-measurements.md line 2)
+==============================================================================
+
+[1] Descriptives (mV)
+  A (as recorded)
+    n                = 240
+    mean             = 4.000000
+    std (population) = 0.014142
+    std (sample, n-1)= 0.014172
+    min              = 3.980000
+    median           = 4.000000
+    max              = 4.020000
+
+  B/2 (B divided by 2)
+    n                = 240
+    mean             = 4.029042
+    std (population) = 0.118906
+    std (sample, n-1)= 0.119155
+    min              = 3.970000
+    median           = 4.000000
+    max              = 4.530000
+
+[2] Readings outside 4.000000 +/- 0.150000 mV  (x < 3.850000 or x > 4.150000):
+
+  A outliers: 0
+    (none)
+
+  B outliers (B/2): 14
+      ID  line     B raw       B/2         A    excess
+      17    21  9.000000  4.500000  4.000000 +0.500000
+      34    38  9.060000  4.530000  4.020000 +0.530000
+      51    55  8.980000  4.490000  3.990000 +0.490000
+      68    72  9.040000  4.520000  4.010000 +0.520000
+      85    89  8.960000  4.480000  3.980000 +0.480000
+     102   106  9.020000  4.510000  4.000000 +0.510000
+     119   123  8.940000  4.470000  4.020000 +0.470000
+     136   140  9.000000  4.500000  3.990000 +0.500000
+     153   157  9.060000  4.530000  4.010000 +0.530000
+     170   174  8.980000  4.490000  3.980000 +0.490000
+     187   191  9.040000  4.520000  4.000000 +0.520000
+     204   208  8.960000  4.480000  4.020000 +0.480000
+     221   225  9.020000  4.510000  3.990000 +0.510000
+     238   242  8.940000  4.470000  4.010000 +0.470000
+
+[3] ID deltas between consecutive B outliers
+    ID  17 -> ID  34: delta  17
+    ID  34 -> ID  51: delta  17
+    ID  51 -> ID  68: delta  17
+    ID  68 -> ID  85: delta  17
+    ID  85 -> ID 102: delta  17
+    ID 102 -> ID 119: delta  17
+    ID 119 -> ID 136: delta  17
+    ID 136 -> ID 153: delta  17
+    ID 153 -> ID 170: delta  17
+    ID 170 -> ID 187: delta  17
+    ID 187 -> ID 204: delta  17
+    ID 204 -> ID 221: delta  17
+    ID 221 -> ID 238: delta  17
+    deltas: 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17
+    distinct deltas: [17]
+    mean delta: 17.000000
+
+[4] Per B-outlier residuals to neighbours (B/2, mV)
+    prev  = B/2 of the row immediately before the outlier
+    next  = B/2 of the row immediately after the outlier
+    nb6   = mean of the six nearest NON-outlier rows (k-3..k-1, k+1..k+3)
+    dev to X = outlier value minus X
+
+      ID       B/2      prev      next  nb6 mean dev to nb6 dev to prev dev to next
+      17  4.500000  3.990000  4.010000  4.000000  +0.500000  +0.510000  +0.490000
+      34  4.530000  4.020000  3.970000  3.995000  +0.535000  +0.510000  +0.560000
+      51  4.490000  3.980000  4.000000  4.001667  +0.488333  +0.510000  +0.490000
+      68  4.520000  4.010000  4.030000  3.996667  +0.523333  +0.510000  +0.490000
+      85  4.480000  3.970000  3.990000  4.003333  +0.476667  +0.510000  +0.490000
+     102  4.510000  4.000000  4.020000  3.998333  +0.511667  +0.510000  +0.490000
+     119  4.470000  4.030000  3.980000  4.005000  +0.465000  +0.440000  +0.490000
+     136  4.500000  3.990000  4.010000  4.000000  +0.500000  +0.510000  +0.490000
+     153  4.530000  4.020000  3.970000  3.995000  +0.535000  +0.510000  +0.560000
+     170  4.490000  3.980000  4.000000  4.001667  +0.488333  +0.510000  +0.490000
+     187  4.520000  4.010000  4.030000  3.996667  +0.523333  +0.510000  +0.490000
+     204  4.480000  3.970000  3.990000  4.003333  +0.476667  +0.510000  +0.490000
+     221  4.510000  4.000000  4.020000  3.998333  +0.511667  +0.510000  +0.490000
+     238  4.470000  4.030000  3.980000  4.006000  +0.464000  +0.440000  +0.490000
+
+    neighbour counts used per outlier: [5, 6] of 6
+
+[5] Lattice check (descriptive; no cause is claimed)
+    first B-outlier ID = 17, ID of first parsed row = 1, offset = 16
+    strict 17-step lattice from the first outlier matches every observed ID: True
+    min/mean/max excess over 4.000000 across B outliers: 0.470000 / 0.500000 / 0.530000 mV
+    all A values at B-outlier rows within 4.000000 +/- 0.150000: True
+    share of rows that are B outliers: 14/240 = 5.83 %
+
+[6] Trend / bias check (endpoints, descriptive)
+    A first 120 rows mean = 4.000000, last 120 rows mean = 4.000000, difference = 0.000000 mV
+    B/2 first 120 rows mean = 4.029000, last 120 rows mean = 4.029083, difference = 0.000083 mV
+    ID monotonically non-decreasing 1..1+n-1: True
+
+Done. (Recomputation only; no verification implied by this output.)
+

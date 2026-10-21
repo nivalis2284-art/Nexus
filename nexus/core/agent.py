@@ -85,14 +85,14 @@ class AgentSuspended(Exception):
         return str(self.details.get("kind") or "question")
 
     @classmethod
-    def from_tool(cls, error: "TaskSuspension") -> "AgentSuspended":
+    def from_tool(cls, error: TaskSuspension) -> AgentSuspended:
         return cls(error.reason, **error.details)
 
 
 class ApprovalRequired(AgentSuspended):
     """A task needs a persisted decision before dispatching a tool."""
 
-    def __init__(self, request: "ApprovalRequest") -> None:
+    def __init__(self, request: ApprovalRequest) -> None:
         super().__init__("等待工具审批", kind="approval", request=request)
 
 
@@ -258,21 +258,34 @@ class Agent:
                 effort=None,
             )
             parts: list[str] = []
+            budget_failure: Exception | None = None
             try:
                 async with _client() as client:
                     gateway = ModelGateway(client, limits=StreamLimits())
                     async for event in gateway.stream(
-                        self.profile, body, credentials=self.credentials
+                        self.profile, body, credentials=self.credentials,
+                        request_budget=getattr(self.context, "model_budget", None),
                     ):
                         if event.type == "text_delta" and event.text:
                             parts.append(event.text)
                         elif event.type == "error":
                             return None
+            except PermissionError as error:
+                budget_failure = error
+            except TaskSuspension as error:
+                budget_failure = error
             except Exception:  # noqa: BLE001 -- summarising must never be fatal
                 return None
+            if budget_failure is not None:
+                raise budget_failure
             return "".join(parts) or None
 
-        checkpoint = await ask()
+        try:
+            checkpoint = await ask()
+        except TaskSuspension as error:
+            # A summariser does not get to turn revoked permission or an
+            # exhausted budget into an ordinary "no compaction" fallback.
+            raise AgentSuspended.from_tool(error) from error
         if not checkpoint:
             return trimmed, compaction.CompactionReport(reason="summariser returned nothing")
 
@@ -316,6 +329,12 @@ class Agent:
                     break
                 if self.before_model is not None:
                     self.before_model(messages)
+                scope = getattr(self.context, "autonomy_scope", None)
+                if scope is not None:
+                    try:
+                        scope.check()
+                    except TaskSuspension as error:
+                        raise AgentSuspended.from_tool(error) from error
                 system = prompt.build_system_prompt(
                     self.workspace,
                     tool_text,
@@ -392,7 +411,8 @@ class Agent:
                     retry_after: float | None = None
                     failure: ModelError | None = None
                     async for event in gateway.stream(
-                        self.profile, body, credentials=self.credentials
+                        self.profile, body, credentials=self.credentials,
+                        request_budget=getattr(self.context, "model_budget", None),
                     ):
                         if event.type == "text_delta" and event.text:
                             produced = True

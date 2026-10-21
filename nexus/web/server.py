@@ -30,10 +30,11 @@ import os
 import secrets
 import threading
 import time
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse, urlsplit
+from urllib.parse import parse_qs, unquote, urlparse, urlsplit
 
 from .. import mcp, skills
 from ..attachments import AttachmentStore, message_text
@@ -257,6 +258,35 @@ def _ling() -> LingInbox:
         return STATE["ling"]
 
 
+def _autonomy():
+    from ..autonomy.runtime import AutonomyRuntime
+    with RESOURCES:
+        if STATE.get("closing"):
+            raise TaskConflict("服务正在关闭")
+        if STATE.get("autonomy") is None:
+            runtime = AutonomyRuntime(STATE, BUSY, _ling)
+            STATE["autonomy"] = runtime
+            runner = STATE.get("task_runner")
+            if runner is not None:
+                runner.autonomy = runtime
+            runtime.start()
+        return STATE["autonomy"]
+
+
+def _ling_items(session):
+    runtime = STATE.get("autonomy")
+    if runtime is None or session.id != ling_session_id(STATE.get("tasks")):
+        return session.items
+    items = [*session.items, *[Message(kind="assistant", text=m["text"], at=m["at"],
+        data={"autonomy_message_id": m["id"], "sources": m["sources"]}) for m in runtime.store.messages()]]
+    def key(item):
+        try:
+            return datetime.fromisoformat(item.at.replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            return 0
+    return sorted(items, key=key)
+
+
 def _task_error(handler: BaseHTTPRequestHandler, error: BaseException) -> None:
     status = 404 if isinstance(error, TaskNotFound) else 409 if isinstance(error, TaskConflict) else 400
     _json(handler, status, {"error": str(error)})
@@ -432,7 +462,7 @@ def _is_attachment_upload(path: str) -> bool:
 
 def _transcript(session) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
-    for item in session.items:
+    for item in _ling_items(session):
         if item.kind in ("user", "assistant"):
             if item.kind == "assistant" and not item.text and not item.data.get("thinking"):
                 continue
@@ -446,6 +476,8 @@ def _transcript(session) -> list[dict[str, Any]]:
                     "at": item.at,
                     "images": item.data.get("images") or [],
                     "attachments": item.data.get("attachments") or [],
+                    "autonomy_message_id": item.data.get("autonomy_message_id"),
+                    "sources": item.data.get("sources") or [],
                 }
             )
         elif item.kind == "tool":
@@ -472,7 +504,7 @@ def _internal(session) -> list[dict[str, Any]]:
     replayed (see core.thinking).
     """
     out: list[dict[str, Any]] = []
-    for item in session.items:
+    for item in _ling_items(session):
         if item.kind == "user":
             images = item.data.get("images") or []
             out.append(
@@ -570,6 +602,31 @@ class Handler(BaseHTTPRequestHandler):
             return self._file("tasks.js", "text/javascript; charset=utf-8")
         if path == "/ling.js":
             return self._file("ling.js", "text/javascript; charset=utf-8")
+        if path == "/autonomy.js":
+            return self._file("autonomy.js", "text/javascript; charset=utf-8")
+        if path == "/api/autonomy":
+            try:
+                return _json(self, 200, _autonomy().snapshot())
+            except (ValueError, OSError) as error:
+                return _task_error(self, error)
+        if path.startswith("/api/autonomy/sources/"):
+            try:
+                source_id = unquote(path.rsplit("/", 1)[-1])
+                if not source_id.startswith("event:"):
+                    raise TaskValidationError("来源格式无效")
+                event = _autonomy().store.event(int(source_id[6:]))
+                if event is None:
+                    raise TaskNotFound("来源不存在")
+                query = parse_qs(urlparse(self.path).query)
+                offset = max(0, int(query.get("offset", [0])[-1]))
+                limit = min(16000, max(1, int(query.get("limit", [8000])[-1])))
+                text = json.dumps(event["data"], ensure_ascii=False, indent=2)
+                end = min(len(text), offset+limit)
+                return _json(self, 200, {"id": event["id"], "kind": event["kind"], "at": event["at"],
+                    "content": text[offset:end], "total_chars": len(text),
+                    "next_offset": end if end < len(text) else None})
+            except (ValueError, OSError) as error:
+                return _task_error(self, error)
         if path == "/app.css":
             return self._file("app.css", "text/css; charset=utf-8")
         if path == "/api/state":
@@ -679,6 +736,24 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         body = _read_json(self)
         try:
+            if path.startswith("/api/autonomy/"):
+                runtime = _autonomy()
+                if path == "/api/autonomy/settings":
+                    return _json(self, 200, runtime.configure(body))
+                if path == "/api/autonomy/control":
+                    return _json(self, 200, runtime.command(body.get("operation"), body.get("expected_version")))
+                if path == "/api/autonomy/review":
+                    runtime.store.add_event("owner-review:"+secrets.token_hex(12), "owner_review", {"reason": body.get("reason", "")})
+                    return _json(self, 202, runtime.snapshot())
+                pieces = path.split("/")
+                if len(pieces) == 6 and pieces[3] == "goals" and pieces[5] == "control":
+                    if body.get("operation") != "withdraw":
+                        raise TaskValidationError("仅支持明确撤回")
+                    return _json(self, 200, runtime.withdraw(pieces[4], body.get("expected_version")))
+                if len(pieces) == 6 and pieces[3] == "messages" and pieces[5] == "read":
+                    runtime.store.read_message(pieces[4])
+                    return _json(self, 200, runtime.snapshot())
+                raise TaskValidationError("未知自主接口")
             if path == "/api/ling/input":
                 inbox = _ling()
                 text = str(body.get("text") or "").strip()
@@ -693,8 +768,11 @@ class Handler(BaseHTTPRequestHandler):
                     "sessions", inbox.session_id, body.get("attachments", []))
                 if len(images) + len(attachments) > 8:
                     raise TaskValidationError("每次最多 8 个附件")
-                return _json(self, 202, inbox.enqueue(text, images, attachments,
-                    str(body.get("request_id") or "")))
+                result = inbox.enqueue(text, images, attachments, str(body.get("request_id") or ""))
+                runtime = STATE.get("autonomy")
+                if runtime:
+                    runtime.on_user(text, result["input_id"])
+                return _json(self, 202, result)
             if path == "/api/ling/resume":
                 return _json(self, 200, _ling().resume())
             if path == "/api/ling/stop":
@@ -872,7 +950,9 @@ class Handler(BaseHTTPRequestHandler):
         target = Path(raw.strip()).expanduser()
         if not target.is_dir():
             raise ValueError(f"not a directory: {target}")
-        if not BUSY.acquire(blocking=False):
+        runtime = STATE.get("autonomy")
+        acquired = runtime.acquire_user_lane() if runtime else BUSY.acquire(blocking=False)
+        if not acquired:
             return _json(self, 409, {"error": "请等当前任务停止后再切换工作目录。"})
         try:
             workspace = target.resolve()
@@ -960,7 +1040,9 @@ class Handler(BaseHTTPRequestHandler):
             )
         # Validate before opening the stream or saving a user message.
         build_profile(settings.provider, settings.model)
-        if not BUSY.acquire(blocking=False):
+        runtime = STATE.get("autonomy")
+        acquired = runtime.acquire_user_lane() if runtime else BUSY.acquire(blocking=False)
+        if not acquired:
             return _json(self, 409, {"error": "上一条还在运行。"})
 
         try:
@@ -1037,6 +1119,11 @@ class Handler(BaseHTTPRequestHandler):
             )
 
         registry, context = toolset()
+        runtime = STATE.get("autonomy") if ling else None
+        if runtime:
+            from ..autonomy.tools import controls
+            for spec in controls(runtime):
+                registry.add(spec)
 
         def ask_owner(questions: list[dict[str, Any]]) -> list[str] | None:
             """Block on the same human channel that approvals use.
@@ -1117,6 +1204,11 @@ class Handler(BaseHTTPRequestHandler):
         def before_model(messages):
             if work_service:
                 agent.interaction_context = work_service.context_text()
+                if runtime:
+                    value = runtime.snapshot()
+                    agent.interaction_context += "\nActual Ling autonomy state (use autonomy_state for details):\n" + json.dumps({
+                        "control": value["control"], "goals": value["goals"][-12:],
+                        "plans": value["plans"][-12:], "budget": value["budget"]}, ensure_ascii=False)
 
         agent = Agent(
             profile=profile,
@@ -1315,6 +1407,9 @@ def _start_mcp(store: ConfigStore, workspace: Path) -> mcp.MCPRegistry | None:
 
 
 def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None = None) -> None:
+    previous_autonomy = STATE.pop("autonomy", None)
+    if previous_autonomy is not None:
+        previous_autonomy.close()
     previous_ling = STATE.get("ling")
     if previous_ling is not None:
         previous_ling.close()
@@ -1346,6 +1441,8 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
     STATE["tasks"] = task_store
     STATE["task_controller"] = task_controller
     STATE["task_scheduler"] = task_scheduler
+    STATE["task_runner"] = task_runner
+    _autonomy()
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     server.daemon_threads = True
     actual = server.server_address[1]
@@ -1356,6 +1453,9 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
     except KeyboardInterrupt:
         pass
     finally:
+        autonomy = STATE.get("autonomy")
+        if autonomy is not None:
+            autonomy.close()
         scheduler = STATE.get("task_scheduler")
         if scheduler is not None:
             scheduler.close()

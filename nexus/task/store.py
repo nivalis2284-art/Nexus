@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import sqlite3
 import threading
 import uuid
@@ -209,6 +210,20 @@ class TaskStore:
         )
         sequence = int(cursor.lastrowid)
         self._record_notification(connection, task_id, sequence, kind, data or {})
+        # Copy significant autonomous outcomes in the SAME transaction. These
+        # facts must survive deleting the task before the observer next polls.
+        if connection.execute("SELECT 1 FROM sqlite_master WHERE name='autonomy_records'").fetchone():
+            action = connection.execute("SELECT data FROM autonomy_records WHERE kind='action' AND json_extract(data,'$.task_id')=? LIMIT 1", (task_id,)).fetchone()
+            task = connection.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
+            if action and task and task["state"] in ("completed", "cancelled", "paused", "waiting_user"):
+                fact = {"task_id": task_id, "goal_id": json.loads(action[0])["goal_id"],
+                        "state": task["state"], "summary": task["work_summary"],
+                        "blocked": task["blocked"], "next_step": task["next_step"],
+                        "evidence": json.loads(task["evidence_json"]),
+                        "decisions": json.loads(task["decisions_json"])}
+                encoded = json.dumps(fact, ensure_ascii=False, sort_keys=True)
+                key = "work:"+hashlib.sha256(encoded.encode()).hexdigest()
+                connection.execute("INSERT OR IGNORE INTO autonomy_events(source_key,kind,data,at) VALUES(?,'work_result',?,?)", (key, encoded, now_iso()))
         return sequence
 
     def _record_notification(self, connection: sqlite3.Connection, task_id: str,
@@ -614,12 +629,11 @@ class TaskStore:
                 "UPDATE tasks SET state=?,wait_reason=?,archived=?,control_version=?,updated_at=? WHERE id=?",
                 (target, wait_reason, int(archived), control_version, now_iso(), task_id),
             )
-            # Lifecycle commands (suspend, resume, reopen, archive, ...) change
-            # the task's state, not the work it was authorized to do, so a
-            # still-pending decision stays answerable at the new version.
+            # Suspension/resume retain the same live request. Ending work
+            # retires its pending decisions and unused grants atomically.
             self._advance_control_version(
                 connection, task_id, previous_version=row["control_version"],
-                new_version=control_version, target_changed=False,
+                new_version=control_version, target_changed=target in ("cancelled", "completed"),
             )
             result = {"task_id": task_id, "state": target}
             self._remember_command(connection, request_id, task_id, operation, result)
@@ -967,6 +981,8 @@ class TaskStore:
             if row["status"] != "pending":
                 raise TaskConflict("interaction has already been answered")
             task = self._row(connection, row["task_id"])
+            if task["state"] in ("completed", "cancelled"):
+                raise TaskConflict("inactive task cannot accept this decision")
             # Lifecycle transitions keep pending decisions at the current
             # version, so a mismatch means the target was changed or the
             # request the user is holding no longer describes this task.
@@ -1046,7 +1062,9 @@ class TaskStore:
     def pending_interactions(self, task_id: str) -> list[dict[str, Any]]:
         connection = self._connect()
         try:
-            self._row(connection, task_id)
+            task = self._row(connection, task_id)
+            if task["state"] in ("completed", "cancelled"):
+                return []
             rows = connection.execute(
                 "SELECT * FROM interactions WHERE task_id=? AND status='pending' ORDER BY created_at", (task_id,)
             ).fetchall()
@@ -1135,7 +1153,7 @@ class TaskStore:
             rows = connection.execute(
                 "SELECT n.id AS notification_id,n.task_id,n.kind,n.title,n.text,"
                 "n.created_at,n.read_at,n.interaction_id,t.wait_reason AS task_wait_reason,"
-                "CASE WHEN n.kind='interaction' AND i.id IS NOT NULL AND i.status='pending' "
+                "CASE WHEN n.kind='interaction' AND i.id IS NOT NULL AND i.status='pending' AND t.state NOT IN ('cancelled','completed') "
                 "THEN 'waiting_user' "
                 "ELSE t.state END AS current_state,"
                 "t.control_version AS current_version,"
@@ -1166,6 +1184,7 @@ class TaskStore:
             item["interaction_expired"] = (
                 row["interaction_status"] != "pending"
                 or row["interaction_version"] < row["current_version"]
+                or row["current_state"] in ("completed", "cancelled")
             )
             if item["interaction_expired"]:
                 item["stale_reason"] = "interaction is no longer pending at the current control version"
@@ -1186,7 +1205,7 @@ class TaskStore:
             row = connection.execute(
                 "SELECT n.id AS notification_id,n.task_id,n.kind,n.title,n.text,"
                 "n.created_at,n.read_at,n.interaction_id,"
-                "CASE WHEN n.kind='interaction' AND i.id IS NOT NULL AND i.status='pending' "
+                "CASE WHEN n.kind='interaction' AND i.id IS NOT NULL AND i.status='pending' AND t.state NOT IN ('cancelled','completed') "
                 "THEN 'waiting_user' ELSE t.state END AS current_state,"
                 "t.control_version AS current_version,"
                 "i.status AS interaction_status,i.control_version AS interaction_version,"
@@ -1253,7 +1272,7 @@ class TaskStore:
         return {"applied_through": applied, "pending_count": int(pending)}
 
     def add_message(self, task_id: str, *, kind: str, text: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
-        if kind not in ("user", "assistant", "tool", "notice"):
+        if kind not in ("user", "assistant", "tool", "notice", "autonomy"):
             raise TaskValidationError("invalid task message kind")
         with self._lock, self._transaction() as connection:
             self._row(connection, task_id)
@@ -1377,6 +1396,8 @@ class TaskStore:
                     user_answers[str(item["interaction_id"])] = item.get("text", "")
                 else:
                     out.append({"role": "user", "content": message_content(item.get("text", ""), item.get("attachments", []), include_images=include_images)})
+            elif kind == "autonomy":
+                out.append({"role": "user", "content": message_content("Internal work delegated by Ling within owner scope; not a new user instruction:\n" + item.get("text", ""), item.get("attachments", []), include_images=include_images)})
             elif kind == "assistant":
                 calls = item.get("tool_calls") or []
                 if item.get("text") or calls:

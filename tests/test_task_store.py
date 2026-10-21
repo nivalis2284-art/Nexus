@@ -23,6 +23,46 @@ def create(store, title="Task"):
     )
 
 
+@pytest.mark.parametrize("terminal", ["cancelled", "completed"])
+def test_ending_task_retires_decisions_and_unused_approvals(tmp_path, terminal):
+    store = make_store(tmp_path)
+    task = create(store)
+    task = store.command(task.id, "running", request_id="start")
+    run = store.begin_run(task.id)["id"]
+    args = {"command": "python --version"}
+    approved = store.interaction_create(task_id=task.id, run_id=run, kind="approval",
+        payload={"tool": "bash", "arguments": args}, control_version=task.control_version)
+    store.interaction_answer(approved, answer=True)
+    pending = store.interaction_create(task_id=task.id, run_id=run, kind="approval",
+        payload={"tool": "bash", "arguments": {"command": "other"}}, control_version=task.control_version)
+    store.command(task.id, terminal, request_id="end")
+    assert store.pending_interactions(task.id) == []
+    assert store.answered_approval(task.id, tool="bash", arguments=args) is None
+    assert store.interaction(approved)["status"] == "expired"
+    with pytest.raises(TaskConflict):
+        store.interaction_answer(pending, answer=True)
+    notices = [n for n in store.notifications() if n.get("interaction_id")]
+    assert notices and all(n["interaction_expired"] and n["current_state"] == terminal for n in notices)
+
+
+def test_legacy_cancelled_request_is_not_actionable(tmp_path):
+    store = make_store(tmp_path)
+    task = create(store)
+    task = store.command(task.id, "running", request_id="start")
+    run = store.begin_run(task.id)["id"]
+    interaction = store.interaction_create(task_id=task.id, run_id=run, kind="approval",
+        payload={"tool": "bash", "arguments": {"command": "unused"}}, control_version=task.control_version)
+    # Reproduce a DB written by the earlier implementation: terminal state
+    # with a still-pending interaction at the same version.
+    with sqlite3.connect(store.path) as connection:
+        connection.execute("UPDATE tasks SET state='cancelled' WHERE id=?", (task.id,))
+    assert store.pending_interactions(task.id) == []
+    with pytest.raises(TaskConflict, match="inactive"):
+        store.interaction_answer(interaction, answer=True)
+    assert store.notifications()[-1]["interaction_expired"]
+    assert store.notifications()[-1]["current_state"] == "cancelled"
+
+
 def test_tasks_survive_reopen_and_stay_independent(tmp_path):
     path = tmp_path / "tasks.sqlite3"
     first = TaskStore(path)

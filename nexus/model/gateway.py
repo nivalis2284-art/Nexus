@@ -1,6 +1,7 @@
 """Direct httpx transport; one native request, no agent loop or persistence."""
 
 import asyncio
+import json
 import math
 from collections.abc import AsyncGenerator, Mapping
 from contextlib import aclosing
@@ -13,7 +14,15 @@ import httpx
 
 from ._parsers import AnthropicParser, ChatParser, Parser, ResponsesParser, obj
 from ._sse import ProtocolError, frames, json_object
-from .types import APIFamily, ModelError, ModelEvent, ModelProfile, RuntimeCredentials, StreamLimits
+from .types import (
+    APIFamily,
+    ModelError,
+    ModelEvent,
+    ModelProfile,
+    RuntimeCredentials,
+    StreamLimits,
+    Usage,
+)
 
 _INHERITED_AUTH_HEADERS = (
     "authorization",
@@ -78,6 +87,16 @@ def _priced_event(profile: ModelProfile, event: ModelEvent) -> ModelEvent:
             + Decimal(usage.output_tokens) * profile.output_price_per_million
         ) / Decimal(1_000_000)
     return replace(event, usage=replace(usage, cost_usd=cost))
+
+
+def _reservation(profile: ModelProfile, body: dict[str, Any]) -> int:
+    """Conservative token upper bound for one provider request.
+
+    Input is measured as UTF-8 bytes rather than provider tokens. This is an
+    intentional upper bound for unknown tokenizers, not an exact estimate.
+    """
+    encoded = json.dumps(body, ensure_ascii=False, separators=(",", ":"))
+    return len(encoded.encode("utf-8")) + (profile.max_output_tokens or 8192)
 
 
 def _sampling_settings(profile: ModelProfile, body: dict[str, Any]) -> None:
@@ -233,7 +252,10 @@ def _request_body(
 class ModelGateway:
     """Async, bounded native transport with a caller-owned httpx client.
 
-    stream(profile, payload, *, credentials, effort=None) yields ModelEvent.
+    stream(profile, payload, *, credentials, effort=None, request_budget=None)
+    yields ModelEvent. When a budget is supplied it reserves before sending and
+    settles exactly once in a finally block, including errors, cancellation and
+    incomplete iteration. Unknown usage remains charged at its reservation.
     payload is a provider-native JSON mapping, copied before changes. The gateway
     sets model/stream and requests Chat usage. Effort must be explicitly allowed
     by the profile and maps to the family's native field. Explicit effort
@@ -271,6 +293,7 @@ class ModelGateway:
         *,
         credentials: RuntimeCredentials,
         effort: str | None = None,
+        request_budget: Any = None,
     ) -> AsyncGenerator[ModelEvent, None]:
         parser: AnthropicParser | ChatParser | ResponsesParser
         parser = {
@@ -278,6 +301,10 @@ class ModelGateway:
             APIFamily.OPENAI_CHAT_COMPLETIONS: ChatParser,
             APIFamily.OPENAI_RESPONSES: ResponsesParser,
         }[profile.api_family]()
+        ticket: Any = None
+        settled = False
+        completed = False
+        settled_usage: Usage | None = None
         try:
             try:
                 body = _request_body(profile, payload, effort)
@@ -286,6 +313,13 @@ class ModelGateway:
                     raise ProtocolError("invalid_request")
             except (TypeError, ValueError, ProtocolError):
                 raise ProtocolError("invalid_request") from None
+            if request_budget is not None:
+                try:
+                    ticket = request_budget.reserve(profile, body)
+                except PermissionError:
+                    raise
+                except Exception as error:
+                    raise PermissionError("Model budget could not admit this request") from error
             headers = {"accept": "text/event-stream"}
             if profile.api_family == APIFamily.ANTHROPIC_MESSAGES:
                 headers.update({"x-api-key": key, "anthropic-version": "2023-06-01"})
@@ -305,6 +339,9 @@ class ModelGateway:
                         return
                     if event.type in ("complete", "error"):
                         await exchange.aclose()
+                    if event.type == "complete":
+                        completed = True
+                        settled_usage = event.usage
                     yield _priced_event(profile, event)
                     if event.type in ("complete", "error"):
                         return
@@ -318,6 +355,10 @@ class ModelGateway:
             # JSON serialization rejects invalid native request values. Never
             # include exception text: it can contain caller-supplied credentials.
             yield _priced_event(profile, self._error(parser, "invalid_request"))
+        finally:
+            if request_budget is not None and ticket is not None and not settled:
+                settled = True
+                request_budget.settle(ticket, settled_usage if completed else None)
 
     async def _exchange(
         self,

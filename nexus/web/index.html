@@ -41,6 +41,12 @@
         <span id="ling-mode-label" class="ling-mode-label" hidden>持续入口</span>
       </div>
       <div class="top-actions">
+        <button id="autonomy-toggle" class="autonomy-toggle" type="button" aria-expanded="false" aria-controls="autonomy-region">
+          <span class="autonomy-toggle-mark" aria-hidden="true">✦</span>
+          <span>自主</span>
+          <span id="autonomy-state-short" class="autonomy-state-short">未启用</span>
+          <span id="autonomy-unread-count" class="autonomy-unread-count" hidden>0</span>
+        </button>
         <button id="notifications-toggle" class="notification-toggle" type="button" aria-expanded="false" aria-controls="notification-region">
           通知 <span id="notification-count" class="notification-count">0</span>
         </button>
@@ -60,6 +66,120 @@
         </div>
       </div>
       <div id="notification-list" class="notification-list"></div>
+    </section>
+
+    <section id="autonomy-region" class="autonomy-region" hidden aria-label="灵的自主设置与活动">
+      <div class="autonomy-head">
+        <div class="autonomy-heading">
+          <span class="autonomy-kicker">✦ 灵的自主</span>
+          <span id="autonomy-state" class="autonomy-state">未启用</span>
+          <span id="autonomy-running" class="autonomy-running"></span>
+        </div>
+        <div class="autonomy-head-actions">
+          <button id="autonomy-open-ling" class="link-button" type="button">回到交流</button>
+          <button id="autonomy-review" class="link-button" type="button">现在考虑一次</button>
+          <button id="autonomy-refresh" class="link-button" type="button">刷新</button>
+          <button id="autonomy-close" class="link-button" type="button">收起</button>
+        </div>
+      </div>
+
+      <div id="autonomy-conflict" class="autonomy-conflict" hidden>
+        <span>自主状态已在别处更新。请先刷新，再继续控制或回答。</span>
+        <button id="autonomy-conflict-refresh" class="autonomy-inline-button" type="button">刷新状态</button>
+      </div>
+      <div id="autonomy-error" class="autonomy-error" hidden></div>
+      <div id="autonomy-budget" class="autonomy-budget" aria-live="polite"></div>
+
+      <div class="autonomy-control-row">
+        <div class="autonomy-controls" aria-label="自主控制">
+          <button id="autonomy-enable" class="autonomy-primary" type="button">启用自主</button>
+          <button id="autonomy-pause" class="autonomy-secondary" type="button">暂停</button>
+          <button id="autonomy-resume" class="autonomy-secondary" type="button">恢复</button>
+          <button id="autonomy-terminate" class="autonomy-danger" type="button">终止</button>
+        </div>
+        <span id="autonomy-control-hint" class="small"></span>
+      </div>
+
+      <details id="autonomy-settings-section" class="autonomy-section autonomy-settings" open>
+        <summary>设置与长期授权</summary>
+        <form id="autonomy-settings-form">
+          <p class="autonomy-note">保存后，灵可以在这些边界内持续读取已授权资料并保存成果，不必为每个目标重复询问。缩小读取范围或成果目录会暂停受旧范围授权的工作；调整 Token 总额度不会清零已用额度。启用是独立的一步。</p>
+          <div class="autonomy-form-grid">
+            <label class="autonomy-wide">获准读取的根目录（每行一个）
+              <textarea id="autonomy-read-roots" rows="3" placeholder="C:\Users\Nivalis\Documents\Research"></textarea>
+            </label>
+            <label class="autonomy-wide">成果保存目录
+              <input id="autonomy-output-root" type="text" placeholder="C:\Users\Nivalis\Documents\Research\Nexus-output">
+            </label>
+            <label>Token 限额
+              <input id="autonomy-token-limit" type="number" min="0" step="1" inputmode="numeric">
+            </label>
+            <label>保底回顾间隔（分钟）
+              <input id="autonomy-fallback-minutes" type="number" min="0.0166667" step="any" inputmode="decimal">
+            </label>
+            <label>主动联系等待（分钟）
+              <input id="autonomy-contact-minutes" type="number" min="0" step="any" inputmode="decimal">
+            </label>
+            <label>观察检查间隔（秒）
+              <input id="autonomy-observer-interval" type="number" min="0.1" max="3600" step="0.1" inputmode="decimal">
+            </label>
+          </div>
+          <details class="autonomy-advanced">
+            <summary>高级</summary>
+            <div class="autonomy-form-grid">
+              <label>单次输出 Token 上限
+                <input id="autonomy-max-output-tokens" type="number" min="128" max="65536" step="1" inputmode="numeric">
+              </label>
+              <label class="autonomy-wide">MCP 可用工具（可选，每行一个完整名称）
+                <textarea id="autonomy-allowed-mcp-tools" rows="3" placeholder="mcp__research__search"></textarea>
+              </label>
+              <p class="autonomy-wide autonomy-note autonomy-mcp-note">这里只限定可发现和使用的 MCP 工具，不授予外部写入权限。任何具体外部动作仍需你在现有持久任务审批中确认。</p>
+            </div>
+          </details>
+          <div class="autonomy-form-foot">
+            <span id="autonomy-settings-status" class="small" aria-live="polite"></span>
+            <button id="autonomy-save-settings" class="autonomy-primary" type="submit">保存设置</button>
+          </div>
+        </form>
+      </details>
+
+      <div id="autonomy-summary" class="autonomy-summary"></div>
+
+      <details id="autonomy-actions-section" class="autonomy-section">
+        <summary>自主工作 <span id="autonomy-action-count" class="autonomy-section-count"></span></summary>
+        <div id="autonomy-actions" class="autonomy-rows"></div>
+      </details>
+
+      <div class="autonomy-section-title">
+        <h3>重要关注事项</h3>
+        <span id="autonomy-goal-count" class="autonomy-section-count"></span>
+      </div>
+      <div id="autonomy-goals" class="autonomy-cards"></div>
+
+      <details id="autonomy-plans-section" class="autonomy-section" open>
+        <summary>未来回顾 <span id="autonomy-plan-count" class="autonomy-section-count"></span></summary>
+        <div id="autonomy-plans" class="autonomy-rows"></div>
+      </details>
+
+      <details id="autonomy-watches-section" class="autonomy-section" open>
+        <summary>真实观察 <span id="autonomy-watch-count" class="autonomy-section-count"></span></summary>
+        <div id="autonomy-watches" class="autonomy-rows"></div>
+      </details>
+
+      <details id="autonomy-decisions-section" class="autonomy-section">
+        <summary>最近决定 <span id="autonomy-decision-count" class="autonomy-section-count"></span></summary>
+        <div id="autonomy-decisions" class="autonomy-rows"></div>
+      </details>
+
+      <details id="autonomy-messages-section" class="autonomy-section" open>
+        <summary>主动消息 <span id="autonomy-message-count" class="autonomy-section-count"></span></summary>
+        <div id="autonomy-messages" class="autonomy-rows"></div>
+      </details>
+
+      <details id="autonomy-requests-section" class="autonomy-section">
+        <summary>需要你处理 <span id="autonomy-request-count" class="autonomy-section-count"></span></summary>
+        <div id="autonomy-requests" class="autonomy-rows"></div>
+      </details>
     </section>
 
     <section id="ling-bar" class="ling-bar" hidden aria-live="polite">
@@ -141,6 +261,22 @@
     </form>
   </main>
 </div>
+
+<aside id="autonomy-toast" class="autonomy-toast" hidden style="display: none" aria-live="polite" aria-atomic="true">
+  <div class="autonomy-toast-head">
+    <span class="autonomy-toast-kicker">✦ 灵主动联系你</span>
+    <button id="autonomy-toast-close" class="autonomy-toast-x" type="button" aria-label="关闭提示">×</button>
+  </div>
+  <p id="autonomy-toast-text" class="autonomy-toast-text"></p>
+  <div id="autonomy-toast-sources" class="autonomy-toast-sources"></div>
+  <div class="autonomy-toast-foot">
+    <span id="autonomy-toast-meta" class="small"></span>
+    <div class="autonomy-toast-actions">
+      <button id="autonomy-toast-read" class="link-button" type="button">标为已读</button>
+      <button id="autonomy-toast-view" class="autonomy-inline-button" type="button">查看详情</button>
+    </div>
+  </div>
+</aside>
 
 <div id="menu" class="menu" role="listbox" hidden></div>
 
@@ -250,6 +386,7 @@
 </dialog>
 
 <script src="/ling.js"></script>
+<script src="/autonomy.js"></script>
 <script src="/app.js"></script>
 <script src="/tasks.js"></script>
 </body>

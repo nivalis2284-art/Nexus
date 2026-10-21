@@ -1,0 +1,2 @@
+# Preserve validation evidence byte-for-byte, including recorded hashes and logs.
+docs/evidence/autonomy/** -text -whitespace

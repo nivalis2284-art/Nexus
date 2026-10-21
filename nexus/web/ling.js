@@ -233,6 +233,7 @@ function armLingPolling() {
 async function openLing(options) {
   const settings = options || {};
   lingView.active = true;
+  if (typeof autonomyOpen === "function") autonomyOpen(false);
   lingView.itemsSignature = "";
   state.viewVersion = (state.viewVersion || 0) + 1;
   if (typeof taskView !== "undefined") {

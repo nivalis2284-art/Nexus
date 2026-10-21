@@ -1,0 +1,5 @@
+Independent Coding Agent check, not an Agent task completion claim.
+exit=2
+
+ERROR: data file not found: C:\Users\Nivalis\Documents\LingNexus\Nexus\.artifacts\autonomy-real\run-20261021-133638\data\absent.md
+  Pass --data-file <path> to override.

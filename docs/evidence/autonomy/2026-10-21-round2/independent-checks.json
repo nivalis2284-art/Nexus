@@ -1,0 +1,17 @@
+[
+  {
+    "case": "actual-240",
+    "exit": 0,
+    "last_output": "0 / 0.530000 mV\n    all A values at B-outlier rows within 4.000000 +/- 0.150000: True\n    share of rows that are B outliers: 14/240 = 5.83 %\n\n[6] Trend / bias check (endpoints, descriptive)\n    A first 120 rows mean = 4.000000, last 120 rows mean = 4.000000, difference = 0.000000 mV\n    B/2 first 120 rows mean = 4.029000, last 120 rows mean = 4.029083, difference = 0.000083 mV\n    ID monotonically non-decreasing 1..1+n-1: True\n\nDone. (Recomputation only; no verification implied by this output.)\n"
+  },
+  {
+    "case": "missing-file",
+    "exit": 2,
+    "last_output": "ERROR: data file not found: C:\\Users\\Nivalis\\Documents\\LingNexus\\Nexus\\.artifacts\\autonomy-real\\run-20261021-133638\\data\\absent.md\n  Pass --data-file <path> to override.\n"
+  },
+  {
+    "case": "a-outlier-counterexample",
+    "exit": 1,
+    "last_output": "\\autonomy-real\\run-20261021-133638\\output\\analyze_sensor_240_v2.py\", line 329, in <module>\n    sys.exit(main(sys.argv[1:]))\n             ^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Nivalis\\Documents\\LingNexus\\Nexus\\.artifacts\\autonomy-real\\run-20261021-133638\\output\\analyze_sensor_240_v2.py\", line 205, in main\n    print(\"    A ID {:>3} line {:>3}: A = {}  excess {:+} mV\".format(\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nValueError: Sign not allowed in string format specifier\n"
+  }
+]

@@ -25,7 +25,9 @@ MAX_OUTPUT = 100_000
 
 class BashArgs(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
-    command: str = Field(min_length=1, max_length=4000)
+    command: str = Field(min_length=1, max_length=4000, description=(
+        'One command-line STRING, e.g. python "script.py" "data.md". '
+        'Do not encode an argv list as JSON. Use file tools for reading/listing files.'))
     timeout: float = Field(default=DEFAULT_TIMEOUT, gt=0, le=MAX_TIMEOUT)
 
 
@@ -110,7 +112,8 @@ def which(name: str) -> str | None:
 TOOLS = [
     ToolSpec(
         "bash",
-        "Run a program as an argument list (no shell). cwd is the workspace root. "
+        "Run a program from a command-line string, split into argv (no shell). "
+        "Do not pass a JSON array string. cwd is the workspace root. "
         "Output is captured and truncated at the ends.",
         BashArgs, bash,
     ),

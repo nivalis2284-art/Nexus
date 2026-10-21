@@ -31,6 +31,7 @@ class TaskCallbacks:
         self._failure_streak: tuple[tuple[str, str], int, bool] | None = None
         self._saved_messages: dict[int, dict[str, Any]] = {}
         self._progress_marker: tuple[int, int, int] | None = None
+        self.autonomy_scope: Any = None
 
     # --- task work -------------------------------------------------------
 
@@ -378,6 +379,13 @@ class TaskCallbacks:
 
     def prepare_dispatch(self, tool_call_id: str, prepared: Any, context: Any) -> None:
         """Persist intent immediately before the side effect enters a worker."""
+        scope = self.autonomy_scope
+        if scope is None:
+            scope = getattr(context, "autonomy_scope", None)
+        if scope is not None:
+            # guard_tool begins with check(), so one admitted call performs one
+            # authorization/control pass and cannot consume an approval twice.
+            scope.guard_tool(prepared.spec.name, prepared.arguments, context)
         context._task_tool_call_id = self._scoped_call_id(tool_call_id)
         self.before_dispatch(prepared, context)
 
@@ -386,6 +394,7 @@ class TaskCallbacks:
         child = TaskCallbacks(
             self.store, self.task_id, self.run_id, cancel=self.cancel,
         )
+        child.autonomy_scope = self.autonomy_scope
         child._operation_scope = "child-" + uuid.uuid4().hex[:12]
         return child
 
@@ -447,6 +456,12 @@ class TaskCallbacks:
         unknown = self.store.unfinished_operations(self.task_id)
         if unknown:
             lines.append("UNKNOWN OPERATIONS: " + json.dumps(unknown[-20:], ensure_ascii=False))
+        lines.append(
+            "Saved tool approvals permit one dispatch of the EXACT saved tool and arguments. "
+            "If that action is still needed, reissue its arguments unchanged; rewriting an equivalent "
+            "command requires a new approval. Approval is not proof of execution: wait for the actual "
+            "tool result. Use file tools for reading/listing instead of requesting shell commands."
+        )
         return "\n".join(lines)
 
     def approve(self, request: Any) -> None:

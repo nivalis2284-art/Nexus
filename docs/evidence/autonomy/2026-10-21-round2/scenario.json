@@ -1,0 +1,14 @@
+{
+  "actual_model": "deepseek-v4.1-flash",
+  "scripted_model": false,
+  "objective_change_written": true,
+  "correction_written": true,
+  "autonomy_clock_shift_seconds": 0,
+  "test_loop_interval_seconds": 0,
+  "weighted_input_charged_and_reserved": 750416.6,
+  "allowance_policy": "input-minus-0.9-cached; output-excluded; unknown-reservation-retained",
+  "ledger": "C:\\Users\\Nivalis\\Documents\\LingNexus\\Nexus\\.artifacts\\autonomy-real\\weighted-input-round2.json",
+  "repair_fixture": true,
+  "request_count": 106,
+  "finished_at": 1792558377.359345
+}

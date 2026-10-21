@@ -1,0 +1,54 @@
+# Nexus final regression (concise raw results)
+
+COMMAND: C:\Users\Nivalis\Documents\LingNexus\Nexus\.venv\Scripts\python.exe -m pytest tests -q -rs
+...
+...................................................                      [100%]
+=========================== short test summary info ===========================
+SKIPPED [1] tests\test_autonomy_observer.py:305: symlinks are unavailable on this host
+SKIPPED [1] tests\test_bootstrap.py:230: directory symlinks are unavailable
+553 passed, 2 skipped in 70.82s (0:01:10)
+EXIT_CODE: 0
+
+COMMAND: node tests/frontend_autonomy.cjs
+frontend autonomy: all checks passed
+CHECK_COUNT: 18
+EXIT_CODE: 0
+
+COMMAND: node tests/frontend_continuity.cjs
+frontend continuity: all checks passed
+CHECK_COUNT: 22
+EXIT_CODE: 0
+
+COMMAND: node tests/frontend_behavior.cjs
+frontend behaviour: all checks passed
+CHECK_COUNT: 15
+EXIT_CODE: 0
+
+COMMAND: .venv/Scripts/python.exe -m ruff check nexus/autonomy tests/test_autonomy_store.py tests/test_autonomy_runtime.py tests/test_autonomy_observer.py tests/test_autonomy_capabilities.py tests/test_autonomy_budget_gateway.py
+All checks passed!
+EXIT_CODE: 0
+
+COMMAND: .venv/Scripts/python.exe -m ruff check nexus tests --select E9,F63,F7,F82
+All checks passed!
+EXIT_CODE: 0
+
+SUPPLEMENTAL local browser script (not rerun after mainline PASS):
+My first invocation did not set NEXUS_PLAYWRIGHT_MODULE:
+Error: Cannot find module 'playwright'
+EXIT_CODE: 1
+
+Retry with the bundled Playwright module found on this host:
+browserType.launch: Executable doesn't exist at C:\Users\Nivalis\AppData\Local\ms-playwright\chromium_headless_shell-1200\chrome-headless-shell-win64\chrome-headless-shell.exe
+EXIT_CODE: 1
+
+Mainline current-version run (complete environment), recorded in .artifacts/autonomy-browser/summary.json:
+provider: scripted; integration only
+calls: 12
+reviews: 3
+taskStep: 8
+goalStates: open-question: completed
+messageCount: 1
+pageClosedActivity: true
+sourceViewer: true
+budget: limit=200000, spent=3300, reserved=0, remaining=196700, unknown=0
+browserErrors: []
