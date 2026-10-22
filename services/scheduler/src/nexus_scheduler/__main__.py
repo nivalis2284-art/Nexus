@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 
 from .runtime import SchedulerRuntime
 
@@ -35,6 +36,29 @@ def build_server(runtime: SchedulerRuntime) -> MCPServer:
     def schedule_save(values: dict[str, Any]) -> dict[str, Any]:
         """Create or update a schedule and return the saved record."""
         return runtime.store.save_schedule(values)
+
+    @server.tool()
+    def schedule_wakeup(
+        title: str, reason: str, continuation: str,
+        run_at: str | None = None, delay_minutes: int | None = None,
+        id: str | None = None,
+    ) -> dict[str, Any]:
+        """Book your own future activity, with a reason and a note for your future self.
+
+        Choose run_at (ISO time with UTC offset) OR delay_minutes (positive integer,
+        measured from this call, not turn completion). Omit id for a new activity;
+        reuse an existing autonomous one-off wake ID to reschedule that activity.
+        Saved changes take effect immediately, even if this turn later fails.
+        Read existing schedules before adding duplicates; keeping them is valid.
+        Use schedule_delete to cancel, and schedule_save with notify=true for an
+        explicit owner reminder. This tool does not require a message to the owner.
+        """
+        try:
+            return runtime.store.schedule_wakeup(
+                title, reason, continuation, run_at=run_at, delay_minutes=delay_minutes, id=id,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
 
     @server.tool()
     def schedule_delete(id: str) -> dict[str, Any]:

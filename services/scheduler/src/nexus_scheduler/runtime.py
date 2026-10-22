@@ -22,6 +22,8 @@ def _reason(schedule: dict[str, Any]) -> dict[str, Any]:
         "type": purpose if purpose in ("task", "wake", "planning") else "task",
         "title": schedule.get("title", ""),
         "schedule_id": schedule.get("id", ""),
+        "origin": schedule.get("origin", ""),
+        "scheduled_for": schedule.get("next_run_at") or schedule.get("due_at"),
         "prompt": schedule.get("prompt", ""),
         "at": now_iso(),
     }
@@ -168,7 +170,9 @@ class SchedulerRuntime:
                     notify=schedule.get("notify", False),
                     kind="task" if schedule.get("purpose") == "task" else "wake",
                 ):
-                    self.store.advance_schedule(schedule["id"], now)
+                    self.store.advance_schedule(
+                        schedule["id"], now, expected_next_run_at=schedule["next_run_at"],
+                    )
             for watch in self.store.due_watches(now):
                 self._check(watch, now)
 

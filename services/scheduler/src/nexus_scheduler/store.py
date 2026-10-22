@@ -281,6 +281,46 @@ class SchedulerStore:
             ).fetchone()
             return self._schedule(row) if row is not None else None
 
+    def schedule_wakeup(
+        self, title: str, reason: str, continuation: str, *,
+        run_at: str | None = None, delay_minutes: int | None = None,
+        id: str | None = None,
+    ) -> dict[str, Any]:
+        """Save a one-off intention for the agent's future self."""
+        title, reason, continuation = title.strip(), reason.strip(), continuation.strip()
+        if not title or not reason or not continuation:
+            raise ValueError("title, reason and continuation must not be empty")
+        if (run_at is None) == (delay_minutes is None):
+            raise ValueError("provide exactly one of run_at or delay_minutes")
+        now = now_local()
+        if run_at is not None:
+            due = datetime.fromisoformat(run_at)
+            if due.tzinfo is None:
+                raise ValueError("run_at must include a UTC offset")
+        else:
+            if (not isinstance(delay_minutes, int) or isinstance(delay_minutes, bool)
+                    or delay_minutes <= 0):
+                raise ValueError("delay_minutes must be a positive integer")
+            due = now + timedelta(minutes=delay_minutes)
+        due = due.replace(microsecond=0)
+        if due <= now:
+            raise ValueError("wake time must be in the future")
+        with self._lock:
+            if id is not None:
+                existing = self.get_schedule(id)
+                if existing is None:
+                    raise ValueError("schedule not found; omit id to create a new wake")
+                if (id.startswith("builtin-") or
+                        (existing["kind"], existing["purpose"], existing["origin"],
+                         existing["notify"]) != ("once", "wake", "agent", False)):
+                    raise ValueError("only an agent's one-off silent-capable wake can be updated")
+            return self.save_schedule({
+                "id": id, "title": title,
+                "prompt": f"[自主预约理由]\n{reason}\n\n[下次继续]\n{continuation}",
+                "kind": "once", "due_at": _iso(due), "origin": "agent",
+                "purpose": "wake", "notify": False, "enabled": True,
+            })
+
     def save_schedule(self, values: dict[str, Any]) -> dict[str, Any]:
         values = {key: value for key, value in values.items() if value is not None}
         schedule_id = str(values.get("id") or uuid.uuid4().hex)
@@ -427,7 +467,9 @@ class SchedulerStore:
                     due.append(self._schedule(row))
             return due
 
-    def advance_schedule(self, schedule_id: str, now: str) -> dict[str, Any] | None:
+    def advance_schedule(
+        self, schedule_id: str, now: str, *, expected_next_run_at: str | None = None,
+    ) -> dict[str, Any] | None:
         current = _parse(now)
         with self._lock, self._db() as connection:
             row = connection.execute(
@@ -436,6 +478,11 @@ class SchedulerStore:
             if row is None:
                 return None
             schedule = self._schedule(row)
+            # An agent can rearm this same ID while its old callback is being
+            # accepted. Complete only the occurrence actually sent by tick.
+            if (expected_next_run_at is not None
+                    and schedule["next_run_at"] != expected_next_run_at):
+                return schedule
             if schedule["kind"] == "once":
                 connection.execute(
                     "UPDATE schedules SET enabled=0,next_run_at=NULL WHERE id=?", (schedule_id,)

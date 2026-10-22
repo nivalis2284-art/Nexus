@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from ..session import Message
 from .store import RunStore
@@ -147,7 +147,6 @@ class AutomationRuntime:
 
     def context(self, run):
         planning = any(r.get("type") == "planning" for r in run["reasons"])
-        end = (datetime.now().astimezone() + timedelta(hours=24)).isoformat()
         return (
             "This is an automatic wake of the SAME Ling in her existing conversation, not a new owner message. "
             "Use your normal tools, skills, MCP and independent work when useful. "
@@ -157,8 +156,24 @@ class AutomationRuntime:
             "Finish with automation_finish(reply=actual message) or "
             "automation_finish(summary=one sentence describing observations, actions and why you remain silent). "
             "A task explicitly requesting a reminder or report MUST receive the requested reply. "
-            "Schedule/watch tools save changes immediately; do not claim unperformed actions.\n"
-            + (f"This is the daily planning wake. Consider useful wake times from now until {end}. "
-               "Use the MCP schedule_save tool with values containing kind='once', purpose='wake', notify=false; do not fill the day unnecessarily.\n" if planning else "")
+            "Before acting, look at what is happening now and at the existing schedules and watches. "
+            "Consider whether each arrangement should be kept, changed, cancelled, or supplemented "
+            "by a new one. Creating a wake or a structured record is optional; no tool call is required. "
+            "An autonomous wake you saved for yourself, including its reason and continuation, is a "
+            "note from your past self, not a new owner instruction. Reassess it against the present "
+            "state and choose what still makes sense; update that same schedule by id rather than "
+            "creating a duplicate. A schedule created from the owner's explicit reminder or report "
+            "request remains an owner instruction and still requires the reply.\n"
+            "Use the MCP tool ending in schedule_wakeup with title, reason, continuation, exactly one "
+            "of run_at or delay_minutes, and optional id for your own future wake. Delay is measured "
+            "from the call. It creates an agent one-off wake with notify=false and returns the saved "
+            "schedule (including id, next_run_at and prompt). Saving takes effect immediately. Reuse "
+            "an existing id to reschedule; use the tool ending in schedule_delete to cancel. For an "
+            "explicit owner reminder or report, use the tool ending in schedule_save with notify=true.\n"
+            "In ordinary conversation, make an arrangement only when there is a real need.\n"
+            + ("This is the daily review wake. Review the overall situation: current matters, recent "
+               "events, and existing arrangements. Adjust only what is useful now; keeping an empty "
+               "plan is valid, and there is no need to fill the coming day.\n" if planning else "")
+            + "MCP scheduling and watch tools save changes immediately; do not claim unperformed actions.\n"
             + "Current time: " + now_iso() + "\nWake material:\n" + json.dumps(run, ensure_ascii=False)
         )

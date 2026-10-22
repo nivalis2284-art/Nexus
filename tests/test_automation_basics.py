@@ -89,3 +89,60 @@ def test_pending_owner_input_leaves_wake_waiting(runtime):
         db.execute("INSERT INTO ling_inbox VALUES('pending')")
     runtime._execute_pending()
     assert runtime.store.next_run()["status"] == "pending"
+
+
+@pytest.mark.parametrize("reason", [{"type": "wake"},
+                                    {"type": "work_result", "task_id": "task-1"}])
+def test_every_wake_prompts_review_of_current_state_and_existing_arrangements(runtime, reason):
+    prompt = runtime.context({"id": "run-1", "reasons": [reason]})
+
+    assert "what is happening now" in prompt and "existing schedules" in prompt
+    for choice in ("kept", "changed", "cancelled"):
+        assert choice in prompt
+    assert "optional" in prompt and "no tool call is required" in prompt
+    assert "autonomous wake you saved" in prompt and "past self" in prompt
+    assert "owner's explicit reminder" in prompt
+    for tool in ("schedule_wakeup", "schedule_delete", "schedule_save"):
+        assert f"tool ending in {tool}" in prompt
+    assert "immediately" in prompt
+
+
+def test_daily_wake_is_an_overall_review_without_a_fixed_24_hour_plan(runtime):
+    prompt = runtime.context({"id": "daily-1", "reasons": [{"type": "planning"}]})
+
+    assert "daily review wake" in prompt
+    assert "empty plan is valid" in prompt
+    assert "24 hours" not in prompt
+    assert "fill the coming day" in prompt
+
+
+def test_daily_wake_can_finish_without_planning_any_new_wake(runtime, monkeypatch):
+    import nexus.core.agent as module
+
+    def handler(request):
+        delta = {"tool_calls": [{"index": 0, "id": "finish", "type": "function",
+                 "function": {"name": "automation_finish",
+                               "arguments": json.dumps({"summary": "Reviewed the situation; existing plans still fit."})}}]}
+        frames = [json.dumps({"choices": [{"index": 0, "delta": delta, "finish_reason": None}]}),
+                  json.dumps({"choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]})]
+        return httpx.Response(200, headers={"content-type": "text/event-stream"},
+                              text="".join("data: " + frame + "\n\n" for frame in frames) + "data: [DONE]\n\n")
+
+    monkeypatch.setattr(module, "_client", lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    item = runtime.store.add_run([{"type": "planning"}])
+    runtime._execute_pending()
+
+    result = runtime.store.runs()[0]
+    assert result["id"] == item["id"]
+    assert result["status"] == "done", result["error"]
+    assert result["reply"] == ""
+    assert result["summary"] == "Reviewed the situation; existing plans still fit."
+
+
+def test_explicit_reminder_cannot_finish_with_silence(runtime):
+    runtime.active_run = runtime.store.add_run([{"type": "task"}], notify=True)
+
+    with pytest.raises(ValueError, match="实际回复"):
+        runtime.finish(None, {"summary": "Saw the reminder but stayed silent."})
+
+    assert runtime.outcome is None
