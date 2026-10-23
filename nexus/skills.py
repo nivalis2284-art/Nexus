@@ -18,12 +18,39 @@ Two roots, project before user, so a project can pin its own conventions::
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*(?:\n|\Z)", re.S)
+FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*(?:\n|\Z)", re.DOTALL)
+_KEY_LINE = re.compile(r"^([^\s#][^:]*):")
+
+
+class SkillEncodingError(ValueError):
+    """A skill file cannot be decoded without losing its original text."""
+
+
+def read_skill_text(path: Path | str) -> str:
+    """Read a skill as UTF-8, or as GBK for existing Chinese files.
+
+    Both decoders are strict. A file that is neither is left untouched and
+    reported to the editor instead of being rewritten with replacement
+    characters.
+    """
+    target = Path(path)
+    data = target.read_bytes()
+    for encoding in ("utf-8", "gbk"):
+        try:
+            text = data.decode(encoding)
+            return text.replace("\r\n", "\n").replace("\r", "\n")
+        except UnicodeDecodeError:
+            continue
+    raise SkillEncodingError(
+        f"无法读取技能/人设文件 {target}：内容不是有效的 UTF-8 或 GBK 编码。"
+        "请将文件重新保存为 UTF-8 或 GBK 后再编辑；原文件未被修改。"
+    )
 
 
 @dataclass(frozen=True)
@@ -94,14 +121,98 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
             values[key] = ""
             current_key = key
             continue
-        values[key] = value.strip("\"'")
+        values[key] = _scalar_value(value)
         current_key = key
     return values, body
 
 
+def _scalar_value(value: str) -> str:
+    """Decode the scalar forms our editor writes and older files use."""
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] == '"':
+        try:
+            decoded = json.loads(value)
+        except ValueError:
+            decoded = value[1:-1]
+        if isinstance(decoded, str):
+            return decoded
+    if len(value) >= 2 and value[0] == value[-1] == "'":
+        return value[1:-1].replace("''", "'")
+    return value
+
+
+def _yaml_string(value: str) -> str:
+    """A one-line YAML scalar that carries every string losslessly."""
+    if not isinstance(value, str):
+        raise TypeError("name and description must be text")
+    return json.dumps(value, ensure_ascii=False)
+
+
+def write_skill_file(path: Path | str, *, name: str, description: str, body: str) -> Path:
+    """Write one skill document, preserving frontmatter keys we do not edit.
+
+    The body is written exactly as supplied. Existing when and custom
+    metadata blocks keep their original text; only top-level name and
+    description entries are replaced.
+    """
+    target = Path(path)
+    if not isinstance(body, str):
+        raise TypeError("body must be text")
+    try:
+        existing = read_skill_text(target)
+    except FileNotFoundError:
+        existing = ""
+
+    match = FRONTMATTER.match(existing)
+    if match:
+        metadata = _updated_frontmatter(match.group(1), name, description)
+    else:
+        metadata = f"name: {_yaml_string(name)}\ndescription: {_yaml_string(description)}"
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(f"---\n{metadata}\n---\n{body}", encoding="utf-8")
+    return target
+
+
+def _updated_frontmatter(block: str, name: str, description: str) -> str:
+    """Replace known top-level entries without disturbing the rest of the block."""
+    chunks: list[list[str]] = []
+    current: list[str] | None = None
+    for line in block.splitlines(keepends=True):
+        if _KEY_LINE.match(line):
+            current = [line]
+            chunks.append(current)
+        elif current is not None:
+            current.append(line)
+        else:
+            chunks.append([line])
+
+    replacements = {"name": f"name: {_yaml_string(name)}\n",
+                    "description": f"description: {_yaml_string(description)}\n"}
+    result: list[str] = []
+    inserted: set[str] = set()
+    for chunk in chunks:
+        key_match = _KEY_LINE.match(chunk[0])
+        key = key_match.group(1).strip().lower() if key_match else ""
+        if key in replacements:
+            if key not in inserted:
+                if key == "description" and "name" not in inserted:
+                    result.append(replacements["name"])
+                    inserted.add("name")
+                result.append(replacements[key])
+                inserted.add(key)
+            continue
+        result.extend(chunk)
+
+    for key in ("name", "description"):
+        if key not in inserted:
+            result.append(replacements[key])
+    return "".join(result).rstrip("\r\n")
+
+
 def _read_skill_file(path: Path) -> Skill | None:
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = read_skill_text(path)
     except OSError:
         return None
     meta, body = parse_frontmatter(text)

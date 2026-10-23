@@ -1,4 +1,4 @@
-"""Repeated failures become reviewable task evidence rather than blind retries."""
+"""Repeated tool failures remain in durable history until the task stops."""
 
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ def test_repeated_identical_failure_is_persisted_for_resume(tmp_path, monkeypatc
     tasks.command(item.id, "running", request_id="run")
     tasks.begin_run(item.id)
     responses = [call_stream("read_file", {"path": "missing-file"}, str(n)) for n in range(3)]
-    responses.append(text_stream())
+    responses.append(call_stream("task_pause", {"reason": "The source file is missing."}, "pause"))
     import nexus.core.agent as module
     monkeypatch.setattr(module, "_client", lambda: httpx.AsyncClient(transport=httpx.MockTransport(
         lambda request: httpx.Response(200, headers={"content-type": "text/event-stream"}, text=responses.pop(0))
@@ -58,5 +58,8 @@ def test_repeated_identical_failure_is_persisted_for_resume(tmp_path, monkeypatc
     TaskAssembler(tasks, config)(tasks.get(item.id), threading.Event())
     messages = tasks.messages(item.id)
     assert any(message.get("kind") == "tool" and "missing-file" in str(message.get("arguments")) for message in messages)
-    assert tasks.get(item.id).state != "completed"
+    assert sum(message.get("kind") == "tool" and message.get("name") == "read_file"
+               for message in messages) == 3
+    assert tasks.get(item.id).state == "paused"
+    assert tasks.get(item.id).wait_reason == "The source file is missing."
     assert tasks.get(item.id).work_summary != "completed"

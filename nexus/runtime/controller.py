@@ -83,8 +83,8 @@ class TaskController:
 
     def submit(self, task_id: str, *, request_id: str, expected_version: int | None = None) -> Task:
         with self.store._lock:
-            current = self.store.get(task_id)
-            if current.state == "waiting_user" and self.store.pending_interactions(task_id):
+            self.store.get(task_id)
+            if self.store.pending_interactions(task_id):
                 raise TaskConflict("answer the pending interaction before starting this task")
             task = self.store.command(task_id, "queued", request_id=request_id, expected_version=expected_version)
         self._enqueue(task_id)
@@ -195,9 +195,15 @@ class TaskController:
                 )
                 self.store.add_message(task.id, kind="notice", text="本轮结束，尚未标记任务完成；已挂起，可恢复继续。")
         elif result.status == "paused":
-            if self.store.get(task.id).state == "running":
+            current = self.store.get(task.id)
+            if current.state == "running":
+                # A runner's reported pause reason is an error. Model
+                # task_pause has already persisted itself with source='agent'.
+                source = "error" if result.wait_reason else "user"
                 self.store.command(
-                    task.id, "paused", request_id=f"pause-{task.id}-{int(time.time_ns())}"
+                    task.id, "paused",
+                    request_id=f"pause-{task.id}-{int(time.time_ns())}",
+                    reason=result.wait_reason, source=source,
                 )
         elif result.status != "stalled":
             raise TaskValidationError(f"unknown task runner result: {result.status}")
@@ -205,16 +211,21 @@ class TaskController:
             current = self.store.get(task.id)
             if current.state == "running":
                 self.store.command(
-                    task.id, "paused", request_id=f"stalled-{task.id}-{int(time.time_ns())}"
+                    task.id, "paused",
+                    request_id=f"stalled-{task.id}-{int(time.time_ns())}",
+                    reason=result.wait_reason, source="error",
                 )
         self.store.end_run(run_id, status=result.status)
 
     def _record_failure(self, task_id: str, error: BaseException) -> None:
         try:
-            self.store.add_message(task_id, kind="notice", text=f"任务执行中止：{type(error).__name__}: {error}")
+            reason = f"{type(error).__name__}: {error}"
+            self.store.add_message(task_id, kind="notice", text=f"任务执行中止：{reason}")
             if self.store.get(task_id).state in ("running", "pausing"):
                 self.store.command(
-                    task_id, "paused", request_id=f"error-{task_id}-{int(time.time_ns())}"
+                    task_id, "paused",
+                    request_id=f"error-{task_id}-{int(time.time_ns())}",
+                    reason=reason, source="error",
                 )
         except Exception:
             pass
@@ -244,10 +255,13 @@ class TaskController:
             stopped = 0
         if active_run:
             self.store.end_run(active_run, status="suspended")
-            self.store.command(
-                task_id, "paused",
-                request_id=f"suspend-{task_id}-{int(time.time_ns())}",
-            )
+            # Cancellation persists its terminal state before asking the
+            # worker to stop. Only a pause still needs the run's state change.
+            if self.store.get(task_id).state in ("running", "pausing", "queued"):
+                self.store.command(
+                    task_id, "paused",
+                    request_id=f"suspend-{task_id}-{int(time.time_ns())}",
+                )
         return {"stopped_jobs": stopped}
 
     def _wait_inactive(self, task_id: str, timeout: float = 8.0) -> bool:
@@ -295,7 +309,7 @@ class TaskController:
 
     def resume(self, task_id: str, *, request_id: str, expected_version: int | None = None) -> Task:
         current = self.store.get(task_id)
-        if current.state == "waiting_user" and self.store.pending_interactions(task_id):
+        if self.store.pending_interactions(task_id):
             raise TaskConflict("answer the pending interaction before resuming")
         task = self.store.command(
             task_id, "queued", request_id=request_id,

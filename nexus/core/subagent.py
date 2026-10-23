@@ -109,6 +109,9 @@ async def run_subagent(
             if kind == "delta" and getattr(event, "text", ""):
                 text_parts.append(event.text)
             elif kind == "tool_start":
+                # Text before a tool call is an intermediate update. Return
+                # the final report rather than joining it to earlier guesses.
+                text_parts.clear()
                 data = getattr(event, "data", None) or {}
                 trace.append({"type": "tool_start", "id": data.get("id"),
                               "name": data.get("name"),

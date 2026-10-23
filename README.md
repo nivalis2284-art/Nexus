@@ -2,9 +2,11 @@
 
 Nexus 是一个正在迭代的个人 Agent 项目。**当前版本**提供灵的持续交流入口与独立持久任务：用户可以继续交流，由灵发起、了解和干预工作，并接收重要事件。原有 Coding Agent 的网页会话、模型接入、工具与运行控制继续保留。
 
-最简自主性雏形已交付：旧系统完整归档，新版以定时唤醒和公开网页变化唤醒灵，复用主会话能力；灵可以回复或保留一句静默经历。实际体验与限制见 [`docs/AUTOMATION-PHASE1.md`](docs/AUTOMATION-PHASE1.md)。
+当前版本已把自主活动与长期交代迁入插件：侧栏「插件管理」负责加载、停用、重载、卸载、设置和打开插件页面，「自主活动与长期交代」从该页面进入；模型提供商编辑页可为每个模型单独设置上下文窗口。所有者已授权第二阶段收尾，代码、针对性测试与文档正在汇总，完整验收尚未结束。当前范围、入口、数据位置与验证边界见[插件实施与进度](docs/插件系统/实施与进度.md)。
 
-当前项目尚未实现长期记忆或人格等愿景能力；这只是版本现状，**不代表未来的功能限制**。长期方向见 [`docs/愿景/`](docs/愿景/)，当前要做什么以已确认的需求为准。
+最简自主性雏形已交付：新版以定时唤醒和公开网页变化唤醒灵，复用主会话能力；灵可以回复或保留一句静默经历。实际体验与限制见[阶段记录](docs/参考/archive/2026-10-22-autonomy/AUTOMATION-PHASE1.md)。
+
+当前已有人设栏目与文件型 Skill、持续性工作与长期交代、定时及网页变化唤醒；自主预约和每日整体回顾的工程验证已完成，真实模型下的合理规划尚待验证。下一阶段是局域网内用手机访问灵，先取得日常使用数据；长期记忆、主干与分支等仍是设计设想，尚未开始实现。已完成阶段、实现边界与参考案例见[路线图](docs/ROADMAP.md)；长期方向见 [`docs/愿景/`](docs/愿景/)，当前要做什么以已确认的需求为准。
 
 ## 快速开始
 
@@ -13,6 +15,7 @@ Nexus 是一个正在迭代的个人 Agent 项目。**当前版本**提供灵的
 1. 双击 `start.bat`。首次启动会按脚本配置创建虚拟环境、安装依赖。
 2. 在浏览器打开 `http://127.0.0.1:8766`（通常由启动脚本打开）。
 3. 在设置中填写模型提供商的 Base URL、模型名称、协议及 API Key，然后开始对话。
+4. 需要查看定时、网页监听、活动记录或长期交代时，打开侧栏「插件管理」→「自主活动与长期交代」→「打开页面」。内置自主插件在首次迁移时沿用既有安装的启用状态；自动活动本身默认关闭，需要时在插件页面启用。
 
 启动脚本会检查 Python 3.12 和项目依赖。若现有 `.venv` 已失效，会先保留为同目录下的 `.venv.invalid-<时间>` 备份，再创建环境；不会删除原环境或覆盖会话数据。环境准备失败时，终端会显示具体原因。
 
@@ -25,15 +28,16 @@ Nexus 是一个正在迭代的个人 Agent 项目。**当前版本**提供灵的
 | 业务能力 | 当前实现 |
 |---|---|
 | 模型交互 | Anthropic Messages、OpenAI Chat Completions、OpenAI Responses 三类协议；支持流式输出 |
-| 模型管理 | 多提供商配置、切换模型、思考强度设置 |
+| 模型管理 | 多提供商配置、切换模型、思考强度设置；可为每个模型设置本地上下文窗口 |
 | Agent 执行 | 多轮工具调用及结果回灌、停止操作、模型请求重试 |
 | 基础工具 | 文件操作、命令、后台任务、补丁、待办与向用户提问 |
-| 扩展能力 | 子代理、Skill、MCP；网络工具按配置启用 |
+| 扩展能力 | 子代理、Skill、MCP 与插件；网络工具按配置启用 |
+| 插件系统 | 侧栏「插件管理」管理本地插件、ZIP 导入、设置和功能页；模型请求记录保留最近七天 |
 | 上下文 | 会话历史、上下文裁剪与摘要压缩 |
 | 持久任务 | 任务库、并存的待执行/挂起任务、任务进度与证据、暂停/继续、跨重启恢复 |
 | 灵的持续交互 | 固定交流入口、服务端持久输入队列；灵可委派、查询和干预独立工作，执行过程留在任务内 |
 | 重要事件反馈 | 页内主动提示和决策作答，完成/受阻/等待用户等事件持久保存，离线回来补看 |
-| 最简自主活动 | 定时任务、间隔唤醒、每日规划、公开网页变化监听，沿用主会话能力；回复或保存一句话静默经历 |
+| 最简自主活动 | 由内置自主插件提供定时任务、间隔唤醒、每日规划、公开网页变化监听和长期交代；沿用主会话能力；回复或保存一句话静默经历 |
 | 自主预约（工程验证已完成） | 自动唤醒可为未来保存一次性预约；独立 MCP `schedule_wakeup` 复用一次性安排，支持按绝对或相对时间保存及同 ID 改期，删除沿用现有接口；不新增页面或数据库 |
 | 执行安排 | 默认手动；可选一次性到时自动恢复或等待确认，错过后等待用户 |
 | 任务过程记录 | 可选记录进度、证据与尝试；模型根据实际情况调整路线或主动挂起 |
@@ -52,19 +56,31 @@ Nexus 是一个正在迭代的个人 Agent 项目。**当前版本**提供灵的
 
 思考强度设为“提供商默认”时不主动传入强度字段；也提供 `low`、`medium`、`high`、`xhigh`、`max` 档位。实际支持情况取决于模型、服务端及协议实现，并非所有服务都必然接受全部档位。
 
+在设置里编辑模型提供商时，每个模型可以填写自己的上下文窗口 token 数，保存为 `context_window_tokens`。该值必须是正整数，留空会移除覆盖并使用默认值。本地预算按“全局 `context_limit`（若配置）→ 当前模型窗口 → 64,000”取舍，用于上下文裁剪和摘要压缩；它不会随 API 请求发送，也不能扩大模型或服务端真实的上下文上限。
+
 通过 `start.bat` 启动时，数据目录默认使用项目内的 `.nexus-data`，与现有日常实例一致；可用 `NEXUS_HOME` 指定其他目录。直接运行 `python -m nexus` 时，仍默认使用 `%LOCALAPPDATA%\Nexus`。常见内容：
 
 ```text
 config.json          提供商及运行配置（不含 API Key）
 credentials.json     API Key 等凭据
 sessions/*.jsonl     会话记录
-tasks.sqlite3        持久任务、执行证据、交互、一次性安排、通知与灵的输入队列/归属
+tasks.sqlite3        持久任务、执行证据、交互、通知与灵的输入队列/归属
 attachments/         按会话/任务归属保存的原文件、元数据与提取文本
-automation.sqlite3  Nexus 唤醒队列与活动记录；旧规则表保留为迁移来源
-scheduler/scheduler.sqlite3  独立 MCP 服务的定时规则、监听与网页基线
-archive/autonomy-original/  首次切换时保存的旧自主数据
+plugin-events.sqlite3  插件活动、事件与回复结果
+plugins.json         插件的启用状态与设置
+plugins/<id>/        插件运行资料、配置和按需创建的 Python 环境
+plugins/autonomy/autonomy.sqlite3  自主插件的长期交代、关联与反馈游标
+plugins/autonomy/scheduler/scheduler.sqlite3  自主插件调度服务的规则、监听与网页基线
+model-requests.sqlite3  最近七天的模型请求记录
+plugins-migration-backup/  旧活动数据迁移前备份（存在时）
+plugins/autonomy/legacy-backup/  旧自主资料迁移前备份（存在时）
 skills/*.md          可选 Skill 文档
+persona.json         灵的完整人设栏目及条目顺序、启用状态
+persona-skills/*/SKILL.md  人设条目的名称、摘要和详细正文
+persona-last-request.json  最近一次灵模型请求携带的人设快照
 ```
+
+插件程序位于仓库根目录 `plugins/`。数据目录里的 `plugins/<id>/` 保存运行资料；清单声明依赖时，加载插件会在其中准备隔离的 `venv/`。删除或覆盖数据目录前应自行备份。
 
 凭据请勿提交到 Git、公开上传或复制进日志；实际访问控制还取决于操作系统与目录权限。删除或覆盖数据目录会造成记录及配置丢失，操作前应自行备份。
 
@@ -78,33 +94,45 @@ skills/*.md          可选 Skill 文档
 
 独立工作保存消息与操作结果，新的补充要求在下一模型请求边界送入，查询可见待送入数量。所有入口向挂起任务补充消息都只保存，需通过「恢复」或明确的工作控制命令继续执行。手动创建与灵委派的持久任务使用同一续跑行为：普通文字回复后继续执行，由模型调用 `task_finish` 完成、调用 `task_pause` 主动挂起，或由用户暂停/取消；等待真实审批、提问或遇到运行错误时保留现场。后台任务不再受原有 40 步、4 次续跑、3 次无进度记录限制；普通会话和临时子代理的限制保持原状。完成只要求实际结果摘要，计划、过程证据和尝试记录均可选。恢复利用保存状态，不恢复旧进程或自动重放历史输入。
 
-本次持续性简化及代码验证见 [持续性重构交付记录](docs/CONTINUITY-REFACTOR.md)。Dot 可借鉴的产品设计、现有能力差距和后续建议见 [Dot 参考报告](docs/DOT-REFERENCE.md)，报告中的后续建议尚未实现。
+此前持续性简化及代码验证见[持续性重构交付记录](docs/参考/archive/2026-10-22-continuity/CONTINUITY-REFACTOR.md)。Dot 可借鉴的产品设计、当时的能力差距和建议见[Dot 参考报告](docs/参考/archive/2026-10-23-reference-cleanup/DOT-REFERENCE.md)；其中建议不自动构成开发需求，后续实际落实范围见下方交付说明。
+
+任务管理展示、长期交代与工作结果反馈见[持续性闭环使用与交付说明](docs/参考/archive/2026-10-22-continuity/CONTINUITY-NEXT.md)。你和灵都可保存长期交代，在页面查看来源、修改、暂停、恢复或结束；交代沿用现有唤醒安排，并关联具体任务。暂停交代会暂停关联的执行中及排队工作，结束交代则让已经运行的工作继续完成。任务结果可主动唤醒灵，由灵决定汇报或保留一句静默经历；明确要求的完成汇报必须回复。
 
 重启后，未开始的灵输入等待用户明确继续；上次正在处理的输入标为中断，需检查已生效操作后发新消息继续，不盲目重放。独立任务沿用已有的中断核查和手动恢复边界。完整长期记忆、人格演化和站外系统推送仍不在本阶段。
 
-## 定时与监听
+## 人设与自我
 
-顶部「定时与监听」可以设置间隔唤醒、每日规划时刻，管理一次性、间隔、每日、每周安排，以及公开网页监听；也可以直接在灵的主会话中提出这些要求。灵可以自行调整全部安排。
+侧栏「人设与自我」上方是全文注入的栏目，默认提供「核心设定」「回复原则」，支持新增、改名、删除及调整顺序；下方条目各自对应 `persona-skills/<名称>/SKILL.md`。弹窗中的名称、摘要、详细内容分别写入 `name`、`description` 和正文。栏目全文与启用摘要直接进入灵的模型请求，正文按需读取；普通会话、独立任务和临时子代理不使用这份人设。也可以明确要求灵通过聊天修改，保存后从下一次模型请求生效，不需要重启。
 
-网页监听通过 Playwright 和本机 Microsoft Edge 读取渲染正文，支持 JavaScript 页面。首次读取建立基线，正文变化后唤醒灵；不支持登录、验证码或反爬绕过。依赖由现有启动准备流程安装。无变化的检查不调用模型。
+「生成摘要建议」只在主动点击时使用当前主会话的模型与思考强度，不自动保存；采用建议后仍需保存条目。页面可对照当前注入预览与最近请求快照。第一版不自动修改人格，详细用法见 [人设注入使用说明](docs/PERSONA-INJECTION.md)。
+
+侧栏「技能」单独管理普通 Skill，支持查看、新建、编辑和删除个人／当前项目技能，并显示同名覆盖后的生效来源；内置技能只读。新建技能使用标准文件夹形式，现有平铺 Markdown 文件仍可编辑；额外的文件头字段继续保留。
+
+## 自主活动与长期交代
+
+从侧栏「插件管理」选择「自主活动与长期交代」，可在其中的功能页设置间隔唤醒、每日规划时刻，管理一次性、间隔、每日、每周安排、公开网页监听和长期交代；也可以直接在灵的主会话中提出这些要求。灵可以自行调整全部安排。插件详情页同时提供加载、停用、重载、卸载和保存设置；关闭功能页不会停止插件后台。
+
+网页监听通过 Playwright 和本机 Microsoft Edge 读取渲染正文，支持 JavaScript 页面。首次读取建立基线，正文变化后唤醒灵；不支持登录、验证码或反爬绕过。网页监听依赖在加载自主插件时按插件清单准备。无变化的检查不调用模型。
 
 唤醒沿用主会话的模型、思考强度、工具、Skill、MCP 和独立工作。明确提醒或汇报按要求回复；自由唤醒可以沉默，并将本次经历压缩成一句话加入后续上下文，在活动记录中查看。正式回复进入主会话并有页内未读提示。
 
 新数据首次初始化保持自动活动关闭，预填间隔60分钟、每日09:00、网页检查5分钟。关闭网页不停止服务端；关闭自动活动不停止已接收的唤醒及已开始的独立工作。
 
-调度规则与监听已迁至 `services/scheduler/` 独立 MCP 服务。该服务拥有规则和网页正文基线；Nexus 拥有唤醒队列，负责执行主会话并保存回复或一句静默经历。服务默认随 Nexus 启停，主会话与独立任务复用同一个 MCP 连接。旧规则首次连接时导入服务，活动记录仍留在 Nexus。限定范围的代码验收、测试与文档收尾已完成，但未切换日常实例，也未进行真实全量验收；阶段记录见 [MCP 重构第一阶段](docs/MCP-PHASE1.md)，上一版记录见 [自主性雏形记录](docs/AUTOMATION-PHASE1.md)。
+调度规则和监听由自主插件自带的独立 MCP 服务管理，服务随插件加载并继承插件设置；它拥有规则和网页正文基线。Nexus 保存插件事件与唤醒执行结果，负责执行主会话并保存回复或一句静默经历。当前主会话与独立任务通过插件登记的服务复用连接。旧规则和活动在首次加载时导入，原始数据先做备份。
+
+插件停用会阻止新的插件工具与活动，已在途的调用收尾；卸载默认移除插件程序，保留资料。旧的独立调度路径已不在当前启动流程中，它的阶段记录只反映迁移前状态，不能作为现行入口或验收依据。旧阶段的说明见[MCP 重构第一阶段](docs/参考/archive/2026-10-22-autonomy/MCP-PHASE1.md)与[自主性雏形记录](docs/参考/archive/2026-10-22-autonomy/AUTOMATION-PHASE1.md)。
 
 ## 自主预约与每日回顾（工程验证已完成）
 
-本轮方案允许灵为未来主动安排一次醒来。每次自动唤醒时，灵都考虑是否需要在未来继续某件事；普通聊天只在确有安排必要时使用预约，不要求每条消息都产生安排。
+上一阶段的方案允许灵为未来主动安排一次醒来。每次自动唤醒时，灵都考虑是否需要在未来继续某件事；普通聊天只在确有安排必要时使用预约，不要求每条消息都产生安排。
 
-独立 MCP 工具 `schedule_wakeup(title, reason, continuation, run_at 或 delay_minutes, id 可选)` 复用现有的一次性安排表，不新增数据库或页面，也不扩展网页及其他事件监听的范围。`title` 是安排名称，`reason` 记录到点为何要醒来，`continuation` 留给未来自己的上下文和待续事项。`run_at` 与 `delay_minutes` 二选一；`delay_minutes` 从保存本次调用的时刻起算，保存后立即按该时点生效，目前不以工作运行成功结束作为计时起点。
+自主插件的调度服务提供工具 `schedule_wakeup(title, reason, continuation, run_at 或 delay_minutes, id 可选)`，复用现有的一次性安排表，不新增页面，也不扩展网页及其他事件监听的范围。`title` 是安排名称，`reason` 记录到点为何要醒来，`continuation` 留给未来自己的上下文和待续事项。`run_at` 与 `delay_minutes` 二选一；`delay_minutes` 从保存本次调用的时刻起算，保存后立即按该时点生效，目前不以工作运行成功结束作为计时起点。
 
 传入已存在的 `id` 会用同一记录改期；不需要的安排继续通过现有的 `schedule_delete(id)` 删除。到点唤醒时，过去的 `reason` 和 `continuation` 只是灵此前写下的旧计划，应结合当前情况重新评估是否行动、改变方向或保持沉默，不能当作当前事实或必须执行的指令。
 
 原有间隔唤醒、每日时刻与开关保留。每日唤醒用于整体回顾，不要求排满一天，也不要求新建预约、任务或结构化决定；只有确有未来事项需要另行醒来时才创建预约。
 
-隔离数据下，真实 Agent 循环、标准 MCP 连接与本地 HTTP 回调已跑通预约、到期唤醒原会话和同 ID 再改期；工作区 Python 回归 633 passed、1 skipped；仅含本轮变更的暂存版本另有 58 项针对性检查通过。跳过项为当前环境不支持目录符号链接的既有启动测试。模型响应使用可控模拟，不代表真实模型会稳定、合理地规划时间；未调用付费模型，未切换日常实例。
+隔离数据下，真实 Agent 循环、标准 MCP 连接与本地 HTTP 回调已跑通预约、到期唤醒原会话和同 ID 再改期。上一阶段记录的 633 passed、1 skipped 与 58 项针对性检查是当时结果，保留在[路线图](docs/ROADMAP.md)的历史记录中。模型响应使用可控模拟，不代表真实模型会稳定、合理地规划时间。
 
 ## 上传和使用附件
 
@@ -170,13 +198,18 @@ Agent 从消息中取得文件标识和原件路径，通过 `read_attachment` �
 
 **Skill** 可从工作区 `.nexus/skills/<名称>/SKILL.md` 或用户目录 `~/.nexus/skills/<名称>/SKILL.md` 发现；实际读取方式由现有 Skill 机制决定。
 
+**插件** 程序放在仓库根目录 `plugins/<id>/`，以 `plugin.json` 描述入口、页面、工具和依赖；侧栏「插件管理」也可导入 ZIP。发现或导入只登记文件，点击加载后才准备依赖、启动插件服务和登记能力。需要额外依赖的插件在数据目录的 `plugins/<id>/venv/` 使用独立 Python 环境；纯本地入口仍使用 Nexus 解释器和公开的宿主接口。加载失败的错误会显示在插件详情中。插件与设置里的普通 MCP 服务分开管理：插件自有服务不出现在普通 MCP 编辑页。
+
 ## 项目结构
 
 ```text
+plugins/
+  autonomy/   首个正式插件：自主活动、长期交代及其调度服务
 nexus/
   core/       Agent 循环、上下文、配置与权限
   model/      模型传输与协议解析
   tools/      内置工具及注册
+  plugins/    插件发现、加载、环境、事件与作者接口
   session/    JSONL 会话存储
   web/        HTTP 服务、HTML/CSS/JavaScript 前端
   mcp.py      MCP 客户端
@@ -199,7 +232,7 @@ AGENTS.md    开发协作说明
 安装开发依赖后，在仓库根目录运行：
 
 ```powershell
-.venv\Scripts\python.exe -m pip install -e ".[dev]" -e services/scheduler
+.venv\Scripts\python.exe -m pip install -e ".[dev]"
 .venv\Scripts\python.exe -m pytest tests -q
 ```
 
@@ -208,16 +241,21 @@ AGENTS.md    开发协作说明
 ## 文档导航
 
 - [`AGENTS.md`](AGENTS.md)：给开发 Agent 的简洁协作说明，不代替具体 PRD。
-- [持续性重构交付记录](docs/CONTINUITY-REFACTOR.md)：当前持续性行为、简化范围与本轮代码验证。
-- [Dot 参考报告](docs/DOT-REFERENCE.md)：官方资料核对与后续方向建议；不自动构成开发需求。
-- [`docs/archive/2026-10-21-phase1-baseline/PRODUCT.md`](docs/archive/2026-10-21-phase1-baseline/PRODUCT.md)、[`docs/archive/2026-10-21-phase1-baseline/ROADMAP.md`](docs/archive/2026-10-21-phase1-baseline/ROADMAP.md)：产品构想与路线图。
-- [`docs/archive/2026-10-21-phase1-baseline/PRD.md`](docs/archive/2026-10-21-phase1-baseline/PRD.md) 与 [`docs/archive/2026-10-21-phase1-baseline/PRD-AUTONOMY-SUPPLEMENT.md`](docs/archive/2026-10-21-phase1-baseline/PRD-AUTONOMY-SUPPLEMENT.md)：当前已确认的**自主性第一版雏形**需求；所有者已授权跳过 4B、进入阶段 5，交付和真实验证状态见 [`docs/archive/2026-10-21-phase1-baseline/PROGRESS.md`](docs/archive/2026-10-21-phase1-baseline/PROGRESS.md)，阶段 6 独立验收尚未通过。
-- [自主性预研历史 PRD](docs/archive/2026-10-20-autonomy-prestudy/PRD.md)、[主研究](docs/archive/2026-10-20-autonomy-prestudy/RESEARCH.md)、[多模型补充](docs/archive/2026-10-20-autonomy-prestudy/RESEARCH-MULTI-MODEL.md)：已归档，不构成当前交付目标。
-- [持续性 PRD](docs/archive/2026-10-20-ling-continuity/PRD.md)、[研究](docs/archive/2026-10-20-ling-continuity/RESEARCH.md)、[交付验证](docs/archive/2026-10-20-ling-continuity/PROGRESS.md)：旧阶段归档，保留当时的需求与验证结论；当前行为以本轮持续性重构交付记录为准。
-- [`附件交付记录`](docs/archive/2026-10-20-attachments/PROGRESS.md)：上一轮附件实现、验证证据与读取限制。
-- [`自动化旧接口手动验收脚本`](docs/archive/2026-10-22-automation-manual-checks/README.md)：清理时保留的历史探测脚本，依赖旧接口，不能作为当前验收依据。
-- [`docs/archive/`](docs/archive/)：历史阶段需求、研究、重要决策与交付证据；不构成当前待办。
-- [`docs/archive/2026-10-21-phase1-baseline/BUSINESS-MAP.html`](docs/archive/2026-10-21-phase1-baseline/BUSINESS-MAP.html)：原 Coding Agent 基线的独立业务关系图，不含新增持续性链路，可直接用本地浏览器打开。
+- [路线图](docs/ROADMAP.md)：已完成阶段、当前能力、实现边界与下一阶段局域网访问。
+- [文档索引](docs/README.md)：活跃文档、参考材料与阶段归档的入口。
+- [插件接入说明](docs/插件系统/接入说明.md)：插件目录、清单、宿主接口、服务、页面与请求记录。
+- [持续性重构交付记录](docs/参考/archive/2026-10-22-continuity/CONTINUITY-REFACTOR.md)：持续性行为、简化范围与当时的代码验证。
+- [Dot 参考报告](docs/参考/archive/2026-10-23-reference-cleanup/DOT-REFERENCE.md)：官方资料核对与后续方向建议；已归档，不自动构成开发需求。
+- [第二轮缺陷审查](docs/参考/archive/2026-10-23-reference-cleanup/BUG-AUDIT-2026-10-22-round2.md)：修复与复核记录；已归档，暂缓项不等于当前待办。
+- [历史对话与变更记录](docs/参考/archive/2026-10-23-reference-cleanup/)：早期对话、变更和调研的过程记录；已归档，仅作背景。
+- [`docs/参考/archive/2026-10-21-phase1-baseline/PRODUCT.md`](docs/参考/archive/2026-10-21-phase1-baseline/PRODUCT.md)、[`docs/参考/archive/2026-10-21-phase1-baseline/ROADMAP.md`](docs/参考/archive/2026-10-21-phase1-baseline/ROADMAP.md)：产品构想与路线图。
+- [`docs/参考/archive/2026-10-21-phase1-baseline/PRD.md`](docs/参考/archive/2026-10-21-phase1-baseline/PRD.md) 与 [`docs/参考/archive/2026-10-21-phase1-baseline/PRD-AUTONOMY-SUPPLEMENT.md`](docs/参考/archive/2026-10-21-phase1-baseline/PRD-AUTONOMY-SUPPLEMENT.md)：已确认的**自主性第一版雏形**历史需求；所有者当时授权跳过 4B、进入阶段 5，交付和验证状态见 [`docs/参考/archive/2026-10-21-phase1-baseline/PROGRESS.md`](docs/参考/archive/2026-10-21-phase1-baseline/PROGRESS.md)，阶段 6 独立验收尚未通过。
+- [自主性预研历史 PRD](docs/参考/archive/2026-10-20-autonomy-prestudy/PRD.md)、[主研究](docs/参考/archive/2026-10-20-autonomy-prestudy/RESEARCH.md)、[多模型补充](docs/参考/archive/2026-10-20-autonomy-prestudy/RESEARCH-MULTI-MODEL.md)：已归档，不构成当前交付目标。
+- [持续性 PRD](docs/参考/archive/2026-10-20-ling-continuity/PRD.md)、[研究](docs/参考/archive/2026-10-20-ling-continuity/RESEARCH.md)、[交付验证](docs/参考/archive/2026-10-20-ling-continuity/PROGRESS.md)：旧阶段归档，保留当时的需求与验证结论；当前行为以本轮持续性重构交付记录为准。
+- [`附件交付记录`](docs/参考/archive/2026-10-20-attachments/PROGRESS.md)：上一轮附件实现、验证证据与读取限制。
+- [`自动化旧接口手动验收脚本`](docs/参考/archive/2026-10-22-automation-manual-checks/README.md)：清理时保留的历史探测脚本，依赖旧接口，不能作为当前验收依据。
+- [`docs/参考/archive/`](docs/参考/archive/)：历史阶段需求、研究、重要决策与交付证据；不构成当前待办。
+- [`docs/参考/archive/2026-10-21-phase1-baseline/BUSINESS-MAP.html`](docs/参考/archive/2026-10-21-phase1-baseline/BUSINESS-MAP.html)：原 Coding Agent 基线的独立业务关系图，不含新增持续性链路，可直接用本地浏览器打开。
 - [`docs/愿景/01-概念与原则.md`](docs/愿景/01-概念与原则.md)：长期方向与所有者控制原则。
 - [`docs/愿景/02-抽象需求.md`](docs/愿景/02-抽象需求.md)：长期期望的能力与体验；**并非当前阶段待办清单**。
 - [`docs/参考/`](docs/参考/)：历史对话、变更及曾经暂缓或待定的事项；其中的判断不自动代表当前产品决定。

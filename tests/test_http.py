@@ -59,9 +59,12 @@ def live(tmp_path: Path, monkeypatch):
         )
         store.select(provider.id, "fake", "off")
         store.write_credential(provider.id, "test-key")
-    web.STATE["store"] = store
-    web.STATE["sessions"] = web.SessionStore(store.sessions_dir)
-    web.STATE["skills"] = {}
+    monkeypatch.setattr(web, "STATE", {
+        "store": store,
+        "sessions": web.SessionStore(store.sessions_dir),
+        "skills": {},
+        "mcp": web.MCPRegistry(),
+    })
 
     frames = [
         (

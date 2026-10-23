@@ -555,9 +555,11 @@ class TaskStore:
             return task_from_row(self._row(connection, task_id))
 
     def command(self, task_id: str, operation: str, *, request_id: str,
-                expected_version: int | None = None, reason: str = "") -> Task:
+                expected_version: int | None = None, reason: str = "",
+                source: str = "user") -> Task:
         if operation not in ACTIVITY_STATES and operation not in ("reopen", "archive", "unarchive", "confirm_wait"):
             raise TaskValidationError(f"unknown task operation: {operation}")
+        source = str(source or "user")
         with self._lock, self._transaction() as connection:
             previous = connection.execute(
                 "SELECT task_id,operation,result_json FROM commands WHERE request_id=?", (request_id,)
@@ -640,6 +642,7 @@ class TaskStore:
             self._remember_command(connection, request_id, task_id, operation, result)
             self._event(connection, task_id, "task.control", {
                 "operation": operation, "state": target, "wait_reason": wait_reason,
+                "source": source,
             })
             return task_from_row(self._row(connection, task_id))
 
@@ -872,6 +875,7 @@ class TaskStore:
                 self._event(connection, row["task_id"], "run.interrupted", {
                     "run_id": row["id"],
                     "wait_reason": "服务上次意外结束；请核查未知操作后手动继续",
+                    "source": "error",
                 })
                 interrupted.append(row["task_id"])
             # The service cannot resume background processes. Persist the fact
@@ -917,10 +921,15 @@ class TaskStore:
 
     def interaction_create(
         self, *, task_id: str, run_id: str | None, kind: str, payload: dict[str, Any],
-        operation_id: str | None = None, control_version: int = 1,
+        operation_id: str | None = None, control_version: int | None = None,
     ) -> str:
         with self._lock, self._transaction() as connection:
-            self._row(connection, task_id)
+            row = self._row(connection, task_id)
+            if control_version is not None and control_version != row["control_version"]:
+                raise TaskConflict("task control version changed before interaction creation")
+            if run_id is not None and row["state"] != "running":
+                raise TaskConflict("task is suspended; interaction was not created")
+            control_version = row["control_version"]
             interaction_id = "int_" + uuid.uuid4().hex[:16]
             stamp = now_iso()
             connection.execute(
@@ -1159,9 +1168,12 @@ class TaskStore:
                 "ELSE t.state END AS current_state,"
                 "t.control_version AS current_version,"
                 "t.wait_reason AS current_wait_reason,i.status AS interaction_status,"
-                "i.control_version AS interaction_version,i.payload_json AS interaction_payload "
+                "i.control_version AS interaction_version,i.payload_json AS interaction_payload,"
+                "t.work_summary AS task_work_summary,t.blocked AS task_blocked,"
+                "e.type AS event_type,e.data_json AS event_data "
                 "FROM notifications n "
                 "JOIN tasks t ON t.id=n.task_id LEFT JOIN interactions i ON i.id=n.interaction_id "
+                "LEFT JOIN events e ON e.seq=n.event_seq "
                 + where + " ORDER BY n.id LIMIT ?",
                 (after, limit),
             ).fetchall()
@@ -1171,13 +1183,19 @@ class TaskStore:
 
     @staticmethod
     def _notification_dict(row: sqlite3.Row) -> dict[str, Any]:
+        event_data = json.loads(row["event_data"] or "{}")
         item = {
             "id": int(row["notification_id"]), "task_id": row["task_id"], "kind": row["kind"],
             "title": row["title"], "text": row["text"],
             "created_at": row["created_at"], "read_at": row["read_at"],
             "interaction_id": row["interaction_id"],
+            "event_type": row["event_type"] or "",
             "current_state": row["current_state"],
             "control_version": int(row["current_version"]),
+            "source": event_data.get("source", ""),
+            "work_summary": row["task_work_summary"] or "",
+            "blocked": row["task_blocked"] or "",
+            "wait_reason": row["current_wait_reason"] or "",
         }
         if row["interaction_id"]:
             item["interaction_status"] = row["interaction_status"]
@@ -1209,10 +1227,13 @@ class TaskStore:
                 "CASE WHEN n.kind='interaction' AND i.id IS NOT NULL AND i.status='pending' AND t.state NOT IN ('cancelled','completed') "
                 "THEN 'waiting_user' ELSE t.state END AS current_state,"
                 "t.control_version AS current_version,"
+                "t.wait_reason AS current_wait_reason,"
+                "t.work_summary AS task_work_summary,t.blocked AS task_blocked,"
                 "i.status AS interaction_status,i.control_version AS interaction_version,"
-                "i.payload_json AS interaction_payload "
+                "i.payload_json AS interaction_payload,e.type AS event_type,e.data_json AS event_data "
                 "FROM notifications n JOIN tasks t ON t.id=n.task_id "
-                "LEFT JOIN interactions i ON i.id=n.interaction_id WHERE n.id=?",
+                "LEFT JOIN interactions i ON i.id=n.interaction_id "
+                "LEFT JOIN events e ON e.seq=n.event_seq WHERE n.id=?",
                 (notification_id,),
             ).fetchone()
             return self._notification_dict(row)
@@ -1432,6 +1453,27 @@ class TaskStore:
                  "created_at": row["created_at"], **json.loads(row["data_json"])}
                 for row in rows
             ]
+        finally:
+            connection.close()
+
+    def change_heads(self) -> dict[str, int]:
+        connection = self._connect()
+        try:
+            return {
+                'messages': int(connection.execute('SELECT COALESCE(MAX(seq),0) FROM task_messages').fetchone()[0]),
+                'notifications': int(connection.execute('SELECT COALESCE(MAX(id),0) FROM notifications').fetchone()[0]),
+            }
+        finally:
+            connection.close()
+
+    def message_changes(self, after: int = 0, limit: int = 100) -> list[dict[str, Any]]:
+        connection = self._connect()
+        try:
+            rows = connection.execute('SELECT * FROM task_messages WHERE seq>? ORDER BY seq LIMIT ?',
+                                      (after, limit)).fetchall()
+            return [{'task_id': row['task_id'], 'seq': row['seq'], 'kind': row['kind'],
+                     'text': row['text'], 'data': json.loads(row['data_json']), 'created_at': row['created_at']}
+                    for row in rows]
         finally:
             connection.close()
 

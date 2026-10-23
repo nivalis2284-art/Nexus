@@ -66,7 +66,7 @@ class Node {
   }
   setAttribute(name, value) { this.attributes[name] = String(value); }
   addEventListener(name, handler) { (this.handlers ||= {})[name] = handler; }
-  focus() {}
+  focus(options) { this.focusOptions = options; }
   select() {}
   showModal() {}
   close() {}
@@ -303,6 +303,52 @@ async function testPollingKeepsDraftAndAttachment() {
   assert.equal(h.ids.get("input").value, "尚未发送的草稿");
   assert.equal(h.evaluate("pendingFiles[0].name"), "keep.txt");
   console.log("ok - Ling polling preserves drafts and attachments");
+}
+
+async function testScrollRestoresBottomAcrossHiddenPanel() {
+  const h = await harness();
+  await h.evaluate("openLing()");
+  const scroller = h.ids.get("scroller");
+  scroller.hidden = true;
+  scroller.scrollTop = 260;
+  scroller.scrollHeight = 300;
+  scroller.clientHeight = 40;
+  scroller.scrollTop = 0;
+  h.snapshot().items = [{role: "assistant", text: "新内容", at: "2026-10-20T01:03:00Z"}];
+  scroller.scrollHeight = 900;
+  scroller.hidden = false;
+  await h.evaluate("openLing()");
+  assert.equal(scroller.scrollTop, 900,
+    "a reader at the bottom returns to the bottom after hidden panel and new messages");
+  console.log("ok - Ling scroll restores bottom after a hidden panel and new messages");
+}
+
+async function testNotificationLoadDoesNotOverrideReadingPosition() {
+  const h = await harness();
+  await h.evaluate("openLing()");
+  const scroller = h.ids.get("scroller");
+  scroller.scrollHeight = 300;
+  scroller.clientHeight = 100;
+  scroller.scrollTop = 40;
+  h.evaluate(`
+    rememberCurrentScroll();
+    __notificationGate = new Promise((resolve) => { __releaseNotification = resolve; });
+    __notificationWaiting = false;
+    pollNotifications = async () => {
+      __notificationWaiting = true;
+      await __notificationGate;
+    };
+    __openingLing = openLing();
+  `);
+  while (!h.evaluate("__notificationWaiting")) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  scroller.scrollTop = 90;
+  h.evaluate("__releaseNotification()");
+  await h.evaluate("__openingLing");
+  assert.equal(scroller.scrollTop, 90,
+    "a slow notification request does not pull a reader back to a saved position");
+  console.log("ok - slow notification loading preserves the reader's position");
 }
 
 async function testInteractionDraftSurvivesPolling() {
@@ -649,7 +695,109 @@ async function testResumeOnlyAppliesToHeldInput() {
   console.log("ok - Ling resume is explicit and separate from stop");
 }
 
+async function testTaskRefreshPreservesOpenPanelAndControls() {
+  const h = await harness();
+  h.setTaskDetail({id: "t1", state: "paused", steps: [{content: "test", verification: "unverified"}], pending_interactions: []});
+  await h.evaluate('openTask("t1")');
+  const controls = h.ids.get("task-steps").children[0];
+  const version = h.evaluate("state.viewVersion");
+  await h.evaluate('openTask("t1", {refresh: true})');
+  assert.equal(h.ids.get("task-panel").hidden, false);
+  assert.equal(h.evaluate("state.viewVersion"), version);
+  assert.equal(h.ids.get("task-steps").children[0], controls);
+  h.evaluate('renderTaskActions({state: "paused", pending_interactions: [{kind: "approval"}]})');
+  assert.equal(h.ids.get("task-start").hidden, true);
+  console.log("ok - task refresh preserves panels and unchanged controls");
+}
+
+async function testLingSendCannotOverwriteAnotherView() {
+  for (const fail of [false, true]) {
+    const h = await harness();
+    await h.evaluate("openLing()");
+    h.evaluate('uploadFiles = () => new Promise((resolve, reject) => { globalThis.releaseUpload = resolve; globalThis.rejectUpload = reject; })');
+    h.ids.get("input").value = "send";
+    const sending = h.ids.get("composer").handlers.submit({preventDefault() {}});
+    await new Promise(resolve => setImmediate(resolve));
+    h.evaluate('clearLingView(); state.viewVersion++; state.sessionId = "other"; state.items = [{role: "user", text: "other"}]; renderTranscript(); $("input").value = "other draft"');
+    if (fail) h.evaluate('rejectUpload(new Error("upload failed"))');
+    else h.evaluate('releaseUpload([])');
+    await sending;
+    assert.equal(h.evaluate("state.items[0].text"), "other");
+    assert.equal(h.evaluate("state.sessionId"), "other");
+    const transcript = h.ids.get("transcript").descendants().map((node) => node.textContent).join(" ");
+    assert.match(transcript, /other/);
+    assert.doesNotMatch(transcript, /send/);
+    assert.equal(h.ids.get("input").value, "other draft");
+  }
+  console.log("ok - Ling send success and failure respect view changes");
+}
+
+async function testLingSendFailureAfterReturningRollsBackCurrentView() {
+  for (const fail of [false, true]) {
+    const h = await harness();
+    await h.evaluate("openLing()");
+    const version = h.evaluate("state.viewVersion");
+    h.evaluate('uploadFiles = () => new Promise((resolve, reject) => { globalThis.releaseUpload = resolve; globalThis.rejectUpload = reject; })');
+    h.ids.get("input").value = "send after return";
+    const sending = h.ids.get("composer").handlers.submit({preventDefault() {}});
+    await new Promise(resolve => setImmediate(resolve));
+    h.evaluate('clearLingView(); state.viewVersion++');
+    const returning = h.evaluate("openLing()");
+    await new Promise(resolve => setImmediate(resolve));
+    if (fail) h.evaluate('rejectUpload(new Error("upload failed"))');
+    else h.evaluate('releaseUpload([])');
+    await sending;
+    await returning;
+    if (!fail) continue;
+    assert.notEqual(h.evaluate("state.viewVersion"), version);
+    assert.equal(h.evaluate("state.items.some((item) => item.text === 'send after return')"), false,
+      "a failed optimistic message is removed from the visible transcript");
+    assert.equal(h.evaluate("lingView.items.length"), 0);
+    assert.equal(h.ids.get("input").value, "send after return",
+      "a failed send restores the draft");
+    assert.match(h.ids.get("status").textContent, /upload failed/);
+  }
+  console.log("ok - Ling send failure after returning rolls back the current view");
+}
+
+async function testLingSendFailureAfterReturningKeepsNewerDraft() {
+  const h = await harness();
+  await h.evaluate("openLing()");
+  h.evaluate('uploadFiles = () => new Promise((resolve, reject) => { globalThis.releaseUpload = resolve; globalThis.rejectUpload = reject; })');
+  h.ids.get("input").value = "failed message";
+  const sending = h.ids.get("composer").handlers.submit({preventDefault() {}});
+  await new Promise(resolve => setImmediate(resolve));
+  h.evaluate('clearLingView(); state.viewVersion++');
+  const returning = h.evaluate("openLing()");
+  await new Promise(resolve => setImmediate(resolve));
+  h.ids.get("input").value = "newer draft";
+  h.evaluate('rejectUpload(new Error("upload failed"))');
+  await sending;
+  await returning;
+  assert.equal(h.ids.get("input").value, "newer draft",
+    "a failure does not replace a draft typed after returning");
+  assert.equal(h.evaluate("state.items.length"), 0);
+  console.log("ok - Ling send failure after returning preserves a newer draft");
+}
+
+async function testTaskControlErrorPreservesComposerDraft() {
+  const h = await harness();
+  h.evaluate('clearLingView(); taskView.current = null; state.running = false; api = async () => { throw new Error("HTTP 500"); }');
+  h.ids.get("input").value = "keep my message";
+  await h.ids.get("composer").handlers.submit({preventDefault() {}});
+  assert.equal(h.ids.get("input").value, "keep my message");
+  assert.equal(h.calls.bodies.some(call => call.path === "/api/chat"), false);
+  h.evaluate('api = async () => { throw new Error("unambiguous command"); }');
+  assert.equal(await h.evaluate('naturalTaskControl("ordinary chat")'), false);
+  console.log("ok - task control errors preserve draft and ordinary chat falls through");
+}
+
 async function main() {
+  await testTaskRefreshPreservesOpenPanelAndControls();
+  await testLingSendCannotOverwriteAnotherView();
+  await testLingSendFailureAfterReturningRollsBackCurrentView();
+  await testLingSendFailureAfterReturningKeepsNewerDraft();
+  await testTaskControlErrorPreservesComposerDraft();
   await testDefaultEntryUsesStableLingSession();
   await testSendQueuesWithoutStopping();
   await testLegacyRunningNeverCapturesLingSend();
@@ -659,6 +807,8 @@ async function main() {
   await testTaskPendingCountHandlesArray();
   await testPollingDoesNotRedrawStableMessages();
   await testPollingKeepsDraftAndAttachment();
+  await testScrollRestoresBottomAcrossHiddenPanel();
+  await testNotificationLoadDoesNotOverrideReadingPosition();
   await testInteractionDraftSurvivesPolling();
   await testLingApprovalButtonsSendBooleans();
   await testInteractionClearsOnceWithoutEchoingHandledText();

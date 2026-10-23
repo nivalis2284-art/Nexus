@@ -231,14 +231,15 @@ def test_reconnect_uses_the_saved_entry_and_current_workspace(management, tmp_pa
     assert "reconnect-token" not in json.dumps(result, ensure_ascii=False)
 
 
-def test_managed_scheduler_reports_its_configured_transport(management):
+def test_managed_scheduler_reports_plugin_ownership_and_leaves_with_plugin(management):
     state, _registry, _workspace = management
-    config = ServerConfig(name="custom-scheduler", transport="http",
-                          url="https://scheduler.example.test/mcp", token="managed-token")
-    state["scheduler_service"] = SimpleNamespace(name=config.name, config=config, error="")
-    item = mcp_api.snapshot(state)["servers"][0]
-    assert item["transport"] == "http"
-    assert item["url"] == config.url
-    assert item["managed"] is True
-    assert item["has_token"] is True
-    assert "managed-token" not in json.dumps(item)
+    item = SimpleNamespace(id="autonomy", services={"scheduler": "plugin_autonomy_scheduler"})
+    state["plugins"] = SimpleNamespace(entries={"autonomy": item})
+    listed = mcp_api.snapshot(state)["servers"]
+    assert listed == [{
+        "name": "plugin_autonomy_scheduler", "transport": "stdio", "enabled": True,
+        "managed": True, "plugin_id": "autonomy", "service": "scheduler",
+        "has_token": False, "connected": False, "tool_count": 0, "error": "",
+    }]
+    item.services.clear()
+    assert mcp_api.snapshot(state)["servers"] == []

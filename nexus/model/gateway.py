@@ -14,6 +14,7 @@ import httpx
 
 from ._parsers import AnthropicParser, ChatParser, Parser, ResponsesParser, obj
 from ._sse import ProtocolError, frames, json_object
+from .request_history import RequestHistory
 from .types import (
     APIFamily,
     ModelError,
@@ -97,6 +98,19 @@ def _reservation(profile: ModelProfile, body: dict[str, Any]) -> int:
     """
     encoded = json.dumps(body, ensure_ascii=False, separators=(",", ":"))
     return len(encoded.encode("utf-8")) + (profile.max_output_tokens or 8192)
+
+
+def _recordable_body(body: Any) -> Any:
+    """A not-yet-sent body may still contain values JSON rejects.
+
+    There is no wire JSON in that case, so keep a small honest placeholder
+    rather than failing the same validation a second time while recording it.
+    """
+    try:
+        json.dumps(body, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    except (TypeError, ValueError, RecursionError):
+        return {"unserializable_body": type(body).__name__}
+    return body
 
 
 def _sampling_settings(profile: ModelProfile, body: dict[str, Any]) -> None:
@@ -261,9 +275,11 @@ class ModelGateway:
     by the profile and maps to the family's native field. Explicit effort
     overrides the profile default; sampling and system caching require declared
     support. Usage cost is estimated using this call's prices only when both
-    counts/prices are known and no cache tokens are reported. Tool schema validation,
-    executing tools, replay policy, persistence, retries and model catalogs belong
-    to callers. A finished stream has exactly one complete or error event.
+    counts/prices are known and no cache tokens are reported. An optional
+    RequestHistory records the exact JSON at this transport boundary, one row per
+    HTTP attempt; scope is copied per stream call. Tool schema validation,
+    executing tools, replay policy, retries and model catalogs belong to callers.
+    A finished stream has exactly one complete or error event.
 
     CancelledError propagates. Closing the iterator closes the HTTP response but
     never the injected client; use contextlib.aclosing when breaking iteration.
@@ -278,6 +294,8 @@ class ModelGateway:
         limits: StreamLimits | None = None,
         timeout_seconds: float = 60,
         total_timeout_seconds: float = 300,
+        request_history: RequestHistory | None = None,
+        request_scope: Mapping[str, Any] | None = None,
     ) -> None:
         if any(not math.isfinite(t) or t <= 0 for t in (timeout_seconds, total_timeout_seconds)):
             raise ValueError("Timeouts must be finite and positive")
@@ -285,6 +303,37 @@ class ModelGateway:
         self._limits = limits or StreamLimits()
         self._timeout = timeout_seconds
         self._total_timeout = total_timeout_seconds
+        self._request_history = request_history
+        self._request_scope = dict(request_scope or {})
+
+    def _scope(self, scope: Mapping[str, Any] | None) -> dict[str, Any]:
+        merged = deepcopy(self._request_scope)
+        if scope is not None:
+            merged.update(deepcopy(dict(scope)))
+        return merged
+
+    def _record(
+        self,
+        profile: ModelProfile,
+        body: Any,
+        scope: Mapping[str, Any],
+        status: str,
+        error: str = "",
+    ) -> int | None:
+        if self._request_history is None:
+            return None
+        if status == "prepared_failed":
+            body = _recordable_body(body)
+        id = self._request_history.record(
+            body,
+            scope,
+            profile.model,
+            profile.api_family.value,
+            status=status,
+        )
+        if error:
+            self._request_history.update(id, status, error)
+        return id
 
     async def stream(
         self,
@@ -294,6 +343,7 @@ class ModelGateway:
         credentials: RuntimeCredentials,
         effort: str | None = None,
         request_budget: Any = None,
+        scope: Mapping[str, Any] | None = None,
     ) -> AsyncGenerator[ModelEvent, None]:
         parser: AnthropicParser | ChatParser | ResponsesParser
         parser = {
@@ -305,6 +355,8 @@ class ModelGateway:
         settled = False
         completed = False
         settled_usage: Usage | None = None
+        request_scope = self._scope(scope)
+        attempts: list[int] = []
         try:
             try:
                 body = _request_body(profile, payload, effort)
@@ -312,6 +364,12 @@ class ModelGateway:
                 if not key or not key.isascii() or any(c.isspace() or ord(c) < 33 for c in key):
                     raise ProtocolError("invalid_request")
             except (TypeError, ValueError, ProtocolError):
+                # The caller's payload never reached the wire. Keep it separate
+                # from a sent attempt, including when serialization is what
+                # rejects the input.
+                self._record(
+                    profile, payload, request_scope, "prepared_failed", "invalid_request"
+                )
                 raise ProtocolError("invalid_request") from None
             if request_budget is not None:
                 try:
@@ -326,7 +384,9 @@ class ModelGateway:
             else:
                 headers["authorization"] = f"Bearer {key}"
             deadline = asyncio.get_running_loop().time() + self._total_timeout
-            async with aclosing(self._exchange(profile, body, headers, parser)) as exchange:
+            async with aclosing(
+                self._exchange(profile, body, headers, parser, request_scope, attempts)
+            ) as exchange:
                 while True:
                     if asyncio.get_running_loop().time() >= deadline:
                         raise TimeoutError
@@ -342,23 +402,43 @@ class ModelGateway:
                     if event.type == "complete":
                         completed = True
                         settled_usage = event.usage
+                        if attempts:
+                            self._finish_record(attempts[-1], "complete")
+                    elif event.type == "error" and event.error:
+                        if attempts:
+                            detail = event.error.code
+                            if event.error.status_code is not None:
+                                detail += f" {event.error.status_code}"
+                            self._finish_record(attempts[-1], "error", detail)
                     yield _priced_event(profile, event)
                     if event.type in ("complete", "error"):
                         return
         except ProtocolError as exc:
+            self._finish_unsettled(attempts, "error", exc.code)
             yield _priced_event(profile, self._error(parser, exc.code, reason=exc.reason))
         except (TimeoutError, httpx.TimeoutException):
+            self._finish_unsettled(attempts, "error", "timeout")
             yield _priced_event(profile, self._error(parser, "timeout"))
         except httpx.HTTPError:
+            self._finish_unsettled(attempts, "error", "transport_error")
             yield _priced_event(profile, self._error(parser, "transport_error"))
         except (ValueError, TypeError, RecursionError):
             # JSON serialization rejects invalid native request values. Never
             # include exception text: it can contain caller-supplied credentials.
+            self._finish_unsettled(attempts, "error", "invalid_request")
             yield _priced_event(profile, self._error(parser, "invalid_request"))
         finally:
             if request_budget is not None and ticket is not None and not settled:
                 settled = True
                 request_budget.settle(ticket, settled_usage if completed else None)
+
+    def _finish_record(self, id: int, status: str, error: str = "") -> None:
+        if self._request_history is not None:
+            self._request_history.update(id, status, error)
+
+    def _finish_unsettled(self, attempts: list[int], status: str, error: str) -> None:
+        if attempts:
+            self._finish_record(attempts[-1], status, error)
 
     async def _exchange(
         self,
@@ -366,13 +446,20 @@ class ModelGateway:
         body: dict[str, Any],
         headers: dict[str, str],
         parser: AnthropicParser | ChatParser | ResponsesParser,
+        scope: Mapping[str, Any],
+        attempts: list[int],
     ) -> AsyncGenerator[ModelEvent, None]:
-        request = self._client.build_request(
-            "POST",
-            profile.endpoint_url,
-            json=body,
-            timeout=self._timeout,
-        )
+        try:
+            request = self._client.build_request(
+                "POST",
+                profile.endpoint_url,
+                json=body,
+                timeout=self._timeout,
+            )
+            wire_body = json.loads(request.content)
+        except (TypeError, ValueError, RecursionError):
+            self._record(profile, body, scope, "prepared_failed", "invalid_request")
+            raise
         # Even params={} would merge client query defaults. Use only the
         # validated profile URL so credentials cannot cross provider boundaries.
         request.url = httpx.URL(profile.endpoint_url)
@@ -381,6 +468,9 @@ class ModelGateway:
         for name in _INHERITED_AUTH_HEADERS:
             request.headers.pop(name, None)
         request.headers.update(headers)
+        id = self._record(profile, wire_body, scope, "sent")
+        if id is not None:
+            attempts.append(id)
         response = await self._client.send(request, stream=True, follow_redirects=False, auth=None)
         async with aclosing(response):
             if not 200 <= response.status_code < 300:

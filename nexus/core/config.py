@@ -18,13 +18,16 @@ from __future__ import annotations
 
 import json
 import os
-import stat
+import threading
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from ..model import APIFamily, ModelCapabilities, ModelProfile
+from ..file_io import replace_text
+
+_IO_LOCK = threading.RLock()
 
 CONFIG_NAME = "config.json"
 CREDENTIALS_NAME = "credentials.json"
@@ -44,6 +47,23 @@ def default_home() -> Path:
 
 def _new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:10]}"
+
+
+def _normalize_model_window(model: dict[str, Any]) -> dict[str, Any]:
+    """Copy a model row and validate its optional per-model context window.
+
+    An empty value removes any previous override so the model inherits the
+    default window. The window only affects local budgeting, never the API
+    request or the provider's own limit.
+    """
+    entry = dict(model)
+    raw = entry.get("context_window_tokens")
+    if raw is None or raw == "":
+        entry.pop("context_window_tokens", None)
+        return entry
+    if type(raw) is not int or raw <= 0:
+        raise ValueError("context_window_tokens must be a positive integer")
+    return entry
 
 
 @dataclass
@@ -112,7 +132,7 @@ class Settings:
         return (
             self.context_limit
             or self.model.get("context_window_tokens")
-            or 32_000
+            or 64_000
         )
 
 
@@ -188,38 +208,38 @@ class ConfigStore:
     # --- raw io ----------------------------------------------------------
 
     def read_config(self) -> dict[str, Any]:
-        try:
-            raw = json.loads(self.config_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return {}
-        return raw if isinstance(raw, dict) else {}
+        with _IO_LOCK:
+            try:
+                raw = json.loads(self.config_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return {}
+            return raw if isinstance(raw, dict) else {}
 
     def write_config(self, value: dict[str, Any]) -> None:
-        self.home.mkdir(parents=True, exist_ok=True)
-        temporary = self.config_path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
-        temporary.replace(self.config_path)
+        with _IO_LOCK:
+            self.home.mkdir(parents=True, exist_ok=True)
+            replace_text(self.config_path, json.dumps(value, ensure_ascii=False, indent=2))
 
     def read_credentials(self) -> dict[str, str]:
-        try:
-            raw = json.loads(self.credentials_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return {}
-        if not isinstance(raw, dict):
-            return {}
-        return {k: v for k, v in raw.items() if isinstance(v, str)}
+        with _IO_LOCK:
+            try:
+                raw = json.loads(self.credentials_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return {}
+            if not isinstance(raw, dict):
+                return {}
+            return {k: v for k, v in raw.items() if isinstance(v, str)}
 
     def write_credential(self, provider_id: str, api_key: str) -> None:
-        values = self.read_credentials()
-        if api_key:
-            values[provider_id] = api_key
-        else:
-            values.pop(provider_id, None)
-        self.home.mkdir(parents=True, exist_ok=True)
-        temporary = self.credentials_path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(values, ensure_ascii=False, indent=2), encoding="utf-8")
-        os.chmod(temporary, stat.S_IRUSR | stat.S_IWUSR)
-        temporary.replace(self.credentials_path)
+        with _IO_LOCK:
+            values = self.read_credentials()
+            if api_key:
+                values[provider_id] = api_key
+            else:
+                values.pop(provider_id, None)
+            self.home.mkdir(parents=True, exist_ok=True)
+            replace_text(self.credentials_path, json.dumps(values, ensure_ascii=False, indent=2),
+                         private=True)
 
     # --- defaults --------------------------------------------------------
 
@@ -352,12 +372,19 @@ class ConfigStore:
             raise ValueError(f"unknown api family: {family}")
         if not base_url.startswith(("http://", "https://")):
             raise ValueError("base_url must start with http:// or https://")
+        models = value.get("models") or []
+        if not isinstance(models, list):
+            raise ValueError("models must be a list")
         provider = Provider(
             id=_new_id("prov"),
             name=str(value.get("name") or "未命名").strip()[:60],
             family=family,
             base_url=base_url.rstrip("/"),
-            models=[m for m in value.get("models") or [] if isinstance(m, dict)],
+            models=[
+                _normalize_model_window(m)
+                for m in models
+                if isinstance(m, dict)
+            ],
         )
         if not provider.models:
             provider.models = [{"id": str(value.get("model") or "default")}]
@@ -385,7 +412,9 @@ class ConfigStore:
                 raise ValueError("base_url must start with http:// or https://")
             target.base_url = base_url.rstrip("/")
         if isinstance(value.get("models"), list):
-            target.models = [m for m in value["models"] if isinstance(m, dict)]
+            target.models = [
+                _normalize_model_window(m) for m in value["models"] if isinstance(m, dict)
+            ]
         self.save_providers(providers)
         api_key = value.get("api_key")
         if isinstance(api_key, str):
@@ -397,14 +426,7 @@ class ConfigStore:
         if not providers:
             raise ValueError("at least one provider is required")
         self.save_providers(providers)
-        values = self.read_credentials()
-        if provider_id in values:
-            values.pop(provider_id)
-            self.home.mkdir(parents=True, exist_ok=True)
-            temporary = self.credentials_path.with_suffix(".tmp")
-            temporary.write_text(json.dumps(values, ensure_ascii=False), encoding="utf-8")
-            os.chmod(temporary, stat.S_IRUSR | stat.S_IWUSR)
-            temporary.replace(self.credentials_path)
+        self.write_credential(provider_id, "")
         raw = self.read_config()
         current = raw.get("current") if isinstance(raw.get("current"), dict) else {}
         if current.get("provider") == provider_id:

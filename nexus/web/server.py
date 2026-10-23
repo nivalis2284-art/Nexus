@@ -26,6 +26,7 @@ from ..core import subagent
 from ..core.agent import Agent, ApprovalRequest
 from ..core.config import ConfigStore, build_profile
 from ..core.permission import default_policy
+from ..core.prompt import ROLE, ROLE_RULES
 from ..core.workspace import inspect
 from ..model import RuntimeCredentials
 from ..runtime import TaskController
@@ -33,7 +34,7 @@ from ..runtime.assembly import TaskAssembler
 from ..runtime.scheduler import TaskScheduler
 from ..runtime.connections import start_mcp
 from ..mcp import MCPError, MCPRegistry, ServerConfig
-from . import mcp_api
+from . import mcp_api, persona_api, skills_api, plugin_api
 from ..task import TaskConflict, TaskNotFound, TaskStore, TaskValidationError
 from ..session import Message, SessionStore
 from ..skills import SkillSet
@@ -41,7 +42,7 @@ from ..tools import build
 from ..tools._jobs import JobRegistry
 from .task_api import TaskHTTP
 from .attachments import route as attachment_route
-from ..ling import LingInbox, WorkService, ling_session_id
+from ..ling import LING_INSTRUCTIONS, LingInbox, WorkService, ling_session_id
 
 APPROVAL_TIMEOUT = 600.0
 
@@ -192,25 +193,6 @@ def _ling() -> LingInbox:
                         RUNNING.pop("cancel_event", None)
             STATE["ling"] = LingInbox(STATE, run, BUSY)
         return STATE["ling"]
-
-
-def _automation():
-    from ..automation.runtime import AutomationRuntime
-    with RESOURCES:
-        if STATE.get("closing"):
-            raise TaskConflict("服务正在关闭")
-        if STATE.get("automation") is None:
-            def run(session, emit, inbox, wake):
-                handler = object.__new__(Handler)
-                handler._run_turn(session, STATE["store"].load(), emit, ling=inbox, wake=wake)
-            runtime = AutomationRuntime(STATE, BUSY, _ling, run)
-            STATE["automation"] = runtime
-            runtime.start()
-        return STATE["automation"]
-
-
-def _ling_items(session):
-    return session.items
 
 
 def _task_error(handler: BaseHTTPRequestHandler, error: BaseException) -> None:
@@ -388,7 +370,7 @@ def _is_attachment_upload(path: str) -> bool:
 
 def _transcript(session) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
-    for item in _ling_items(session):
+    for item in session.items:
         if item.kind in ("user", "assistant"):
             if item.kind == "assistant" and not item.text and not item.data.get("thinking"):
                 continue
@@ -403,6 +385,8 @@ def _transcript(session) -> list[dict[str, Any]]:
                     "images": item.data.get("images") or [],
                     "attachments": item.data.get("attachments") or [],
                     "automation_run_id": item.data.get("automation_run_id"),
+                    "plugin_id": item.data.get("plugin_id"),
+                    "plugin_event_id": item.data.get("plugin_event_id"),
                     "sources": item.data.get("sources") or [],
                 }
             )
@@ -430,7 +414,7 @@ def _internal(session) -> list[dict[str, Any]]:
     replayed (see core.thinking).
     """
     out: list[dict[str, Any]] = []
-    for item in _ling_items(session):
+    for item in session.items:
         if item.kind == "user":
             images = item.data.get("images") or []
             out.append(
@@ -488,7 +472,10 @@ class Handler(BaseHTTPRequestHandler):
         if self.command in ("POST", "PUT", "DELETE"):
             path = urlparse(self.path).path
             # Uploads stream raw browser bytes with a caller-chosen type.
-            if not _is_attachment_upload(path):
+            if path == '/api/plugins/import':
+                if (self.headers.get('Content-Type') or '').split(';', 1)[0].strip().lower() != 'application/zip':
+                    return self._refuse(415, '插件导入需要 application/zip。')
+            elif not _is_attachment_upload(path):
                 content_type = self.headers.get("Content-Type")
                 if (_body_present(self) or content_type is not None) and not _json_content_type(
                     content_type
@@ -519,6 +506,8 @@ class Handler(BaseHTTPRequestHandler):
     # --- routing ---------------------------------------------------------
 
     def do_GET(self) -> None:
+        if plugin_api.route(self, STATE, _json, "GET"):
+            return
         if attachment_route(self, STATE, _json, "GET"):
             return
         path = urlparse(self.path).path
@@ -528,19 +517,32 @@ class Handler(BaseHTTPRequestHandler):
             return self._file("app.js", "text/javascript; charset=utf-8")
         if path == "/tasks.js":
             return self._file("tasks.js", "text/javascript; charset=utf-8")
+        if path == "/navigation.js":
+            return self._file("navigation.js", "text/javascript; charset=utf-8")
+        if path == "/persona.js":
+            return self._file("persona.js", "text/javascript; charset=utf-8")
+        if path == "/skills.js":
+            return self._file("skills.js", "text/javascript; charset=utf-8")
+        if path == "/api/skills":
+            try:
+                return _json(self, 200, skills_api.manager(STATE).list())
+            except ValueError as error:
+                return _json(self, 400, {"error": str(error)})
+            except OSError as error:
+                return _json(self, 500, {"error": str(error)})
+        if path == "/api/persona":
+            try:
+                return _json(self, 200, persona_api.store(STATE).snapshot())
+            except ValueError as error:
+                return _json(self, 400, {"error": str(error)})
+            except OSError as error:
+                return _json(self, 500, {"error": str(error)})
         if path == "/ling.js":
             return self._file("ling.js", "text/javascript; charset=utf-8")
         if path == "/mcp.js":
             return self._file("mcp.js", "text/javascript; charset=utf-8")
         if path == "/api/mcp":
             return _json(self, 200, mcp_api.snapshot(STATE))
-        if path == "/automation.js":
-            return self._file("automation.js", "text/javascript; charset=utf-8")
-        if path == "/api/automation":
-            try:
-                return _json(self, 200, _automation().snapshot())
-            except (ValueError, OSError) as error:
-                return _task_error(self, error)
         if path == "/app.css":
             return self._file("app.css", "text/css; charset=utf-8")
         if path == "/api/state":
@@ -585,6 +587,8 @@ class Handler(BaseHTTPRequestHandler):
         return _json(self, 404, {"error": "not found"})
 
     def do_DELETE(self) -> None:
+        if plugin_api.route(self, STATE, _json, "DELETE"):
+            return
         path = urlparse(self.path).path
         if path.startswith("/api/tasks/") and path.endswith("/schedule"):
             task_id = path.split("/")[3]
@@ -607,6 +611,8 @@ class Handler(BaseHTTPRequestHandler):
             removed = STATE["sessions"].delete(session_id)
             if removed:
                 AttachmentStore(STATE["store"].home).delete_owner("sessions", session_id)
+                if STATE.get("request_history"):
+                    STATE["request_history"].delete_owner(session_id)
                 jobs = STATE.get("jobs", {}).pop(session_id, None)
                 if jobs is not None:
                     jobs.close_all()
@@ -621,8 +627,19 @@ class Handler(BaseHTTPRequestHandler):
         return _json(self, 404, {"error": "not found"})
 
     def do_PUT(self) -> None:
+        if plugin_api.route(self, STATE, _json, "PUT"):
+            return
         path = urlparse(self.path).path
         body = _read_json(self)
+        if path == "/api/persona":
+            try:
+                store = persona_api.store(STATE)
+                store.save(body)
+                return _json(self, 200, store.snapshot())
+            except ValueError as error:
+                return _json(self, 400, {"error": str(error)})
+            except OSError as error:
+                return _json(self, 500, {"error": str(error)})
         if path.startswith("/api/tasks/") and path.endswith("/schedule"):
             task_id = path.split("/")[3]
             try:
@@ -645,11 +662,26 @@ class Handler(BaseHTTPRequestHandler):
         return _json(self, 404, {"error": "not found"})
 
     def do_POST(self) -> None:
+        if plugin_api.route(self, STATE, _json, "POST"):
+            return
         if attachment_route(self, STATE, _json, "POST"):
             return
         path = urlparse(self.path).path
         body = _read_json(self)
         try:
+            if path == "/api/skills":
+                return _json(self, 200, skills_api.manager(STATE).save(body))
+            if path == "/api/skills/delete":
+                return _json(self, 200, skills_api.manager(STATE).delete(body))
+            if path == "/api/persona/summary":
+                try:
+                    summary = asyncio.run(persona_api.generate_summary(
+                        STATE["store"].load(), body.get("name", ""), body.get("body", ""),
+                        request_history=STATE.get("request_history"),
+                    ))
+                except persona_api.SummaryGenerationError as error:
+                    return _json(self, 502, {"error": str(error)})
+                return _json(self, 200, {"summary": summary})
             if path == "/api/mcp/servers":
                 return _json(self, 200, mcp_api.save(STATE, body))
             if path.startswith("/api/mcp/servers/"):
@@ -657,37 +689,6 @@ class Handler(BaseHTTPRequestHandler):
                 if len(pieces) != 6:
                     raise ValueError("未知 MCP 接口")
                 return _json(self, 200, mcp_api.command(STATE, unquote(pieces[4]), pieces[5]))
-            if path == "/api/automation/wake":
-                item = _automation().receive(body)
-                return _json(self, 202, {"accepted": True, "run_id": item["id"]})
-            if path.startswith("/api/automation/"):
-                runtime = _automation()
-                service = runtime.scheduler
-                if service is None:
-                    raise ValueError("调度监听服务未连接")
-                if path == "/api/automation/settings":
-                    service.call("scheduler_configure", values=body)
-                elif path == "/api/automation/schedules":
-                    service.call("schedule_save", values=body)
-                elif path == "/api/automation/watches":
-                    service.call("watch_save", values=body)
-                else:
-                    pieces = path.split("/")
-                    if len(pieces) != 6:
-                        raise ValueError("未知定时与监听接口")
-                    group, record_id, operation = pieces[3:]
-                    method = {("schedules", "delete"): "schedule_delete",
-                              ("schedules", "run"): "schedule_run",
-                              ("watches", "delete"): "watch_delete",
-                              ("watches", "check"): "watch_check"}.get((group, operation))
-                    if method:
-                        service.call(method, id=record_id)
-                    elif group == "runs" and operation == "read":
-                        from ..automation.runtime import now_iso
-                        runtime.store.update_run(record_id, read_at=now_iso())
-                    else:
-                        raise ValueError("未知定时与监听操作")
-                return _json(self, 200, runtime.snapshot())
             if path == "/api/ling/input":
                 inbox = _ling()
                 text = str(body.get("text") or "").strip()
@@ -811,6 +812,8 @@ class Handler(BaseHTTPRequestHandler):
             "has_key": bool(settings.api_key),
             "permission": settings.permission,
             "max_steps": settings.max_steps,
+            "context_window": settings.context_window,
+            "context_limit": settings.context_limit,
             "workspace": settings.workspace,
             "sessions": [item for item in STATE["sessions"].list()
                          if item["id"] != ling_id],
@@ -984,6 +987,8 @@ class Handler(BaseHTTPRequestHandler):
                 return _json(self, 503, {"error": "服务正在关闭。"})
             store: SessionStore = STATE["sessions"]
             store.append(session, Message(kind="user", text=text, data={"images": images, "attachments": attachments}))
+            if STATE.get("plugins"):
+                STATE["plugins"].publish("message.saved", {"session_id": session.id, "kind": "user", "text": text})
             if not session.title:
                 session.title = (text or (attachments[0]["name"] if attachments else "图片"))[:40]
                 store.rename(session.id, session.title, only_if_empty=True)
@@ -1038,6 +1043,7 @@ class Handler(BaseHTTPRequestHandler):
 
         input_id = ("wake-" + wake["id"]) if wake else (ling.current_input if ling else 0)
         work_service = WorkService(STATE, session, settings, input_id) if ling else None
+        persona_store = persona_api.store(STATE) if ling else None
 
         def toolset(*, supervise=True):
             return build(
@@ -1046,14 +1052,13 @@ class Handler(BaseHTTPRequestHandler):
                 attachment_source=(AttachmentStore(STATE["store"].home), "sessions", session.id),
                 attachment_ids={a["id"] for item in session.items for a in item.data.get("attachments", [])},
                 work_service=work_service if supervise else None,
+                persona_store=persona_store if supervise else None,
+                persona_writable=bool(supervise and ling and not wake),
             )
 
         registry, context = toolset()
-        runtime = STATE.get("automation") if ling else None
-        if runtime:
-            from ..automation.tools import tools
-            for spec in tools(runtime):
-                registry.add(spec)
+        plugins = STATE.get("plugins")
+        runtime = plugins.runtime if plugins else None
 
         def ask_owner(questions: list[dict[str, Any]]) -> list[str] | None:
             """Block on the same human channel that approvals use.
@@ -1123,6 +1128,7 @@ class Handler(BaseHTTPRequestHandler):
             return allowed
 
         persisted_count = 0
+        turn_outcome = {"status": "interrupted"}
 
         def checkpoint(message):
             nonlocal persisted_count
@@ -1135,16 +1141,11 @@ class Handler(BaseHTTPRequestHandler):
                     ling.live = {}
 
         def before_model(messages):
+            if persona_store:
+                from ..persona import render_persona
+                agent.persona_context = render_persona(persona_store.load())
             if work_service:
                 agent.interaction_context = work_service.context_text()
-                if runtime:
-                    agent.interaction_context += (
-                        "\nYou can manage schedules and public website watches with the scheduling MCP tools. "
-                        "Read the ling-automation skill for planning or automatic wakes. "
-                        "You may start independent work on your own initiative during automatic wakes."
-                    )
-                    if wake:
-                        agent.interaction_context += "\n" + runtime.context(wake)
 
         agent = Agent(
             profile=profile,
@@ -1162,6 +1163,18 @@ class Handler(BaseHTTPRequestHandler):
             interaction_context=work_service.context_text() if work_service else "",
             on_message=checkpoint if ling else None,
             before_model=before_model if ling else None,
+            plugins=plugins,
+            plugin_scope={"kind": "ling" if ling else "chat", "owner_id": session.id,
+                          "session_id": session.id, "input_id": input_id, "activity": wake},
+            request_history=STATE.get("request_history"),
+            request_scope={"kind": "wake" if wake else ("ling" if ling else "chat"),
+                           "owner_id": session.id, "activity_id": wake["id"] if wake else None},
+            role=(LING_INSTRUCTIONS + "\n\n" + ROLE_RULES) if ling else ROLE,
+            on_model_request=(
+                lambda content: persona_store.record_request(
+                    content, source="wake" if wake else "chat", model=profile.model,
+                )
+            ) if persona_store else None,
         )
 
         # A subagent is a whole nested run. The tool handler is synchronous (it
@@ -1186,6 +1199,10 @@ class Handler(BaseHTTPRequestHandler):
                     skills=skill_set.manifest(),
                     approve=approve,
                     cancel_event=cancel_event,
+                    plugins=plugins,
+                    plugin_scope={"kind": "subagent", "owner_id": session.id, "session_id": session.id},
+                    request_history=STATE.get("request_history"),
+                    request_scope={"kind": "subagent", "owner_id": session.id},
                 )
                 async for event in child.run([{"role": "user", "content": prompt}]):
                     yield event
@@ -1221,8 +1238,10 @@ class Handler(BaseHTTPRequestHandler):
                 elif event.type == "tool_result":
                     emit({"type": "tool_result", "tool": event.data})
                 elif event.type == "error":
+                    turn_outcome.update(status="failed", error=event.text)
                     emit({"type": "error", "message": event.text})
                 elif event.type == "done":
+                    turn_outcome.update(status="finished", stopped=event.data.get("stopped"))
                     usage = event.data.get("usage") or {}
                     elapsed = round(time.monotonic() - started, 3)
                     # Attach usage and elapsed to this turn's last assistant
@@ -1259,6 +1278,11 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 if not wake:
                     self._persist(session, agent.new_messages[persisted_count:])
+                    if plugins:
+                        scope = {"kind": "ling" if ling else "chat", "owner_id": session.id,
+                                 "session_id": session.id, "input_id": input_id}
+                        plugins.publish("activity.finished", {**scope, "result": turn_outcome})
+                        plugins.hook("activity_finished", scope, result=turn_outcome)
             finally:
                 RUNNING["agent"] = None
                 RUNNING.pop("session_id", None)
@@ -1267,6 +1291,7 @@ class Handler(BaseHTTPRequestHandler):
     def _persist(self, session, new_messages: list[dict[str, Any]]) -> None:
         store: SessionStore = STATE["sessions"]
         for message in new_messages:
+            before = len(session.items)
             role = message.get("role")
             if role == "assistant":
                 calls = message.get("tool_calls") or []
@@ -1309,6 +1334,11 @@ class Handler(BaseHTTPRequestHandler):
                         },
                     ),
                 )
+            if len(session.items) > before and STATE.get("plugins"):
+                STATE["plugins"].publish("message.saved", {"session_id": session.id,
+                    "kind": session.items[-1].kind, "text": session.items[-1].text,
+                    "data": session.items[-1].data})
+
 
 
 def _load_skills(store: ConfigStore, workspace: Path | None = None) -> SkillSet:
@@ -1318,9 +1348,9 @@ def _load_skills(store: ConfigStore, workspace: Path | None = None) -> SkillSet:
 
 
 def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None = None) -> None:
-    previous_automation = STATE.pop("automation", None)
-    if previous_automation is not None:
-        previous_automation.close()
+    previous_plugins = STATE.pop("plugins", None)
+    if previous_plugins is not None:
+        previous_plugins.close()
     previous_ling = STATE.get("ling")
     if previous_ling is not None:
         previous_ling.close()
@@ -1344,16 +1374,19 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
     if previous_mcp is not None:
         previous_mcp.close()
     STATE["mcp"] = start_mcp(store.load().mcp_servers, Path(store.load().workspace)) or MCPRegistry()
-    STATE.pop("scheduler_service", None)
     task_store = TaskStore(store.home / "tasks.sqlite3")
-    from ..automation.legacy import archive_original
-    archive_original(store.home, task_store)
     task_store.recover_interrupted()
     task_store.hold_queued_at_startup()
-    task_runner = TaskAssembler(task_store, store, mcp_registry=STATE["mcp"])
+    from ..plugins import PluginManager
+    from ..model.request_history import RequestHistory
+    STATE["request_history"] = RequestHistory(store.home / "model-requests.sqlite3")
+    STATE["plugins"] = PluginManager(STATE)
+    task_runner = TaskAssembler(task_store, store, mcp_registry=STATE["mcp"],
+                               plugins=STATE["plugins"], request_history=STATE["request_history"])
     task_controller = TaskController(task_store, run=task_runner)
     task_controller.start()
-    task_scheduler = TaskScheduler(task_store, task_controller)
+    task_scheduler = TaskScheduler(task_store, task_controller,
+                                   allow_dispatch=STATE["plugins"].can_schedule)
     task_scheduler.start()
     STATE["tasks"] = task_store
     STATE["task_controller"] = task_controller
@@ -1362,12 +1395,10 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     server.daemon_threads = True
     actual = server.server_address[1]
-    from ..automation.service import SchedulerService
-    entry = (store.read_config().get("mcp") or {}).get("scheduler")
-    service = SchedulerService(STATE["mcp"], store.home, entry=entry)
-    STATE["scheduler_service"] = service
-    service.start(f"http://127.0.0.1:{actual}/api/automation/wake")
-    _automation()
+    def run_event(session, emit, inbox, event):
+        handler = object.__new__(Handler)
+        handler._run_turn(session, STATE["store"].load(), emit, ling=inbox, wake=event)
+    STATE["plugins"].start(f"http://127.0.0.1:{actual}", BUSY, _ling, run_event)
     print(f"Nexus: http://127.0.0.1:{actual}")
     print(f"data:  {store.home}")
     try:
@@ -1375,9 +1406,9 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
     except KeyboardInterrupt:
         pass
     finally:
-        automation = STATE.get("automation")
-        if automation is not None:
-            automation.close()
+        plugins = STATE.get("plugins")
+        if plugins is not None:
+            plugins.close()
         scheduler = STATE.get("task_scheduler")
         if scheduler is not None:
             scheduler.close()

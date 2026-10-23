@@ -7,6 +7,14 @@ pytest-of-*/
 .ruff_cache/
 .artifacts/
 .nexus-data/
+attachments/
+.codex-remote-attachments/
+nexus-wakeup-staged-*/
+plugins/*/scheduler.sqlite3
+docs/evidence/plugin-acceptance/_tmp/
+pip-install-*/
+pip-ephem-wheel-cache-*/
+pip-build-tracker-*/
 *.egg-info/
 build/
 dist/

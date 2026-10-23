@@ -604,13 +604,3 @@ def resolve_command(argv: list[str]) -> list[str]:
 def qualify(server_name: str, tool_name: str) -> str:
     """Namespaced so two servers cannot shadow each other or a builtin."""
     return f"mcp__{server_name}__{tool_name}"
-
-
-def split_qualified(qualified: str) -> tuple[str, str] | None:
-    if not qualified.startswith("mcp__"):
-        return None
-    rest = qualified[len("mcp__"):]
-    if "__" not in rest:
-        return None
-    server, _, tool = rest.partition("__")
-    return (server, tool) if server and tool else None

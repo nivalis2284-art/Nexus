@@ -16,10 +16,11 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from ._paths import FileAccessDenied, atomic_write_file, open_file, reject_link
-from .registry import ToolSpec
+from .registry import MAX_RESULT_CHARS, ToolSpec
 
 MAX_READ_LINES = 2000
-MAX_READ_BYTES = 400_000
+MAX_READ_BYTES = MAX_RESULT_CHARS - 1024
+MAX_GREP_FILE_BYTES = 400_000
 MAX_GREP_RESULTS = 200
 MAX_GLOB_RESULTS = 500
 SKIP_DIRS = {
@@ -95,23 +96,37 @@ def _read_text(path: Path, *, offset: int, limit: int) -> dict[str, Any]:
         # Hash the complete file while returning only a bounded body. Hashing
         # just the display prefix breaks expected_sha256 for large files.
         data = handle.read()
-    oversized = len(data) > MAX_READ_BYTES
-    text = data[:MAX_READ_BYTES].decode("utf-8", errors="replace")
+    text = data.decode("utf-8", errors="replace")
     lines = text.splitlines()
     total = len(lines)
     start = min(offset - 1, total)
-    selected = lines[start:start + limit]
-    body = "\n".join(f"{start + i + 1}: {line}" for i, line in enumerate(selected))
-    if oversized:
-        body += f"\n... [file larger than {MAX_READ_BYTES} bytes; read a line range] ..."
+    candidates = lines[start:start + limit]
+    selected: list[str] = []
+    length = 0
+    line_truncated = False
+    for index, line in enumerate(candidates, start + 1):
+        rendered = f"{index}: {line}"
+        encoded = rendered.encode("utf-8")
+        if len(encoded) > MAX_READ_BYTES:
+            line_truncated = True
+            rendered = encoded[:MAX_READ_BYTES].decode("utf-8", "ignore") + " ... [line truncated]"
+            encoded = rendered.encode("utf-8")
+        if selected and length + len(encoded) + 1 > MAX_READ_BYTES:
+            break
+        selected.append(rendered)
+        length += len(encoded) + 1
+    body = "\n".join(selected)
+    if len(selected) < len(candidates):
+        body += f"\n... [display limit reached; continue with offset {start + len(selected) + 1}] ..."
     elif start + limit < total:
-        body += f"\n... [{total - start - len(selected)} more lines] ..."
+        body += f"\n... [{total - start - len(selected)} more lines; continue with offset {start + len(selected) + 1}] ..."
     return {
         "content": body or "(empty file)",
         "path": str(path),
         "lines": total,
         "offset": start + 1,
         "returned": len(selected),
+        "truncated": line_truncated or start + len(selected) < total,
         # Lets the model pass expected_sha256 later, so a concurrent change
         # surfaces as a failed write instead of a silently lost edit.
         "sha256": _sha256(data),
@@ -283,6 +298,25 @@ def _walk(root: Path):
             yield Path(current) / name
 
 
+def _glob_match(relative: str, pattern: str) -> bool:
+    """Match a base-relative path: * stays in one segment, ** spans directories."""
+    from functools import cache
+
+    parts = relative.split("/")
+    patterns = pattern.removeprefix("./").split("/")
+
+    @cache
+    def match(index: int, token: int) -> bool:
+        if token == len(patterns):
+            return index == len(parts)
+        if patterns[token] == "**":
+            return match(index, token + 1) or (index < len(parts) and match(index + 1, token))
+        return (index < len(parts) and fnmatch.fnmatch(parts[index], patterns[token])
+                and match(index + 1, token + 1))
+
+    return match(0, 0)
+
+
 def glob_paths(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     base = resolve(context, args["path"])
     if not base.is_dir():
@@ -291,8 +325,7 @@ def glob_paths(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     matches: list[str] = []
     for path in _walk(base):
         relative = path.relative_to(context.root).as_posix()
-        candidate = relative if "/" in pattern else path.name
-        if fnmatch.fnmatch(candidate, pattern) or fnmatch.fnmatch(relative, pattern):
+        if _glob_match(path.relative_to(base).as_posix(), pattern):
             matches.append(relative)
             if len(matches) >= MAX_GLOB_RESULTS:
                 break
@@ -310,13 +343,13 @@ def grep(context: Any, args: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"Invalid regular expression: {error}") from error
     hits: list[str] = []
     scanned = 0
-    for path in _walk(base if base.is_dir() else base.parent):
+    for path in (_walk(base) if base.is_dir() else [base]):
         if args["glob"] and not fnmatch.fnmatch(path.name, args["glob"]):
             continue
         try:
             info = path.lstat()
             reject_link(info)
-            if info.st_size > MAX_READ_BYTES:
+            if info.st_size > MAX_GREP_FILE_BYTES:
                 continue
             text = path.read_text(encoding="utf-8", errors="replace")
         except (OSError, UnicodeError):

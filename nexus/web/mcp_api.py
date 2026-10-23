@@ -8,9 +8,14 @@ def snapshot(state):
     registry = state["mcp"]
     statuses = {entry["name"]: entry for entry in registry.status()}
     entries = state["store"].load().mcp_servers
-    scheduler = state.get("scheduler_service")
-    if scheduler:
-        entries = [*entries, {**vars(scheduler.config), "managed": True}]
+    plugins = state.get("plugins")
+    if plugins is not None:
+        for owner in plugins.entries.values():
+            for name, full_name in owner.services.items():
+                entries = [*entries, {
+                    "name": full_name, "transport": "stdio", "enabled": True,
+                    "managed": True, "plugin_id": owner.id, "service": name,
+                }]
     result = []
     for raw in entries:
         item = dict(raw)
@@ -19,10 +24,8 @@ def snapshot(state):
         status = statuses.get(item["name"], {"connected": False, "tool_count": 0, "error": ""})
         # The SDK names its wire transport "streamable-http"; the settings
         # page edits the configured "http" transport, so keep that value.
-        item.update({key: value for key, value in status.items() if key != "transport"})
-        if scheduler and item["name"] == scheduler.name:
-            item["managed"] = True
-            item["error"] = scheduler.error or item.get("error", "")
+        item.update({key: value for key, value in status.items()
+                     if key not in ("name", "transport")})
         result.append(item)
     return {"servers": result}
 
@@ -33,9 +36,12 @@ def save(state, values):
     entries = list((raw.get("mcp") or {}).get("servers") or [])
     name = str(values.get("name", "")).strip()
     previous = str(values.get("previous_name") or name)
-    scheduler = state.get("scheduler_service")
-    if not name or (scheduler and scheduler.name in (name, previous)):
-        raise ValueError("服务名称为空或与内置调度服务重名")
+    if not name:
+        raise ValueError("服务名称不能为空")
+    plugins = state.get('plugins')
+    if plugins and any(candidate in item.services.values()
+                       for item in plugins.entries.values() for candidate in (name, previous)):
+        raise ValueError("此服务属于插件，请在插件管理中操作")
     old = next((e for e in entries if e.get("name") == previous), {})
     if name != previous and not old:
         raise ValueError("原服务不存在；请刷新列表后重试")
@@ -73,12 +79,6 @@ def save(state, values):
 
 def command(state, name, operation):
     registry, config = state["mcp"], state["store"]
-    scheduler = state.get("scheduler_service")
-    if scheduler and name == scheduler.name:
-        if operation != "reconnect":
-            raise ValueError("内置调度服务随 Nexus 启停")
-        scheduler.reconnect()
-        return snapshot(state)
     raw = config.read_config()
     entries = (raw.get("mcp") or {}).get("servers") or []
     item = next((e for e in config.load().mcp_servers if e.get("name") == name), None)

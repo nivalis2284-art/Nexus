@@ -13,9 +13,7 @@ from nexus.mcp import (
     MCPRegistry,
     ServerConfig,
     StdioServer,
-    qualify,
     scrubbed_parent_env,
-    split_qualified,
 )
 
 STUB = Path(__file__).resolve().parent / "mcp_server_stub.py"
@@ -25,13 +23,6 @@ def config(**overrides) -> ServerConfig:
     base = {"name": "stub", "command": sys.executable, "args": [str(STUB)]}
     base.update(overrides)
     return ServerConfig.from_dict(base)
-
-
-def test_qualified_names_round_trip():
-    assert qualify("fs", "read") == "mcp__fs__read"
-    assert split_qualified("mcp__fs__read") == ("fs", "read")
-    assert split_qualified("read_file") is None
-    assert split_qualified("mcp__onlyserver") is None
 
 
 def test_secret_env_is_scrubbed():

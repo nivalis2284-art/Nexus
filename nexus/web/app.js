@@ -15,7 +15,11 @@ const state = {
   turns: 0,
   tokens: 0,
   contextLimit: null,
+  contextWindow: null,
+  contextOverride: null,
   editingProvider: null,
+  editingModels: [],
+  editingModelOrigins: new WeakMap(),
   // Context composition from the last turn, and cumulative token usage.
   context: null,
   usage: { input: 0, output: 0, cached: 0, created: 0 },
@@ -76,11 +80,14 @@ async function refresh() {
     workspacePath: value.workspace,
   });
   state.contextLimit = (value.profile && value.profile.context_window_tokens) || null;
+  state.contextWindow = value.context_window || state.contextLimit || null;
+  state.contextOverride = value.context_limit || null;
   $("workspace").textContent = shortPath(value.workspace || "");
   $("workspace").title = value.workspace || "";
   renderSessions();
   renderModelLabel();
   renderEffortLabel();
+  renderContextWindowInfo();
   return value;
 }
 
@@ -114,6 +121,25 @@ function renderEffortLabel() {
   $("effort-label").title = mapping
     ? mapping.field + " = " + mapping.value
     : "不发送思考字段，使用提供商默认值";
+}
+
+function renderContextWindowInfo() {
+  const node = $("context-window-info");
+  if (!node) return;
+  const provider = currentProvider();
+  const model = currentModel();
+  const effective = state.contextWindow || state.contextLimit ||
+    (provider && model && model.context_window_tokens) || null;
+  if (!effective) {
+    node.textContent = "";
+    node.hidden = true;
+    return;
+  }
+  node.hidden = false;
+  node.textContent = "当前模型上下文预算：" + Number(effective).toLocaleString() +
+    " tok" + (state.contextOverride
+      ? "（受全局上下文上限覆盖；全局值优先于模型设置）"
+      : "（可在编辑提供商时为每个模型单独设置）");
 }
 
 function renderSessions() {
@@ -206,6 +232,7 @@ async function newSession() {
 }
 
 async function openSession(id) {
+  rememberCurrentScroll();
   const viewVersion = state.viewVersion = (state.viewVersion || 0) + 1;
   if (typeof clearLingView === "function") clearLingView();
   if (typeof taskView !== "undefined") {
@@ -217,6 +244,8 @@ async function openSession(id) {
   if (viewVersion !== state.viewVersion) return;
   state.sessionId = value.id;
   state.items = value.items || [];
+  $("scroller").hidden = false;
+  $("composer").hidden = false;
   state.turns = state.items.filter((i) => i.role === "user").length;
   state.tokens = state.items.reduce((sum, item) => {
     const usage = item.usage || {};
@@ -241,11 +270,17 @@ async function openSession(id) {
   }
   renderSessions();
   renderTranscript();
+  restoreViewScroll("session:" + value.id);
   $("input").focus();
 }
 
-function renderTranscript() {
+function renderTranscript(options) {
   const box = $("transcript");
+  const scroller = $("scroller");
+  const preserveScroll = Boolean(options && options.preserveScroll);
+  const previousTop = Number(scroller.scrollTop) || 0;
+  const wasAtBottom = preserveScroll &&
+    scroller.scrollHeight - previousTop - (Number(scroller.clientHeight) || 0) < 48;
   box.innerHTML = "";
   box.classList.toggle("empty", state.items.length === 0);
   $("main").classList.toggle("empty", state.items.length === 0);
@@ -294,7 +329,8 @@ function renderTranscript() {
   }
   if (batch) box.appendChild(phaseNode(batch));
   updateStats();
-  scrollDown();
+  if (preserveScroll) scroller.scrollTop = wasAtBottom ? scroller.scrollHeight : previousTop;
+  else scrollDown();
 }
 
 function formatElapsed(seconds) {
@@ -461,10 +497,33 @@ function scrollDown() {
   box.scrollTop = box.scrollHeight;
 }
 
+function rememberCurrentScroll() {
+  const box = $("scroller");
+  if (!state.scrollKey || !box || box.hidden) return;
+  state.scrollPositions = state.scrollPositions || {};
+  state.scrollAtBottom = state.scrollAtBottom || {};
+  state.scrollPositions[state.scrollKey] = Number(box.scrollTop) || 0;
+  state.scrollAtBottom[state.scrollKey] =
+    box.scrollHeight - box.scrollTop - (Number(box.clientHeight) || 0) < 48;
+}
+
+function restoreViewScroll(key) {
+  const box = $("scroller");
+  state.scrollPositions = state.scrollPositions || {};
+  state.scrollKey = key || "";
+  const saved = state.scrollPositions[state.scrollKey];
+  const atBottom = Boolean(state.scrollAtBottom && state.scrollAtBottom[state.scrollKey]);
+  const apply = () => {
+    box.scrollTop = saved === undefined || atBottom ? box.scrollHeight : saved;
+  };
+  apply();
+  setTimeout(apply, 0);
+}
+
 function updateStats() {
   $("stat-turn").textContent = state.turns + " 轮";
   $("stat-tokens").textContent = state.tokens ? state.tokens.toLocaleString() + " tok" : "0 tok";
-  const limit = state.contextLimit;
+  const limit = state.contextWindow || state.contextLimit;
   $("stat-context").textContent = limit
     ? "上下文 " + Math.min(100, Math.round((state.tokens / limit) * 100)) + "%"
     : "上下文 —";
@@ -1151,34 +1210,149 @@ function renderProviders() {
 
 function openProviderDialog(provider) {
   state.editingProvider = provider || null;
+  state.editingModels = provider
+    ? (provider.models || []).map((model) => Object.assign({}, model))
+    : [];
+  state.editingModelOrigins = new WeakMap();
+  for (const model of state.editingModels) {
+    if (model.id) state.editingModelOrigins.set(model, model.id);
+  }
   $("provider-title").textContent = provider ? "编辑提供商" : "添加提供商";
   $("p-name").value = provider ? provider.name : "";
   $("p-family").value = provider ? provider.family : "anthropic_messages";
   $("p-base").value = provider ? provider.base_url : "";
-  $("p-models").value = provider ? (provider.models || []).map((m) => m.id).join(", ") : "";
+  $("p-model-new").value = "";
+  $("p-models-error").textContent = "";
   $("p-key").value = "";
   $("p-key").placeholder = provider && provider.has_key ? "已配置，留空则不修改" : "sk-...";
   $("provider-error").textContent = "";
   $("p-delete").hidden = !provider;
+  renderProviderModels();
   $("provider-dialog").showModal();
 }
 
+function renderProviderModels() {
+  const list = $("p-models-list");
+  list.innerHTML = "";
+  if (!state.editingModels.length) {
+    list.appendChild(el("p", "provider-model-empty",
+      "还没有模型。至少添加一个，或先填写模型名后保存。"));
+    return;
+  }
+  state.editingModels.forEach((model, rowIndex) => {
+    const row = el("div", "provider-model-row");
+    const name = el("input", "provider-model-name");
+    name.type = "text";
+    name.value = model.id || "";
+    name.placeholder = "模型名";
+    name.setAttribute("aria-label", "模型名");
+    name.addEventListener("input", () => { model.id = name.value; });
+    row.appendChild(name);
+
+    const windowLabel = el("label", "provider-model-window");
+    windowLabel.appendChild(el("span", "provider-model-window-label", "上下文窗口"));
+    const windowInput = el("input", "provider-model-window-input");
+    windowInput.type = "number";
+    windowInput.min = "1";
+    windowInput.step = "1";
+    windowInput.inputMode = "numeric";
+    windowInput.placeholder = "默认";
+    windowInput.value = model.context_window_tokens
+      ? String(model.context_window_tokens) : "";
+    windowInput.setAttribute("aria-label", (model.id || "模型") + " 的上下文窗口 token");
+    windowInput.addEventListener("input", () => {
+      const raw = windowInput.value.trim();
+      if (!raw) delete model.context_window_tokens;
+      else model.context_window_tokens = raw;
+    });
+    windowLabel.appendChild(windowInput);
+    windowLabel.appendChild(el("span", "provider-model-window-unit", "tok"));
+    row.appendChild(windowLabel);
+
+    const remove = el("button", "provider-model-remove", "移除");
+    remove.type = "button";
+    remove.setAttribute("aria-label", "移除模型 " + (model.id || ""));
+    remove.addEventListener("click", () => {
+      state.editingModels.splice(rowIndex, 1);
+      renderProviderModels();
+    });
+    row.appendChild(remove);
+    list.appendChild(row);
+  });
+}
+
+function addProviderModel() {
+  const input = $("p-model-new");
+  const id = input.value.trim();
+  if (!id) return;
+  if (state.editingModels.some((model) => model.id === id)) {
+    $("p-models-error").textContent = "模型名不能重复。";
+    return;
+  }
+  $("p-models-error").textContent = "";
+  const model = { id };
+  state.editingModels.push(model);
+  input.value = "";
+  renderProviderModels();
+  input.focus();
+}
+
+function providerModelsPayload() {
+  const models = [];
+  const seen = new Set();
+  const rows = [];
+  for (const model of state.editingModels) {
+    const id = String(model.id || "").trim();
+    if (!id) continue;
+    if (seen.has(id)) throw new Error("模型名不能重复：" + id);
+    seen.add(id);
+    const entry = Object.assign({}, model, { id });
+    rows.push({ id, origin: state.editingModelOrigins.get(model) || null });
+    const raw = String(entry.context_window_tokens ?? "").trim();
+    if (!raw) delete entry.context_window_tokens;
+    else if (!/^\d+$/.test(raw) || Number(raw) <= 0) {
+      throw new Error("模型“" + id + "”的上下文窗口需要填写正整数，或留空使用默认值。");
+    } else {
+      entry.context_window_tokens = Number(raw);
+    }
+    models.push(entry);
+  }
+  return { models, rows };
+}
+
+// Selection is stored by model name. Match the selected row by the original
+// model id kept on its edit entry; row positions change when rows are removed.
+function renamedSelectedModel(provider, rows) {
+  if (!state.current || state.current.provider !== provider.id) return null;
+  const selected = state.current.model;
+  if (rows.some((model) => model.id === selected)) return null;
+  const renamed = rows.find(
+    (model) => model.origin === selected && model.id !== selected,
+  );
+  return renamed ? renamed.id : null;
+}
+
 async function saveProvider() {
-  const models = $("p-models")
-    .value.split(/[,，\s]+/)
-    .map((v) => v.trim())
-    .filter(Boolean)
-    .map((id) => ({ id }));
-  const payload = {
-    name: $("p-name").value.trim(),
-    family: $("p-family").value,
-    base_url: $("p-base").value.trim(),
-    models,
-    api_key: $("p-key").value.trim(),
-  };
+  let payload;
   try {
+    const edited = providerModelsPayload();
+    payload = {
+      name: $("p-name").value.trim(),
+      family: $("p-family").value,
+      base_url: $("p-base").value.trim(),
+      models: edited.models,
+      api_key: $("p-key").value.trim(),
+    };
     if (state.editingProvider) {
+      const previous = state.editingProvider;
+      const renamed = renamedSelectedModel(previous, edited.rows);
       await put("/api/providers/" + encodeURIComponent(state.editingProvider.id), payload);
+      if (renamed) {
+        await post("/api/select", {
+          provider: previous.id, model: renamed,
+          effort: state.current.effort,
+        });
+      }
     } else {
       await post("/api/providers", payload);
     }
@@ -1254,6 +1428,13 @@ $("composer").addEventListener("drop", (event) => {
 $("new").addEventListener("click", () => newSession().catch((e) => setStatus(e.message, true)));
 $("settings").addEventListener("click", () => openSettings().catch((e) => setStatus(e.message, true)));
 $("add-provider").addEventListener("click", () => openProviderDialog(null));
+$("p-model-add").addEventListener("click", addProviderModel);
+$("p-model-new").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    addProviderModel();
+  }
+});
 $("p-save").addEventListener("click", saveProvider);
 $("p-delete").addEventListener("click", deleteProvider);
 $("save-settings").addEventListener("click", saveSettings);
@@ -1281,8 +1462,9 @@ $("composer").addEventListener("submit", async (event) => {
   }
   if (!text && !pendingImages.length && !pendingFiles.length) return;
   if (typeof lingView !== "undefined" && lingView.active) {
+    const viewVersion = state.viewVersion;
     const sent = await submitLingMessage(text);
-    if (sent) {
+    if (sent && lingView.active && state.viewVersion === viewVersion) {
       input.value = "";
       input.style.height = "auto";
     }
@@ -1293,10 +1475,14 @@ $("composer").addEventListener("submit", async (event) => {
     return;
   }
   if (typeof taskView !== "undefined") {
-    if (text && !pendingImages.length && !pendingFiles.length && await naturalTaskControl(text)) {
-      input.value = "";
-      input.style.height = "auto";
-      return;
+    if (text && !pendingImages.length && !pendingFiles.length) {
+      const controlled = await naturalTaskControl(text);
+      if (controlled === null) return;
+      if (controlled) {
+        input.value = "";
+        input.style.height = "auto";
+        return;
+      }
     }
     if (taskView.current) {
       if (await sendTaskMessage(text)) {

@@ -28,6 +28,7 @@ from ..model import (
     RuntimeCredentials,
     StreamLimits,
 )
+from ..model.request_history import RequestHistory
 from ..tools import Registry, ToolContext
 from ..tools.registry import TaskSuspension, ToolResult
 
@@ -128,6 +129,13 @@ class Agent:
         on_tool_result: Callable[[dict[str, Any], dict[str, Any], ToolResult], None] | None = None,
         before_model: Callable[[list[dict[str, Any]]], None] | None = None,
         interaction_context: str = "",
+        role: str = prompt.ROLE,
+        persona_context: str = "",
+        on_model_request: Callable[[str], None] | None = None,
+        request_history: RequestHistory | None = None,
+        request_scope: dict[str, Any] | None = None,
+        plugins: Any = None,
+        plugin_scope: dict[str, Any] | None = None,
     ) -> None:
         self.profile = profile
         self.credentials = credentials
@@ -154,8 +162,26 @@ class Agent:
         self.on_tool_result = on_tool_result
         self.before_model = before_model
         self.interaction_context = interaction_context
+        self.role = role
+        self.persona_context = persona_context
+        self.on_model_request = on_model_request
+        self.request_history = request_history
+        self.request_scope = dict(request_scope or {})
+        self.plugins = plugins
+        self.plugin_scope = dict(plugin_scope or {})
+        self.plugin_context = ""
+        self.request_materials: list[dict[str, Any]] = []
+        self.request_plugins: list[dict[str, Any]] = []
         # The durable turn output must not depend on the size of compacted history.
         self.new_messages: list[dict[str, Any]] = []
+
+    def _request_scope(self, kind: str | None = None) -> dict[str, Any]:
+        scope = dict(self.request_scope)
+        if kind is not None:
+            scope["kind"] = kind
+        scope["request_materials"] = self.request_materials
+        scope["request_plugins"] = self.request_plugins
+        return scope
 
     # --- public -----------------------------------------------------------
 
@@ -262,7 +288,18 @@ class Agent:
             budget_failure: Exception | None = None
             try:
                 async with _client() as client:
-                    gateway = ModelGateway(client, limits=StreamLimits())
+                    summary_scope = self._request_scope("summary")
+                    # The summariser's body is built from permanent messages and
+                    # contains no plugin material, so do not attach another
+                    # request's recall as if this call had used it.
+                    summary_scope["request_materials"] = []
+                    summary_scope["request_plugins"] = []
+                    gateway = ModelGateway(
+                        client,
+                        limits=StreamLimits(),
+                        request_history=self.request_history,
+                        request_scope=summary_scope,
+                    )
                     async for event in gateway.stream(
                         self.profile, body, credentials=self.credentials,
                         request_budget=getattr(self.context, "model_budget", None),
@@ -320,10 +357,21 @@ class Agent:
             context_limit=self.context_limit or self.profile.context_window_tokens or 64_000,
             output_reserve=self.profile.max_output_tokens or 8_000,
         )
-        tools = self.registry.schema()
-        tool_text = self.registry.declarations()
         async with _client() as client:
-            gateway = ModelGateway(client, limits=StreamLimits())
+            gateway = ModelGateway(
+                client,
+                limits=StreamLimits(),
+                request_history=self.request_history,
+                request_scope=self.request_scope,
+            )
+            if self.on_model_request is not None:
+                async def record_persona_request(request):
+                    # httpx calls request hooks at the transport boundary, after
+                    # the native request has been built and validated. Summary
+                    # calls use a separate client and never replace this record.
+                    self.on_model_request(self.persona_context)
+
+                client.event_hooks["request"].append(record_persona_request)
             steps = count(1) if self.max_steps is None else range(1, self.max_steps + 1)
             for step in steps:
                 if self.stopped:
@@ -331,18 +379,9 @@ class Agent:
                     break
                 if self.before_model is not None:
                     self.before_model(messages)
-                system = prompt.build_system_prompt(
-                    self.workspace,
-                    tool_text,
-                    platform=_platform(),
-                    date=time.strftime("%Y-%m-%d"),
-                    skills=self.skills,
-                    task_context=self.task_context,
-                    interaction_context=self.interaction_context,
-                )
                 # Trim oversized tool results before budgeting. Deterministic,
                 # no model call: see core.compaction for why this goes first.
-                trimmed, compaction_report = compaction.prune(messages)
+                stable, compaction_report = compaction.prune(messages)
                 self.last_compaction = compaction_report
 
                 # If pruning was not enough, fold old history into a checkpoint.
@@ -351,13 +390,14 @@ class Agent:
                 window = self.context_limit or self.profile.context_window_tokens or 64_000
                 if (
                     self.compaction_epochs < self.max_epochs
-                    and compaction.approx_tokens(trimmed) >= window * compaction.TRIGGER_RATIO
+                    and compaction.approx_tokens(stable) >= window * compaction.TRIGGER_RATIO
                     and not self.stopped
                 ):
-                    folded, fold_report = await self._fold(messages, trimmed, window)
+                    # Plugin material is a disposable view. Never let it become
+                    # the transcript that compaction writes back.
+                    folded, fold_report = await self._fold(messages, stable, window)
                     if fold_report.summarised:
                         messages[:] = folded
-                        trimmed = folded
                         self.compaction_epochs = fold_report.epochs
                         self.last_compaction = fold_report
                         yield RunEvent(
@@ -371,6 +411,56 @@ class Agent:
                     elif fold_report.reason:
                         self.last_compaction = fold_report
 
+                prepared = messages
+                if self.plugins is not None:
+                    try:
+                        prepared = self.plugins.prepare_agent(self, messages)
+                    except ValueError as error:
+                        # A required plugin context can stop request preparation
+                        # before the gateway is reached. Keep that attempt
+                        # separate from sent requests and from the model's view.
+                        scope = self._request_scope()
+                        scope["request_materials"] = []
+                        scope["request_plugins"] = [{
+                            "status": "failed",
+                            "phase": "prepare",
+                            "error": str(error),
+                        }]
+                        if self.request_history is not None:
+                            record_id = self.request_history.record(
+                                None,
+                                scope,
+                                self.profile.model,
+                                self.profile.api_family.value,
+                                status="prepared_failed",
+                            )
+                            self.request_history.update(
+                                record_id, "prepared_failed", "plugin_context: " + str(error)
+                            )
+                        raise
+                self.request_materials = list(getattr(self, "request_materials", []) or [])
+                self.request_plugins = list(getattr(self, "request_plugins", []) or [])
+                tools = self.registry.schema()
+                tool_text = self.registry.declarations()
+                interaction_context = self.interaction_context
+                plugin_context = getattr(self, "plugin_context", "")
+                if plugin_context:
+                    interaction_context = (
+                        f"{interaction_context}\n{plugin_context}"
+                        if interaction_context else plugin_context
+                    )
+                system = prompt.build_system_prompt(
+                    self.workspace,
+                    tool_text,
+                    platform=_platform(),
+                    date=time.strftime("%Y-%m-%d"),
+                    role=self.role,
+                    persona=self.persona_context,
+                    skills=self.skills,
+                    task_context=self.task_context,
+                    interaction_context=interaction_context,
+                )
+                trimmed, _ = compaction.prune(prepared)
                 context = prompt.select(
                     trimmed,
                     budget,
@@ -409,6 +499,7 @@ class Agent:
                     async for event in gateway.stream(
                         self.profile, body, credentials=self.credentials,
                         request_budget=getattr(self.context, "model_budget", None),
+                        scope=self._request_scope(),
                     ):
                         if event.type == "text_delta" and event.text:
                             produced = True
@@ -524,7 +615,7 @@ class Agent:
                                              error_code="cancelled")
                     else:
                         try:
-                            outcome = await self._invoke(call, yield_event=None)
+                            outcome = await self._invoke(call)
                         except TaskSuspension as tool_suspension:
                             suspended = AgentSuspended.from_tool(tool_suspension)
                             suspended.details.setdefault("current_call", call)
@@ -568,7 +659,7 @@ class Agent:
                                          "stopped": result.stopped,
                                          "finish_reason": result.finish_reason or None})
 
-    async def _invoke(self, call: dict[str, Any], *, yield_event: Any) -> ToolResult:
+    async def _invoke(self, call: dict[str, Any]) -> ToolResult:
         name = call["name"]
         try:
             arguments = json.loads(call["arguments"] or "{}")

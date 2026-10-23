@@ -128,7 +128,8 @@ class TaskCallbacks:
         self.store.update_progress(self.task_id, expected_version=task.progress_version,
                                    changes={"next_step": reason})
         self.store.command(self.task_id, "paused", request_id=f"pause-{self.run_id}",
-                           expected_version=task.control_version, reason=reason)
+                           expected_version=task.control_version, reason=reason,
+                           source="agent")
         self.store.add_message(self.task_id, kind="notice", text=f"任务已挂起：{reason}")
         from ..tools.registry import TaskSuspension
         raise TaskSuspension(reason, kind="paused")
@@ -413,7 +414,6 @@ class TaskCallbacks:
         payload = {"tool": request.tool, "value": request.value, "arguments": request.arguments}
         interaction_id = self.store.interaction_create(
             task_id=self.task_id, run_id=self.run_id, kind="approval", payload=payload,
-            control_version=self.store.get(self.task_id).control_version,
         )
         self.waiting = {"interaction_id": interaction_id, "kind": "approval", "with_background": True}
         from ..core.agent import ApprovalRequired
@@ -427,7 +427,6 @@ class TaskCallbacks:
         interaction_id = self.store.interaction_create(
             task_id=self.task_id, run_id=self.run_id, kind="question",
             payload={"questions": questions},
-            control_version=self.store.get(self.task_id).control_version,
         )
         self.waiting = {"interaction_id": interaction_id, "kind": "question", "with_background": True}
         from ..core.agent import QuestionRequired

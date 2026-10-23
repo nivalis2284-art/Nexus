@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from nexus.core.retry import RETRYABLE_STATUS, RetryPolicy, parse_retry_after, should_retry
+from nexus.core.retry import RETRYABLE_STATUS, RetryPolicy, should_retry
+from nexus.model.gateway import _retry_after_header
 from nexus.tools import build
 
 # ---------------------------------------------------------------- retry policy
@@ -40,13 +41,13 @@ def test_retry_after_is_capped():
 
 
 def test_retry_after_parser():
-    assert parse_retry_after("5") == 5.0
-    assert parse_retry_after(" 1.5 ") == 1.5
-    assert parse_retry_after(None) is None
-    assert parse_retry_after("") is None
-    assert parse_retry_after("Wed, 21 Oct 2015 07:28:00 GMT") is None
-    assert parse_retry_after("-1") is None
-    assert parse_retry_after("99999") is None
+    assert _retry_after_header("5") == 5.0
+    assert _retry_after_header(" 1.5 ") == 1.5
+    assert _retry_after_header(None) is None
+    assert _retry_after_header("") is None
+    assert _retry_after_header("Wed, 21 Oct 2015 07:28:00 GMT") is None
+    assert _retry_after_header("-1") is None
+    assert _retry_after_header("99999") is None
 
 
 @pytest.mark.parametrize("status", sorted(RETRYABLE_STATUS))

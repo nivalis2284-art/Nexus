@@ -69,7 +69,7 @@ def test_stopped_task_cannot_be_marked_complete_by_old_execution(tmp_path, state
 def test_pending_user_decision_is_not_bypassed_by_completion(tmp_path):
     store, task, callbacks = make(tmp_path)
     store.interaction_create(task_id=task.id, run_id=callbacks.run_id, kind="approval",
-                             payload={"tool": "write_file"}, control_version=task.control_version)
+                             payload={"tool": "write_file"}, control_version=store.get(task.id).control_version)
     with pytest.raises(TaskValidationError):
         callbacks.finish({"summary": "not authorized"})
     assert store.pending_interactions(task.id)

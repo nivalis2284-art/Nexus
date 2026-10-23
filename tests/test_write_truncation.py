@@ -106,3 +106,26 @@ def test_empty_write_truly_empties_the_file(tmp_path):
     registry, context = build({}, config={}, root=tmp_path)
     registry.execute("write_file", {"path": "t.txt", "content": ""}, context)
     assert target.read_bytes() == b""
+
+
+def test_read_file_can_reach_lines_after_the_display_limit(tmp_path):
+    target = tmp_path / "large.txt"
+    target.write_text("".join(f"line {number} {'x' * 250}\n" for number in range(1, 10001)),
+                      encoding="utf-8")
+    registry, context = build({}, config={}, root=tmp_path)
+
+    read = registry.execute("read_file", {"path": "large.txt", "offset": 9000, "limit": 2}, context)
+
+    assert read.ok
+    assert read.data["offset"] == 9000
+    assert "9000: line 9000" in read.content
+    assert "9001: line 9001" in read.content
+
+    first = registry.execute("read_file", {"path": "large.txt"}, context)
+    next_line = first.data["returned"] + 1
+    assert first.data["lines"] == 10000
+    assert next_line < 2000
+    assert f"continue with offset {next_line}" in first.content
+    following = registry.execute("read_file", {"path": "large.txt", "offset": next_line,
+                                            "limit": 1}, context)
+    assert f"{next_line}: line {next_line}" in following.content

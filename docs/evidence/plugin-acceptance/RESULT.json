@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "url": "http://127.0.0.1:18766",
+  "plugin_status": "ready",
+  "plugin_settings": {
+    "label": "浏览器验收设置",
+    "enabled": false
+  },
+  "provider_models": [
+    {
+      "id": "acceptance-model",
+      "context_window_tokens": 32768,
+      "max_output_tokens": 1024,
+      "capabilities": {
+        "streaming": true,
+        "tools": true,
+        "thinking": true
+      }
+    }
+  ],
+  "page_errors": [],
+  "console_errors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found) @ {'url': 'http://127.0.0.1:18766/favicon.ico', 'line': 0, 'column': 0, 'lineNumber': 0, 'columnNumber': 0}"
+  ],
+  "http_errors": [],
+  "local_request_count": 27
+}

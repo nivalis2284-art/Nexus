@@ -10,12 +10,14 @@ from .controller import TaskController
 
 
 class TaskScheduler:
-    def __init__(self, store: TaskStore, controller: TaskController, *, interval: float = 1.0) -> None:
+    def __init__(self, store: TaskStore, controller: TaskController, *, interval: float = 1.0,
+                 allow_dispatch=None) -> None:
         self.store = store
         self.controller = controller
         self.interval = interval
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self.allow_dispatch = allow_dispatch or (lambda task_id: True)
 
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
@@ -48,6 +50,8 @@ class TaskScheduler:
         current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
         dispatched = []
         for schedule in self.store.due_schedules(current.isoformat(timespec="milliseconds")):
+            if not self.allow_dispatch(schedule["task_id"]):
+                continue
             result = self.store.claim_schedule(
                 schedule["task_id"], request_id=f"due-{schedule['task_id']}-{schedule['version']}"
             )

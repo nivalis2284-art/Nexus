@@ -111,11 +111,11 @@ function renderLingTasks() {
   for (const task of lingView.tasks.slice(0, 4)) {
     const button = el("button", "ling-task", task.title || "未命名任务");
     button.type = "button";
-    button.title = (task.goal || task.title || "") + " · 打开任务详情";
+    button.title = (task.status_detail || task.goal || task.title || "") + " · 打开任务详情";
     const pending = Array.isArray(task.pending_interactions)
       ? task.pending_interactions.length
       : Number(task.pending_interactions || 0);
-    button.appendChild(el("span", "ling-task-state", lingTaskLabel(task.state) +
+    button.appendChild(el("span", "ling-task-state", (task.state_label || lingTaskLabel(task.state)) +
       (pending > 0 ? " · 待处理" : "")));
     button.addEventListener("click", () => openLingTask(task.id));
     box.appendChild(button);
@@ -181,7 +181,7 @@ function renderLingSnapshot(value) {
     }, 0);
     if (!taskView.current) {
       $("task-panel").hidden = true;
-      renderTranscript();
+      renderTranscript({preserveScroll: true});
     }
   }
   renderLingTasks();
@@ -233,9 +233,10 @@ function armLingPolling() {
 async function openLing(options) {
   const settings = options || {};
   lingView.active = true;
-  if (typeof automationOpen === "function") automationOpen(false);
   lingView.itemsSignature = "";
-  state.viewVersion = (state.viewVersion || 0) + 1;
+  rememberCurrentScroll();
+  state.scrollKey = "ling";
+  const viewVersion = state.viewVersion = (state.viewVersion || 0) + 1;
   if (typeof taskView !== "undefined") {
     taskView.current = null;
     if (taskView.timer) clearTimeout(taskView.timer);
@@ -244,6 +245,8 @@ async function openLing(options) {
     renderTasks();
   }
   $("title").textContent = "灵";
+  $("scroller").hidden = false;
+  $("composer").hidden = false;
   showLingChrome(true);
   renderLingInputs();
   renderLingInteraction(lingView.interaction);
@@ -258,25 +261,39 @@ async function openLing(options) {
     $("transcript").appendChild(hello);
   }
   await pollLing();
+  if (viewVersion !== state.viewVersion || !lingView.active) return;
   if (!settings.keepTranscript && lingView.itemsSignature === "[]") {
     const hello = el("div", "welcome ling-welcome");
     hello.appendChild(el("div", "welcome-title", "灵"));
     hello.appendChild(el("div", "welcome-sub", "你可以在这里继续交流。复杂工作会独立推进，重要进展会出现在通知里。"));
     $("transcript").appendChild(hello);
   }
+  // Restore once the transcript is present. Notification loading can be slow
+  // and does not change this scroller, so it must not override a reader who
+  // scrolls while that request is still pending.
+  restoreViewScroll("ling");
   armLingPolling();
   await pollNotifications({ startup: true });
+  if (viewVersion !== state.viewVersion || !lingView.active) return;
   armNotificationPolling();
   $("input").focus();
 }
 
 async function submitLingMessage(text) {
+  const viewVersion = state.viewVersion;
+  const isCurrentView = () => lingView.active && viewVersion === state.viewVersion;
   if (lingView.submitting || state.preparing) return false;
   if (!lingView.sessionId) await pollLing();
+  if (!isCurrentView()) return false;
   if (!lingView.sessionId) {
     setStatus("灵还没有准备好，请稍后重试", true);
     return false;
   }
+  const sessionId = lingView.sessionId;
+  // Leaving and reopening Ling creates a new view version for the same
+  // conversation. A pending send must still update that conversation when it
+  // settles, while a different view must remain untouched.
+  const isCurrentLing = () => lingView.active && lingView.sessionId === sessionId;
   const sentItems = pendingImages.slice();
   const sentFiles = pendingFiles.slice();
   const images = sentItems.map((item) => ({ mime: item.mime, data: item.data }));
@@ -321,25 +338,36 @@ async function submitLingMessage(text) {
       const optimistic = lingView.items.find((item) => item.client_request_id === localId);
       if (optimistic) optimistic.attachments = attachments;
       lingView.itemsSignature = JSON.stringify(lingView.items);
-      state.items = lingView.items;
-      renderTranscript();
+      if (isCurrentLing()) {
+        state.items = lingView.items;
+        renderTranscript();
+      }
     }
-    renderLingInputs();
-    renderLingStatus();
-    setStatus("已交给灵，可以继续输入");
+    if (isCurrentLing()) {
+      renderLingInputs();
+      renderLingStatus();
+      setStatus("已交给灵，可以继续输入");
+    }
     await pollLing();
     return true;
   } catch (error) {
     lingView.items = visibleItems;
     lingView.itemsSignature = visibleSignature;
-    state.items = visibleItems;
     if (localInput) lingView.inputs = visibleInputs;
     if (localInput) lingView.queueCount = visibleQueue;
-    renderTranscript();
-    renderLingInputs();
-    renderLingStatus();
-    if (!$("input").value) $("input").value = text;
-    setStatus(error.message, true);
+    if (isCurrentLing()) {
+      state.items = visibleItems;
+      state.turns = state.items.filter((item) => item.role === "user").length;
+      state.tokens = state.items.reduce((sum, item) => {
+        const usage = item.usage || {};
+        return sum + (usage.input_tokens || 0) + (usage.output_tokens || 0);
+      }, 0);
+      renderTranscript();
+      renderLingInputs();
+      renderLingStatus();
+      if (!$("input").value) $("input").value = text;
+      setStatus(error.message, true);
+    }
     return false;
   } finally {
     lingView.submitting = false;

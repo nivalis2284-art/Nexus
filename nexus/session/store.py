@@ -23,6 +23,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ..file_io import replace_text
+
 TITLE_LIMIT = 80
 DEFAULT_TITLE = "新会话"
 
@@ -118,6 +120,10 @@ class SessionStore:
             return ""
 
     def load(self, session_id: str) -> Session | None:
+        with self._lock:
+            return self._load(session_id)
+
+    def _load(self, session_id: str) -> Session | None:
         try:
             path = self.path_for(session_id)
         except ValueError:
@@ -215,9 +221,7 @@ class SessionStore:
             record = {"kind": item.kind, "text": item.text, "at": item.at}
             record.update(item.data)
             lines.append(json.dumps(record, ensure_ascii=False))
-        temporary = path.with_suffix(".tmp")
-        temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        temporary.replace(path)
+        replace_text(path, "\n".join(lines) + "\n")
 
     def rename(self, session_id: str, title: str, *, only_if_empty: bool = False) -> bool:
         """Set a session's title, persisting it through the meta record.

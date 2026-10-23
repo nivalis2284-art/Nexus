@@ -70,25 +70,3 @@ def should_retry(
     # transport_error and timeout carry no reason from this gateway, and both
     # are retryable by nature.
     return code in ("transport_error", "timeout") or reason in RETRYABLE_REASONS
-
-
-def parse_retry_after(value: str | None) -> float | None:
-    """Parse ``Retry-After`` as delta-seconds. HTTP-date form is ignored."""
-    if not value:
-        return None
-    try:
-        seconds = float(value.strip())
-    except ValueError:
-        return None
-    if seconds < 0 or seconds > 3600:
-        return None
-    return seconds
-
-
-def describe(policy: RetryPolicy) -> dict[str, object]:
-    return {
-        "max_retries": policy.max_retries,
-        "initial_delay": policy.initial_delay,
-        "max_delay": policy.max_delay,
-        "retryable_status": sorted(RETRYABLE_STATUS),
-    }

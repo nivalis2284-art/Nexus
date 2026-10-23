@@ -164,7 +164,14 @@ class Registry:
             if effect is not None:
                 context._pending_tool_name = name
                 effect(name, prepared.arguments)
+            manager = getattr(context, 'plugin_manager', None)
+            scope = getattr(context, 'plugin_scope', {})
+            if manager:
+                manager.hook('before_tool', scope, name=prepared.spec.name, args=prepared.arguments)
             payload = prepared.spec.handler(context, prepared.arguments)
+            if manager:
+                manager.hook('after_tool', scope, name=prepared.spec.name, args=prepared.arguments,
+                             result=deepcopy(payload))
         except TaskSuspension as suspension:
             # A direct tool caller has no task run to persist and resume this
             # decision. Fail closed instead of treating the pause as success.
@@ -181,7 +188,7 @@ class Registry:
         if not isinstance(content, str):
             content = str(content)
         content, truncated = clip(content)
-        payload["truncated"] = truncated
+        payload["truncated"] = bool(payload.get("truncated")) or truncated
         ok = payload.get("ok", True) is not False and not payload.get("mcp_error", False)
         error_code = str(payload.get("error") or "execution_failed") if not ok else ""
         return ToolResult(ok, content, data=payload, error_code=error_code)

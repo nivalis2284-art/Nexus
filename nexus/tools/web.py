@@ -111,15 +111,13 @@ def _strip_html(text: str) -> str:
     return "\n".join(line.strip() for line in text.splitlines()).strip()
 
 
-def fetch(context: Any, args: dict[str, Any]) -> dict[str, Any]:
-    url = args["url"].strip()
+def _validate_fetch_url(url: str, allowlist: list[str]) -> None:
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in ("http", "https"):
         raise ValueError("Only http and https URLs are supported.")
     if not parsed.hostname:
         raise ValueError("URL has no host.")
 
-    allowlist = getattr(context, "web_allowlist", None) or []
     if not _host_allowed(parsed.hostname, allowlist):
         raise PermissionError(
             f"Host '{parsed.hostname}' is not in the webfetch allowlist. "
@@ -128,8 +126,24 @@ def fetch(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     if _is_private(parsed.hostname):
         raise PermissionError(f"Refusing to fetch a private or local address: {parsed.hostname}")
 
+
+class _FetchRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def __init__(self, allowlist: list[str]):
+        super().__init__()
+        self.allowlist = allowlist
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _validate_fetch_url(newurl, self.allowlist)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def fetch(context: Any, args: dict[str, Any]) -> dict[str, Any]:
+    url = args["url"].strip()
+    allowlist = getattr(context, "web_allowlist", None) or []
+    _validate_fetch_url(url, allowlist)
+    opener = urllib.request.build_opener(_FetchRedirectHandler(allowlist))
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+    with opener.open(request, timeout=TIMEOUT) as response:
         status = getattr(response, "status", 200)
         content_type = response.headers.get("Content-Type", "")
         body = response.read(MAX_BYTES + 1)

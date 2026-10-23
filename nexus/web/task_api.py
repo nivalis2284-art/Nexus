@@ -42,6 +42,7 @@ class TaskHTTP:
             value["active"] = task.id == active
             value["queued"] = task.id in queued
             value["pending_interactions"] = len(self.store.pending_interactions(task.id))
+            value.update(self._presentation(task))
             items.append(value)
         self.respond(handler, 200, {"tasks": items})
 
@@ -108,6 +109,7 @@ class TaskHTTP:
             item = self.controller.unarchive(task_id, request_id=request_id, expected_version=expected)
         else:
             raise TaskValidationError(f"unknown task operation: {operation}")
+        self._forget_user_task_pause(task_id)
         self.respond(handler, 200, item.to_dict())
 
     def lifecycle(self, handler, task_id: str, body: dict[str, Any]) -> None:
@@ -118,6 +120,8 @@ class TaskHTTP:
             raise TaskValidationError("request_id and expected_version are required")
         item = self.store.edit_lifecycle(task_id, operation, request_id=request_id,
                                         expected_version=expected)
+        if operation == "mark_paused":
+            self._forget_user_task_pause(task_id)
         self.respond(handler, 200, item.to_dict())
 
     def answer(self, handler, task_id: str, interaction_id: str, body: dict[str, Any]) -> None:
@@ -204,6 +208,7 @@ class TaskHTTP:
                 task = self.controller.resume(task_id, request_id=request_id)
             else:
                 task = self.controller.cancel(task_id, request_id=request_id)
+            self._forget_user_task_pause(task_id)
             self.respond(handler, 200, {"operation": operation, "task": task.to_dict()})
             return
         raise TaskValidationError(
@@ -255,7 +260,12 @@ class TaskHTTP:
             "unfinished_operations": self.store.unfinished_operations(task_id),
             "jobs": jobs, "active": task_id == self.controller.active_task,
             "queued": task_id in self.controller.queued_ids(),
+            **self._presentation(task),
         }
+
+    def _presentation(self, task: Any) -> dict[str, str]:
+        from ..task.presentation import task_presentation
+        return task_presentation(self.store, self.controller, task)
 
     def delete(self, handler, task_id: str, body: dict[str, Any]) -> None:
         expected = body.get("expected_version")
@@ -265,4 +275,13 @@ class TaskHTTP:
             raise TaskConflict("task still owns execution resources")
         self.store.delete(task_id, expected_version=expected)
         AttachmentStore(self.state["store"].home).delete_owner("tasks", task_id)
+        if self.state.get("request_history"):
+            self.state["request_history"].delete_owner(task_id)
         self.respond(handler, 200, {"deleted": True})
+
+    def _forget_user_task_pause(self, task_id: str) -> None:
+        """Publish owner controls for interested plugins."""
+        manager = self.state.get("plugins")
+        if manager:
+            manager.release_task(task_id)
+            manager.publish("task.owner_control", {"task_id": task_id})

@@ -83,9 +83,8 @@ def test_invalid_venv_is_preserved_before_creating_a_replacement(tmp_path):
         "--disable-pip-version-check",
         "-e",
         ".",
-        "-e",
-        "services/scheduler",
     ]
+    assert all("nexus_scheduler" not in part for call in calls for part in call)
 
 
 def test_base_interpreter_is_used_for_creation(tmp_path):
@@ -155,9 +154,8 @@ def test_missing_dependencies_are_installed_from_pyproject(tmp_path):
         "--disable-pip-version-check",
         "-e",
         ".",
-        "-e",
-        "services/scheduler",
     ]
+    assert all("services/scheduler" not in part for part in install)
 
 
 def test_existing_working_venv_does_not_need_a_base_python(tmp_path):
@@ -177,6 +175,7 @@ def test_existing_working_venv_does_not_need_a_base_python(tmp_path):
     result = bootstrap.prepare(root, None, run=run)
     assert result == root / ".venv" / "Scripts" / "python.exe"
     assert not any("venv" in call for call in calls)
+    assert all("nexus_scheduler" not in part for call in calls for part in call)
 
 
 def test_invalid_venv_without_base_python_is_left_untouched(tmp_path):

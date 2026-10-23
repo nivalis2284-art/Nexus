@@ -119,8 +119,6 @@ def _install_dependencies(python: Path, *, root: Path, run: Run) -> None:
                 "--disable-pip-version-check",
                 "-e",
                 ".",
-                "-e",
-                "services/scheduler",
             ],
             root=root,
             timeout=600,
@@ -137,7 +135,14 @@ def _install_dependencies(python: Path, *, root: Path, run: Run) -> None:
 def _dependencies_import(python: Path, *, root: Path, run: Run) -> bool:
     try:
         result = run(
-            [str(python), "-c", "import httpx, pydantic, tzdata, pypdf, docx, openpyxl, pptx, mcp, nexus_scheduler"],
+            [
+                str(python),
+                "-c",
+                (
+                    "import httpx, pydantic, tzdata, pypdf, "
+                    "docx, openpyxl, pptx, mcp"
+                ),
+            ],
             root=root,
             timeout=30,
         )

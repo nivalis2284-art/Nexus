@@ -13,11 +13,11 @@ the model cannot call a tool that could only fail.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import ask, attachments, files, jobs, patch, shell, subagent_tool, todo, web
+from . import ask, attachments, files, jobs, patch, persona, shell, subagent_tool, todo, web
 from .registry import Registry, ToolResult, ToolSpec
 
 # Order matters only for prompt readability: cheap, common tools first.
@@ -27,6 +27,7 @@ CATALOG = (files, attachments, shell, jobs, patch, todo, ask, subagent_tool, web
 class SkillArgs(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     name: str = Field(min_length=1, max_length=64)
+    category: Literal["skill", "persona"] = "skill"
 
 
 class ToolContext:
@@ -43,10 +44,17 @@ class ToolContext:
         # Live MCP connection registry, injected by the caller when configured.
         self.mcp: Any = None
         self.task_callbacks: Any = None
+        self.persona_store: Any = None
+        self.persona_writable = False
 
 
 def _skill(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     name = args["name"]
+    if args.get("category", "skill") == "persona":
+        store = getattr(context, "persona_store", None)
+        if store is None:
+            raise FileNotFoundError(f"Unknown persona entry '{name}'.")
+        return store.read_entry(name)
     body = context.skills.get(name)
     if body is None:
         available = ", ".join(sorted(context.skills)) or "(none installed)"
@@ -86,6 +94,8 @@ def build(
     attachment_source: Any = None,
     attachment_ids: set[str] | None = None,
     work_service: Any = None,
+    persona_store: Any = None,
+    persona_writable: bool = False,
 ) -> tuple[Registry, ToolContext]:
     """Assemble a registry. ``config`` decides which optional tools exist."""
     context = ToolContext(root or Path.cwd(), skills)
@@ -96,6 +106,8 @@ def build(
     context.work_service = work_service
     context.attachments = attachment_source
     context.attachment_ids = attachment_ids or set()
+    context.persona_store = persona_store
+    context.persona_writable = bool(persona_writable)
     settings = config or {}
     allowlist = settings.get("webfetch_hosts") or []
     if isinstance(allowlist, str):
@@ -126,6 +138,8 @@ def build(
         from .work import WORK_TOOLS
         for spec in WORK_TOOLS:
             registry.add(spec)
+    if persona_store is not None and persona_writable:
+        registry.add(persona.PERSONA_TOOL)
     return registry, context
 
 

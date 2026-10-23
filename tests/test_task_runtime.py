@@ -232,3 +232,38 @@ def test_resumed_turn_does_not_duplicate_saved_history(tmp_path, monkeypatch):
         "first answer", "second answer",
     ]
     assert len([message for message in messages if message["kind"] == "user"]) == 1
+
+
+def test_second_approval_wait_keeps_background_registry(tmp_path, monkeypatch):
+    config, provider_id = configure(tmp_path)
+    config.save_preferences(permission="ask")
+    tasks = TaskStore(tmp_path / "tasks.sqlite3")
+    item = tasks.create(title="twice", goal="writes", workspace=str(tmp_path),
+                        provider_id=provider_id, model_id="fake")
+    assembler = TaskAssembler(tasks, config)
+    import nexus.core.agent as module
+    responses = []
+    monkeypatch.setattr(module, "_client", lambda: httpx.AsyncClient(transport=httpx.MockTransport(
+        lambda request: httpx.Response(200, headers={"content-type": "text/event-stream"},
+                                       text=responses.pop(0)))))
+    registry = None
+    try:
+        for index in range(2):
+            tasks.command(item.id, "running", request_id=f"run-{index}")
+            tasks.begin_run(item.id)
+            responses.append(call_frames(f"approval-{index}", "write_file",
+                                         {"path": f"file-{index}.txt", "content": "ok"}))
+            result = assembler(tasks.get(item.id), threading.Event())
+            assert result.status == "waiting_user"
+            assert tasks.get(item.id).state == "waiting_user"
+            if registry is None:
+                registry = assembler._jobs[item.id]
+            else:
+                assert assembler._jobs[item.id] is registry
+            pending = tasks.pending_interactions(item.id)
+            assert len(pending) == 1
+            tasks.interaction_answer(pending[0]["id"], answer=True,
+                                     expected_version=tasks.get(item.id).control_version)
+    finally:
+        if registry is not None:
+            registry.close_all()

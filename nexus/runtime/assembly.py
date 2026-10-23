@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -44,6 +45,8 @@ class TaskAssembler:
     # A service-owned registry is borrowed for the task's lifetime. Without
     # one, the task starts and closes its own connections.
     mcp_registry: Any = None
+    plugins: Any = None
+    request_history: Any = None
 
     def _strict_settings(self, task: Task):
         raw = self.config.read_config()
@@ -108,11 +111,16 @@ class TaskAssembler:
                 attachment_source=(AttachmentStore(self.config.home), "tasks", task.id),
                 attachment_ids={a["id"] for item in stored_messages for a in item.get("attachments", [])},
             )
-            return self._run(
+            outcome = self._run(
                 task, cancel, callbacks, profile, key, permission, rules, model,
                 workspace, workspace_path, skill_set, task_jobs, registry, context,
                 stored_messages,
             )
+            if self.plugins:
+                scope = {"kind": "task", "owner_id": task.id, "task_id": task.id}
+                self.plugins.publish('activity.finished', {**scope, 'state': self.store.get(task.id).state})
+                self.plugins.hook('activity_finished', scope, result={"state": self.store.get(task.id).state})
+            return outcome
         finally:
             if shared_mcp is None and mcp_registry is not None:
                 mcp_registry.close()
@@ -184,6 +192,10 @@ class TaskAssembler:
                 skills=skill_set.manifest(), cancel_event=cancel,
                 task_context="You are a subagent. You cannot finish the parent task.",
                 on_tool_intent=scoped_callbacks.prepare_dispatch,
+                plugins=self.plugins,
+                plugin_scope={"kind": "subagent", "owner_id": task.id, "task_id": task.id},
+                request_history=self.request_history,
+                request_scope={"kind": "subagent", "owner_id": task.id},
                 execute_prepared=lambda prepared: scoped_callbacks.wrap_execute(
                     prepared, child_context, child_registry.execute_prepared
                 ),
@@ -234,6 +246,10 @@ class TaskAssembler:
             before_model=before_model,
             on_tool_intent=prepare_task_tool,
             execute_prepared=execute_task_tool,
+            plugins=self.plugins,
+            plugin_scope={"kind": "task", "owner_id": task.id, "task_id": task.id},
+            request_history=self.request_history,
+            request_scope={"kind": "task", "owner_id": task.id},
         )
 
 
@@ -301,7 +317,7 @@ class TaskAssembler:
                 return RunFnResult(status="paused", wait_reason=suspension.reason)
             if current.state == "running":
                 current = self.store.command(
-                    task.id, "waiting_user", request_id=f"wait-{task.id}"
+                    task.id, "waiting_user", request_id=f"wait-{task.id}-{uuid.uuid4().hex}"
                 )
             try:
                 self.store.end_run(self.store.current_run(task.id), status="waiting_user")
@@ -327,6 +343,7 @@ class TaskAssembler:
             if current.state == "running":
                 self.store.command(
                     task.id, "paused", request_id=f"suspended-{task.id}",
+                    reason=suspension.reason, source="agent",
                 )
             self.store.add_message(
                 task.id, kind="notice", text=f"执行已停止：{suspension.reason}",
@@ -347,7 +364,8 @@ class TaskAssembler:
             current = self.store.get(task.id)
             if current.state == "running":
                 self.store.command(
-                    task.id, "paused", request_id=f"stalled-{task.id}"
+                    task.id, "paused", request_id=f"stalled-{task.id}",
+                    reason=str(error), source="error",
                 )
             return RunFnResult(status="stalled", wait_reason=str(error))
         except Exception:

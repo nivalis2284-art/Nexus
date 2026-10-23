@@ -1,11 +1,12 @@
 """Shell tool: argument-list execution with resource bounds.
 
-No shell interpolation. The model supplies an argv list, so a stray ``|`` or
+No shell interpolation. The command is parsed into an argv list, so a stray ``|`` or
 ``&&`` is a literal argument, not a new process pipeline it can smuggle through.
 """
 
 from __future__ import annotations
 
+import locale
 import os
 import shutil
 import sys
@@ -32,25 +33,82 @@ class BashArgs(BaseModel):
 
 
 def _argv(command: str) -> list[str]:
-    """Split into an argument list and refuse shell metacharacters.
+    """Parse quoted arguments without invoking a shell or expanding operators.
 
-    Windows has no reliable POSIX shell here, so a single string is tokenized
-    with the platform's own rules when that is unambiguous. Control operators are
-    rejected; the model can call the tool twice instead.
+    Both quote styles group text, including --key="a b". Backslashes remain
+    literal except before double quotes, where Windows escaping rules apply.
     """
     if any(char in command for char in "\n\r\0"):
         raise ValueError("Command must be a single line.")
-    import shlex
-
-    try:
-        parts = shlex.split(command, posix=False)
-    except ValueError as error:
-        raise ValueError(f"Cannot parse command: {error}") from error
-    cleaned = [part.strip('"') if len(part) >= 2 and part[0] == part[-1] == '"' else part
-               for part in parts]
-    if not cleaned or not cleaned[0]:
+    parts, token = [], []
+    quote = None
+    started = False
+    index = 0
+    while index < len(command):
+        char = command[index]
+        if char.isspace() and quote is None:
+            if started:
+                parts.append("".join(token))
+                token, started = [], False
+            index += 1
+            continue
+        started = True
+        if char == "\\" and quote != "'":
+            end = index
+            while end < len(command) and command[end] == "\\":
+                end += 1
+            count = end - index
+            if end < len(command) and command[end] == '"':
+                token.append("\\" * (count // 2))
+                if count % 2:
+                    token.append('"')
+                    index = end + 1
+                    continue
+            else:
+                token.append("\\" * count)
+                index = end
+                continue
+            index = end
+            char = command[index]
+        if char in ("'", '"') and (quote is None or quote == char):
+            quote = None if quote else char
+        else:
+            token.append(char)
+        index += 1
+    if quote is not None:
+        raise ValueError("Cannot parse command: unclosed quote")
+    if started:
+        parts.append("".join(token))
+    if not parts or not parts[0]:
         raise ValueError("Empty command.")
-    return cleaned
+    return parts
+
+
+def _decode_output(data: bytes) -> str:
+    # Choose per line so one native-encoded line cannot corrupt UTF-8 lines.
+    encoding = locale.getencoding()
+    if os.name == "nt":
+        import ctypes
+        codepage = ctypes.windll.kernel32.GetConsoleOutputCP()
+        if codepage and codepage != 65001:
+            encoding = f"cp{codepage}"
+
+    def decode_line(line: bytes) -> str:
+        try:
+            return line.decode("utf-8")
+        except UnicodeDecodeError:
+            utf8 = line.decode("utf-8", errors="replace")
+        errors = utf8.count("\ufffd")
+        # A few invalid/truncated bytes are not evidence that the entire line
+        # uses a legacy encoding. Preserve its successfully decoded UTF-8 text.
+        valid_bytes = sum(len(char.encode("utf-8")) for char in utf8
+                          if ord(char) >= 128 and char != "\ufffd")
+        if valid_bytes >= 3 * errors:
+            return utf8
+        local = line.decode(encoding, errors="replace")
+        return local if local.count("\ufffd") < errors else utf8
+
+    return "".join(decode_line(line) for line in data.splitlines(keepends=True))
 
 
 def bash(context: Any, args: dict[str, Any]) -> dict[str, Any]:
@@ -73,8 +131,8 @@ def bash(context: Any, args: dict[str, Any]) -> dict[str, Any]:
         new_session=os.name != "nt",
         cancel_event=getattr(context, "cancel_event", None),
     )
-    out = started.stdout.decode("utf-8", errors="replace")
-    err = started.stderr.decode("utf-8", errors="replace")
+    out = _decode_output(started.stdout)
+    err = _decode_output(started.stderr)
     parts = [f"$ {' '.join(argv)}", f"exit: {started.returncode}"]
     if out.strip():
         parts.append("stdout:\n" + out.rstrip())

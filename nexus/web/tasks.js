@@ -42,36 +42,42 @@ function renderTasks() {
     const label = el("span", "label", item.title || "未命名任务");
     label.title = item.goal || "";
     row.appendChild(label);
-    const stateLabelValue = {
-      pending: "未开始", paused: "挂起", queued: "排队", running: "运行", pausing: "暂停中",
-      waiting_user: "等待你", completed: "完成", cancelled: "取消",
-    }[item.state] || item.state;
-    row.appendChild(el("span", "small", stateLabelValue + (item.active ? " · 当前" : "")));
+    const stateLabelValue = item.state_label || stateLabel(item.state);
+    row.appendChild(el("span", "task-list-state small", stateLabelValue + (item.active ? " · 当前" : "")));
+    const progress = String(item.progress_text || "").trim();
+    row.appendChild(el("span", "task-list-detail", progress || "暂无进展说明"));
+    if (item.wait_reason) row.appendChild(el("span", "task-list-detail", item.wait_reason));
+    if (item.schedule) row.appendChild(el("span", "task-list-schedule", item.schedule_label || "已安排"));
     row.addEventListener("click", () => openTask(item.id));
     list.appendChild(row);
   }
 }
 
-async function openTask(id) {
-  const viewVersion = state.viewVersion = (state.viewVersion || 0) + 1;
-  if (typeof clearLingView === "function" && lingView.active) clearLingView();
+async function openTask(id, {refresh = false} = {}) {
+  if (!refresh) rememberCurrentScroll();
+  const viewVersion = refresh ? state.viewVersion : (state.viewVersion = (state.viewVersion || 0) + 1);
+  if (!refresh && typeof clearLingView === "function" && lingView.active) clearLingView();
   if (taskView.timer) clearTimeout(taskView.timer);
   taskView.timer = null;
   const value = await api("/api/tasks/" + encodeURIComponent(id));
-  if (viewVersion !== state.viewVersion) return;
+  if (viewVersion !== state.viewVersion || (refresh && taskView.current?.id !== id)) return;
   const previous = taskView.current;
   const sameTask = previous && previous.id === value.id;
   taskView.current = value;
   $("task-panel").hidden = false;
   $("task-title").textContent = value.title || "未命名任务";
-  $("task-status").textContent = stateLabel(value.state) + (value.active ? " · 当前执行" : "") +
-    (value.queued ? " · 等待执行通道" : "") + (value.wait_reason ? " · " + value.wait_reason : "");
+  $("task-status").textContent = value.status_detail || stateLabel(value.state);
+  $("task-state-label").textContent = value.state_label || stateLabel(value.state);
+  $("task-schedule-label").textContent = value.schedule_label || "未安排定时。";
+  $("task-progress-text").textContent = value.progress_text || "暂无进展说明";
+  $("task-display").hidden = false;
+  $("scroller").hidden = false;
+  $("composer").hidden = false;
+  renderTaskActions(value);
   const description = [];
   if (value.effective_goal || value.goal) description.push("目标：" + (value.effective_goal || value.goal));
   if (value.constraints) description.push("约束：" + value.constraints);
-  if (value.work_summary) description.push("结果／进展：" + value.work_summary);
   if (value.next_step && value.state !== "completed") description.push("下一步：" + value.next_step);
-  if (value.state === "paused") description.push("补充信息只保存；请点击恢复后继续执行。");
   if (value.evidence && value.evidence.length) {
     description.push("证据：" + value.evidence.map((item) => item.summary).join("；"));
   }
@@ -80,7 +86,9 @@ async function openTask(id) {
     description.push("未确认操作：" + value.unfinished_operations.map((item) => item.tool_name).join("、"));
   }
   $("task-summary").textContent = description.join("\n");
-  renderTaskSteps(value.steps || []);
+  if (!sameTask || previous.state !== value.state || JSON.stringify(previous.steps) !== JSON.stringify(value.steps)) {
+    renderTaskSteps(value.steps || []);
+  }
   if (!sameTask || JSON.stringify(previous.pending_interactions) !== JSON.stringify(value.pending_interactions)) {
     renderTaskInteractions(value.pending_interactions || []);
   }
@@ -89,6 +97,8 @@ async function openTask(id) {
     $("task-timezone").value = value.schedule ? value.schedule.timezone : Intl.DateTimeFormat().resolvedOptions().timeZone;
     $("task-mode").value = value.schedule ? value.schedule.mode : "confirm";
   }
+  $("task-schedule-clear").hidden = !value.schedule || ["completed", "cancelled"].includes(value.state);
+  $("task-schedule-save").hidden = ["completed", "cancelled"].includes(value.state);
   $("title").textContent = value.title || "任务";
   state.sessionId = null;
   state.items = (value.messages || []).map((message) => ({
@@ -101,9 +111,26 @@ async function openTask(id) {
     thinking: message.thinking,
     attachments: message.attachments || [],
   }));
-  renderTranscript();
+  renderTranscript({preserveScroll: sameTask});
+  if (!sameTask) restoreViewScroll("task:" + value.id);
   armTaskPolling();
   await refreshTasks();
+}
+
+// Each persisted state exposes only the controls that can apply to it.
+function renderTaskActions(value) {
+  const state = value.state;
+  const pending = Array.isArray(value.pending_interactions) ? value.pending_interactions : [];
+  const needsDecision = pending.some((item) => ["approval", "question", "start_confirmation"].includes(item.kind));
+  const canStart = ["pending", "paused", "waiting_user"].includes(state) && !needsDecision;
+  const canPause = ["running", "queued", "waiting_user"].includes(state);
+  const canFinish = ["pending", "paused", "waiting_user"].includes(state);
+  $("task-start").hidden = !canStart;
+  $("task-start").textContent = state === "paused" ? "恢复" : "开始";
+  $("task-pause").hidden = !canPause;
+  $("task-cancel").hidden = ["completed", "cancelled"].includes(state);
+  $("task-reopen").hidden = state !== "cancelled";
+  $("task-mark-complete").hidden = !canFinish;
 }
 
 async function sendTaskMessage(text) {
@@ -150,6 +177,7 @@ function localInput(iso) {
 
 function renderTaskSteps(steps) {
   const box = $("task-steps");
+  $("task-records").hidden = !steps.length;
   box.innerHTML = "";
   steps.forEach((step, index) => {
     const row = el("div", "task-step");
@@ -313,13 +341,25 @@ async function saveTaskSchedule() {
   }
 }
 
+async function clearTaskSchedule() {
+  const current = taskView.current;
+  if (!current) return;
+  try {
+    await api("/api/tasks/" + encodeURIComponent(current.id) + "/schedule", { method: "DELETE" });
+    $("task-due").value = "";
+    await openTask(current.id);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
 function armTaskPolling() {
   if (taskView.timer) clearTimeout(taskView.timer);
   taskView.timer = setTimeout(async () => {
     taskView.timer = null;
     try {
       if (taskView.current && !document.hidden) {
-        await openTask(taskView.current.id);
+        await openTask(taskView.current.id, {refresh: true});
       }
     } catch (error) {
       setStatus(error.message, true);
@@ -343,7 +383,7 @@ async function naturalTaskControl(text) {
     // has rejected the deterministic short-command path.
     if (/unambiguous command|identify exactly one task/.test(error.message)) return false;
     setStatus(error.message, true);
-    return true;
+    return null;
   }
 }
 
@@ -362,6 +402,7 @@ $("task-cancel").addEventListener("click", () => taskCommand("cancel"));
 $("task-reopen").addEventListener("click", () => taskCommand("reopen"));
 $("task-mark-complete").addEventListener("click", () => taskLifecycle("mark_completed"));
 $("task-schedule-save").addEventListener("click", saveTaskSchedule);
+$("task-schedule-clear").addEventListener("click", clearTaskSchedule);
 
 refreshTasks().catch((error) => setStatus(error.message, true));
 

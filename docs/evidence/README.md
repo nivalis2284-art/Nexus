@@ -2,7 +2,7 @@
 
 本目录保留 2026-10-21 两轮真实模型验证的最小可复现材料。两轮结果不代表阶段 6 独立验收通过，也不据此判定产品不达标。原始调用账本、逐工具消息和重复界面快照已从工作区清理；完整原文可由提交 `e4cd813` 追溯。
 
-清理前，`docs/evidence/` 与 `docs/archive/` 合计有 122 个版本跟踪文件、5,881,947 字节（按 Git 对象）。本次删除 57 个冗余文件，原大小为 2,892,703 字节；保留 65 个原文件，共 2,989,244 字节，并新增 4 个摘要文件（17,405 字节）。当前证据合计约 3.01 MB，较清理前减少 2,871,623 字节。
+清理前，`docs/evidence/` 与 `docs/参考/archive/` 合计有 122 个版本跟踪文件、5,881,947 字节（按 Git 对象）。本次删除 57 个冗余文件，原大小为 2,892,703 字节；保留 65 个原文件，共 2,989,244 字节，并新增 4 个摘要文件（17,405 字节）。当前证据合计约 3.01 MB，较清理前减少 2,871,623 字节。
 
 ## 两轮边界与结果
 
@@ -41,12 +41,12 @@
 
 ## 历史缺陷与追溯
 
-持续性阶段的 A–F 缺陷修复及未修条目仍在 [`docs/archive/2026-10-20-ling-continuity/ACCEPTANCE.md`](../archive/2026-10-20-ling-continuity/ACCEPTANCE.md) 和 [交付记录](../archive/2026-10-20-ling-continuity/PROGRESS.md)。其中“已完成仍可写/可重复完成、`job_001` 主键冲突、交互回答移到 transcript 末尾、调度热循环与版本校验、删除任务级联清除未解决操作”等历史条目保持原判，不因本轮证据整理而改变其状态；是否修复以源码和后续验证为准。
+持续性阶段的 A–F 缺陷修复及未修条目仍在 [`docs/参考/archive/2026-10-20-ling-continuity/ACCEPTANCE.md`](../参考/archive/2026-10-20-ling-continuity/ACCEPTANCE.md) 和 [交付记录](../参考/archive/2026-10-20-ling-continuity/PROGRESS.md)。其中“已完成仍可写/可重复完成、`job_001` 主键冲突、交互回答移到 transcript 末尾、调度热循环与版本校验、删除任务级联清除未解决操作”等历史条目保持原判，不因本轮证据整理而改变其状态；是否修复以源码和后续验证为准。
 
 原始大日志、每个请求的用量明细、逐工具消息、状态快照和其他界面截图只在 Git 历史中保留。读取方式：
 
 ```powershell
-git show e4cd813:docs/archive/2026-10-20-ling-continuity/acceptance/run28.log
+git show e4cd813:docs/参考/archive/2026-10-20-ling-continuity/acceptance/run28.log
 git show e4cd813:docs/evidence/autonomy/2026-10-21/real-records.json
 git show e4cd813:docs/evidence/autonomy/2026-10-21/real-token-ledger.json
 git show e4cd813:docs/evidence/autonomy/2026-10-21-round2/tasks-and-tool-results.json

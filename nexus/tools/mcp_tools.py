@@ -11,6 +11,7 @@ to know MCP's types, and so the bridge is one file if it ever needs replacing.
 from __future__ import annotations
 
 import json
+from contextlib import nullcontext
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -38,6 +39,9 @@ def specs_for(context: Any) -> list[ToolSpec]:
 
     specs: list[ToolSpec] = []
     for qualified, (server, declaration) in registry.tools.items():
+        visible = getattr(server, 'model_tools', None)
+        if visible is not None and declaration.name not in visible:
+            continue
         specs.append(
             ToolSpec(
                 qualified,
@@ -63,7 +67,11 @@ def _make_handler(registry: Any, qualified: str):
             raise ValueError(f"MCP tool '{qualified}' is no longer available")
         server, declaration = entry
         try:
-            result = server.call_tool(declaration.name, args)
+            manager = getattr(context, 'plugin_manager', None)
+            owner = getattr(server, 'plugin_id', None)
+            with (manager.lease(owner, context, getattr(context, 'plugin_scope', {}))
+                  if manager and owner else nullcontext()):
+                result = server.call_tool(declaration.name, args)
         except MCPError as error:
             return {"content": f"MCP call failed: {error}", "mcp_error": True,
                     "server": server.name, "tool": declaration.name}
@@ -90,50 +98,3 @@ def _make_handler(registry: Any, qualified: str):
 
     handler.__name__ = f"mcp_{qualified}"
     return handler
-
-
-def config_problems(raw: Any) -> list[str]:
-    """Validate the ``mcp.servers`` config block without starting anything."""
-    problems: list[str] = []
-    if raw is None:
-        return problems
-    if not isinstance(raw, list):
-        return ["mcp.servers must be a list"]
-    seen: set[str] = set()
-    for index, item in enumerate(raw):
-        if not isinstance(item, dict):
-            problems.append(f"mcp.servers[{index}] is not an object")
-            continue
-        name = str(item.get("name") or "").strip()
-        command = str(item.get("command") or "").strip()
-        transport = str(item.get("transport") or "stdio").strip().lower()
-        url = str(item.get("url") or "").strip()
-        if not name:
-            problems.append(f"mcp.servers[{index}] has no name")
-        elif not name.replace("-", "").replace("_", "").isalnum():
-            problems.append(f"mcp.servers[{index}] name '{name}' has invalid characters")
-        elif name in seen:
-            problems.append(f"duplicate mcp server name '{name}'")
-        else:
-            seen.add(name)
-        if transport in ("http", "streamable-http", "streamable_http"):
-            if not url:
-                problems.append(f"mcp.servers[{index}] has no url")
-        elif transport == "stdio":
-            if not command:
-                problems.append(f"mcp.servers[{index}] has no command")
-        else:
-            problems.append(
-                f"mcp.servers[{index}] has unsupported transport '{transport}'"
-            )
-    return problems
-
-
-def summary(registry: Any) -> str:
-    if registry is None or not registry.servers:
-        return ""
-    return json.dumps(
-        {name: len([t for t, (s, _) in registry.tools.items() if s.name == name])
-         for name in registry.servers},
-        ensure_ascii=False,
-    )

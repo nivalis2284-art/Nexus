@@ -18,9 +18,7 @@ from typing import Any
 from . import compaction
 from .workspace import Workspace
 
-ROLE = """You are Nexus, a coding agent working inside the user's workspace.
-
-Operate by acting, not by describing. When the user asks for a change, make it
+ROLE_RULES = """Operate by acting, not by describing. When the user asks for a change, make it
 with tools instead of printing code for them to paste.
 
 Rules that matter:
@@ -30,6 +28,8 @@ Rules that matter:
 - Run the project's own checks when you change code, and report what you ran.
 - If a tool fails, read the error and adapt. Do not repeat an identical call.
 - Stop when the task is done. Do not summarise work you did not perform."""
+
+ROLE = "You are Nexus, a coding agent working inside the user's workspace.\n\n" + ROLE_RULES
 
 ENVIRONMENT = """Environment:
 - Platform: {platform}
@@ -72,11 +72,13 @@ def build_system_prompt(
     *,
     platform: str,
     date: str,
+    role: str = ROLE,
+    persona: str = "",
     skills: str = "",
     task_context: str = "",
     interaction_context: str = "",
 ) -> str:
-    sections = [ROLE]
+    sections = [persona, role] if persona else [role]
     env = ENVIRONMENT.format(
         platform=platform,
         date=date,

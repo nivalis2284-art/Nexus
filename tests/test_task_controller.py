@@ -178,3 +178,35 @@ def test_rejected_pause_keeps_a_queued_task(tmp_path):
     finally:
         release.set()
         controller.close()
+
+
+def test_cancel_while_a_slow_worker_still_owns_the_task_stays_cancelled(tmp_path):
+    entered = threading.Event()
+    release = threading.Event()
+
+    def run(item, cancel):
+        entered.set()
+        release.wait(3)
+        return "paused"
+
+    store, controller = make(tmp_path, run)
+    try:
+        item = task(store, "slow cancel")
+        controller.submit(item.id, request_id="slow-cancel-start")
+        assert entered.wait(3)
+        real_wait = controller._wait_inactive
+        controller._wait_inactive = lambda task_id: real_wait(task_id, timeout=0.2)
+
+        cancelled = controller.cancel(item.id, request_id="slow-cancel")
+
+        assert cancelled.state == "cancelled"
+        assert store.get(item.id).state == "cancelled"
+        release.set()
+        deadline = time.monotonic() + 3
+        while controller.active_task == item.id and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert controller.active_task is None
+        assert store.get(item.id).state == "cancelled"
+    finally:
+        release.set()
+        controller.close()

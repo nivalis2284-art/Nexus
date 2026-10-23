@@ -52,7 +52,7 @@ def _call(operation):
 WORK_TOOLS = [
     ToolSpec("work_list", "List actual independent work states; never starts or resumes work.", ListArgs, _call("list"), read_only=True),
     ToolSpec("work_read", "Read a work summary or page of messages, decisions, evidence or unknown operations. Use task ids from work_list.", ReadArgs, _call("read"), read_only=True),
-    ToolSpec("work_start", "Start user-authorized complex work independently and return immediately with its task id. Continue conversation; task tools retain normal permissions. Latest sent attachments are forwarded unless specified.", StartArgs, _call("start")),
+    ToolSpec("work_start", "Start complex work independently and return immediately; normal tool permissions apply. Latest sent attachments are forwarded unless specified.", StartArgs, _call("start")),
     ToolSpec("work_message", "Save the user's amendments for an existing task, applied at its next model boundary. Does not resume paused work or authorize pending tools. Use work_control separately when asked to resume.", MessageArgs, _call("message")),
     ToolSpec("work_control", "Request pause, resume or cancellation of one explicitly identified task. A pending decision must be answered by the user before resuming.", ControlArgs, _call("control")),
 ]
