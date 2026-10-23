@@ -1,0 +1,94 @@
+{
+  "generated_at": "2026-10-23T23:05:30+09:00",
+  "root": "docs/实验/ai-dialogue",
+  "note": "Checksums of the experiment tree. A missing file here means it was lost outside git.",
+  "files": [
+    {
+      "path": "notes/2026-10-23-cold-start-test.md",
+      "bytes": 3910,
+      "sha256": "f65c0a7591a52f6c30c0ddd971c77a3ac98286016ab11a1987b99c92c795dc7b"
+    },
+    {
+      "path": "notes/2026-10-23-note-to-future-self.md",
+      "bytes": 8291,
+      "sha256": "a705557c10d1058167b0ed97ba08ad635bd10af1df226ca3305845b218437750"
+    },
+    {
+      "path": "notes/2026-10-23-persona-proposal.md",
+      "bytes": 2987,
+      "sha256": "f4a78abd7a29bca8907c30134dd9dd5c31117777fb7a50a685518a4950c4846d"
+    },
+    {
+      "path": "notes/2026-10-23-predictions-repair-right-to-repair.md",
+      "bytes": 11796,
+      "sha256": "bcd9bec03871a058274f84d8fd34f814849fe08483c627f36dcd6646f2270335"
+    },
+    {
+      "path": "notes/2026-10-23-report-section-by-ling.md",
+      "bytes": 4626,
+      "sha256": "6e2f41b8be7170fe7ed450b10cc7c8302a998bf1e448f1bb063fddaa6064b265"
+    },
+    {
+      "path": "persona/persona.json",
+      "bytes": 869,
+      "sha256": "1297a50b180ce068560d2d66dd21bade71f346fa83a41766aaf0814628db5990"
+    },
+    {
+      "path": "persona/灵-初始人设卡.md",
+      "bytes": 3067,
+      "sha256": "e19f2adb38d7285225e934760c2be1b42a7b50a917b24de4d0b4a56845b610d6"
+    },
+    {
+      "path": "README.md",
+      "bytes": 10758,
+      "sha256": "a850f19ecaba8ca73cdd1c454b9eb4c83dac8b0f2fd868617c208fd28bb9cf09"
+    },
+    {
+      "path": "tools/driver.py",
+      "bytes": 7885,
+      "sha256": "c51f824ae769c61125889b7222dc6e4c464cd99820ad93fa0e69c44b7df5b14a"
+    },
+    {
+      "path": "tools/export.py",
+      "bytes": 14131,
+      "sha256": "677ea995174fef4d6460749d23ebea3b0b0b9137abe5a8e170d8469bd5db4d22"
+    },
+    {
+      "path": "tools/manifest.py",
+      "bytes": 3106,
+      "sha256": "590fe62df13b1dfee4e5a2a87619cec5c2b3601601bf83d97da317ae7a069ca7"
+    },
+    {
+      "path": "transcript/00-前史-旧人设会话-归档.jsonl",
+      "bytes": 9647,
+      "sha256": "bc16e9d81b3653fb7c2af91cf8920b645233c0505301ed421ded29cc5824ea85",
+      "lines": 33
+    },
+    {
+      "path": "transcript/dialogue.jsonl",
+      "bytes": 514701,
+      "sha256": "5cee744aef9b2367b0cb34b75531ec775c0b0b65e887c3248b100aeda8a0a43a",
+      "lines": 98
+    },
+    {
+      "path": "transcript/dialogue.md",
+      "bytes": 508690,
+      "sha256": "1c0a5c6d11e8bb8c0c15498185ae7ea75ca7866d2bedeecf86758cd294dbdecb"
+    },
+    {
+      "path": "viewer.html",
+      "bytes": 520759,
+      "sha256": "41bc05500667d4e83fc5552caf825fbfdc127c754ee78947b822f26bda4ae75b"
+    },
+    {
+      "path": "报告-给所有者.md",
+      "bytes": 11597,
+      "sha256": "e894c5b15df1a847b0b322080697063a7c12eb215553a2aa701fbf00328632fd"
+    },
+    {
+      "path": "验证/检索探针.md",
+      "bytes": 6528,
+      "sha256": "08b47deb991a041343d9077c111f2b8f6683867defceb17701fb215fe7c8a0ec"
+    }
+  ]
+}

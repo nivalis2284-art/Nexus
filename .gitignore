@@ -23,3 +23,6 @@ dist/
 # Local DSH agent skills and harness state: workspace-private, never pushed.
 .dsh/
 
+# Local agent working memory: workspace-private, never pushed.
+.workbuddy-ai/
+
