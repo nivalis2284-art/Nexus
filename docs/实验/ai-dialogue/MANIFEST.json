@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-23T23:33:32+09:00",
+  "generated_at": "2026-10-24T03:50:39+09:00",
   "root": "docs/实验/ai-dialogue",
   "note": "Checksums of the experiment tree. A missing file here means it was lost outside git.",
   "files": [
@@ -40,8 +40,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 10753,
-      "sha256": "653deb123f34a232e3e56a5a1b11aef84eff6224b585bd731506ef55d7d314b2"
+      "bytes": 14729,
+      "sha256": "9b847c6fd7ca2998adab5b0613dc1c3f304621450b7cbcfe8248c0d0f02a9663"
     },
     {
       "path": "tools/driver.py",
@@ -66,24 +66,24 @@
     },
     {
       "path": "transcript/dialogue.jsonl",
-      "bytes": 514701,
-      "sha256": "5cee744aef9b2367b0cb34b75531ec775c0b0b65e887c3248b100aeda8a0a43a",
-      "lines": 98
+      "bytes": 720159,
+      "sha256": "0569d369a06b703dd96a780a5fad2a308df8a0147984c9106eeb1268c6b21c8b",
+      "lines": 164
     },
     {
       "path": "transcript/dialogue.md",
-      "bytes": 508690,
-      "sha256": "1c0a5c6d11e8bb8c0c15498185ae7ea75ca7866d2bedeecf86758cd294dbdecb"
+      "bytes": 709696,
+      "sha256": "de94205650903b257e1838153b4d5be9d29851e54d6e3cc651682033c7c13b17"
     },
     {
       "path": "viewer.html",
-      "bytes": 520759,
-      "sha256": "41bc05500667d4e83fc5552caf825fbfdc127c754ee78947b822f26bda4ae75b"
+      "bytes": 726217,
+      "sha256": "b416813646588b4647c27595649cb7780397dc93b6799cccf4e390ccb7c92153"
     },
     {
       "path": "报告-给所有者.md",
-      "bytes": 11862,
-      "sha256": "c9a5e863c853dd84f2009258ab714ddb5237e438b831df4f5fe0360f885c3e3c"
+      "bytes": 14445,
+      "sha256": "a579ef7ede0bb276f7fe76aa76f8c0682bed82a414102151f77ad1b5a11d884a"
     },
     {
       "path": "验证/检索探针.md",
