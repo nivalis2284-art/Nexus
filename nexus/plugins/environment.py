@@ -11,6 +11,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -165,6 +166,9 @@ def prepare(
         command.extend(["-e", str(package_path)])
     if on_progress is not None:
         on_progress("Installing plugin dependencies...")
-    _run(command, cwd=plugin_dir, action="Installing plugin dependencies")
+    # pip creates tracked temporary folders beside its working directory.
+    # Keep those out of the version-controlled plugin program directory.
+    with tempfile.TemporaryDirectory(prefix="nexus-plugin-pip-") as scratch:
+        _run(command, cwd=Path(scratch), action="Installing plugin dependencies")
     _write_stamp(stamp_path, expected_stamp)
     return python

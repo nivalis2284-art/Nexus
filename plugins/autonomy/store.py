@@ -407,8 +407,13 @@ class PluginStore:
 
 def _backup_database(source: Path, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(source, timeout=10) as src, sqlite3.connect(target) as dst:
+    src = sqlite3.connect(source, timeout=10)
+    dst = sqlite3.connect(target)
+    try:
         src.backup(dst)
+    finally:
+        src.close()
+        dst.close()
 
 
 def _legacy_feedback_cursor(path: Path) -> int | None:

@@ -645,7 +645,9 @@ class PluginManager:
         if source.exists():
             backup = self.home / 'plugins-migration-backup' / 'automation.sqlite3'
             backup.parent.mkdir(parents=True, exist_ok=True)
-            with sqlite3.connect(source) as old, sqlite3.connect(backup) as copy:
+            old = sqlite3.connect(source)
+            copy = sqlite3.connect(backup)
+            try:
                 old.backup(copy)
                 old.row_factory = sqlite3.Row
                 if old.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='runs'").fetchone():
@@ -658,7 +660,10 @@ class PluginManager:
                         status = value.get('status', 'pending')
                         self.events.update(event['id'], status='interrupted' if status == 'running' else status,
                             result={'reply': value.get('reply', ''), 'summary': value.get('summary', '')},
-                            error=value.get('error', ''))
+                            error=str(value.get('error') or ''))
+            finally:
+                old.close()
+                copy.close()
         self.events.metadata('legacy_events_imported', '1')
 
     def close(self):

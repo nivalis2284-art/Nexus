@@ -80,6 +80,9 @@ def test_dependencies_create_a_venv_and_are_installed_without_a_shell(tmp_path, 
     install = runner.calls[1]
     assert install[:5] == [str(python), "-m", "pip", "install", "--disable-pip-version-check"]
     assert install[5:] == ["httpx>=0.28", "pydantic>=2.8"]
+    install_call = runner.kwargs[1]
+    assert Path(install_call["cwd"]).name.startswith("nexus-plugin-pip-")
+    assert Path(install_call["cwd"]).parent != plugin_dir
     for call in runner.kwargs:
         assert call["shell"] is False
         assert call["capture_output"] is True

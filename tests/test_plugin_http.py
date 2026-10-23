@@ -136,11 +136,12 @@ def test_existing_activity_migration_preserves_results_and_does_not_replay(tmp_p
     with sqlite3.connect(source) as db:
         db.execute('''CREATE TABLE runs (id TEXT,status TEXT,reasons TEXT,prompt TEXT,
             notify INTEGER,kind TEXT,summary TEXT,reply TEXT,error TEXT,created_at TEXT,read_at TEXT)''')
-        for event_id, status, reply in [('finished', 'done', 'old reply'), ('waiting', 'pending', ''),
-                                        ('in-progress', 'running', '')]:
+        for event_id, status, reply, error in [('finished', 'done', 'old reply', ''),
+                                                ('waiting', 'pending', '', None),
+                                                ('in-progress', 'running', '', '')]:
             db.execute('INSERT INTO runs VALUES(?,?,?,?,?,?,?,?,?,?,?)',
                        (event_id, status, '[{"type":"task"}]', 'original instruction', 1, 'task',
-                        '', reply, '', '2026-10-23T01:00:00+00:00', '2026-10-23T02:00:00+00:00'))
+                        '', reply, error, '2026-10-23T01:00:00+00:00', '2026-10-23T02:00:00+00:00'))
     manager = PluginManager({'store': config}, root=tmp_path / 'plugins')
     manager._migrate_events()
     manager._migrate_events()
@@ -150,6 +151,7 @@ def test_existing_activity_migration_preserves_results_and_does_not_replay(tmp_p
     assert values['finished']['result']['reply'] == 'old reply'
     assert values['finished']['data']['read_at'] == '2026-10-23T02:00:00+00:00'
     assert values['waiting']['status'] == 'pending' and values['waiting']['reply_required']
+    assert values['waiting']['error'] == ''
     assert values['in-progress']['status'] == 'interrupted'
     assert (config.home / 'plugins-migration-backup' / 'automation.sqlite3').exists()
     with sqlite3.connect(source) as db:

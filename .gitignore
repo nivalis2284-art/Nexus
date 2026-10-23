@@ -11,6 +11,7 @@ attachments/
 .codex-remote-attachments/
 nexus-wakeup-staged-*/
 plugins/*/scheduler.sqlite3
+plugins/*/pip-*/
 docs/evidence/plugin-acceptance/_tmp/
 pip-install-*/
 pip-ephem-wheel-cache-*/
