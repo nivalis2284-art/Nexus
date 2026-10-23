@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-23T23:05:30+09:00",
+  "generated_at": "2026-10-23T23:33:32+09:00",
   "root": "docs/实验/ai-dialogue",
   "note": "Checksums of the experiment tree. A missing file here means it was lost outside git.",
   "files": [
@@ -40,8 +40,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 10758,
-      "sha256": "a850f19ecaba8ca73cdd1c454b9eb4c83dac8b0f2fd868617c208fd28bb9cf09"
+      "bytes": 10753,
+      "sha256": "653deb123f34a232e3e56a5a1b11aef84eff6224b585bd731506ef55d7d314b2"
     },
     {
       "path": "tools/driver.py",
@@ -82,8 +82,8 @@
     },
     {
       "path": "报告-给所有者.md",
-      "bytes": 11597,
-      "sha256": "e894c5b15df1a847b0b322080697063a7c12eb215553a2aa701fbf00328632fd"
+      "bytes": 11862,
+      "sha256": "c9a5e863c853dd84f2009258ab714ddb5237e438b831df4f5fe0360f885c3e3c"
     },
     {
       "path": "验证/检索探针.md",
