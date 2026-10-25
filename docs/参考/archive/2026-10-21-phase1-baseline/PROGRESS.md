@@ -21,7 +21,7 @@
 
 清理对象为版本跟踪的验证日志、重复快照、逐工具记录、中间截图与临时数据。保留最小可复现输入、关键失败/成功结果、代表性界面和验证摘要。原始详细过程仍可按旧提交和路径读取，不改写 Git 历史。
 
-[证据索引](../../../evidence/README.md)和[第一轮](../../../evidence/autonomy/2026-10-21/round-summary.md)、[第二轮](../../../evidence/autonomy/2026-10-21-round2/round-summary.md)摘要列出保留集合、失败、费用和 Git 追溯方法。用户附件、`.nexus-data` 日常数据、原始隔离验证 home 和既有未跟踪目录不属于待删除记录。新的完整测试日志只写入被 Git 忽略的 `.artifacts/maintenance/`，不再次提交。
+[证据索引](../2026-10-25-evidence/README.md)和[第一轮](../2026-10-25-evidence/autonomy/2026-10-21/round-summary.md)、[第二轮](../2026-10-25-evidence/autonomy/2026-10-21-round2/round-summary.md)摘要列出保留集合、失败、费用和 Git 追溯方法。用户附件、`.nexus-data` 日常数据、原始隔离验证 home 和既有未跟踪目录不属于待删除记录。新的完整测试日志只写入被 Git 忽略的 `.artifacts/maintenance/`，不再次提交。
 
 ## 本轮必要验证
 

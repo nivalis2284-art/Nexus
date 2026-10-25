@@ -202,8 +202,8 @@
 | P3-2 | 审批/提问用过期 `control_version` 落库，永久不可作答 | [`nexus/runtime/callbacks.py:415-418`](../../../../nexus/runtime/callbacks.py#L415-L418)、[:428-432](../../../../nexus/runtime/callbacks.py#L428-L432)、[`nexus/task/store.py:922-940`](../../../../nexus/task/store.py#L922-L940)、[:994](../../../../nexus/task/store.py#L994) | 版本号在事务外先读再传参；亚毫秒窗口撞上暂停/取消后，该审批永远 409，`task_finish` 永远被拒，只能取消再 reopen | 把版本号读取移进 `interaction_create` 的同一事务（与 `request_confirmation` 一致） |
 | P3-3 | 挂起用固定的 `wait-{task_id}` 作 request_id | [`nexus/runtime/assembly.py:303-305`](../../../../nexus/runtime/assembly.py#L303-L305)、[:369-384](../../../../nexus/runtime/assembly.py#L369-L384) | 第二次挂起是空操作（状态仍 running），`finally` 因此判定为非等待 → `close_all()` **杀掉仍在运行的后台命令** | request_id 加自增序号，或改用 interaction id |
 | P3-4 | 人设 `SKILL.md` 非 UTF-8 时灵每次请求都失败 | [`nexus/persona.py:94-96`](../../../../nexus/persona.py#L94-L96) | 第 94 行用容错读取，第 96 行又严格 `read_text(encoding="utf-8")`；GBK 保存的条目会让 `before_model` 抛 `UnicodeDecodeError`，灵不回复、`/api/persona` 500，页面上也无法修 | 第 96 行加 `errors="replace"`，与 `skills._read_skill_file` 一致 |
-| P3-5 | 网页监听回调失败时不推进 `next_check_at` | [`services/scheduler/src/nexus_scheduler/runtime.py:187-190`](../../../../services/scheduler/src/nexus_scheduler/runtime.py#L187-L190) | 交付失败直接 `return`，跳过 `record_watch`；调度循环 1 s 一次 → 持续重读目标站点，且 `error` 仍为空，界面看不出异常 | 失败时也推进 `next_check_at` 并记录错误 |
-| P3-6 | 网页正文无长度上限进入唤醒载荷 | [`services/scheduler/src/nexus_scheduler/webpage.py`](../../../../services/scheduler/src/nexus_scheduler/webpage.py)（`_normalize_text`）→ [`automation/runtime.py:157-174`](../../../../nexus/automation/runtime.py#L157-L174) | 大页面变化时整页正文进 system 提示，可能超上下文导致该 run 失败；而基线已推进，用户收不到汇报 | 对 `before/after` 截断到固定长度 |
+| P3-5 | 网页监听回调失败时不推进 `next_check_at` | [`services/scheduler/src/nexus_scheduler/runtime.py:187-190`](../2026-10-23-plugin-migration/legacy-source/services/scheduler/src/nexus_scheduler/runtime.py#L187-L190) | 交付失败直接 `return`，跳过 `record_watch`；调度循环 1 s 一次 → 持续重读目标站点，且 `error` 仍为空，界面看不出异常 | 失败时也推进 `next_check_at` 并记录错误 |
+| P3-6 | 网页正文无长度上限进入唤醒载荷 | [`services/scheduler/src/nexus_scheduler/webpage.py`](../2026-10-23-plugin-migration/legacy-source/services/scheduler/src/nexus_scheduler/webpage.py)（`_normalize_text`）→ [`automation/runtime.py:157-174`](../2026-10-23-plugin-migration/legacy-source/nexus/automation/runtime.py#L157-L174) | 大页面变化时整页正文进 system 提示，可能超上下文导致该 run 失败；而基线已推进，用户收不到汇报 | 对 `before/after` 截断到固定长度 |
 
 ---
 
@@ -216,7 +216,7 @@
 | 终态可互相覆盖（`cancelled → completed`、`completed → paused` 等） | [`nexus/task/store.py:649-686`](../../../../nexus/task/store.py#L649-L686)、[:614-617](../../../../nexus/task/store.py#L614-L617) | 前端已隐藏这些按钮，仅直接调 API 可达；无真实使用路径 |
 | `claim_schedule` 不校验排期版本 | [`nexus/task/store.py:1520-1554`](../../../../nexus/task/store.py#L1520-L1554) | 窗口在一次 tick 的两条语句之间，毫秒级 |
 | MCP 工具表在事件循环线程改写、agent 线程同时遍历 | [`nexus/mcp.py:240-254`](../../../../nexus/mcp.py#L240-L254)、[:490-499](../../../../nexus/mcp.py#L490-L499) | 需服务器主动发 `tools/list_changed` 且恰逢构建工具集；窗口极小 |
-| 调度 MCP 子进程退出后不自动重建连接 | [`nexus/automation/service.py:38-53`](../../../../nexus/automation/service.py#L38-L53) | 页面有错误文案，设置页可手动重连；自动重连需要额外生命周期设计 |
+| 调度 MCP 子进程退出后不自动重建连接 | [`nexus/automation/service.py:38-53`](../2026-10-23-plugin-migration/legacy-source/nexus/automation/service.py#L38-L53) | 页面有错误文案，设置页可手动重连；自动重连需要额外生命周期设计 |
 | 非 `ValueError`/`OSError` 异常导致“零响应” | [`nexus/web/server.py:830-833`](../../../../nexus/web/server.py#L830-L833) | 自带前端不会发出非法类型；属对外接口健壮性，等真有外部调用方再补 |
 | 未消费的请求体污染 keep-alive | [`nexus/web/server.py:252-253`](../../../../nexus/web/server.py#L252-L253) | 自带前端不发 DELETE body；另一触发条件是 >57 MB 的单条消息 |
 | 已发 200 后再写一个 500（chunked 流） | [`nexus/web/server.py:1068-1096`](../../../../nexus/web/server.py#L1068-L1096) | 只在会话落盘失败时出现，错误已可见 |
@@ -246,14 +246,14 @@
 | 压缩结果不落盘，跨轮压缩等于没做 | [`nexus/core/agent.py:373-386`](../../../../nexus/core/agent.py#L373-L386) | 代价是每轮多一次摘要调用（成本），不是正确性问题；修它要把摘要消息纳入 JSONL 持久化，改动面大 |
 | `jobs` 表以 `job_00N` 为主键，跨任务互相覆盖 | [`nexus/task/store.py:748-771`](../../../../nexus/task/store.py#L748-L771)、[`nexus/tools/_jobs.py:183`](../../../../nexus/tools/_jobs.py#L183) | 只影响任务页的作业审计展示，模型执行读的是 live registry；改主键需要表结构迁移 |
 | 交互回答在模型 transcript 中被移到末尾 | [`nexus/task/store.py:1404-1436`](../../../../nexus/task/store.py#L1404-L1436) | 会让模型看到因果顺序错位，但“把回答放到末尾”可能是有意保证审批语义；需先确认设计意图再改 |
-| 网页读取无总超时，单次挂起会阻塞整个调度循环 | [`services/scheduler/src/nexus_scheduler/runtime.py:74-76`](../../../../services/scheduler/src/nexus_scheduler/runtime.py#L74-L76) | 需真实浏览器才能复现挂起；修法是加超时并重建 executor，改动中等，等实际出现再处理 |
+| 网页读取无总超时，单次挂起会阻塞整个调度循环 | [`services/scheduler/src/nexus_scheduler/runtime.py:74-76`](../2026-10-23-plugin-migration/legacy-source/services/scheduler/src/nexus_scheduler/runtime.py#L74-L76) | 需真实浏览器才能复现挂起；修法是加超时并重建 executor，改动中等，等实际出现再处理 |
 | 工具参数 JSON 被截断时整轮硬失败、同帧合法调用一起丢失 | [`nexus/model/_parsers.py:111-112`](../../../../nexus/model/_parsers.py#L111-L112) | 需要模型输出被截断才触发（大文件写入）；修法涉及解析器容错与 agent 的部分提交语义，风险高于收益 |
 
 ## D. 需要产品决定，不是纯技术缺陷
 
 | 事项 | 位置 | 待定问题 |
 | --- | --- | --- |
-| 一次性安排“错过”语义未实现，重启即补发 | [`services/scheduler/src/nexus_scheduler/store.py:390-396`](../../../../services/scheduler/src/nexus_scheduler/store.py#L390-L396) | 现有测试就是这样断言的；“错过→等待确认”目前只落在持久任务的一次性安排。唤醒是否也该如此，需要所有者定义 |
+| 一次性安排“错过”语义未实现，重启即补发 | [`services/scheduler/src/nexus_scheduler/store.py:390-396`](../2026-10-23-plugin-migration/legacy-source/services/scheduler/src/nexus_scheduler/store.py#L390-L396) | 现有测试就是这样断言的；“错过→等待确认”目前只落在持久任务的一次性安排。唤醒是否也该如此，需要所有者定义 |
 | 重启后 unknown 操作不阻止再次派发 | [`nexus/runtime/callbacks.py:155-177`](../../../../nexus/runtime/callbacks.py#L155-L177) | 当前靠“不自动重放 + 重新审批”约束；是否要硬闸门属产品取舍 |
 | 任务续跑循环无迭代上限 | [`nexus/runtime/assembly.py:290-294`](../../../../nexus/runtime/assembly.py#L290-L294) | 模型每次都正常收尾却不调 `task_finish` 时会一直续跑；这是“去掉固定轮数”的已知代价，是否设上限需产品确认 |
 

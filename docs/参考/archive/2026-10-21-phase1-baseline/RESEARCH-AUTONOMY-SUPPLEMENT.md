@@ -1,6 +1,6 @@
 # LingNexus 自主性：方案 A、三源触发与可替换能力增量研究（4A）
 
-研究日期：2026-10-21（Asia/Tokyo）。Nexus 源码基线：[`7d6293a`](https://github.com/nivalis2284-art/Nexus/commit/7d6293a67907d9395f539a1a86027f104c8d6b4f)。本文与 [原研究](RESEARCH.md)并存；依据 [主 PRD](PRD.md)和[补充 PRD](PRD-AUTONOMY-SUPPLEMENT.md)，参照 [PRODUCT](PRODUCT.md)、[ROADMAP](ROADMAP.md)及两份[概念与原则](../../../愿景/01-概念与原则.md)、[抽象需求](../../../愿景/02-抽象需求.md)。
+研究日期：2026-10-21（Asia/Tokyo）。Nexus 源码基线：[`7d6293a`](https://github.com/nivalis2284-art/Nexus/commit/7d6293a67907d9395f539a1a86027f104c8d6b4f)。本文与 [原研究](RESEARCH.md)并存；依据 [主 PRD](PRD.md)和[补充 PRD](PRD-AUTONOMY-SUPPLEMENT.md)，参照 [PRODUCT](PRODUCT.md)、[ROADMAP](ROADMAP.md)及两份[概念与原则](../../../愿景/01-概念与原则.md)、[抽象需求](../../../愿景/02-具象理想.md)。
 
 **阶段边界：仅增量 4A 研究与方案取舍。** 方案 A 已作为本轮研究主方向，下面的具体架构、运行授权与验证预算仍待所有者确认。未修改业务代码，未部署监听器，未运行 Nexus 付费模型或自主性实验；源码检查不等于运行实测。三名 DeepSeek high 子代理分别调查本地 DSH、MCP 与外部架构、Nexus 接入，主代理负责三源协调设计、证据复核与综合取舍。
 

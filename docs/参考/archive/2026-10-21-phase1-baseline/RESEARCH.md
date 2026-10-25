@@ -1,6 +1,6 @@
 # LingNexus · 第一版自主性雏形：可实施方案研究与取舍（4A）
 
-研究日期：2026-10-20（Asia/Tokyo）。本地源码基线：[`aae0635`](https://github.com/nivalis2284-art/Nexus/commit/aae06351912b8fb0e031d3d2ee6e374737c1f045)。需求依据：[PRD](PRD.md)、[PRODUCT](PRODUCT.md)、[ROADMAP](ROADMAP.md)、[概念与原则](../../../愿景/01-概念与原则.md)、[抽象需求](../../../愿景/02-抽象需求.md)。
+研究日期：2026-10-20（Asia/Tokyo）。本地源码基线：[`aae0635`](https://github.com/nivalis2284-art/Nexus/commit/aae06351912b8fb0e031d3d2ee6e374737c1f045)。需求依据：[PRD](PRD.md)、[PRODUCT](PRODUCT.md)、[ROADMAP](ROADMAP.md)、[概念与原则](../../../愿景/01-概念与原则.md)、[抽象需求](../../../愿景/02-具象理想.md)。
 
 **状态：4A 研究与方案选型完成，推荐方向待所有者确认；未进入 4B 计划或开发。** 本轮只新增研究文档，不修改业务代码、不运行自主性原型、不开展付费模型实验。三名 DeepSeek high 子代理分别调查源码适配、目标形成证据、用户体验与验收，主代理复核、整合并承担最终选型判断。
 

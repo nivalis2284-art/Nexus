@@ -5,7 +5,7 @@ Run with: .venv\\Scripts\\python.exe tests/browser_plugin_acceptance.py
 The server is web.Handler over a temporary ConfigStore, TaskStore and plugin
 root. It uses the installed Edge through Playwright, a fixed localhost port and
 no model endpoint. Screenshots and a short result log go to
-docs/evidence/plugin-acceptance.
+docs/参考/archive/2026-10-25-evidence/plugin-acceptance.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ from nexus.web import server as web
 from http.server import ThreadingHTTPServer
 
 
-EVIDENCE = ROOT / "docs" / "evidence" / "plugin-acceptance"
+EVIDENCE = ROOT / "docs" / "参考" / "archive" / "2026-10-25-evidence" / "plugin-acceptance"
 PORT = 18766
 
 
