@@ -1,0 +1,2048 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>记忆 · Nexus</title>
+<style>
+  :root {
+    --bg:#f7f5ef; --paper:#fffefa; --panel:#f1eee5; --line:#ddd8cc;
+    --ink:#24261f; --ink-2:#555a4e; --muted:#858779; --accent:#4f6c55;
+    --accent-2:#37513d; --accent-soft:#e9f0e7; --good:#3f7149;
+    --warn:#9a6828; --warn-soft:#fbf1df; --bad:#a6473e; --bad-soft:#fbeceb;
+    --shadow:0 8px 30px rgba(56,59,46,.07);
+  }
+  * { box-sizing:border-box; }
+  html { min-height:100%; background:var(--bg); }
+  body {
+    margin:0; min-height:100%; color:var(--ink);
+    font:14px/1.6 "Segoe UI","Microsoft YaHei",-apple-system,system-ui,sans-serif;
+    background:
+      radial-gradient(circle at 12% 0%, rgba(226,234,218,.75), transparent 34rem),
+      radial-gradient(circle at 100% 12%, rgba(243,232,213,.6), transparent 30rem),
+      var(--bg);
+  }
+  button,input,select,textarea { font:inherit; }
+  button { cursor:pointer; }
+  button:disabled { cursor:not-allowed; opacity:.55; }
+  [hidden] { display:none !important; }
+  .shell { max-width:1120px; margin:0 auto; padding:28px 24px 64px; }
+  .hero {
+    display:flex; flex-wrap:wrap; align-items:flex-start; gap:18px;
+    margin-bottom:20px; padding:4px 2px;
+  }
+  .hero-copy { flex:1 1 520px; min-width:0; }
+  .eyebrow {
+    margin:0 0 6px; color:var(--accent); font-size:11px; font-weight:700;
+    letter-spacing:.16em; text-transform:uppercase;
+  }
+  h1 { margin:0 0 7px; font-size:28px; line-height:1.2; letter-spacing:-.02em; }
+  .lede { max-width:690px; margin:0; color:var(--ink-2); font-size:13px; }
+  .hero-actions { display:flex; gap:8px; padding-top:8px; }
+  .page-status {
+    min-height:24px; margin:0 0 16px; padding:8px 11px;
+    border:1px solid transparent; border-radius:9px; color:var(--ink-2);
+    font-size:12px; background:rgba(255,255,255,.45);
+  }
+  .page-status:empty { visibility:hidden; }
+  .page-status.is-success { border-color:#caddc7; background:#f0f7ee; color:var(--good); }
+  .page-status.is-error { border-color:#efd0cc; background:var(--bad-soft); color:var(--bad); }
+  .page-status.is-busy { border-color:#e5d9c2; background:var(--warn-soft); color:var(--warn); }
+  .area {
+    margin:0 0 20px; border:1px solid var(--line); border-radius:18px;
+    background:rgba(255,254,250,.86); box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  .area-head {
+    display:flex; align-items:flex-start; gap:12px;
+    padding:18px 20px 14px; border-bottom:1px solid #e8e3d9;
+  }
+  .area-number {
+    flex:none; display:grid; place-items:center; width:27px; height:27px;
+    border-radius:50%; background:var(--accent-soft); color:var(--accent-2);
+    font-size:11px; font-weight:700;
+  }
+  .area-title { flex:1; min-width:0; }
+  .area-title h2 { margin:0; font-size:16px; letter-spacing:-.01em; }
+  .area-title p { margin:3px 0 0; color:var(--muted); font-size:12px; }
+  .area-body { padding:18px 20px 20px; }
+  .layout-2 { display:grid; grid-template-columns:minmax(0,1.12fr) minmax(290px,.88fr); gap:16px; }
+  .card {
+    min-width:0; padding:15px; border:1px solid var(--line);
+    border-radius:12px; background:var(--paper);
+  }
+  .card.soft { background:#fbfaf5; }
+  .card h3 { margin:0 0 3px; font-size:13px; }
+  .card-note { margin:0 0 12px; color:var(--muted); font-size:11.5px; }
+  .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:11px 12px; }
+  label.field { display:flex; flex-direction:column; gap:4px; min-width:0; color:var(--ink-2); font-size:12px; }
+  label.wide, .wide { grid-column:1/-1; }
+  input, select, textarea {
+    width:100%; min-width:0; border:1px solid #d9d4c8; border-radius:8px;
+    padding:7px 9px; background:#fff; color:var(--ink); outline:none;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color:#9bb29d; box-shadow:0 0 0 3px rgba(79,108,85,.1);
+  }
+  input::placeholder, textarea::placeholder { color:#a4a496; }
+  textarea { min-height:70px; resize:vertical; }
+  label.check { display:flex; align-items:flex-start; gap:8px; color:var(--ink-2); font-size:12px; }
+  label.check input { flex:none; width:15px; height:15px; margin:2px 0 0; }
+  .hint { margin:8px 0 0; color:var(--muted); font-size:11.5px; }
+  .hint strong { color:var(--ink-2); font-weight:600; }
+  .form-actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:8px; margin-top:13px; }
+  .button {
+    display:inline-flex; align-items:center; justify-content:center; gap:5px;
+    min-height:31px; padding:5px 11px; border:1px solid #d7d2c6;
+    border-radius:8px; background:#fff; color:var(--ink-2); white-space:nowrap;
+  }
+  .button:hover:not(:disabled) { border-color:#bdb7a9; background:#fcfbf7; }
+  .button.primary { border-color:#9eaf9f; background:var(--accent); color:#fff; }
+  .button.primary:hover:not(:disabled) { border-color:var(--accent-2); background:var(--accent-2); }
+  .button.soft { border-color:#cbd8c8; background:var(--accent-soft); color:var(--accent-2); }
+  .button.small { min-height:26px; padding:2px 8px; font-size:11.5px; }
+  .button.link { min-height:auto; padding:1px 0; border:0; background:transparent; color:var(--accent); }
+  .button.link:hover:not(:disabled) { color:var(--accent-2); text-decoration:underline; }
+  .button.danger { color:var(--bad); }
+  .badge {
+    display:inline-flex; align-items:center; gap:5px; padding:2px 8px;
+    border-radius:99px; background:#ecebe5; color:var(--ink-2);
+    font-size:11px; font-weight:600; white-space:nowrap;
+  }
+  .badge::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; opacity:.7; }
+  .badge.good { background:#edf6ea; color:var(--good); }
+  .badge.warn { background:var(--warn-soft); color:var(--warn); }
+  .badge.bad { background:var(--bad-soft); color:var(--bad); }
+  .badge.muted { background:#efeee8; color:var(--muted); }
+  .status-top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+  .status-top h3 { margin:0; }
+  .info-list { display:grid; gap:7px; margin:0; }
+  .info-row { display:grid; grid-template-columns:88px minmax(0,1fr); gap:9px; align-items:start; font-size:12px; }
+  .info-row dt { color:var(--muted); }
+  .info-row dd { min-width:0; margin:0; color:var(--ink-2); overflow-wrap:anywhere; }
+  .info-row dd.mono { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:11.5px; }
+  .section-label {
+    display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+    margin:15px 0 7px; color:var(--ink-2); font-size:11.5px; font-weight:650;
+  }
+  .section-label span { color:var(--muted); font-weight:400; }
+  .states { display:flex; flex-wrap:wrap; gap:6px; }
+  .state-chip {
+    padding:5px 8px; border:1px solid #e0dcd0; border-radius:8px;
+    background:#fbfaf5; color:var(--ink-2); font-size:11.5px;
+  }
+  .state-chip b { margin-left:4px; color:var(--ink); font-weight:650; }
+  .versions { display:flex; flex-direction:column; gap:6px; }
+  .version-row {
+    display:flex; align-items:center; gap:8px; padding:6px 8px;
+    border:1px solid #e5e0d5; border-radius:8px; background:#fcfbf7;
+  }
+  .version-row.active { border-color:#cbdac7; background:#f3f8f0; }
+  .version-name {
+    flex:1; min-width:0; font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+    font-size:11.5px; overflow-wrap:anywhere;
+  }
+  .job-box { margin-top:14px; padding-top:13px; border-top:1px dashed #ddd8cc; }
+  .job-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .job-head h3 { margin:0; }
+  .job-text { min-height:19px; margin:6px 0 0; color:var(--ink-2); font-size:12px; }
+  .job-text.error { color:var(--bad); }
+  .job-text.success { color:var(--good); }
+  .data-actions { display:flex; flex-wrap:wrap; align-items:flex-end; gap:9px; margin-top:14px; }
+  .data-actions label { flex:1 1 260px; }
+  .data-actions .button { flex:none; }
+  .divider { height:1px; margin:16px 0; background:#e5dfd4; }
+  .search-bar { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  .search-field { flex:1 1 330px; }
+  .search-actions { display:flex; flex-wrap:wrap; gap:7px; }
+  .browse-line {
+    display:flex; flex-wrap:wrap; align-items:center; gap:7px;
+    margin-top:10px; padding-top:10px; border-top:1px dashed #e0dbd0;
+  }
+  .browse-line > span { margin-right:2px; color:var(--muted); font-size:11.5px; }
+  .memory-status { min-height:20px; margin:12px 0 0; color:var(--muted); font-size:12px; }
+  .memory-status.error { color:var(--bad); }
+  .collections { display:flex; flex-direction:column; gap:15px; margin-top:11px; }
+  .collection-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:6px; }
+  .collection-head h3 { margin:0; font-size:12.5px; }
+  .collection-head span { color:var(--muted); font-size:11px; }
+  .result-list { display:flex; flex-direction:column; gap:7px; }
+  .result-card {
+    padding:10px 11px; border:1px solid #e2ddd2; border-radius:10px;
+    background:#fff; transition:border-color .15s ease, background .15s ease;
+  }
+  .result-card:hover { border-color:#c9d2c4; background:#fdfefb; }
+  .result-top { display:flex; align-items:flex-start; gap:8px; }
+  .result-title {
+    flex:1; min-width:0; margin:0; font-size:12.5px; font-weight:650;
+    line-height:1.45; overflow-wrap:anywhere;
+  }
+  .result-meta { display:flex; flex-wrap:wrap; gap:3px 9px; margin-top:5px; color:var(--muted); font-size:11px; }
+  .result-meta b { color:var(--ink-2); font-weight:500; }
+  .result-preview {
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+    margin:6px 0 0; color:var(--ink-2); font-size:12px; overflow:hidden;
+    overflow-wrap:anywhere;
+  }
+  .result-actions { display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:7px; }
+  .empty {
+    margin:8px 0; padding:11px 12px; border:1px dashed #ddd8cc;
+    border-radius:9px; color:var(--muted); font-size:12px; background:#fbfaf6;
+  }
+  .empty.error { border-color:#efd0cc; background:var(--bad-soft); color:var(--bad); }
+  .memory-detail {
+    margin-top:15px; padding:14px; border:1px solid #cdd9c8;
+    border-radius:12px; background:#fbfdf9;
+  }
+  .memory-detail-head { display:flex; align-items:flex-start; gap:12px; }
+  .memory-detail-head > div { flex:1; min-width:0; }
+  .memory-detail-head h2 { margin:0; font-size:14px; overflow-wrap:anywhere; }
+  .memory-detail-meta { margin:3px 0 0; color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
+  .detail-actions { display:flex; flex-wrap:wrap; align-items:center; gap:7px; margin-top:10px; }
+  .pager {
+    display:flex; flex-wrap:wrap; align-items:center; gap:7px;
+    margin-top:10px; padding-top:9px; border-top:1px dashed #dce3d6;
+  }
+  .pager span { color:var(--muted); font-size:11px; }
+  .detail-status { min-height:19px; margin:7px 0 0; color:var(--muted); font-size:11.5px; }
+  .detail-status.error { color:var(--bad); }
+  .link-zone { margin-top:10px; }
+  .link-zone h3 { margin:0 0 6px; color:var(--ink-2); font-size:11.5px; }
+  .link-list { display:flex; flex-wrap:wrap; gap:5px; }
+  .json-panel {
+    margin-top:9px; padding:9px 10px; border:1px solid #e3e0d7;
+    border-radius:8px; background:#fff; color:var(--ink-2);
+    font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+    font-size:11.5px; line-height:1.55; overflow:auto;
+  }
+  .json-panel details { margin:2px 0; }
+  .json-panel summary { cursor:pointer; color:var(--ink-2); overflow-wrap:anywhere; }
+  .json-children { margin:2px 0 4px 15px; padding-left:9px; border-left:1px solid #ece9e1; }
+  .json-leaf { display:flex; gap:7px; align-items:flex-start; padding:1px 0; }
+  .json-key { flex:none; color:#68755f; }
+  .json-key::after { content:":"; }
+  .json-value { min-width:0; white-space:pre-wrap; overflow-wrap:anywhere; color:#43453e; }
+  .json-value.string { color:#495f48; }
+  .json-value.number { color:#87622e; }
+  .json-value.boolean { color:#6a5576; }
+  .json-value.null { color:var(--muted); font-style:italic; }
+  .raw-details { margin-top:12px; }
+  .raw-details > summary { color:var(--muted); font-size:11.5px; cursor:pointer; }
+  .run-list { display:flex; flex-direction:column; gap:8px; }
+  .run-card {
+    padding:11px 12px; border:1px solid #e2ddd2; border-radius:10px; background:#fff;
+  }
+  .run-head { display:flex; align-items:flex-start; gap:8px; }
+  .run-title { flex:1; min-width:0; margin:0; font-size:12.5px; overflow-wrap:anywhere; }
+  .run-meta { display:flex; flex-wrap:wrap; gap:3px 12px; margin-top:5px; color:var(--muted); font-size:11px; }
+  .run-meta b { color:var(--ink-2); font-weight:500; }
+  .run-error { margin:6px 0 0; color:var(--bad); font-size:11.5px; overflow-wrap:anywhere; }
+  .run-actions { display:flex; flex-wrap:wrap; gap:7px; margin-top:8px; }
+  .inline-details { margin-top:7px; }
+  .inline-details > summary { color:var(--muted); font-size:11px; cursor:pointer; }
+  .export-actions { display:flex; flex-wrap:wrap; align-items:center; gap:9px; }
+  .export-note { flex:1 1 320px; margin:0; color:var(--muted); font-size:11.5px; }
+  .result-note { min-height:19px; margin:9px 0 0; color:var(--muted); font-size:12px; }
+  .result-note.success { color:var(--good); }
+  .result-note.error { color:var(--bad); }
+  .mono { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+  .break { overflow-wrap:anywhere; }
+  .sr-only {
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+  }
+  @media (max-width:860px) {
+    .layout-2 { grid-template-columns:1fr; }
+  }
+  @media (max-width:600px) {
+    .shell { padding:19px 13px 46px; }
+    .hero { gap:10px; }
+    h1 { font-size:24px; }
+    .area-head { padding:15px 15px 12px; }
+    .area-body { padding:14px 15px 16px; }
+    .form-grid { grid-template-columns:1fr; }
+    .info-row { grid-template-columns:78px minmax(0,1fr); }
+    .data-actions .button { width:100%; }
+    .search-actions .button { flex:1 1 auto; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">Nexus Plugin</p>
+      <h1>长期记忆</h1>
+      <p class="lede">这里管理灵用来回忆过去的记忆库。先确认连接和当前状态，再导入或构建记忆；平时可以搜索事件与记忆团，查看召回记录并给出反馈。</p>
+    </div>
+    <div class="hero-actions">
+      <button id="refresh-all" class="button" type="button">刷新状态</button>
+    </div>
+  </header>
+  <div id="page-status" class="page-status" role="status" aria-live="polite"></div>
+
+  <section class="area" aria-labelledby="settings-title">
+    <div class="area-head">
+      <div class="area-number">01</div>
+      <div class="area-title">
+        <h2 id="settings-title">设置与状态</h2>
+        <p>连接记忆引擎，确认已保存的设置和版本；从灵会话导入资料或构建索引也在这里开始。</p>
+      </div>
+    </div>
+    <div class="area-body">
+      <div class="layout-2">
+        <div class="card">
+          <h3>连接与使用设置</h3>
+          <p class="card-note">保存后，记忆插件的新调用会使用这里的连接。已保存的密钥不会显示在页面中。</p>
+          <form id="settings-form" novalidate>
+            <div class="form-grid">
+              <label class="field wide">记忆引擎地址
+                <input id="base-url" type="url" inputmode="url" autocomplete="url" placeholder="https://example.com/v1">
+              </label>
+              <label class="field">模型
+                <input id="model" type="text" autocomplete="off" placeholder="记忆引擎使用的模型">
+              </label>
+              <label class="field">API 密钥
+                <input id="api-key" type="password" autocomplete="new-password" placeholder="留空则保留已保存的密钥">
+              </label>
+              <label class="field">灵会话编号
+                <input id="session-id" type="text" autocomplete="off" placeholder="留空则使用当前灵会话">
+              </label>
+              <label class="field">每次带上的记忆预算（tokens）
+                <input id="budget-tokens" type="number" inputmode="numeric" min="256" max="12000" step="1" placeholder="例如 3000">
+              </label>
+              <label class="check wide">
+                <input id="takeover" type="checkbox">
+                <span>接管这个会话的记忆处理<br><span class="hint" style="margin-top:1px">交给插件决定后续如何为这个会话提供或整理记忆；新调用才会采用。</span></span>
+              </label>
+            </div>
+            <p class="hint"><strong>密钥：</strong>页面不会读回已保存的明文，留空保存即可保持原密钥。</p>
+            <div class="form-actions">
+              <button id="save-settings" class="button primary" type="submit">保存连接与设置</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card soft">
+          <div class="status-top">
+            <h3>当前状态</h3>
+            <span id="engine-badge" class="badge muted">读取中</span>
+          </div>
+          <dl id="engine-info" class="info-list"></dl>
+          <div class="section-label">记忆数量 <span>来自插件统计</span></div>
+          <div id="engine-counts" class="states"><span class="state-chip">暂无统计</span></div>
+          <div class="section-label">记忆版本 <span>激活只在后续调用生效</span></div>
+          <div id="engine-versions" class="versions"><p class="empty">正在读取版本…</p></div>
+          <div class="job-box">
+            <div class="job-head">
+              <h3>导入与构建任务</h3>
+              <span id="job-badge" class="badge muted">空闲</span>
+            </div>
+            <p id="job-text" class="job-text">当前没有正在运行的任务。</p>
+            <div id="job-result"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="card">
+        <h3>从灵导入资料</h3>
+        <p class="card-note">导入会先保存灵的一份会话；构建会再把它整理成事件和记忆团。会话编号留空时，使用当前灵会话。导入完成后需要执行构建，构建运行期间页面每 2 秒查询状态。</p>
+        <div class="data-actions">
+          <label class="field">要导入的灵会话编号
+            <input id="import-session-id" type="text" autocomplete="off" placeholder="留空则导入当前灵会话">
+          </label>
+          <button id="import-data" class="button soft" type="button">导入会话资料</button>
+          <button id="build-memory" class="button" type="button">构建 / 重建记忆</button>
+        </div>
+        <p id="job-note" class="hint">构建会整理当前已导入的资料；资料较多时可能需要等待。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="area" aria-labelledby="memories-title">
+    <div class="area-head">
+      <div class="area-number">02</div>
+      <div class="area-title">
+        <h2 id="memories-title">记忆</h2>
+        <p>搜索过去的事件与记忆团。浏览按钮使用空查询，展开后可以继续查看来源和原始 JSON。</p>
+      </div>
+    </div>
+    <div class="area-body">
+      <form id="search-form" class="search-bar" novalidate>
+        <label class="field search-field">搜索记忆
+          <input id="search-query" type="search" autocomplete="off" placeholder="输入人物、事件、地点或一句话；留空则浏览全部">
+        </label>
+        <div class="search-actions">
+          <button id="search-button" class="button primary" type="submit">搜索</button>
+          <button id="browse-events" class="button" type="button">浏览事件</button>
+          <button id="browse-groups" class="button" type="button">浏览记忆团</button>
+        </div>
+      </form>
+      <div class="browse-line">
+        <span>浏览说明</span>
+        <span>事件是发生过的事情；记忆团把相关事件组织成背景。直接用空查询浏览时，不会改动上方输入的内容。</span>
+      </div>
+      <p id="memory-status" class="memory-status" role="status" aria-live="polite">尚未搜索。可以先点击「浏览事件」看看已有的记忆。</p>
+      <div id="memory-results" class="collections"></div>
+
+      <section id="memory-detail" class="memory-detail" hidden aria-labelledby="memory-detail-title">
+        <div class="memory-detail-head">
+          <div>
+            <h2 id="memory-detail-title">记忆详情</h2>
+            <p id="memory-detail-meta" class="memory-detail-meta"></p>
+          </div>
+          <button id="memory-detail-close" class="button small" type="button">关闭</button>
+        </div>
+        <div class="detail-actions">
+          <button id="detail-associations" class="button small soft" type="button" hidden>查看事件关联</button>
+        </div>
+        <div id="detail-pager" class="pager" hidden>
+          <button id="detail-prev" class="button small" type="button">上一页</button>
+          <span id="detail-page-label"></span>
+          <button id="detail-next" class="button small" type="button">下一页</button>
+        </div>
+        <p id="detail-status" class="detail-status" role="status" aria-live="polite"></p>
+        <div id="detail-links" class="link-zone" hidden></div>
+        <div id="detail-json" class="json-panel"></div>
+        <section id="associations-box" class="link-zone" hidden>
+          <h3>事件关联</h3>
+          <p id="associations-status" class="detail-status"></p>
+          <div id="associations-links" class="link-list"></div>
+          <div id="associations-json" class="json-panel"></div>
+        </section>
+      </section>
+
+      <details id="search-raw" class="raw-details" hidden>
+        <summary>查看完整搜索返回（结构化 JSON）</summary>
+        <div id="search-raw-json" class="json-panel"></div>
+      </details>
+    </div>
+  </section>
+
+  <section class="area" aria-labelledby="recalls-title">
+    <div class="area-head">
+      <div class="area-number">03</div>
+      <div class="area-title">
+        <h2 id="recalls-title">召回记录</h2>
+        <p>每次灵使用记忆时都会留下记录。这里显示召回状态和耗时；插件没有提供时，会明确标出。</p>
+      </div>
+    </div>
+    <div class="area-body">
+      <div class="search-bar">
+        <div class="search-field">
+          <p class="card-note" style="margin:0">记录来自记忆插件的 runs 接口。选择「反馈」可把这条召回带到下方反馈栏。</p>
+        </div>
+        <button id="refresh-runs" class="button" type="button">刷新召回记录</button>
+      </div>
+      <p id="runs-status" class="memory-status" role="status" aria-live="polite">正在读取召回记录…</p>
+      <div id="runs-list" class="run-list"></div>
+      <details id="runs-raw" class="raw-details" hidden>
+        <summary>查看完整召回返回（结构化 JSON）</summary>
+        <div id="runs-raw-json" class="json-panel"></div>
+      </details>
+    </div>
+  </section>
+
+  <section class="area" aria-labelledby="feedback-title">
+    <div class="area-head">
+      <div class="area-number">04</div>
+      <div class="area-title">
+        <h2 id="feedback-title">反馈与导出</h2>
+        <p>告诉插件某次召回是否有用，或把记忆库下载成 JSON 文件保存。</p>
+      </div>
+    </div>
+    <div class="area-body">
+      <div class="layout-2">
+        <div class="card">
+          <h3>召回反馈</h3>
+          <p class="card-note">类别名称由记忆插件定义。可以从上方召回记录点「反馈」自动填入编号，再填写插件支持的类别。</p>
+          <form id="feedback-form" novalidate>
+            <div class="form-grid">
+              <label class="field">召回编号
+                <input id="feedback-run-id" type="text" autocomplete="off" placeholder="例如上方记录的编号">
+              </label>
+              <label class="field">反馈类别
+                <input id="feedback-category" type="text" autocomplete="off" placeholder="例如 useful、irrelevant">
+              </label>
+              <label class="field wide">备注（可选）
+                <textarea id="feedback-comment" placeholder="这次召回哪里有用，或哪里不对？"></textarea>
+              </label>
+            </div>
+            <div class="form-actions">
+              <button id="feedback-submit" class="button primary" type="submit">提交反馈</button>
+            </div>
+          </form>
+          <p id="feedback-status" class="result-note" role="status" aria-live="polite"></p>
+          <details id="feedback-result" class="raw-details" hidden>
+            <summary>查看反馈返回（结构化 JSON）</summary>
+            <div id="feedback-result-json" class="json-panel"></div>
+          </details>
+        </div>
+
+        <div class="card soft">
+          <h3>导出记忆</h3>
+          <div class="export-actions">
+            <p class="export-note">导出会返回完整 JSON，并开始下载一个文件。文件可能包含记忆原文，请自己保管。</p>
+            <button id="export-button" class="button soft" type="button">下载 JSON</button>
+          </div>
+          <p id="export-status" class="result-note" role="status" aria-live="polite"></p>
+          <details id="export-preview" class="raw-details" hidden>
+            <summary>查看导出内容（结构化 JSON）</summary>
+            <div id="export-preview-json" class="json-panel"></div>
+          </details>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+"use strict";
+
+const PLUGIN_ID = "memory";
+const CALL_PATH = "/api/plugins/" + PLUGIN_ID + "/call";
+const POLL_INTERVAL = 2000;
+const DETAIL_LIMIT = 6000;
+const ACTIONABLE_LIMIT = 80;
+
+const state = {
+  settingsInitialized: false,
+  settingsDirty: false,
+  lastStatus: null,
+  versions: [],
+  jobRunning: false,
+  jobStarting: false,
+  jobToken: 0,
+  pollActive: false,
+  searchMode: "all",
+  searchPayload: null,
+  detail: null,
+  detailToken: 0,
+  detailMore: false,
+  detailNextOffset: null,
+  detailLoading: false,
+  runsBusy: false,
+};
+
+function node(id) {
+  return document.getElementById(id);
+}
+
+function make(tag, className, text) {
+  const value = document.createElement(tag);
+  if (className) value.className = className;
+  if (text !== undefined && text !== null) value.textContent = String(text);
+  return value;
+}
+
+function setStatus(message, tone) {
+  const target = node("page-status");
+  target.textContent = message || "";
+  target.className = "page-status" + (tone ? " is-" + tone : "");
+}
+
+function setText(id, message, tone) {
+  const target = node(id);
+  if (!target) return;
+  target.textContent = message || "";
+  target.classList.toggle("error", tone === "error");
+  target.classList.toggle("success", tone === "success");
+}
+
+function isObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasKeys(value) {
+  return isObject(value) && Object.keys(value).length > 0;
+}
+
+function errorText(error) {
+  if (error === null || error === undefined) return "未知错误";
+  if (typeof error === "string") return error || "未知错误";
+  if (error instanceof Error) return error.message || "未知错误";
+  if (typeof error === "object") {
+    if (typeof error.error === "string" && error.error) return error.error;
+    if (typeof error.message === "string" && error.message) return error.message;
+    try {
+      return JSON.stringify(error);
+    } catch (_ignored) {
+      return String(error);
+    }
+  }
+  return String(error);
+}
+
+function valueText(value) {
+  if (value === null || value === undefined || value === "") return "未提供";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch (_ignored) {
+    return String(value);
+  }
+}
+
+function oneLine(value, limit) {
+  const text = valueText(value).replace(/\s+/g, " ").trim();
+  if (!limit || text.length <= limit) return text;
+  return text.slice(0, Math.max(0, limit - 1)) + "…";
+}
+
+function scalar(value) {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
+
+function humanPath(path) {
+  const key = String(path || "").split(".").pop().toLowerCase();
+  const names = {
+    events: "事件", event: "事件", groups: "记忆团", group: "记忆团",
+    clusters: "记忆团", cluster: "记忆团", sources: "来源", source: "来源",
+    items: "结果", results: "搜索结果", matches: "匹配结果", data: "返回内容",
+    memories: "记忆", records: "记录", runs: "召回记录", recalls: "召回记录",
+    versions: "版本",
+  };
+  return names[key] || (key || "返回内容");
+}
+
+function kindLabel(kind) {
+  if (kind === "event") return "事件";
+  if (kind === "group") return "记忆团";
+  if (kind === "source") return "来源";
+  return "内容";
+}
+
+function normalizeKind(value) {
+  if (typeof value !== "string") return "";
+  const lower = value.toLowerCase();
+  if (lower.includes("source")) return "source";
+  if (lower.includes("group") || lower.includes("cluster")) return "group";
+  if (lower.includes("event")) return "event";
+  return "";
+}
+
+function inferCollectionKind(path, items) {
+  const lower = String(path || "").toLowerCase();
+  if (/(^|\.)(sources?)(\.|$)/.test(lower)) return "source";
+  if (/(^|\.)(groups?|clusters?)(\.|$)/.test(lower)) return "group";
+  if (/(^|\.)(events?)(\.|$)/.test(lower)) return "event";
+  const kinds = new Set();
+  if (Array.isArray(items)) {
+    for (const item of items) {
+      if (!isObject(item)) continue;
+      const kind = normalizeKind(item.kind || item.type || item.entity_type || item.entity);
+      if (kind) kinds.add(kind);
+      if (item.event_id !== null && item.event_id !== undefined && item.id === undefined) kinds.add("event");
+      if (item.group_id !== null && item.group_id !== undefined && item.id === undefined) kinds.add("group");
+      if (item.source_id !== null && item.source_id !== undefined && item.id === undefined) kinds.add("source");
+    }
+  }
+  return kinds.size === 1 ? Array.from(kinds)[0] : "";
+}
+
+async function rpc(action, values) {
+  let response;
+  try {
+    response = await fetch(CALL_PATH, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: action, values: values || {} }),
+    });
+  } catch (error) {
+    throw new Error("无法连接 Nexus：" + errorText(error));
+  }
+  let payload = {};
+  const raw = await response.text().catch(() => "");
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch (_ignored) {
+      payload = {};
+    }
+  }
+  if (!response.ok) {
+    const message = isObject(payload) && payload.error
+      ? errorText(payload.error)
+      : ("请求失败（HTTP " + response.status + "）");
+    const failure = new Error(message);
+    failure.status = response.status;
+    throw failure;
+  }
+  return payload;
+}
+
+function detailId(value) {
+  if (!isObject(value)) return null;
+  const candidates = [value.id, value.event_id, value.group_id, value.source_id, value._id];
+  for (const candidate of candidates) {
+    if (candidate !== null && candidate !== undefined && candidate !== "") return candidate;
+  }
+  return null;
+}
+
+function itemKind(value, fallback) {
+  if (!isObject(value)) return fallback || "";
+  const explicit = normalizeKind(value.kind || value.type || value.entity_type || value.entity);
+  if (explicit) return explicit;
+  if (value.source_id !== null && value.source_id !== undefined && value.id === undefined) return "source";
+  if (value.group_id !== null && value.group_id !== undefined && value.id === undefined) return "group";
+  if (value.event_id !== null && value.event_id !== undefined && value.id === undefined) return "event";
+  return fallback || "";
+}
+
+function itemLabel(value, index) {
+  if (typeof value === "string") return oneLine(value, 100);
+  if (!isObject(value)) return "结果 " + String(index + 1);
+  const values = [value.title, value.name, value.label, value.headline, value.summary,
+    value.description, value.text, value.query, value.content];
+  for (const candidate of values) {
+    if (typeof candidate === "string" && candidate.trim()) return oneLine(candidate, 120);
+    if (isObject(candidate) && typeof candidate.text === "string" && candidate.text.trim()) {
+      return oneLine(candidate.text, 120);
+    }
+  }
+  const id = detailId(value);
+  return id !== null ? String(id) : "结果 " + String(index + 1);
+}
+
+function itemPreview(value, title) {
+  if (typeof value === "string") return value === title ? "" : oneLine(value, 320);
+  if (!isObject(value)) return "";
+  const candidates = [value.summary, value.description, value.text, value.content,
+    value.snippet, value.excerpt, value.narrative];
+  for (const candidate of candidates) {
+    let text = "";
+    if (typeof candidate === "string") text = candidate;
+    else if (isObject(candidate) && typeof candidate.text === "string") text = candidate.text;
+    if (text.trim() && text.trim() !== title) return oneLine(text, 320);
+  }
+  return "";
+}
+
+function formatTime(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "number") {
+    if (value > 100000000000) {
+      const date = new Date(value);
+      if (!Number.isNaN(date.getTime())) return date.toLocaleString("zh-CN");
+    }
+    return String(value);
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("zh-CN");
+}
+
+function itemTime(value) {
+  if (!isObject(value)) return "";
+  return value.occurred_at || value.created_at || value.updated_at || value.timestamp
+    || value.time || value.date || value.at || value.start_at || "";
+}
+
+function badge(text, tone) {
+  return make("span", "badge" + (tone ? " " + tone : ""), text);
+}
+
+function infoRow(list, label, value, mono) {
+  const row = make("div", "info-row");
+  row.appendChild(make("dt", "", label));
+  row.appendChild(make("dd", mono ? "mono" : "", valueText(value)));
+  list.appendChild(row);
+}
+
+function renderStatus(payload, options) {
+  if (!isObject(payload)) {
+    node("engine-badge").textContent = "状态格式不完整";
+    node("engine-badge").className = "badge bad";
+    return;
+  }
+  state.lastStatus = payload;
+  const engine = isObject(payload.engine) ? payload.engine : {};
+  const settings = isObject(payload.settings) ? payload.settings : {};
+  const job = isObject(payload.job) ? payload.job : null;
+  const configured = Boolean(engine.configured);
+
+  const engineBadge = node("engine-badge");
+  engineBadge.textContent = configured ? "已配置" : "未配置";
+  engineBadge.className = "badge " + (configured ? "good" : "warn");
+
+  const info = node("engine-info");
+  info.replaceChildren();
+  infoRow(info, "地址", engine.base_url || "尚未设置", true);
+  infoRow(info, "模型", engine.model || "尚未设置");
+  infoRow(info, "当前版本", engine.active_version || "尚未激活");
+  infoRow(info, "构建状态", buildSummary(engine.build_status));
+
+  renderCounts(engine.counts);
+  renderVersions(engine.versions, engine.active_version);
+  if (job) renderJob(job);
+
+  if (!state.settingsInitialized || (options && options.resetSettings)) {
+    applySettings(engine, settings);
+    state.settingsInitialized = true;
+    state.settingsDirty = false;
+  }
+}
+
+function buildSummary(value) {
+  if (!isObject(value)) return value ? valueText(value) : "空闲";
+  if (value.running) return "正在构建";
+  if (value.error) return "上次构建失败";
+  if (value.result !== null && value.result !== undefined) return "上次构建完成";
+  return "空闲";
+}
+
+function applySettings(engine, settings) {
+  node("base-url").value = scalar(engine.base_url) ? String(engine.base_url) : "";
+  node("model").value = scalar(engine.model) ? String(engine.model) : "";
+  node("session-id").value = scalar(settings.session_id) ? String(settings.session_id) : "";
+  node("takeover").checked = Boolean(settings.takeover);
+  node("budget-tokens").value = settings.budget_tokens === null || settings.budget_tokens === undefined
+    ? "" : String(settings.budget_tokens);
+  node("api-key").value = "";
+}
+
+function renderCounts(counts) {
+  const target = node("engine-counts");
+  target.replaceChildren();
+  const labels = { events: "事件", groups: "记忆团", edges: "关联", imports: "导入",
+    sources: "来源", runs: "召回", versions: "版本" };
+  if (!isObject(counts)) {
+    target.appendChild(make("span", "state-chip", "暂无统计"));
+    return;
+  }
+  const entries = Object.entries(counts);
+  if (!entries.length) {
+    target.appendChild(make("span", "state-chip", "暂无统计"));
+    return;
+  }
+  for (const [key, value] of entries) {
+    const chip = make("span", "state-chip", labels[key] || key);
+    const amount = make("b", "", valueText(value));
+    chip.appendChild(amount);
+    target.appendChild(chip);
+  }
+}
+
+function normalizeVersions(versions) {
+  const result = [];
+  if (Array.isArray(versions)) {
+    versions.forEach((entry, index) => {
+      if (typeof entry === "string" || typeof entry === "number") {
+        result.push({ id: String(entry), label: String(entry), status: "" });
+      } else if (isObject(entry)) {
+        const id = entry.version_id ?? entry.id ?? entry.version ?? entry.name;
+        if (id === null || id === undefined || id === "") return;
+        result.push({
+          id: String(id),
+          label: String(id),
+          status: entry.status || entry.build_status || "",
+          date: entry.created_at || entry.built_at || "",
+          index: index,
+        });
+      }
+    });
+  } else if (isObject(versions)) {
+    Object.entries(versions).forEach(([key, entry]) => {
+      if (isObject(entry)) {
+        result.push({
+          id: String(entry.version_id ?? entry.id ?? key),
+          label: String(key),
+          status: entry.status || entry.build_status || "",
+          date: entry.created_at || entry.built_at || "",
+        });
+      } else {
+        result.push({ id: String(key), label: String(key), status: scalar(entry) ? String(entry) : "" });
+      }
+    });
+  } else if (typeof versions === "string" || typeof versions === "number") {
+    result.push({ id: String(versions), label: String(versions), status: "" });
+  }
+  return result;
+}
+
+function renderVersions(versions, activeVersion) {
+  state.versions = normalizeVersions(versions);
+  const target = node("engine-versions");
+  target.replaceChildren();
+  if (!state.versions.length) {
+    target.appendChild(make("p", "empty", "还没有可激活的记忆版本。可以从上方导入资料并构建。"));
+    return;
+  }
+  const active = activeVersion === null || activeVersion === undefined ? "" : String(activeVersion);
+  for (const version of state.versions) {
+    const row = make("div", "version-row" + (version.id === active ? " active" : ""));
+    const name = make("span", "version-name", version.label || version.id);
+    row.appendChild(name);
+    if (version.status) row.appendChild(badge(valueText(version.status), "muted"));
+    if (version.id === active) {
+      row.appendChild(badge("当前版本", "good"));
+      const current = make("button", "button small", "已激活");
+      current.type = "button";
+      current.disabled = true;
+      row.appendChild(current);
+    } else {
+      const activate = make("button", "button small", "激活");
+      activate.type = "button";
+      activate.addEventListener("click", () => activateVersion(activate, version));
+      row.appendChild(activate);
+    }
+    target.appendChild(row);
+  }
+}
+
+function renderJob(job) {
+  const data = isObject(job) ? job : {};
+  const running = Boolean(data.running);
+  state.jobRunning = running;
+  syncJobButtons();
+  const badgeNode = node("job-badge");
+  const text = node("job-text");
+  const result = node("job-result");
+  result.replaceChildren();
+  const error = data.error;
+  if (running) {
+    badgeNode.className = "badge warn";
+    badgeNode.textContent = "运行中";
+    text.className = "job-text";
+    text.textContent = "任务正在后台处理，页面每 2 秒更新状态。";
+  } else if (error) {
+    badgeNode.className = "badge bad";
+    badgeNode.textContent = "失败";
+    text.className = "job-text error";
+    text.textContent = errorText(error);
+  } else if (data.result !== null && data.result !== undefined) {
+    badgeNode.className = "badge good";
+    badgeNode.textContent = "已完成";
+    text.className = "job-text success";
+    text.textContent = "上次任务已经完成。";
+    const details = make("details", "raw-details");
+    details.appendChild(make("summary", "", "查看任务结果（结构化 JSON）"));
+    const panel = make("div", "json-panel");
+    renderJson(panel, data.result);
+    details.appendChild(panel);
+    result.appendChild(details);
+  } else {
+    badgeNode.className = "badge muted";
+    badgeNode.textContent = "空闲";
+    text.className = "job-text";
+    text.textContent = "当前没有正在运行的任务。";
+  }
+}
+
+function normalizeResponseJob(value) {
+  if (!isObject(value)) return null;
+  if (isObject(value.job)) return value.job;
+  if (typeof value.running === "boolean" || "error" in value || "result" in value) return value;
+  return null;
+}
+
+function syncJobButtons() {
+  const disabled = state.jobRunning || state.jobStarting;
+  node("import-data").disabled = disabled;
+  node("build-memory").disabled = disabled;
+}
+
+function setJobPanel(badgeText, tone, message, messageTone) {
+  const badgeNode = node("job-badge");
+  badgeNode.textContent = badgeText;
+  badgeNode.className = "badge " + (tone || "muted");
+  const text = node("job-text");
+  text.textContent = message || "";
+  text.className = "job-text" + (messageTone ? " " + messageTone : "");
+  node("job-result").replaceChildren();
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function pollJob(token, label) {
+  while (token === state.jobToken && state.pollActive) {
+    await wait(POLL_INTERVAL);
+    if (token !== state.jobToken || !state.pollActive) return;
+    let payload;
+    try {
+      payload = await rpc("status", {});
+    } catch (error) {
+      if (token !== state.jobToken) return;
+      state.pollActive = false;
+      state.jobRunning = false;
+      state.jobStarting = false;
+      syncJobButtons();
+      setJobPanel("查询中断", "bad", "无法继续查询任务状态：" + errorText(error), "error");
+      setStatus("任务状态查询中断；任务可能仍在后台运行，可以稍后刷新状态。", "error");
+      return;
+    }
+    if (token !== state.jobToken) return;
+    renderStatus(payload);
+    const job = isObject(payload.job) ? payload.job : {};
+    if (!job.running) {
+      state.pollActive = false;
+      state.jobRunning = false;
+      state.jobStarting = false;
+      syncJobButtons();
+      if (job.error) {
+        setStatus(label + "失败：" + errorText(job.error), "error");
+      } else {
+        setStatus(label + "已完成。", "success");
+      }
+      return;
+    }
+    setStatus(label + "正在运行；页面每 2 秒更新一次状态。", "busy");
+  }
+}
+
+function startJobPolling(label) {
+  if (state.pollActive) return Promise.resolve();
+  const token = ++state.jobToken;
+  state.pollActive = true;
+  state.jobRunning = true;
+  syncJobButtons();
+  return pollJob(token, label);
+}
+
+async function refreshStatus(options) {
+  const quiet = Boolean(options && options.quiet);
+  const resetSettings = Boolean(options && options.resetSettings);
+  if (!quiet) setStatus("正在刷新插件状态…", "busy");
+  try {
+    const payload = await rpc("status", {});
+    renderStatus(payload, { resetSettings: resetSettings });
+    return payload;
+  } catch (error) {
+    setStatus("刷新状态失败：" + errorText(error), "error");
+    throw error;
+  }
+}
+
+async function saveSettings(event) {
+  event.preventDefault();
+  const button = node("save-settings");
+  const values = {
+    base_url: node("base-url").value.trim(),
+    model: node("model").value.trim(),
+    session_id: node("session-id").value.trim(),
+    takeover: node("takeover").checked,
+  };
+  const apiKey = node("api-key").value;
+  if (apiKey) values.api_key = apiKey;
+  const budget = node("budget-tokens").value.trim();
+  if (budget !== "") values.budget_tokens = Number(budget);
+  button.disabled = true;
+  setStatus("正在保存连接与设置…", "busy");
+  try {
+    const payload = await rpc("configure", values);
+    node("api-key").value = "";
+    state.settingsDirty = false;
+    state.settingsInitialized = false;
+    if (isObject(payload) && (isObject(payload.engine) || isObject(payload.settings))) {
+      renderStatus(payload, { resetSettings: true });
+    } else {
+      await refreshStatus({ resetSettings: true, quiet: true });
+    }
+    setStatus("连接与设置已保存。", "success");
+  } catch (error) {
+    setStatus("保存失败：" + errorText(error), "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function activateVersion(button, version) {
+  button.disabled = true;
+  setStatus("正在激活版本 " + version.id + "…", "busy");
+  try {
+    const payload = await rpc("activate", { version_id: version.id });
+    if (isObject(payload) && isObject(payload.engine)) {
+      renderStatus(payload);
+    } else {
+      await refreshStatus({ quiet: true });
+    }
+    setStatus("已请求激活版本 " + version.id + "；后续记忆调用会使用当前版本。", "success");
+  } catch (error) {
+    setStatus("激活版本失败：" + errorText(error), "error");
+  } finally {
+    if (button.isConnected) button.disabled = false;
+  }
+}
+
+async function importMemory() {
+  if (state.jobRunning || state.jobStarting) return;
+  state.jobStarting = true;
+  state.jobRunning = true;
+  syncJobButtons();
+  setJobPanel("导入中", "warn", "正在读取灵会话并导入记忆引擎…");
+  setStatus("正在导入会话资料…", "busy");
+  try {
+    const imported = await rpc("import", { session_id: node("import-session-id").value.trim() });
+    if (isObject(imported) && imported.raw_count !== undefined) {
+      node("import-session-id").value = scalar(imported.session_id)
+        ? String(imported.session_id) : node("import-session-id").value;
+      setJobPanel("已导入", "good",
+        "已导入 " + valueText(imported.raw_count) + " 条会话记录。现在可以构建记忆版本。");
+    }
+    await refreshStatus({ quiet: true }).catch(() => null);
+    renderJob({ running: false, error: "", result: imported });
+    if (isObject(imported) && imported.raw_count !== undefined) {
+      node("job-text").textContent = "已导入 " + valueText(imported.raw_count)
+        + " 条会话记录。现在可以构建记忆版本。";
+    }
+    loadRuns({ quiet: true }).catch(() => {});
+    setStatus("会话资料已导入；构建后才会生成可激活的记忆版本。", "success");
+  } catch (error) {
+    setJobPanel("提交失败", "bad", errorText(error), "error");
+    setStatus("导入失败：" + errorText(error), "error");
+  } finally {
+    state.jobStarting = false;
+    state.jobRunning = false;
+    syncJobButtons();
+  }
+}
+
+async function buildMemory() {
+  if (state.jobRunning || state.jobStarting) return;
+  state.jobStarting = true;
+  state.jobRunning = true;
+  syncJobButtons();
+  setJobPanel("准备中", "warn", "正在向记忆插件提交构建任务…");
+  setStatus("正在提交构建任务…", "busy");
+  let response;
+  let responseJob = null;
+  try {
+    response = await rpc("build", {});
+    responseJob = normalizeResponseJob(response);
+    if (!responseJob && isObject(response) && typeof response.status === "string") {
+      responseJob = { running: response.status === "building", error: "", result: response };
+    }
+  } catch (error) {
+    state.jobStarting = false;
+    state.jobRunning = false;
+    syncJobButtons();
+    setJobPanel("提交失败", "bad", errorText(error), "error");
+    setStatus("提交构建任务失败：" + errorText(error), "error");
+    return;
+  }
+  state.jobStarting = false;
+  let statusPayload = null;
+  try {
+    statusPayload = await rpc("status", {});
+    renderStatus(statusPayload);
+  } catch (_ignored) {
+    statusPayload = null;
+  }
+
+  const statusJob = statusPayload && isObject(statusPayload.job) ? statusPayload.job : null;
+  let job = statusJob;
+  if ((!job || (!job.running && !job.error && job.result === null)) && responseJob) {
+    job = responseJob;
+  }
+  if (!job) job = { running: false, error: "", result: null };
+  renderJob(job);
+
+  if (job.running) {
+    setStatus("记忆构建正在运行；页面每 2 秒更新一次状态。", "busy");
+    await startJobPolling("构建");
+    return;
+  }
+  state.jobRunning = false;
+  syncJobButtons();
+  if (job.error) {
+    setStatus("构建失败：" + errorText(job.error), "error");
+  } else if (responseJob && responseJob.result !== null && responseJob.result !== undefined) {
+    setStatus("构建已完成。", "success");
+    renderJob(responseJob);
+  } else {
+    setStatus("构建请求已提交；可以刷新状态查看进度。", "success");
+  }
+}
+
+function collectCollections(payload) {
+  const collections = [];
+  const seen = new WeakSet();
+  function looksLikeRows(value) {
+    if (!Array.isArray(value) || !value.length) return false;
+    return value.every((entry) => typeof entry === "string" || typeof entry === "number"
+      || typeof entry === "boolean" || isObject(entry));
+  }
+  function visit(value, path, depth) {
+    if (depth > 4) return;
+    if (Array.isArray(value)) {
+      if (looksLikeRows(value)) {
+        if (!seen.has(value)) {
+          seen.add(value);
+          collections.push({ path: path, items: value, kind: inferCollectionKind(path, value) });
+        }
+      }
+      return;
+    }
+    if (!isObject(value)) return;
+    for (const [key, child] of Object.entries(value)) {
+      const childPath = path ? path + "." + key : key;
+      if (Array.isArray(child)) {
+        if (looksLikeRows(child)) {
+          if (!seen.has(child)) {
+            seen.add(child);
+            collections.push({ path: childPath, items: child, kind: inferCollectionKind(childPath, child) });
+          }
+        } else {
+          visit(child, childPath, depth + 1);
+        }
+      } else if (isObject(child)) {
+        visit(child, childPath, depth + 1);
+      }
+    }
+  }
+  if (Array.isArray(payload)) {
+    if (looksLikeRows(payload)) {
+      seen.add(payload);
+      collections.push({ path: "results", items: payload, kind: inferCollectionKind("results", payload) });
+    }
+  } else if (isObject(payload)) {
+    visit(payload, "", 0);
+  }
+  return collections;
+}
+
+function renderCardActionables(container, value, ownKind, ownId) {
+  const gathered = collectActionables(value);
+  let added = 0;
+  for (const action of gathered.items) {
+    if (action.kind !== "source") continue;
+    if (ownKind === action.kind && String(ownId) === String(action.id)) continue;
+    const button = make("button", "button link", "展开来源：" + oneLine(action.label, 42));
+    button.type = "button";
+    button.addEventListener("click", () => openDetail("source", action.id, action.label));
+    container.appendChild(button);
+    added += 1;
+  }
+  return added;
+}
+
+function renderMemory(payload, mode) {
+  state.searchPayload = payload;
+  const results = node("memory-results");
+  results.replaceChildren();
+  const collections = collectCollections(payload);
+  let total = 0;
+  for (const collection of collections) {
+    const items = [];
+    collection.items.forEach((item, index) => {
+      const kind = itemKind(item, collection.kind);
+      if (mode === "event" || mode === "group") {
+        if (kind !== mode) return;
+      }
+      items.push({ item: item, index: index, kind: kind });
+    });
+    if (!items.length) continue;
+    total += items.length;
+    const block = make("section", "collection");
+    const head = make("div", "collection-head");
+    head.appendChild(make("h3", "", humanPath(collection.path)));
+    head.appendChild(make("span", "", items.length + " 条"));
+    block.appendChild(head);
+    const list = make("div", "result-list");
+    for (const entry of items) list.appendChild(renderMemoryCard(entry.item, entry.index, entry.kind));
+    block.appendChild(list);
+    results.appendChild(block);
+  }
+
+  const targetRaw = node("search-raw");
+  targetRaw.hidden = false;
+  targetRaw.open = total === 0;
+  const rawPanel = node("search-raw-json");
+  renderJson(rawPanel, payload);
+
+  if (total === 0) {
+    const empty = make("p", "empty");
+    if (mode === "event") empty.textContent = "没有可显示的事件。完整返回保留在下方 JSON 中。";
+    else if (mode === "group") empty.textContent = "没有可显示的记忆团。完整返回保留在下方 JSON 中。";
+    else empty.textContent = "没有找到可识别的记忆结果。完整返回保留在下方 JSON 中。";
+    results.appendChild(empty);
+    setText("memory-status", empty.textContent);
+  } else {
+    const label = mode === "event" ? "事件" : mode === "group" ? "记忆团" : "结果";
+    setText("memory-status", "找到 " + total + " 条" + label + "。选择一个条目可以展开更多内容。");
+  }
+}
+
+function renderMemoryCard(item, index, kind) {
+  const card = make("article", "result-card");
+  const top = make("div", "result-top");
+  const title = itemLabel(item, index);
+  top.appendChild(make("h4", "result-title", title));
+  if (kind) top.appendChild(badge(kindLabel(kind), "muted"));
+  card.appendChild(top);
+
+  const meta = make("div", "result-meta");
+  const id = detailId(item);
+  if (id !== null) {
+    const idPart = make("span", "", "编号：");
+    idPart.appendChild(make("b", "", String(id)));
+    meta.appendChild(idPart);
+  }
+  const when = itemTime(item);
+  if (when) {
+    const whenPart = make("span", "", "时间：");
+    whenPart.appendChild(make("b", "", formatTime(when)));
+    meta.appendChild(whenPart);
+  }
+  if (isObject(item)) {
+    const count = Array.isArray(item.events) ? item.events.length
+      : Array.isArray(item.sources) ? item.sources.length : null;
+    if (count !== null) {
+      const countPart = make("span", "", "包含：");
+      countPart.appendChild(make("b", "", count + " 项"));
+      meta.appendChild(countPart);
+    }
+  }
+  if (meta.children.length) card.appendChild(meta);
+
+  const preview = itemPreview(item, title);
+  if (preview) card.appendChild(make("p", "result-preview", preview));
+
+  const actions = make("div", "result-actions");
+  if (id !== null && (kind === "event" || kind === "group" || kind === "source")) {
+    const open = make("button", "button link", "展开" + kindLabel(kind));
+    open.type = "button";
+    open.addEventListener("click", () => openDetail(kind, id, title));
+    actions.appendChild(open);
+  } else {
+    const local = make("button", "button link", "查看条目 JSON");
+    local.type = "button";
+    local.addEventListener("click", () => openLocalDetail(item, title));
+    actions.appendChild(local);
+  }
+  if (kind === "event" && isObject(item) && Array.isArray(item.source_ids)) {
+    for (const sourceId of item.source_ids) {
+      if (sourceId === null || sourceId === undefined || sourceId === "") continue;
+      const source = make("button", "button link", "展开来源：" + oneLine(sourceId, 30));
+      source.type = "button";
+      source.addEventListener("click", () => openDetail("source", sourceId, String(sourceId)));
+      actions.appendChild(source);
+    }
+  }
+  renderCardActionables(actions, item, kind, id);
+  card.appendChild(actions);
+  return card;
+}
+
+async function runSearch(query, mode) {
+  state.searchMode = mode;
+  const label = mode === "event" ? "正在浏览事件…" : mode === "group" ? "正在浏览记忆团…" : "正在搜索记忆…";
+  setText("memory-status", label);
+  node("search-button").disabled = true;
+  node("browse-events").disabled = true;
+  node("browse-groups").disabled = true;
+  try {
+    const payload = await rpc("search", { query: String(query || "") });
+    renderMemory(payload, mode);
+  } catch (error) {
+    node("memory-results").replaceChildren();
+    node("search-raw").hidden = true;
+    closeDetail();
+    setText("memory-status", "搜索失败：" + errorText(error), "error");
+    setStatus("搜索记忆失败：" + errorText(error), "error");
+  } finally {
+    node("search-button").disabled = false;
+    node("browse-events").disabled = false;
+    node("browse-groups").disabled = false;
+  }
+}
+
+function openDetail(kind, id, label, offset) {
+  state.detail = {
+    kind: kind,
+    id: id,
+    label: label || String(id),
+    offset: offset || 0,
+    limit: DETAIL_LIMIT,
+    local: false,
+  };
+  state.detailMore = false;
+  const panel = node("memory-detail");
+  panel.hidden = false;
+  node("memory-detail-title").textContent = kindLabel(kind) + " · " + (label || String(id));
+  node("associations-box").hidden = true;
+  node("detail-associations").hidden = kind !== "event";
+  node("detail-links").hidden = true;
+  node("detail-links").replaceChildren();
+  node("detail-json").replaceChildren();
+  node("associations-json").replaceChildren();
+  node("associations-links").replaceChildren();
+  loadDetailPage(state.detail.offset);
+  panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function openLocalDetail(value, label) {
+  state.detail = {
+    kind: "",
+    id: null,
+    label: label || "搜索结果",
+    offset: 0,
+    limit: 0,
+    local: true,
+  };
+  state.detailToken += 1;
+  state.detailLoading = false;
+  state.detailMore = false;
+  const panel = node("memory-detail");
+  panel.hidden = false;
+  node("memory-detail-title").textContent = "搜索结果 · " + (label || "条目");
+  node("memory-detail-meta").textContent = "以下是搜索结果中的原始对象。";
+  node("detail-associations").hidden = true;
+  node("detail-pager").hidden = true;
+  node("associations-box").hidden = true;
+  setText("detail-status", "此条目没有可用的展开类型，显示搜索返回的 JSON。");
+  renderDetailActionables(value, "", null);
+  renderJson(node("detail-json"), value);
+  panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+async function loadDetailPage(offset) {
+  const detail = state.detail;
+  if (!detail || detail.local) return;
+  const token = ++state.detailToken;
+  detail.offset = Math.max(0, Number(offset) || 0);
+  state.detailLoading = true;
+  state.detailMore = false;
+  state.detailNextOffset = null;
+  node("detail-pager").hidden = false;
+  node("detail-prev").disabled = true;
+  node("detail-next").disabled = true;
+  node("memory-detail-meta").textContent = kindLabel(detail.kind) + "编号：" + String(detail.id)
+    + " · 字偏移 " + detail.offset + " · 每页最多 " + detail.limit + " 字";
+  node("detail-page-label").textContent = formatCharRange(detail.offset, null);
+  setText("detail-status", "正在展开" + kindLabel(detail.kind) + "…");
+  node("detail-links").hidden = true;
+  node("detail-links").replaceChildren();
+  node("associations-box").hidden = true;
+  node("detail-json").replaceChildren(make("p", "empty", "正在读取…"));
+  try {
+    const payload = await rpc("expand", {
+      kind: detail.kind,
+      id: detail.id,
+      offset: detail.offset,
+      limit: detail.limit,
+    });
+    if (token !== state.detailToken) return;
+    state.detailLoading = false;
+    renderJson(node("detail-json"), payload);
+    if (effectivelyEmpty(payload)) {
+      setText("detail-status", "这次展开没有返回内容。");
+    } else {
+      setText("detail-status", "已展开" + kindLabel(detail.kind) + "，内容以 JSON 结构显示。");
+    }
+    state.detailNextOffset = nextOffset(payload);
+    state.detailMore = state.detailNextOffset !== null;
+    node("detail-prev").disabled = detail.offset <= 0;
+    node("detail-next").disabled = !state.detailMore;
+    if (state.detailMore) {
+      node("detail-page-label").textContent = formatCharRange(detail.offset, null);
+    }
+    renderDetailActionables(payload, detail.kind, detail.id);
+  } catch (error) {
+    if (token !== state.detailToken) return;
+    state.detailLoading = false;
+    node("detail-json").replaceChildren();
+    setText("detail-status", "展开失败：" + errorText(error), "error");
+    node("detail-prev").disabled = detail.offset <= 0;
+    node("detail-next").disabled = true;
+    setStatus("展开记忆失败：" + errorText(error), "error");
+  }
+}
+
+function formatCharRange(start, end) {
+  if (end === null || end === undefined) return "第 " + Number(start).toLocaleString("zh-CN") + " 字起";
+  return "第 " + Number(start).toLocaleString("zh-CN") + "–"
+    + Number(end).toLocaleString("zh-CN") + " 字";
+}
+
+function nextOffset(payload) {
+  if (isObject(payload) && payload.next_offset !== null && payload.next_offset !== undefined) {
+    return Number(payload.next_offset);
+  }
+  if (isObject(payload) && (payload.has_more === true || payload.more === true)
+      && Number.isFinite(Number(payload.offset)) && Number.isFinite(Number(payload.limit))) {
+    return Number(payload.offset) + Number(payload.limit);
+  }
+  if (Array.isArray(payload) && payload.length >= DETAIL_LIMIT) return null;
+  return null;
+}
+
+function effectivelyEmpty(value) {
+  if (value === null || value === undefined || value === "") return true;
+  if (Array.isArray(value)) return value.length === 0;
+  if (isObject(value)) return Object.keys(value).length === 0;
+  return false;
+}
+
+function renderDetailActionables(payload, ownKind, ownId) {
+  const target = node("detail-links");
+  const gathered = collectActionables(payload);
+  const actions = gathered.items.filter((action) => {
+    if (ownKind && ownId !== null && action.kind === ownKind
+        && String(action.id) === String(ownId)) return false;
+    return true;
+  });
+  target.replaceChildren();
+  if (!actions.length) {
+    target.hidden = true;
+    return;
+  }
+  target.appendChild(make("h3", "", "结果中可以继续展开"));
+  const list = make("div", "link-list");
+  for (const action of actions) {
+    const button = make("button", "button small", kindLabel(action.kind) + "：" + oneLine(action.label, 38));
+    button.type = "button";
+    button.addEventListener("click", () => openDetail(action.kind, action.id, action.label));
+    list.appendChild(button);
+  }
+  target.appendChild(list);
+  if (gathered.truncated) {
+    target.appendChild(make("p", "hint", "可展开项目较多，只列出了前 " + ACTIONABLE_LIMIT + " 个。"));
+  }
+  target.hidden = false;
+}
+
+function collectActionables(value) {
+  const items = [];
+  const seen = new Set();
+  let truncated = false;
+  function add(kind, id, label) {
+    if (items.length >= ACTIONABLE_LIMIT) {
+      truncated = true;
+      return;
+    }
+    if (id === null || id === undefined || id === "") return;
+    const key = kind + ":" + String(id);
+    if (seen.has(key)) return;
+    seen.add(key);
+    items.push({ kind: kind, id: id, label: label || String(id) });
+  }
+  function visit(current, path, depth) {
+    if (depth > 7 || items.length >= ACTIONABLE_LIMIT) return;
+    if (Array.isArray(current)) {
+      for (const entry of current) visit(entry, path, depth + 1);
+      return;
+    }
+    if (!isObject(current)) return;
+    const pathLower = String(path || "").toLowerCase();
+    let kind = normalizeKind(current.kind || current.type || current.entity_type || current.entity);
+    let id = current.id ?? current._id;
+    if (!kind) {
+      if (current.source_id !== null && current.source_id !== undefined) {
+        kind = "source";
+        id = current.source_id;
+      } else if (current.group_id !== null && current.group_id !== undefined) {
+        kind = "group";
+        id = current.group_id;
+      } else if (current.event_id !== null && current.event_id !== undefined) {
+        kind = "event";
+        id = current.event_id;
+      } else if (id !== null && id !== undefined) {
+        if (pathLower.includes("source")) kind = "source";
+        else if (pathLower.includes("group") || pathLower.includes("cluster")) kind = "group";
+        else if (pathLower.includes("event")) kind = "event";
+      }
+    }
+    if (kind && id !== null && id !== undefined) {
+      add(kind, id, itemLabel(current, items.length));
+    }
+    for (const [key, child] of Object.entries(current)) {
+      if (child === null || child === undefined || typeof child === "string") continue;
+      visit(child, key.toLowerCase(), depth + 1);
+    }
+  }
+  visit(value, "", 0);
+  return { items: items, truncated: truncated };
+}
+
+function renderJson(container, value) {
+  container.replaceChildren();
+  container.appendChild(jsonBranch("返回数据", value, 0));
+}
+
+function jsonBranch(label, value, depth) {
+  if (value === null || value === undefined || typeof value !== "object") {
+    const leaf = make("div", "json-leaf");
+    leaf.appendChild(make("span", "json-key", label));
+    const type = value === null || value === undefined ? "null"
+      : typeof value === "string" ? "string"
+      : typeof value === "number" ? "number"
+      : typeof value === "boolean" ? "boolean" : "value";
+    leaf.appendChild(make("span", "json-value " + type, value === undefined ? "未提供" : String(value)));
+    return leaf;
+  }
+  const isArray = Array.isArray(value);
+  const entries = isArray ? value.map((entry, index) => [String(index), entry]) : Object.entries(value);
+  const details = make("details");
+  details.open = depth < 2;
+  const summaryText = isArray ? label + " · 数组（" + entries.length + " 项）"
+    : label + " · 对象（" + entries.length + " 项）";
+  details.appendChild(make("summary", "", summaryText));
+  if (!entries.length) {
+    details.appendChild(make("p", "empty", isArray ? "空数组" : "空对象"));
+    return details;
+  }
+  const children = make("div", "json-children");
+  for (const [key, child] of entries) children.appendChild(jsonBranch(key, child, depth + 1));
+  details.appendChild(children);
+  return details;
+}
+
+function closeDetail() {
+  state.detailToken += 1;
+  state.detail = null;
+  state.detailLoading = false;
+  node("memory-detail").hidden = true;
+  node("detail-json").replaceChildren();
+  node("detail-links").replaceChildren();
+  node("associations-box").hidden = true;
+}
+
+async function loadAssociations() {
+  const detail = state.detail;
+  if (!detail || detail.kind !== "event") return;
+  const button = node("detail-associations");
+  button.disabled = true;
+  node("associations-box").hidden = false;
+  node("associations-links").replaceChildren();
+  node("associations-json").replaceChildren();
+  setText("associations-status", "正在读取事件关联…");
+  try {
+    const payload = await rpc("associations", { event_id: detail.id });
+    if (state.detail !== detail) return;
+    setText("associations-status", effectivelyEmpty(payload) ? "没有找到关联事件。" : "关联内容如下。");
+    renderJson(node("associations-json"), payload);
+    const target = node("associations-links");
+    const gathered = collectActionables(payload);
+    for (const action of gathered.items.slice(0, ACTIONABLE_LIMIT)) {
+      if (action.kind === "event" && String(action.id) === String(detail.id)) continue;
+      const link = make("button", "button small", kindLabel(action.kind) + "：" + oneLine(action.label, 34));
+      link.type = "button";
+      link.addEventListener("click", () => openDetail(action.kind, action.id, action.label));
+      target.appendChild(link);
+    }
+  } catch (error) {
+    setText("associations-status", "读取关联失败：" + errorText(error), "error");
+    setStatus("读取事件关联失败：" + errorText(error), "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function extractRuns(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (!isObject(payload)) return [];
+  const keys = ["runs", "items", "results", "recalls", "records", "data"];
+  for (const key of keys) {
+    const value = payload[key];
+    if (Array.isArray(value)) return value;
+    if (isObject(value)) {
+      for (const inner of ["runs", "items", "results", "records"]) {
+        if (Array.isArray(value[inner])) return value[inner];
+      }
+    }
+  }
+  if (detailId(payload) !== null && ("status" in payload || "state" in payload)) return [payload];
+  return [];
+}
+
+function runsSections(payload) {
+  if (!isObject(payload)) return [{ label: "召回记录", runs: extractRuns(payload), kind: "" }];
+  if (Array.isArray(payload.runs) || Array.isArray(payload.engine_runs)) {
+    return [
+      { label: "灵的实际召回", runs: Array.isArray(payload.runs) ? payload.runs : [], kind: "adapter" },
+      { label: "记忆引擎的查询", runs: Array.isArray(payload.engine_runs) ? payload.engine_runs : [], kind: "engine" },
+    ];
+  }
+  return [{ label: "召回记录", runs: extractRuns(payload), kind: "" }];
+}
+
+function runStatus(run) {
+  if (!isObject(run)) return "状态未提供";
+  const value = run.status ?? run.state ?? run.outcome;
+  if (value === null || value === undefined || value === "") return "状态未提供";
+  const labels = { memory: "记忆召回", fallback: "回退到原历史", feedback: "反馈记录" };
+  return labels[String(value)] || valueText(value);
+}
+
+function statusTone(value) {
+  const lower = String(value || "").toLowerCase();
+  if (!lower || lower.includes("未提供")) return "muted";
+  if (lower.includes("error") || lower.includes("fail") || lower.includes("失败")
+      || lower.includes("回退")) return "bad";
+  if (lower.includes("run") || lower.includes("pending") || lower.includes("wait")) return "warn";
+  if (lower.includes("ok") || lower.includes("success") || lower.includes("done")
+      || lower.includes("complete") || lower.includes("成功") || lower.includes("完成")
+      || lower.includes("记忆召回")) return "good";
+  return "muted";
+}
+
+function formatMilliseconds(milliseconds) {
+  const value = Number(milliseconds);
+  if (!Number.isFinite(value)) return "";
+  if (Math.abs(value) < 1000) return Math.round(value * 100) / 100 + " 毫秒";
+  return (Math.round(value / 10) / 100).toFixed(2) + " 秒";
+}
+
+function runTiming(run) {
+  if (!isObject(run)) return "未记录耗时";
+  for (const key of ["duration_ms", "elapsed_ms", "latency_ms", "total_ms", "took_ms",
+    "retrieval_ms", "recall_ms", "search_ms", "timing_ms"]) {
+    if (run[key] !== null && run[key] !== undefined && run[key] !== "") {
+      const formatted = formatMilliseconds(run[key]);
+      if (formatted) return formatted;
+      return valueText(run[key]);
+    }
+  }
+  for (const key of ["duration_seconds", "elapsed_seconds", "retrieval_seconds", "recall_seconds"]) {
+    if (run[key] !== null && run[key] !== undefined && run[key] !== "") {
+      const formatted = formatMilliseconds(Number(run[key]) * 1000);
+      if (formatted) return formatted;
+      return valueText(run[key]);
+    }
+  }
+  for (const key of ["timing", "timings", "duration"]) {
+    const value = run[key];
+    if (isObject(value)) {
+      for (const inner of ["total_ms", "duration_ms", "elapsed_ms", "retrieval_ms", "search_ms"]) {
+        if (value[inner] !== null && value[inner] !== undefined && value[inner] !== "") {
+          const formatted = formatMilliseconds(value[inner]);
+          if (formatted) return formatted;
+          return valueText(value[inner]);
+        }
+      }
+      for (const inner of ["total_seconds", "duration_seconds", "elapsed_seconds"]) {
+        if (value[inner] !== null && value[inner] !== undefined && value[inner] !== "") {
+          const formatted = formatMilliseconds(Number(value[inner]) * 1000);
+          if (formatted) return formatted;
+          return valueText(value[inner]);
+        }
+      }
+    } else if (typeof value === "string" && value.trim()) {
+      return value;
+    } else if (typeof value === "number") {
+      return key === "duration" ? value + "（字段未注明单位）" : formatMilliseconds(value);
+    }
+  }
+  return "未记录耗时";
+}
+
+function renderRuns(payload) {
+  const list = node("runs-list");
+  list.replaceChildren();
+  const sections = runsSections(payload);
+  let total = 0;
+  for (const section of sections) {
+    const block = make("section", "collection");
+    const head = make("div", "collection-head");
+    head.appendChild(make("h3", "", section.label));
+    head.appendChild(make("span", "", section.runs.length + " 条"));
+    block.appendChild(head);
+    if (!section.runs.length) {
+      const message = section.kind === "engine"
+        ? "还没有记忆引擎的查询记录。搜索或灵召回后会出现在这里。"
+        : "还没有灵的实际召回记录。开启接管并发送新消息后会出现。";
+      block.appendChild(make("p", "empty", message));
+    } else {
+      const cards = make("div", "result-list");
+      for (const run of section.runs) cards.appendChild(renderRun(run, section.kind));
+      block.appendChild(cards);
+    }
+    list.appendChild(block);
+    total += section.runs.length;
+  }
+  setText("runs-status", total ? "共 " + total + " 条召回记录。" : "暂无召回记录。");
+  const raw = node("runs-raw");
+  raw.hidden = false;
+  raw.open = total === 0;
+  renderJson(node("runs-raw-json"), payload);
+}
+
+function renderRun(run, sectionKind) {
+  const card = make("article", "run-card");
+  const header = make("div", "run-head");
+  let title = "召回记录";
+  if (isObject(run)) {
+    const query = run.query ?? run.question ?? run.prompt ?? run.label ?? run.title;
+    if (scalar(query) && String(query).trim()) title = oneLine(query, 160);
+  }
+  header.appendChild(make("h4", "run-title", title));
+  const status = runStatus(run);
+  header.appendChild(badge(status, statusTone(status)));
+  card.appendChild(header);
+
+  const meta = make("div", "run-meta");
+  const id = detailId(run);
+  if (id !== null) {
+    const part = make("span", "", "编号：");
+    part.appendChild(make("b", "", String(id)));
+    meta.appendChild(part);
+  }
+  const timing = make("span", "", "耗时：");
+  timing.appendChild(make("b", "", runTiming(run)));
+  meta.appendChild(timing);
+  if (isObject(run)) {
+    const when = run.created_at || run.started_at || run.occurred_at || run.timestamp
+      || run.at;
+    if (when) {
+      const part = make("span", "", "时间：");
+      part.appendChild(make("b", "", formatTime(when)));
+      meta.appendChild(part);
+    }
+    if (run.mode || (run.kind && sectionKind !== "adapter")) {
+      const part = make("span", "", "方式：");
+      part.appendChild(make("b", "", valueText(run.mode || run.kind)));
+      meta.appendChild(part);
+    }
+  }
+  card.appendChild(meta);
+  if (isObject(run) && run.error) card.appendChild(make("p", "run-error", "错误：" + errorText(run.error)));
+  if (isObject(run) && run.reason) {
+    card.appendChild(make("p", "run-error", "回退原因：" + errorText(run.reason)));
+  }
+
+  const actions = make("div", "run-actions");
+  if (id !== null) {
+    const feedback = make("button", "button link", "反馈这次召回");
+    feedback.type = "button";
+    feedback.addEventListener("click", () => selectRunForFeedback(id));
+    actions.appendChild(feedback);
+  }
+  card.appendChild(actions);
+
+  const details = make("details", "inline-details");
+  details.appendChild(make("summary", "", "查看召回 JSON"));
+  const panel = make("div", "json-panel");
+  renderJson(panel, run);
+  details.appendChild(panel);
+  card.appendChild(details);
+  return card;
+}
+
+async function loadRuns(options) {
+  if (state.runsBusy) return null;
+  state.runsBusy = true;
+  const quiet = Boolean(options && options.quiet);
+  node("refresh-runs").disabled = true;
+  if (!quiet) setText("runs-status", "正在读取召回记录…");
+  try {
+    const payload = await rpc("runs", {});
+    renderRuns(payload);
+    return payload;
+  } catch (error) {
+    node("runs-list").replaceChildren();
+    node("runs-raw").hidden = true;
+    setText("runs-status", "读取召回记录失败：" + errorText(error), "error");
+    if (!quiet) setStatus("读取召回记录失败：" + errorText(error), "error");
+    throw error;
+  } finally {
+    state.runsBusy = false;
+    node("refresh-runs").disabled = false;
+  }
+}
+
+function selectRunForFeedback(id) {
+  node("feedback-run-id").value = String(id);
+  node("feedback-category").focus();
+  node("feedback-form").scrollIntoView({ behavior: "smooth", block: "center" });
+  setText("feedback-status", "已填入召回编号 " + String(id) + "。");
+}
+
+async function submitFeedback(event) {
+  event.preventDefault();
+  const runId = node("feedback-run-id").value.trim();
+  const category = node("feedback-category").value.trim();
+  const comment = node("feedback-comment").value.trim();
+  if (!runId) {
+    setText("feedback-status", "请填写召回编号。", "error");
+    node("feedback-run-id").focus();
+    return;
+  }
+  if (!category) {
+    setText("feedback-status", "请填写记忆插件支持的反馈类别。", "error");
+    node("feedback-category").focus();
+    return;
+  }
+  const button = node("feedback-submit");
+  button.disabled = true;
+  setText("feedback-status", "正在提交反馈…");
+  try {
+    const payload = await rpc("feedback", {
+      run_id: runId,
+      category: category,
+      comment: comment,
+    });
+    setText("feedback-status", "反馈已提交。", "success");
+    setStatus("召回反馈已提交。", "success");
+    renderResponseDetails("feedback-result", "feedback-result-json", payload);
+  } catch (error) {
+    setText("feedback-status", "提交反馈失败：" + errorText(error), "error");
+    setStatus("提交反馈失败：" + errorText(error), "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderResponseDetails(detailsId, panelId, payload) {
+  const details = node(detailsId);
+  details.hidden = false;
+  details.open = true;
+  renderJson(node(panelId), payload);
+}
+
+function exportValue(value) {
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch (_ignored) {
+      return value;
+    }
+  }
+  return value === undefined ? null : value;
+}
+
+function exportText(value) {
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch (_ignored) {
+    return String(value);
+  }
+}
+
+function downloadJson(value) {
+  const text = exportText(value);
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const blob = new Blob([text], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "nexus-memory-" + stamp + ".json";
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function exportMemory() {
+  const button = node("export-button");
+  button.disabled = true;
+  setText("export-status", "正在生成导出文件…");
+  try {
+    const payload = await rpc("export", {});
+    const value = exportValue(payload);
+    try {
+      downloadJson(value);
+      setText("export-status", "导出已开始下载。", "success");
+      setStatus("记忆导出已开始下载。", "success");
+    } catch (error) {
+      setText("export-status", "导出内容已生成，但浏览器没有开始下载；可在下方查看 JSON。", "error");
+      setStatus("导出下载未开始：" + errorText(error), "error");
+    }
+    const preview = node("export-preview");
+    preview.hidden = false;
+    preview.open = true;
+    renderJson(node("export-preview-json"), value);
+  } catch (error) {
+    setText("export-status", "导出失败：" + errorText(error), "error");
+    setStatus("导出记忆失败：" + errorText(error), "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function refreshAll() {
+  const button = node("refresh-all");
+  button.disabled = true;
+  setStatus("正在刷新状态和召回记录…", "busy");
+  const results = await Promise.allSettled([
+    refreshStatus({ quiet: true }),
+    loadRuns({ quiet: true }),
+  ]);
+  const failed = results.filter((result) => result.status === "rejected");
+  if (failed.length) {
+    const first = failed[0].reason;
+    setStatus("刷新未完全成功：" + errorText(first), "error");
+  } else {
+    setStatus("状态和召回记录已刷新。", "success");
+    const statusPayload = results[0].value;
+    if (statusPayload && isObject(statusPayload.job) && statusPayload.job.running) {
+      startJobPolling("导入或构建");
+    }
+  }
+  button.disabled = false;
+}
+
+function bindEvents() {
+  node("settings-form").addEventListener("submit", saveSettings);
+  for (const id of ["base-url", "model", "api-key", "session-id", "budget-tokens"]) {
+    node(id).addEventListener("input", () => { state.settingsDirty = true; });
+  }
+  node("takeover").addEventListener("change", () => { state.settingsDirty = true; });
+  node("import-data").addEventListener("click", () => {
+    importMemory();
+  });
+  node("build-memory").addEventListener("click", () => {
+    buildMemory();
+  });
+  node("search-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    runSearch(node("search-query").value.trim(), "all");
+  });
+  node("browse-events").addEventListener("click", () => runSearch("", "event"));
+  node("browse-groups").addEventListener("click", () => runSearch("", "group"));
+  node("memory-detail-close").addEventListener("click", closeDetail);
+  node("detail-prev").addEventListener("click", () => {
+    if (!state.detail || state.detailLoading) return;
+    loadDetailPage(Math.max(0, state.detail.offset - state.detail.limit));
+  });
+  node("detail-next").addEventListener("click", () => {
+    if (!state.detail || state.detailLoading || !state.detailMore) return;
+    loadDetailPage(state.detailNextOffset);
+  });
+  node("detail-associations").addEventListener("click", loadAssociations);
+  node("refresh-runs").addEventListener("click", () => {
+    loadRuns({ quiet: false }).catch(() => {});
+  });
+  node("feedback-form").addEventListener("submit", submitFeedback);
+  node("export-button").addEventListener("click", exportMemory);
+  node("refresh-all").addEventListener("click", refreshAll);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshStatus({ quiet: true }).catch(() => {});
+  });
+}
+
+async function init() {
+  bindEvents();
+  setStatus("正在读取记忆插件…", "busy");
+  const results = await Promise.allSettled([
+    refreshStatus({ quiet: true }),
+    loadRuns({ quiet: true }),
+  ]);
+  const failed = results.filter((result) => result.status === "rejected");
+  if (failed.length) {
+    setStatus("读取插件未完全成功：" + errorText(failed[0].reason), "error");
+  } else {
+    setStatus("已连接记忆插件。", "success");
+    const statusPayload = results[0].value;
+    if (statusPayload && isObject(statusPayload.job) && statusPayload.job.running) {
+      startJobPolling("导入或构建");
+    }
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init, { once: true });
+} else {
+  init();
+}
+</script>
+</body>
+</html>
+

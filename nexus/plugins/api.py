@@ -1,6 +1,7 @@
 """Public plugin authoring surface; business implementations live in plugins/."""
 from __future__ import annotations
 
+import threading
 from copy import deepcopy
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -68,6 +69,29 @@ class PluginHost:
 
     def subscribe(self, event_names: list[str]):
         self._manager.events.subscribe(self.id, event_names)
+
+    def background(self, callback):
+        """Keep an already-started plugin job leased until its callback finishes."""
+        entered = threading.Event()
+        failure = []
+
+        def run():
+            try:
+                with self._manager.lease(self.id):
+                    entered.set()
+                    callback()
+            except Exception as error:  # noqa: BLE001 -- expose job/lifecycle failure.
+                failure.append(error)
+                self._manager.entries[self.id].error = str(error)
+            finally:
+                entered.set()
+
+        worker = threading.Thread(target=run, name='plugin-job-' + self.id, daemon=True)
+        worker.start()
+        entered.wait()
+        if failure:
+            raise failure[0]
+        return worker
 
 
 __all__ = ["BaseModel", "EmptyArgs", "Field", "PluginHost", "Registry", "ToolResult", "ToolSpec"]

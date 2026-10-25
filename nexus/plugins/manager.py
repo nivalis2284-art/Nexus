@@ -406,6 +406,21 @@ class PluginManager:
         for spec in specs_for(agent.context):
             agent.registry._tools.setdefault(spec.name, spec)
         self.decorate(agent.registry, agent.context, {k: v for k, v in scope.items() if k != 'messages'})
+        from ..core import compaction, prompt
+        profile = getattr(agent, 'profile', None)
+        if profile is not None:
+            budget = prompt.Budget(
+                context_limit=agent.context_limit or profile.context_window_tokens or 64_000,
+                output_reserve=profile.max_output_tokens or 8_000)
+            base_system = prompt.build_system_prompt(
+                agent.workspace, agent.registry.declarations(),
+                platform=sys.platform, date='YYYY-MM-DD',
+                role=agent.role, persona=agent.persona_context, skills=agent.skills,
+                task_context=agent.task_context, interaction_context=agent.interaction_context)
+            newest = scope['messages'][-1:]
+            scope['material_budget_tokens'] = max(0, budget.input_limit
+                - prompt.estimate(base_system) - prompt.estimate(json.dumps(agent.registry.schema()))
+                - compaction.approx_tokens(newest) - 128)
         materials, reports = self.context(scope)
         # Dependency order is supplied by the manifest; presentation follows purpose.
         agent.request_materials = materials
@@ -545,6 +560,18 @@ class PluginManager:
         if topic == 'sessions.messages':
             session = self.state['sessions'].load(args['id'])
             return [{'kind': value.kind, 'text': value.text, 'data': value.data} for value in session.items] if session else []
+        if topic == 'sessions.records':
+            session = self.state['sessions'].load(args['id'])
+            if session is None:
+                raise ValueError('会话不存在')
+            return [{key: value for key, value in item.to_record().items() if key != 'thinking'}
+                    for item in session.items]
+        if topic == 'ling.identity':
+            runtime = self.state.get('ling')
+            if runtime and getattr(runtime, 'session_id', None):
+                return {'session_id': runtime.session_id}
+            from ..ling import ling_session_id
+            return {'session_id': ling_session_id(tasks)}
         if topic == 'activity.current':
             return self.runtime.active if self.runtime else None
         if topic == 'activity.runs':

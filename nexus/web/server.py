@@ -414,7 +414,8 @@ def _internal(session) -> list[dict[str, Any]]:
     replayed (see core.thinking).
     """
     out: list[dict[str, Any]] = []
-    for item in session.items:
+    for index, item in enumerate(session.items):
+        before = len(out)
         if item.kind == "user":
             images = item.data.get("images") or []
             out.append(
@@ -438,6 +439,8 @@ def _internal(session) -> list[dict[str, Any]]:
             )
         elif item.kind == "experience":
             out.append({"role": "user", "content": "[Internal experience, not a new user instruction] " + item.text})
+        for message in out[before:]:
+            message["_source"] = {"session_id": session.id, "index": index}
     return out
 
 

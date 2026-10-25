@@ -379,38 +379,6 @@ class Agent:
                     break
                 if self.before_model is not None:
                     self.before_model(messages)
-                # Trim oversized tool results before budgeting. Deterministic,
-                # no model call: see core.compaction for why this goes first.
-                stable, compaction_report = compaction.prune(messages)
-                self.last_compaction = compaction_report
-
-                # If pruning was not enough, fold old history into a checkpoint.
-                # Only attempted when a summariser is wired up, and a failure
-                # here never stops the turn.
-                window = self.context_limit or self.profile.context_window_tokens or 64_000
-                if (
-                    self.compaction_epochs < self.max_epochs
-                    and compaction.approx_tokens(stable) >= window * compaction.TRIGGER_RATIO
-                    and not self.stopped
-                ):
-                    # Plugin material is a disposable view. Never let it become
-                    # the transcript that compaction writes back.
-                    folded, fold_report = await self._fold(messages, stable, window)
-                    if fold_report.summarised:
-                        messages[:] = folded
-                        self.compaction_epochs = fold_report.epochs
-                        self.last_compaction = fold_report
-                        yield RunEvent(
-                            "compacted",
-                            data={
-                                "epochs": fold_report.epochs,
-                                "before": fold_report.before_tokens,
-                                "after": fold_report.after_tokens,
-                            },
-                        )
-                    elif fold_report.reason:
-                        self.last_compaction = fold_report
-
                 prepared = messages
                 if self.plugins is not None:
                     try:
@@ -438,6 +406,40 @@ class Agent:
                                 record_id, "prepared_failed", "plugin_context: " + str(error)
                             )
                         raise
+                # Trim oversized tool results before budgeting. Deterministic,
+                # no model call: see core.compaction for why this goes first.
+                stable, compaction_report = compaction.prune(prepared)
+                self.last_compaction = compaction_report
+
+                # If pruning was not enough, fold old history into a checkpoint.
+                # Only attempted when a summariser is wired up, and a failure
+                # here never stops the turn.
+                window = self.context_limit or self.profile.context_window_tokens or 64_000
+                if (
+                    self.compaction_epochs < self.max_epochs
+                    and compaction.approx_tokens(stable) >= window * compaction.TRIGGER_RATIO
+                    and not self.stopped
+                ):
+                    # Fold the projected history, before adding recall materials.
+                    # A plugin projection must never replace durable history.
+                    folded, fold_report = await self._fold(prepared, stable, window)
+                    if fold_report.summarised:
+                        if prepared == messages:
+                            messages[:] = folded
+                        prepared = folded
+                        self.compaction_epochs = fold_report.epochs
+                        self.last_compaction = fold_report
+                        yield RunEvent(
+                            "compacted",
+                            data={
+                                "epochs": fold_report.epochs,
+                                "before": fold_report.before_tokens,
+                                "after": fold_report.after_tokens,
+                            },
+                        )
+                    elif fold_report.reason:
+                        self.last_compaction = fold_report
+
                 self.request_materials = list(getattr(self, "request_materials", []) or [])
                 self.request_plugins = list(getattr(self, "request_plugins", []) or [])
                 tools = self.registry.schema()
