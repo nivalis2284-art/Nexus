@@ -48,20 +48,40 @@ def test_task_calls_real_mcp_server_with_preserved_schema(tmp_path, monkeypatch)
 
 
 def test_task_child_keeps_mcp_and_separate_operation_identity(tmp_path, monkeypatch):
-    config, store, task, seen = setup(tmp_path, monkeypatch, [
-        call_frames("same-id", "subagent", {"task": "echo the evidence", "max_steps": 4}),
-        call_frames("same-id", "mcp__stub__echo", {"text": "child evidence 7319"}),
-        text_frames("child completed: 7319"),
-        call_frames("finish", "task_finish", {"summary": "parent report"}),
-    ])
-    result = TaskAssembler(store, config)(store.get(task.id), threading.Event())
-    assert result.status == "complete"
-    child_tools = {item["function"]["name"] for item in seen[1]["tools"]}
-    assert "mcp__stub__echo" in child_tools
-    assert "task_finish" not in child_tools
-    assert "task_update" not in child_tools
-    reports = [item for item in store.messages(task.id) if item.get("subagent")]
-    assert reports and "7319" in reports[0]["text"]
-    assert any(event["type"] == "tool_result" and "7319" in str(event)
-               for event in reports[0]["trace"])
-    assert store.unfinished_operations(task.id) == []
+    from nexus.runtime.controller import TaskController
+    from test_async_subagents import until, install
+    config, store, task, seen = setup(tmp_path, monkeypatch, [])
+    store.command(task.id, "paused", request_id="prepare-async")
+    runner = TaskAssembler(store, config)
+    controller = TaskController(store, run=runner)
+    runner.controller = controller
+    count = {}
+    def provider(body):
+        system = body["messages"][0]["content"]
+        child = "Task: echo evidence\n" in system
+        key = "child" if child else "parent"
+        count[key] = count.get(key, 0) + 1
+        seen.append(body)
+        if child:
+            if count[key] == 1:
+                return call_frames("same-id", "mcp__stub__echo", {"text": "child evidence 7319"})
+            return call_frames("finish", "task_finish", {"summary": "child evidence 7319"})
+        if count[key] == 1:
+            return call_frames("same-id", "subagent", {"task": "echo evidence"})
+        if not all(c["state"] == "completed" for c in store.children(task.id)):
+            return call_frames("wait", "subagent_wait", {})
+        return call_frames("finish", "task_finish", {"summary": "parent report"})
+    install(monkeypatch, provider)
+    controller.start()
+    try:
+        controller.submit(task.id, request_id="async-start")
+        until(lambda: store.get(task.id).state == "completed", seconds=15)
+        child = store.children(task.id)[0]["task_id"]
+        records = store.messages(child)
+        assert any(item.get("name") == "mcp__stub__echo" and item["text"] == "child evidence 7319" for item in records)
+        assert store.get(child).state == "completed"
+        assert not store.unfinished_operations(child)
+        assert not store.unfinished_operations(task.id)
+        assert any("child evidence 7319" in m["text"] for m in store.messages(task.id))
+    finally:
+        controller.close()

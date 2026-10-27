@@ -63,6 +63,7 @@ def needs_project_write(spec):
         "todo",
         "save_instructions",
         "subagent",
+        "subagent_list", "subagent_read", "subagent_message", "subagent_control", "subagent_wait", "subagent_model",
         "job_kill",
     }
 
@@ -97,6 +98,10 @@ class TaskController:
                 worker.start()
 
     def _changed(self, task_id: str) -> None:
+        relation = self.store.child_relation(task_id)
+        if not self._closed and relation and relation["parent_kind"] == "task":
+            from .subagents import collect_children
+            collect_children(self.store, self, relation["parent_id"])
         if self.on_change is not None:
             self.on_change(task_id)
 
@@ -194,7 +199,9 @@ class TaskController:
                 self._record_failure(task.id, error)
                 self.store.end_run(run_id, status="failed")
             finally:
-                waiting = self.store.get(task.id).state == "waiting_user"
+                from .subagents import WAITING
+                current = self.store.get(task.id)
+                waiting = current.state == "waiting_user" or current.wait_reason == WAITING
                 if not waiting:
                     self.stop_task_resources(task.id)
                 with self._change:
@@ -373,29 +380,40 @@ class TaskController:
         return {"stopped_jobs": stopped}
 
     def pause(self, task_id: str, *, request_id: str, expected_version: int | None = None) -> Task:
+        from .subagents import WAITING
         with self._change:
             current = self.store.get(task_id)
-            if current.state in ("paused", "pausing"):
-                return current
-            jobs = getattr(self.run, "_jobs", {}).get(task_id)
-            has_jobs = jobs is not None and any(value["running"] for value in jobs.list())
-            operation = (
-                "pausing"
-                if (
-                    (task_id in self._active and current.state == "running")
-                    or (has_jobs and current.state == "waiting_user")
-                )
-                else "paused"
-            )
-            self.store.command(
-                task_id, operation, request_id=request_id, expected_version=expected_version
-            )
-            if task_id in self._queue:
-                self._queue.remove(task_id)
-            event = self._cancel_events.get(task_id)
-            if event:
-                event.set()
-            self._change.notify_all()
+            if expected_version is not None and current.control_version != expected_version:
+                raise TaskConflict("task control changed; reload before trying again")
+            if current.state == "paused" and current.wait_reason == WAITING:
+                with self.store._lock, self.store._transaction() as connection:
+                    version = current.control_version + 1
+                    connection.execute("UPDATE tasks SET wait_reason=?,control_version=? WHERE id=?",
+                                       ("Paused by owner; explicit resume required", version, task_id))
+                    self.store._advance_control_version(connection, task_id,
+                        previous_version=current.control_version, new_version=version, target_changed=False)
+                    self.store._event(connection, task_id, "task.control", {
+                        "operation": "paused", "state": "paused", "source": "user",
+                        "wait_reason": "Paused by owner; explicit resume required"})
+                current = self.store.get(task_id)
+            if current.state not in ("paused", "pausing"):
+                jobs = getattr(self.run, "_jobs", {}).get(task_id)
+                has_jobs = jobs is not None and any(value["running"] for value in jobs.list())
+                operation = "pausing" if (
+                    task_id in self._active and current.state == "running"
+                    or has_jobs and current.state == "waiting_user"
+                ) else "paused"
+                self.store.command(task_id, operation, request_id=request_id, expected_version=expected_version)
+                if task_id in self._queue:
+                    self._queue.remove(task_id)
+                event = self._cancel_events.get(task_id)
+                if event:
+                    event.set()
+                self._change.notify_all()
+        # Mark the owner first: child transitions must not reawaken this parent.
+        for child in self.store.children(task_id, parent_kind="task"):
+            if child["state"] not in ("completed", "cancelled", "paused"):
+                self.pause(child["task_id"], request_id=request_id + "-" + child["task_id"])
         self.stop_task_resources(task_id)
         result = self.store.get(task_id)
         if result.state != "pausing":
@@ -403,10 +421,12 @@ class TaskController:
         return result
 
     def pause_all(self) -> list[Task]:
+        from .subagents import WAITING
         return [
             self.pause(task.id, request_id=f"pause-all-{task.id}-{time.time_ns()}")
             for task in self.store.list()
             if task.state in ("pending", "queued", "running", "waiting_user")
+            or task.state == "paused" and task.wait_reason == WAITING
         ]
 
     def cancel(self, task_id: str, *, request_id: str, expected_version: int | None = None) -> Task:
@@ -420,6 +440,9 @@ class TaskController:
             if event:
                 event.set()
             self._change.notify_all()
+        for child in self.store.children(task_id, parent_kind="task"):
+            if child["state"] not in ("completed", "cancelled"):
+                self.cancel(child["task_id"], request_id=request_id + "-" + child["task_id"])
         self.stop_task_resources(task_id)
         result = self.store.get(task_id)
         self._changed(task_id)

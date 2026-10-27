@@ -127,7 +127,7 @@ function renderComposerTargets() {
   select.appendChild(ling);
   for (const task of lingView.tasks) {
     if (task.state === "cancelled") continue;
-    const option = el("option", "", (task.title || "未命名工作") + (task.state === "completed" ? "（已完成）" : ""));
+    const option = el("option", "", (task.parent_id ? "↳ 子代理：" : "") + (task.title || "未命名工作") + (task.state === "completed" ? "（已完成）" : ""));
     option.value = task.id;
     select.appendChild(option);
   }

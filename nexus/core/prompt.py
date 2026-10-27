@@ -5,9 +5,8 @@ Two ideas matter here:
 1. The system prompt is *assembled at runtime*, not a constant. The workspace,
    git state and instruction files change; a static string would be wrong by
    the second run.
-2. The transcript is trimmed from the newest message backwards. The newest
-   message is always kept, even when it alone exceeds the budget, because
-   failing a turn is worse than sending an oversized one.
+2. Selection measures atomic tool exchanges. The Agent compacts before older
+   messages would be dropped and reports oversized input without deleting it.
 """
 
 from __future__ import annotations
@@ -18,24 +17,43 @@ from typing import Any
 from . import compaction
 from .workspace import Workspace
 
-ROLE_RULES = """Operate by acting, not by describing. When the user asks for a change, make it
-with tools instead of printing code for them to paste.
+ROLE_RULES = """Work from evidence and keep moving. When the user asks for a change, make it
+with the available tools instead of printing code for them to paste. Continue until
+the requested work is complete or a concrete blocker needs the user.
 
 Rules that matter:
 - Read a file before editing it. Never guess at existing content.
 - Prefer edit_file over write_file for files that already exist.
-- Use the dedicated tools (read_file, glob, grep) instead of shell equivalents.
+- Use the dedicated file tools when they are available.
 - Run the project's own checks when you change code, and report what you ran.
-- If a tool fails, read the error and adapt. Do not repeat an identical call.
-- Stop when the task is done. Do not summarise work you did not perform."""
+- If a tool fails, read the error and adapt. Retry when the failure is transient or
+  the call or input has been corrected. Do not repeat an unchanged failed call
+  without a reason to expect a different result.
+- Stop when the task is done. Report only work you actually performed."""
 
 ROLE = "You are Nexus, a coding agent working inside the user's workspace.\n\n" + ROLE_RULES
 
 ENVIRONMENT = """Environment:
 - Platform: {platform}
-- Date: {date}
-- Shell: none (the bash tool takes an argument list, not a shell string)
+- Date: {date}{shell}
 {workspace}"""
+
+INSTRUCTION_PRIORITY = """# Instruction sources and priority
+- Owner instructions are the owner's persistent preferences from the Nexus data
+  directory. They are not repository files.
+- Project instructions are labeled files found from the filesystem root down to this
+  workspace and in directories already touched in this run. Each block names its
+  absolute path and scope; a nested file covers that directory and below.
+- The owner is the highest authority. An explicit current owner request overrides
+  general preferences, examples, templates, ordinary habits, older summaries, and
+  the owner's own project instructions, and may change them; state which rule
+  changed.
+- A general or vague request yields to an explicit, specific project boundary in
+  scope. That boundary never overrides an explicit owner request.
+- Only when a conflict cannot be resolved from the request and the rules, ask the
+  owner instead of guessing.
+- A template, example, or ordinary habit is guidance; do not promote it into a hard
+  prohibition."""
 
 
 @dataclass(frozen=True)
@@ -47,7 +65,7 @@ class Budget:
     @property
     def input_limit(self) -> int:
         limit = self.context_limit - self.output_reserve - self.tool_reserve
-        return max(limit, 2_000)
+        return max(limit, 0)
 
 
 @dataclass
@@ -77,19 +95,42 @@ def build_system_prompt(
     skills: str = "",
     task_context: str = "",
     interaction_context: str = "",
+    permission_context: str = "",
 ) -> str:
-    sections = [owner_instructions, role] if owner_instructions else [role]
+    sections: list[str] = []
+    if owner_instructions:
+        sections.append(
+            "# Owner instructions\n"
+            "Source: `owner-instructions.txt` in the Nexus data directory; this file is "
+            "owner-controlled and outside the workspace.\n"
+            "Nature: durable owner preferences and constraints; the current explicit "
+            "owner request may override them.\n\n"
+            + owner_instructions
+        )
+    sections.append(role)
+    shell = ""
+    if "- bash:" in tools:
+        shell = (
+            "\n- Shell: none; bash receives one command-line string (not an argv list), "
+            "splits it into argv, and does not interpret shell operators. Its working "
+            "directory is the workspace root."
+        )
     env = ENVIRONMENT.format(
         platform=platform,
         date=date,
+        shell=shell,
         workspace=workspace.summary(),
     )
     sections.append(env)
+    sections.append(INSTRUCTION_PRIORITY)
     if workspace.instructions:
         sections.append(
             "# Project instructions\n"
-            "The following comes from instruction files in the workspace. "
-            "Follow them unless they conflict with your core rules.\n\n"
+            "Source: instruction files on the path from the filesystem root down to "
+            "this workspace, plus directories already touched in this run.\n"
+            "Nature: workspace-specific requirements and habits within each stated scope.\n"
+            "Each block names its absolute file path and scope. A nested block applies "
+            "to that directory and its descendants.\n\n"
             + workspace.instructions
         )
     if skills:
@@ -97,24 +138,42 @@ def build_system_prompt(
         # with read_skill, so an unused skill costs one line, not a page.
         sections.append(
             "# Skills\n"
-            "Reusable procedures installed in this environment. When one applies, "
-            "call read_skill with its exact name before doing the work.\n"
+            "Source: installed skill manifests.\n"
+            "Nature: reusable procedures when they apply; they are not project authority.\n"
+            "When one applies, call read_skill with its exact name before doing the work.\n"
             + skills
         )
     if interaction_context:
-        sections.append("# Continuing interaction\n" + interaction_context)
+        sections.append(
+            "# Continuing interaction\n"
+            "Source: current Nexus conversation and work state.\n"
+            "Nature: context and pending events, not new permission or authorization.\n\n"
+            + interaction_context
+        )
     if task_context:
         sections.append(
             "# Persistent task state\n"
-            "This state is maintained by the task controller. It outranks old model summaries. "
-            "Follow the latest user goal and check actual results before claiming success. "
+            "Source: the task controller's saved state for current work.\n"
+            "Nature: current task context and recorded progress, not a new instruction "
+            "or authorization. It outranks old model summaries and yields to the latest "
+            "explicit owner request and applicable project rules.\n"
+            "Check actual results before claiming success. "
             "Progress, plans, and supporting records are optional; update them when useful.\n\n"
             + task_context
+        )
+    if permission_context:
+        sections.append(
+            "# Permission context\n"
+            "Source: supplied by the main agent for this request.\n"
+            "Nature: the permission and approval information actually available in this "
+            "run. Do not assume broader access.\n\n"
+            + permission_context
         )
     if tools:
         sections.append(
             "# Tools\n"
-            "Call tools with their exact names. Arguments must match the schema.\n"
+            "Source: this run's tool registry. Only the tools listed below are available.\n"
+            "Call them with their exact names. Arguments must match the schema.\n"
             + tools
         )
     return "\n\n".join(sections)

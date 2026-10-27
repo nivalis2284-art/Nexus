@@ -2,9 +2,8 @@
 
 Two independent mechanisms, applied in this order:
 
-1. :func:`prune` — trims the middle out of oversized tool results. Pure text
-   surgery: no model call, no semantic change, nothing invented. This is the
-   first line of defence because it cannot introduce a new source of error.
+1. :func:`prune` — trims the middle out of oversized tool results for requests.
+   The complete transcript remains available for summaries and later reads.
 2. :func:`summarise` — replaces old history with a structured checkpoint. Only
    runs when pruning was not enough.
 
@@ -20,13 +19,15 @@ Three rules make compaction safe, all learned from reading those packages:
   longer context is worse than no compaction.
 * **Never cut inside a tool call/result pair.** A dangling ``tool_call`` with no
   result confuses every provider.
-* **Never fail the turn because compaction failed.** Fall back to pruning.
+* **Never overwrite history when compaction fails.** The Agent reports capacity
+  errors if the remaining request cannot fit without discarding its goals.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import json
 from typing import Any
 
 # The prompt builder and compaction share these estimates so that budgeting,
@@ -106,6 +107,21 @@ class CompactionReport:
     reason: str = ""
     before_tokens: int = 0
     after_tokens: int = 0
+
+
+def project(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Apply durable checkpoints without changing their underlying transcript."""
+    out: list[dict[str, Any]] = []
+    for message in messages:
+        if message.get("role") != "checkpoint":
+            out.append(message)
+            continue
+        through = message.get("through")
+        boundary = next((i for i, value in enumerate(out)
+                         if through is not None and value.get("_source_id") == through), None)
+        if boundary is not None:
+            out = [{**message, "role": "user"}, *out[boundary + 1:]]
+    return out
 
 
 def _code_point_trim(text: str, head: int, tail: int) -> str:
@@ -212,7 +228,11 @@ def image_tokens(message: dict[str, Any]) -> int:
 
 def message_tokens(message: dict[str, Any]) -> int:
     """Estimated cost of one message, including its fixed framing overhead."""
-    return estimate(_text_of(message)) + MESSAGE_OVERHEAD + image_tokens(message)
+    text = _text_of(message)
+    native = message.get("native")
+    if native:
+        text += json.dumps(native, ensure_ascii=False)
+    return estimate(text) + MESSAGE_OVERHEAD + image_tokens(message)
 
 
 def approx_tokens(messages: list[dict[str, Any]]) -> int:
@@ -401,7 +421,7 @@ def summarise(
         return messages, report
 
     transcript = "\n\n".join(
-        f"[{message.get('role')}] {_text_of(message)[:4000]}" for message in head
+        f"[{message.get('role')}] {_text_of(message)}" for message in head
     )
     checkpoint = call_model(transcript + "\n\n" + SUMMARY_INSTRUCTION)
     if not checkpoint or not checkpoint.strip():

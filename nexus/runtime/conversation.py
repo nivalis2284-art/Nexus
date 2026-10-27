@@ -9,7 +9,6 @@ from pathlib import Path
 
 from .. import skills
 from ..attachments import AttachmentStore
-from ..core import subagent
 from ..core.agent import Agent, AgentSuspended
 from ..core.config import build_profile
 from ..core.permission import default_policy
@@ -30,11 +29,11 @@ def persist(state, session, new_messages):
     for message in new_messages:
         role = message.get("role")
         if role == "assistant":
-            if not (message.get("content") or message.get("tool_calls") or message.get("thinking")):
+            if not (message.get("content") or message.get("tool_calls") or message.get("thinking") or message.get("native")):
                 continue
             data = {
                 key: message[key]
-                for key in ("message_id", "tool_calls", "thinking", "usage", "elapsed")
+                for key in ("message_id", "tool_calls", "thinking", "usage", "elapsed", "native")
                 if message.get(key) is not None
             }
             store.append(
@@ -48,8 +47,12 @@ def persist(state, session, new_messages):
             store.append(
                 session, Message(kind="tool", text=message.get("content") or "", data=data)
             )
+        elif role == "checkpoint":
+            store.append(session, Message(kind="checkpoint", text=message["content"],
+                                          data={"through": message["through"]}))
         else:
             continue
+        message["_source_id"] = str(len(session.items) - 1)
         if state.get("plugins"):
             state["plugins"].publish(
                 "message.saved",
@@ -172,6 +175,9 @@ def run_turn(state, session, settings, emit, *, ling, history):
         request_id = decisions.dispatch(prepared.spec.name, prepared.arguments, str(workspace.root))
         try:
             result = tools.execute_prepared(prepared, tool_context)
+        except AgentSuspended as suspension:
+            decisions.finish(request_id, unknown=suspension.control != "children")
+            raise
         except BaseException:
             decisions.finish(request_id, unknown=True)
             raise
@@ -219,44 +225,11 @@ def run_turn(state, session, settings, emit, *, ling, history):
     )
     ling.agent = agent
 
-    def spawn_subagent(task, max_steps):
-        request = subagent.SubagentRequest(task=task, max_steps=max_steps, depth=1)
-
-        async def factory(prompt, budget):
-            child_tools, child_context = toolset(False)
-            child_context.ask = ask
-            child = Agent(
-                profile=profile,
-                credentials=RuntimeCredentials(settings.api_key),
-                registry=child_tools,
-                context=child_context,
-                workspace=workspace,
-                policy=policy,
-                max_steps=budget,
-                context_limit=settings.context_limit,
-                effort=settings.effort,
-                skills=skill_set.manifest(),
-                approve=approve,
-                cancel_event=cancel,
-                owner_context=load_instructions(state["store"].home),
-                execute_prepared=lambda ready: execute(ready, child_context, child_tools),
-                plugins=plugins,
-                plugin_scope={**scope, "kind": "subagent"},
-                request_history=state.get("request_history"),
-                request_scope={"kind": "subagent", "owner_id": session.id},
-            )
-            async for event in child.run([{"role": "user", "content": prompt}]):
-                yield event
-
-        async def drive_child():
-            return await subagent.run_subagent(request, make_runner=factory)
-
-        try:
-            return asyncio.run(drive_child())
-        except subagent.SubagentSuspended as error:
-            raise error.original
-
-    context.spawn_subagent = spawn_subagent
+    from .subagents import SubagentService
+    context.subagents = SubagentService(state["tasks"], state["task_controller"], state["store"],
+        session.id, "session", settings=settings, history=lambda: history,
+        call_id=lambda: getattr(context, "call_id", str(ling.current_input)),
+        attachments=lambda: [a for item in session.items for a in item.data.get("attachments", [])])
     started = time.monotonic()
 
     async def drive():

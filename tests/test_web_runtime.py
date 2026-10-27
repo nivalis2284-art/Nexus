@@ -94,7 +94,7 @@ def test_compaction_keeps_full_transcript_and_new_answer(runtime, monkeypatch):
     for i in range(10):
         web.STATE["sessions"].append(session, Message(kind="user", text="old-" + str(i) + "x" * 1500))
     settings = store.load()
-    settings.context_limit = 2000
+    settings.context_limit = 16000
     async def fold(self, original, trimmed, window):
         return [{"role": "user", "content": "checkpoint"}], compaction.CompactionReport(summarised=True, epochs=1)
     monkeypatch.setattr(loop.Agent, "_fold", fold)
@@ -127,30 +127,6 @@ def test_mcp_start_schema_call_failure_and_reload(runtime, monkeypatch):
     assert tools[0]["arguments"] == {"text": "hello MCP"}
     assert tools[1]["ok"] is False
     assert tools[1]["error"] == "execution_failed"
-
-
-def test_subagent_shares_approval_channel(runtime, monkeypatch):
-    handler, session, store, ling = runtime
-    store.save_preferences(permission="ask")
-    seen = model(monkeypatch, [stream(calls=[("subagent", {"task": "write child.txt"})]),
-                              stream(calls=[("write_file", {"path": "child.txt", "content": "child"})]),
-                              stream(text="child finished"), stream(text="parent finished")])
-    tools, context = build(root=Path(store.load().workspace))
-    prepared = tools.prepare("write_file", {"path": "child.txt", "content": "child"}, context)
-    assert not isinstance(prepared, ToolResult)
-    request = ling.decisions.create("approval", {
-        "tool": "write_file", "arguments": prepared.arguments,
-        "value": "child.txt",
-        "workspace": str(Path(store.load().workspace).resolve()),
-    })
-    ling.decisions.answer(request["id"], True)
-    events = []
-    handler._run_turn(session, store.load(), events.append)
-    assert (Path(store.load().workspace) / "child.txt").read_text() == "child"
-    assert len(seen) == 4
-    assert ling.decisions.pending() == []
-    assert not [event for event in events if event["type"] == "approval"]
-    assert not ling.decisions.granted("write_file", prepared.arguments, store.load().workspace)
 
 
 def test_background_task_survives_turn_but_is_session_scoped(runtime, monkeypatch):

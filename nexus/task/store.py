@@ -194,6 +194,22 @@ class TaskStore:
                         "ALTER TABLE tasks ADD COLUMN read_only INTEGER NOT NULL DEFAULT 0"
                     )
                 connection.execute(f"PRAGMA user_version = {TASK_SCHEMA_VERSION}")
+            # Subagent ownership is additive metadata: a child keeps its own
+            # task row and this table only records who asked for it.
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS task_relations (
+                  child_id TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+                  parent_id TEXT NOT NULL,
+                  parent_kind TEXT NOT NULL,
+                  origin TEXT NOT NULL,
+                  created_at TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS task_relations_parent ON task_relations(parent_id)"
+            )
 
     @contextmanager
     def _transaction(self) -> Iterator[sqlite3.Connection]:
@@ -419,6 +435,97 @@ class TaskStore:
             return [task_from_row(row) for row in rows]
         finally:
             connection.close()
+
+    # --- subagent relations ---------------------------------------------
+
+    def link_child(self, child_id: str, *, parent_id: str, parent_kind: str,
+                   context_mode: str = "fresh") -> dict[str, Any]:
+        """Record who asked for a child task. One child has one parent."""
+        if parent_kind not in ("session", "task") or context_mode not in ("fresh", "fork"):
+            raise TaskValidationError("invalid subagent relation")
+        with self._lock, self._transaction() as connection:
+            self._row(connection, child_id)
+            connection.execute(
+                "INSERT INTO task_relations(child_id,parent_id,parent_kind,origin,created_at) "
+                "VALUES(?,?,?,?,?) ON CONFLICT(child_id) DO UPDATE SET "
+                "parent_id=excluded.parent_id,parent_kind=excluded.parent_kind,origin=excluded.origin",
+                (child_id, parent_id, parent_kind, context_mode, now_iso()),
+            )
+            self._event(connection, child_id, "subagent.linked",
+                        {"parent_id": parent_id, "parent_kind": parent_kind,
+                         "context_mode": context_mode})
+        return {"task_id": child_id, "parent_id": parent_id,
+                "parent_kind": parent_kind, "context_mode": context_mode}
+
+    def child_relation(self, task_id: str) -> dict[str, Any] | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT child_id,parent_id,parent_kind,origin,created_at FROM task_relations "
+                "WHERE child_id=?", (task_id,),
+            ).fetchone()
+            return self._relation_dict(row) if row else None
+        finally:
+            connection.close()
+
+    def child_ids(self) -> set[str]:
+        connection = self._connect()
+        try:
+            return {str(row[0]) for row in connection.execute("SELECT child_id FROM task_relations")}
+        finally:
+            connection.close()
+
+    def children(self, parent_id: str, *, parent_kind: str | None = None,
+                 include_archived: bool = False) -> list[dict[str, Any]]:
+        """List the child tasks owned by one session or parent task."""
+        connection = self._connect()
+        try:
+            clauses = ["r.parent_id=?"]
+            values: list[Any] = [parent_id]
+            if parent_kind is not None:
+                clauses.append("r.parent_kind=?")
+                values.append(parent_kind)
+            if not include_archived:
+                clauses.append("t.archived=0")
+            rows = connection.execute(
+                "SELECT r.child_id,r.parent_id,r.parent_kind,r.origin,r.created_at,"
+                "t.title,t.state,t.wait_reason,t.control_version,t.updated_at,t.archived "
+                "FROM task_relations r JOIN tasks t ON t.id=r.child_id WHERE "
+                + " AND ".join(clauses) + " ORDER BY r.created_at",
+                values,
+            ).fetchall()
+            return [self._child_dict(row) for row in rows]
+        finally:
+            connection.close()
+
+    def parent_children(self, owner_id: str, *, parent_kind: str | None = None,
+                        include_archived: bool = False) -> list[dict[str, Any]]:
+        """Same as children(), accepting a session id or a task id."""
+        return self.children(owner_id, parent_kind=parent_kind,
+                             include_archived=include_archived)
+
+    @staticmethod
+    def _relation_dict(row: sqlite3.Row) -> dict[str, Any]:
+        return {"task_id": row["child_id"], "parent_id": row["parent_id"],
+                "parent_kind": row["parent_kind"], "context_mode": row["origin"],
+                "created_at": row["created_at"]}
+
+    def _child_dict(self, row: sqlite3.Row) -> dict[str, Any]:
+        item = self._relation_dict(row)
+        connection = self._connect()
+        try:
+            pending = int(connection.execute(
+                "SELECT COUNT(*) FROM interactions WHERE task_id=? AND status='pending'",
+                (row["child_id"],),
+            ).fetchone()[0])
+        finally:
+            connection.close()
+        return {
+            **item, "title": row["title"], "state": row["state"],
+            "wait_reason": row["wait_reason"], "archived": bool(row["archived"]),
+            "control_version": int(row["control_version"]),
+            "pending_interactions": pending, "updated_at": row["updated_at"],
+        }
 
     def update_progress(self, task_id: str, *, expected_version: int, changes: dict[str, Any]) -> Task:
         allowed = {"steps", "decisions", "blocked", "next_step", "work_summary"}
@@ -727,6 +834,9 @@ class TaskStore:
                 raise TaskConflict("task changed before deletion")
             if row["state"] in ("running", "pausing", "queued", "waiting_user"):
                 raise TaskConflict("cannot delete an active task")
+            if connection.execute("SELECT 1 FROM task_relations WHERE parent_kind='task' AND parent_id=? LIMIT 1",
+                                  (task_id,)).fetchone():
+                raise TaskConflict("Delete the child work records before deleting their parent.")
             connection.execute("DELETE FROM tasks WHERE id=?", (task_id,))
 
     def begin_run(self, task_id: str) -> dict[str, Any]:
@@ -914,10 +1024,18 @@ class TaskStore:
                 interrupted.append(row["task_id"])
             # The service cannot resume background processes. Persist the fact
             # explicitly if a job row survived a crash.
+            job_tasks = [str(row[0]) for row in connection.execute(
+                "SELECT DISTINCT task_id FROM jobs WHERE status='running'")]
             connection.execute(
                 "UPDATE jobs SET status='interrupted',updated_at=? WHERE status='running'",
                 (now_iso(),),
             )
+            for task_id in job_tasks:
+                if task_id not in interrupted:
+                    self._event(connection, task_id, "run.interrupted", {
+                        "wait_reason": "服务中断，原后台进程已停止；请检查结果后继续处理待决定事项",
+                        "source": "error",
+                    })
         return interrupted
 
     def hold_queued_at_startup(self) -> list[str]:
@@ -1382,16 +1500,19 @@ class TaskStore:
                 ]]
             for message in messages:
                 role = message.get("role")
-                if role not in ("user", "assistant", "tool", "notice"):
+                if role not in ("user", "assistant", "tool", "notice", "checkpoint"):
                     continue
                 data = {key: message[key] for key in
                         ("message_id", "parent_message_id", "tool_calls", "tool_call_id", "name", "arguments", "ok",
-                         "error", "thinking", "usage") if message.get(key) is not None}
-                connection.execute(
+                         "error", "thinking", "usage", "native", "through") if message.get(key) is not None}
+                if isinstance(message.get("content"), list):
+                    data["content_blocks"] = message["content"]
+                cursor = connection.execute(
                     "INSERT INTO task_messages(task_id,kind,text,data_json,created_at) VALUES(?,?,?,?,?)",
                     (task_id, role, str(message.get("content") or ""),
                      json.dumps(data, ensure_ascii=False, default=str), now_iso()),
                 )
+                message["_source_id"] = str(cursor.lastrowid)
             self._event(connection, task_id, "messages.saved",
                         {"count": len(messages), "incomplete": incomplete})
 
@@ -1401,17 +1522,19 @@ class TaskStore:
         pending: dict[str, dict[str, Any]] = {}
         user_answers: dict[str, str] = {}
         for item in self.messages(task_id):
+            before = len(out)
             kind = item.get("kind")
             if kind == "user":
                 if item.get("interaction_id"):
                     user_answers[str(item["interaction_id"])] = item.get("text", "")
                 else:
-                    out.append({"role": "user", "content": message_content(item.get("text", ""), item.get("attachments", []), include_images=include_images)})
+                    out.append({"role": "user", "content": item.get("content_blocks") or message_content(item.get("text", ""), item.get("attachments", []), include_images=include_images)})
             elif kind == "assistant":
                 calls = item.get("tool_calls") or []
-                if item.get("text") or calls:
+                if item.get("text") or calls or item.get("native"):
                     out.append({"role": "assistant", "content": item.get("text", ""),
-                                "tool_calls": calls})
+                                "tool_calls": calls,
+                                **({"native": item["native"]} if item.get("native") else {})})
                     for call in calls:
                         pending[str(call.get("id") or "")] = call
             elif kind == "tool":
@@ -1419,13 +1542,19 @@ class TaskStore:
                 pending.pop(call_id, None)
                 out.append({"role": "tool", "tool_call_id": call_id,
                             "name": item.get("name", ""), "content": item.get("text", "")})
+            elif kind == "checkpoint":
+                out.append({"role": "checkpoint", "content": item.get("text", ""),
+                            "through": item.get("through")})
+            for message in out[before:]:
+                message["_source_id"] = str(item["seq"])
         for call_id, call in pending.items():
             out.append({"role": "tool", "tool_call_id": call_id,
                         "name": call.get("name", ""),
                         "content": "No result was recorded: outcome requires review."})
         for interaction_id, answer in user_answers.items():
             out.append({"role": "user", "content": answer})
-        return out
+        from ..core.compaction import project
+        return project(out)
 
     def messages(self, task_id: str) -> list[dict[str, Any]]:
         connection = self._connect()

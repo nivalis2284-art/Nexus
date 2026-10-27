@@ -355,7 +355,7 @@ def test_summary_requests_use_summary_kind_and_owner(tmp_path, monkeypatch):
     ]
 
     async def fold():
-        return await agent._fold(messages, messages, 1000)
+        return await agent._fold(messages, messages, 32000)
 
     folded, report = asyncio.run(fold())
     assert report.summarised is True

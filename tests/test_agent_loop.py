@@ -298,7 +298,8 @@ def test_abnormal_finish_reason_is_not_reported_complete(workspace: Path, finish
     assert done.type == "done"
     assert done.data["stopped"] == finish
     assert done.data["finish_reason"] == finish
-    assert messages[-1] == {
+    assert messages[-1]["message_id"]
+    assert {key: value for key, value in messages[-1].items() if key != "message_id"} == {
         "role": "assistant",
         "content": "partial",
         "thinking": None,

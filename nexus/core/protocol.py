@@ -22,6 +22,7 @@ from typing import Any
 
 from ..model import APIFamily, ModelProfile
 from . import effort as reasoning
+from .replay import replayable
 
 
 def is_blocks(content: Any) -> bool:
@@ -106,7 +107,9 @@ def _responses_content(content: Any) -> Any:
     return parts
 
 
-def _chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _chat_messages(
+    profile: ModelProfile, messages: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for message in messages:
         role = message["role"]
@@ -115,6 +118,9 @@ def _chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "role": "assistant",
                 "content": blocks_to_text(message.get("content")) or None,
             }
+            native = replayable(profile, message.get("native"))
+            if native and isinstance(native.get("reasoning_content"), str):
+                entry["reasoning_content"] = native["reasoning_content"]
             calls = message.get("tool_calls") or []
             if calls:
                 entry["tool_calls"] = [
@@ -142,12 +148,18 @@ def _chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def _anthropic_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _anthropic_messages(
+    profile: ModelProfile, messages: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for message in messages:
         role = message["role"]
         if role == "assistant":
             blocks: list[dict[str, Any]] = []
+            native = replayable(profile, message.get("native"))
+            if native:
+                out.append({"role": "assistant", "content": native["content"]})
+                continue
             text = message.get("content") or ""
             if text:
                 blocks.append({"type": "text", "text": text})
@@ -183,11 +195,17 @@ def _anthropic_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def _responses_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _responses_input(
+    profile: ModelProfile, messages: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for message in messages:
         role = message["role"]
         if role == "assistant":
+            native = replayable(profile, message.get("native"))
+            if native:
+                out.extend(native["output"])
+                continue
             text = message.get("content") or ""
             if text:
                 out.append(
@@ -283,7 +301,7 @@ def request_body(
         body: dict[str, Any] = {
             "model": profile.model,
             "system": system,
-            "messages": _anthropic_messages(messages),
+            "messages": _anthropic_messages(profile, messages),
             "max_tokens": max_tokens,
             "stream": True,
         }
@@ -295,17 +313,19 @@ def request_body(
         body = {
             "model": profile.model,
             "instructions": system,
-            "input": _responses_input(messages),
+            "input": _responses_input(profile, messages),
             "max_output_tokens": max_tokens,
             "stream": True,
         }
         if tool_list:
             body["tools"] = tool_list
+        if profile.capabilities.encrypted_reasoning:
+            body["include"] = ["reasoning.encrypted_content"]
         reasoning.apply(body, family, profile, effort)
         return body
     body = {
         "model": profile.model,
-        "messages": [{"role": "system", "content": system}, *_chat_messages(messages)],
+        "messages": [{"role": "system", "content": system}, *_chat_messages(profile, messages)],
         "stream": True,
     }
     if profile.max_output_tokens:

@@ -1,28 +1,27 @@
 """How assistant thinking is (and is not) replayed in each protocol.
 
-Reasoning text is display material. Replaying it is only correct where the
-protocol carries it as a first-class block:
+Thinking text is always kept for display. A provider may also return a native
+continuation that is valid only at its source:
 
-* anthropic_messages: a ``thinking`` content block may precede the answer, but
-  only when thinking was enabled *and* the original signature is preserved. We
-  do not keep signatures, so thinking is shown and then dropped before sending.
-* openai_chat_completions: ``reasoning_content`` is an unofficial echo used by
-  some compatible servers. Sending it back is not required and can 400.
-* openai_responses: the native reasoning item needs an encrypted payload we do
-  not retain, so it is not reconstructed.
+* anthropic_messages: signed ``thinking`` blocks, and opaque
+  ``redacted_thinking`` blocks, in their original order;
+* openai_chat_completions: ``reasoning_content`` that the response actually
+  returned;
+* openai_responses: ``reasoning`` items carrying ``encrypted_content``.
 
-Conclusion: thinking is persisted for the user and never replayed to the model.
-That keeps a hard invariant — what we send is always something we can prove the
-provider accepts.
+``core.replay.capture`` keeps only those blocks. Request builders replay them
+only when API family, model, and base URL match exactly. Any other history keeps
+the ordinary text and tool representation, so display text is never sent as
+unsigned or unencrypted reasoning.
 """
 
 from __future__ import annotations
 
-REPLAY_SUPPORTED = False
+REPLAY_SUPPORTED = True
 
 
 def note() -> str:
     return (
-        "思考内容仅用于展示，不随请求回传：三种协议都不保证未签名/未加密的"
-        "推理文本可被接受。"
+        "思考内容用于展示；仅在 API 类型、模型和地址完全一致时，"
+        "回传带签名或加密载荷的原生思考块。"
     )

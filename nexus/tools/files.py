@@ -88,6 +88,11 @@ def resolve(context: Any, raw: str) -> Path:
         raise PermissionError(
             f"Path is outside the workspace: {raw} (workspace is {context.root})"
         )
+    # The main agent refreshes scoped project instructions at request boundaries.
+    try:
+        context.instruction_paths.add(str(resolved))
+    except AttributeError:
+        context.instruction_paths = {str(resolved)}
     return resolved
 
 

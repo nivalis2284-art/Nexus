@@ -94,6 +94,15 @@ class TaskCallbacks:
             raise TaskConflict("only a running task can finish")
         if self.waiting is not None or self.store.pending_interactions(self.task_id):
             raise TaskValidationError("cannot finish while a user interaction is pending")
+        if any(child["state"] not in ("completed", "cancelled")
+               for child in self.store.children(self.task_id, parent_kind="task")):
+            from .subagents import WAITING
+            from ..core.agent import AgentSuspended
+            if any(job.get("status") == "running" for job in self.store.task_jobs(self.task_id)):
+                raise TaskValidationError("Finish or stop live background commands before waiting for children.")
+            self.store.command(self.task_id, "paused", request_id=f"children-finish-{self.run_id}",
+                               reason=WAITING, source="agent")
+            raise AgentSuspended(WAITING, kind="children")
         evidence_ids = set(raw.get("evidence_ids") or [])
         existing_ids = {str(index + 1) for index in range(len(task.evidence))}
         if evidence_ids - existing_ids:
@@ -190,7 +199,14 @@ class TaskCallbacks:
     def wrap_execute(self, prepared: Any, context: Any, runner: Any) -> Any:
         """Run the already-recorded effect and commit its result."""
         tool_call_id = str(context._task_tool_call_id)
-        outcome = runner(prepared, context)
+        from ..core.agent import AgentSuspended
+        try:
+            outcome = runner(prepared, context)
+        except AgentSuspended as suspension:
+            if suspension.control == "children":
+                from ..tools.registry import ToolResult
+                self.after_dispatch(tool_call_id, ToolResult(True, "Parent yielded while awaiting subagent results."))
+            raise
         self.after_dispatch(tool_call_id, outcome)
         return outcome
 
@@ -229,6 +245,7 @@ class TaskCallbacks:
         saved = dict(message)
         try:
             self.store.save_run_messages(self.task_id, [saved])
+            message["_source_id"] = saved["_source_id"]
         except BaseException as error:
             self.persistence_failure(error)
             raise
@@ -274,6 +291,7 @@ class TaskCallbacks:
         new_rows = [row for row in user_rows if int(row["seq"]) > applied]
         history.extend({
             "role": "user",
+            "_source_id": str(row["seq"]),
             "content": message_content(
                 str(row.get("text") or ""), row.get("attachments") or [],
                 include_images=include_images,
@@ -379,6 +397,10 @@ class TaskCallbacks:
             f"Original goal: {task.goal}", f"Current goal: {task.effective_goal or task.goal}",
             f"Constraints: {task.constraints or '(none recorded)'}",
         ]
+        relation = self.store.child_relation(self.task_id)
+        if relation:
+            lines.append(f"You are subagent of {relation['parent_kind']} {relation['parent_id']}. "
+                         "Complete only your assigned scope. You cannot approve actions for your owner or finish its work.")
         if task.steps:
             lines.append("Steps:")
             for index, step in enumerate(task.steps, start=1):

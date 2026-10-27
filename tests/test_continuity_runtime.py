@@ -179,7 +179,9 @@ def test_child_does_not_consume_parent_input_cursor(tmp_path):
     assert child_agent.task_context
     assert tasks.input_status(task.id)["pending_count"] == 1
     callbacks.before_model(history, agent=child_agent)
-    assert history[-1] == {"role": "user", "content": "parent only"}
+    assert history[-1]["role"] == "user"
+    assert history[-1]["content"] == "parent only"
+    assert history[-1]["_source_id"]
     assert tasks.input_status(task.id)["pending_count"] == 0
 
 
@@ -228,36 +230,6 @@ def test_completion_can_preserve_optional_verification_references(tmp_path):
     })
     assert completed["state"] == "completed"
     assert tasks.get(task.id).decisions[-1]["evidence_ids"] == ["1"]
-
-
-def test_subagent_approval_resumes_with_the_shared_async_channel(tmp_path, monkeypatch):
-    config, tasks, task = started_task(tmp_path)
-    config.save_preferences(workspace=str(tmp_path), permission="ask")
-    responses = [
-        call_frames("parent", "subagent", {"task": "write the child file"}),
-        call_frames("c0", "write_file", {"path": "child.txt", "content": "child"}),
-        # Recovery does not replay an unknown side effect. The model must ask
-        # for it again with the same accepted arguments.
-        call_frames("c0", "write_file", {"path": "child.txt", "content": "child"}),
-        text_frames("child complete"),
-        call_frames("finish", "task_finish", {"summary": "parent complete"}),
-    ]
-    seen = []
-    install_stream(monkeypatch, responses, seen)
-    first = TaskAssembler(tasks, config)(tasks.get(task.id), threading.Event())
-    assert first.status == "waiting_user"
-    pending = tasks.pending_interactions(task.id)
-    assert pending and pending[0]["kind"] == "approval"
-
-    reopened = TaskStore(tasks.path)
-    reopened.interaction_answer(pending[0]["id"], answer=True,
-                                expected_version=reopened.get(task.id).control_version)
-    reopened.command(task.id, "running", request_id="resume-child")
-    reopened.begin_run(task.id)
-    second = TaskAssembler(reopened, config)(reopened.get(task.id), threading.Event())
-    assert second.status == "complete"
-    assert (tmp_path / "child.txt").read_text() == "child"
-    assert not reopened.pending_interactions(task.id)
 
 
 @pytest.mark.parametrize("ling", [False, True])

@@ -325,8 +325,7 @@ def _transcript(session) -> list[dict[str, Any]]:
 def _internal(session) -> list[dict[str, Any]]:
     """Rebuild the provider-neutral history the agent consumes.
 
-    Thinking is deliberately excluded: it is display material and is never
-    replayed (see core.thinking).
+    Native continuation remains separate from display-only thinking text.
     """
     out: list[dict[str, Any]] = []
     for index, item in enumerate(session.items):
@@ -346,8 +345,9 @@ def _internal(session) -> list[dict[str, Any]]:
             out.append({"role": "user", "content": content})
         elif item.kind == "assistant":
             calls = item.data.get("tool_calls") or []
-            if item.text or calls:
-                out.append({"role": "assistant", "content": item.text, "tool_calls": calls})
+            if item.text or calls or item.data.get("native"):
+                out.append({"role": "assistant", "content": item.text, "tool_calls": calls,
+                            **({"native": item.data["native"]} if item.data.get("native") else {})})
         elif item.kind == "tool":
             out.append(
                 {
@@ -357,11 +357,16 @@ def _internal(session) -> list[dict[str, Any]]:
                     "content": item.text,
                 }
             )
+        elif item.kind == "checkpoint":
+            out.append({"role": "checkpoint", "content": item.text,
+                        "through": item.data.get("through")})
         elif item.kind in ("experience", "work_report"):
             out.append({"role": "user", "content": "[Internal experience, not a new user instruction] " + item.text})
         for message in out[before:]:
             message["_source"] = {"session_id": session.id, "index": index}
-    return out
+            message["_source_id"] = str(index)
+    from ..core.compaction import project
+    return project(out)
 
 
 class Handler(BaseHTTPRequestHandler):

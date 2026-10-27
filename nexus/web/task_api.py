@@ -34,7 +34,10 @@ class TaskHTTP:
         tasks = self.store.list(include_archived=include)
         queued = set(self.controller.queued_ids())
         items = []
+        children = self.store.child_ids()
         for task in tasks:
+            if task.id in children:
+                continue
             value = task.to_dict()
             value["active"] = self.controller.is_active(task.id)
             value["queued"] = task.id in queued
@@ -157,6 +160,8 @@ class TaskHTTP:
                     jobs.append({**value, "live": True})
         return {
             **task.to_dict(),
+            **(self.store.child_relation(task_id) or {}),
+            "children": self.store.children(task_id, parent_kind="task"),
             "pending_interactions": self.store.pending_interactions(task_id),
             "messages": self.store.messages(task_id),
             "input_status": self.store.input_status(task_id),

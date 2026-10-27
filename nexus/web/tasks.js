@@ -41,7 +41,7 @@ function renderTasks() {
     if (taskView.current && item.id === taskView.current.id) row.classList.add("active");
     row.tabIndex = 0;
     const head = el("div", "work-card-head");
-    head.appendChild(el("span", "label", item.title || "未命名工作"));
+    head.appendChild(el("span", "label", (item.parent_id ? "↳ " : "") + (item.title || "未命名工作")));
     head.appendChild(el("span", "task-list-state small", item.state_label || stateLabel(item.state)));
     row.appendChild(head);
     const pending = taskPendingCount(item);
@@ -119,6 +119,7 @@ function reopenTask() {
 
 function renderTaskSummary(value) {
   const description = [];
+  if (value.parent_id) description.push("归属：" + (value.parent_kind === "session" ? "主交流" : "父工作 " + value.parent_id));
   if (value.effective_goal || value.goal) description.push("目标：" + (value.effective_goal || value.goal));
   if (value.constraints) description.push("约束：" + value.constraints);
   if (value.work_summary) description.push("结果：" + value.work_summary);
@@ -131,6 +132,22 @@ function renderTaskSummary(value) {
     description.push("未确认操作：" + value.unfinished_operations.map((item) => item.tool_name).join("、"));
   }
   $("task-summary").textContent = description.join("\n");
+  renderTaskChildren(value.children || []);
+}
+
+function renderTaskChildren(children) {
+  const box = $("task-children");
+  if (!box) return;
+  box.hidden = !children.length;
+  box.innerHTML = "";
+  if (!children.length) return;
+  box.appendChild(el("div", "small", "协作子代理 · 补充和控制可在主交流选中该子代理后交代"));
+  for (const child of children) {
+    const button = el("button", "ling-task", (child.title || child.task_id) + " · " + stateLabel(child.state));
+    button.type = "button";
+    button.addEventListener("click", () => openTask(child.task_id).catch((error) => setStatus(error.message, true)));
+    box.appendChild(button);
+  }
 }
 
 function stateLabel(value) {
@@ -167,7 +184,7 @@ function renderTaskMessages(messages, live) {
 
 function taskMessageItems(messages, live) {
   return messages
-    .filter((message) => message && (message.text || message.thinking || message.name || message.attachments?.length))
+    .filter((message) => message && message.kind !== "checkpoint" && (message.text || message.thinking || message.name || message.attachments?.length))
     .map((message, index) => ({
       ...message,
       role: message.kind,

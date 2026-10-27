@@ -173,6 +173,8 @@ class Agent:
         self.request_plugins: list[dict[str, Any]] = []
         # The durable turn output must not depend on the size of compacted history.
         self.new_messages: list[dict[str, Any]] = []
+        self.context.agent = self
+        self._usage_anchor = None
 
     def _request_scope(self, kind: str | None = None) -> dict[str, Any]:
         scope = dict(self.request_scope)
@@ -185,11 +187,7 @@ class Agent:
     # --- public -----------------------------------------------------------
 
     def stop(self) -> None:
-        """Ask the loop to stop at the next safe checkpoint.
-
-        Safe checkpoints are before a model request and before each tool run, so
-        a file write is never interrupted halfway through.
-        """
+        """Cancel model reads and subsequent dispatch; atomic file writes settle."""
         self.cancel_event.set()
 
     @property
@@ -239,119 +237,124 @@ class Agent:
                 "ok": False, "error": "unknown",
             })
 
-    async def _fold(
-        self,
-        original: list[dict[str, Any]],
-        trimmed: list[dict[str, Any]],
-        window: int,
-    ) -> tuple[list[dict[str, Any]], compaction.CompactionReport]:
-        """Ask the model for a checkpoint and return the replacement history.
+    async def _stream(self, gateway, body, **kwargs):
+        """Close a live HTTP iterator when the owner stops, even during silence."""
+        from contextlib import suppress
 
-        Runs as a normal one-shot request against the same profile, with no
-        tools, so it cannot start new work. Any failure is reported as "no
-        compaction" rather than propagated: a turn that runs long is better than
-        a turn that dies because summarising failed.
-        """
-        # Eligibility is decided here rather than inside compaction.summarise,
-        # because the summariser call is async and summarise() is pure.
-        if compaction.approx_tokens(trimmed) < window * compaction.TRIGGER_RATIO:
-            return trimmed, compaction.CompactionReport(reason="below threshold")
-        if self.compaction_epochs >= self.max_epochs:
-            return trimmed, compaction.CompactionReport(reason="epoch budget exhausted")
+        stream = gateway.stream(self.profile, body, credentials=self.credentials, **kwargs)
+        pending = None
         try:
-            compaction.assert_paired(trimmed)
-        except compaction.CompactionBlocked as blocked:
-            return trimmed, compaction.CompactionReport(reason=str(blocked))
+            while not self.stopped:
+                pending = asyncio.create_task(anext(stream))
+                while not pending.done() and not self.stopped:
+                    await asyncio.wait({pending}, timeout=0.05)
+                if self.stopped:
+                    break
+                try:
+                    event = pending.result()
+                except StopAsyncIteration:
+                    break
+                pending = None
+                yield event
+        finally:
+            if pending is not None:
+                pending.cancel()
+                with suppress(asyncio.CancelledError, StopAsyncIteration):
+                    await pending
+            await stream.aclose()
 
-        head, tail = compaction.split_for_summary(
-            trimmed, int(window * compaction.RETAIN_RATIO)
-        )
+    async def _fold(self, original, trimmed, window):
+        """Summarize a complete prefix; never cut a requirement before summarizing."""
+        limit = getattr(self, "_history_limit", int(window * compaction.TRIGGER_RATIO))
+        try:
+            compaction.assert_paired(original)
+        except compaction.CompactionBlocked as error:
+            return trimmed, compaction.CompactionReport(reason=str(error))
+        head, tail = compaction.split_for_summary(original, max(1, int(limit * compaction.RETAIN_RATIO)))
         if not head:
-            return trimmed, compaction.CompactionReport(reason="nothing to compact")
-
+            return trimmed, compaction.CompactionReport(reason="A single message exceeds the available context; split the input into smaller parts.")
         transcript = "\n\n".join(
-            f"[{message.get('role')}] {compaction._text_of(message)[:4000]}"
-            for message in head
+            f"[{message.get('role')}] {compaction._text_of(message)}" for message in head
         )
-        prompt_text = transcript + "\n\n" + compaction.SUMMARY_INSTRUCTION
+        from .effort import output_reserve
+        room = window - output_reserve(self.profile) - compaction.estimate(compaction.SUMMARY_INSTRUCTION) - 128
+        if room <= 0:
+            return trimmed, compaction.CompactionReport(reason="No room for a summary request; increase the context window or reduce output allowance.")
 
-        async def ask() -> str | None:
-            body = request_body(
-                self.profile,
-                "You are a compaction engine.",
-                [{"role": "user", "content": prompt_text}],
-                [],
-                effort=None,
-            )
-            parts: list[str] = []
-            budget_failure: Exception | None = None
-            try:
-                async with _client() as client:
-                    summary_scope = self._request_scope("summary")
-                    # The summariser's body is built from permanent messages and
-                    # contains no plugin material, so do not attach another
-                    # request's recall as if this call had used it.
-                    summary_scope["request_materials"] = []
-                    summary_scope["request_plugins"] = []
-                    gateway = ModelGateway(
-                        client,
-                        limits=StreamLimits(),
-                        request_history=self.request_history,
-                        request_scope=summary_scope,
-                    )
-                    async for event in gateway.stream(
-                        self.profile, body, credentials=self.credentials,
-                        request_budget=getattr(self.context, "model_budget", None),
-                    ):
-                        if event.type == "text_delta" and event.text:
-                            parts.append(event.text)
-                        elif event.type == "error":
-                            return None
-            except PermissionError as error:
-                budget_failure = error
-            except TaskSuspension as error:
-                budget_failure = error
-            except Exception:  # noqa: BLE001 -- summarising must never be fatal
-                return None
-            if budget_failure is not None:
-                raise budget_failure
-            return "".join(parts) or None
+        async def ask(text):
+            body = request_body(self.profile, "You are a compaction engine.",
+                [{"role": "user", "content": text + "\n\n" + compaction.SUMMARY_INSTRUCTION}], [], effort=None)
+            parts = []
+            complete = False
+            async with _client() as client:
+                scope = self._request_scope("summary")
+                scope.update(request_materials=[], request_plugins=[])
+                gateway = ModelGateway(client, limits=StreamLimits(),
+                    request_history=self.request_history, request_scope=scope)
+                async for event in self._stream(gateway, body,
+                    request_budget=getattr(self.context, "model_budget", None)):
+                    if event.type == "text_delta" and event.text:
+                        parts.append(event.text)
+                    elif event.type == "error":
+                        return None
+                    elif event.type == "complete":
+                        complete = _finish_status(event.finish_reason or "", has_calls=False) == "complete"
+            return "".join(parts).strip() if complete and not self.stopped else None
 
         try:
-            checkpoint = await ask()
+            current = transcript
+            while True:
+                chunks = []
+                offset = 0
+                while offset < len(current):
+                    size = min(len(current) - offset, room * 3)
+                    while size > 1 and compaction.estimate(current[offset:offset + size]) > room:
+                        size = max(1, size * 3 // 4)
+                    chunks.append(current[offset:offset + size])
+                    offset += size
+                summaries = []
+                for chunk in chunks:
+                    value = await ask(chunk)
+                    if not value:
+                        return trimmed, compaction.CompactionReport(reason="Summary failed, was interrupted or reached its output limit; original history retained.")
+                    summaries.append(value)
+                checkpoint = "\n\n".join(summaries)
+                if len(chunks) == 1:
+                    break
+                if compaction.estimate(checkpoint) >= compaction.estimate(current):
+                    return trimmed, compaction.CompactionReport(reason="Summary made no progress; original history retained.")
+                current = checkpoint
         except TaskSuspension as error:
-            # A summariser does not get to turn revoked permission or an
-            # exhausted budget into an ordinary "no compaction" fallback.
             raise AgentSuspended.from_tool(error) from error
-        if not checkpoint:
-            return trimmed, compaction.CompactionReport(reason="summariser returned nothing")
-
-        summary_message = {
-            "role": "user",
-            "content": (
-                f"{compaction.SUMMARY_TAG_OPEN}\n{checkpoint.strip()}\n"
-                f"{compaction.SUMMARY_TAG_CLOSE}"
-            ),
-        }
-        candidate = [summary_message, *tail]
-        before = compaction.approx_tokens(trimmed)
-        after = compaction.approx_tokens(candidate)
+        except PermissionError:
+            raise
+        except Exception as error:
+            return trimmed, compaction.CompactionReport(reason=f"Summary unavailable ({type(error).__name__}); original history retained.")
+        summary = {"role": "user", "content": (
+            f"{compaction.SUMMARY_TAG_OPEN}\n"
+            "Earlier conversation checkpoint, not a new owner instruction. Latest instructions and task facts take precedence.\n"
+            f"{checkpoint}\n{compaction.SUMMARY_TAG_CLOSE}"
+        )}
+        candidate = [summary, *tail]
+        before, after = compaction.approx_tokens(trimmed), compaction.approx_tokens(candidate)
         if after >= before:
-            return trimmed, compaction.CompactionReport(
-                reason="no gain", before_tokens=before, after_tokens=after
-            )
-        return candidate, compaction.CompactionReport(
-            summarised=True,
-            epochs=self.compaction_epochs + 1,
-            reason="ok",
-            before_tokens=before,
-            after_tokens=after,
-        )
+            return trimmed, compaction.CompactionReport(reason="no gain", before_tokens=before, after_tokens=after)
+        through = head[-1].get("_source_id")
+        if through is not None:
+            saved = {"role": "checkpoint", "content": summary["content"], "through": through}
+            self.new_messages.append(saved)
+            if self.on_message is not None:
+                self.on_message(saved)
+            summary["_source_id"] = saved.get("_source_id")
+        return candidate, compaction.CompactionReport(summarised=True,
+            epochs=self.compaction_epochs + 1, reason="ok", before_tokens=before, after_tokens=after)
 
     async def run(self, messages: list[dict[str, Any]]) -> AsyncIterator[RunEvent]:
         """Yield events; mutate ``messages`` in place so callers can persist."""
         result = RunResult()
         self.new_messages = []
+        messages[:] = compaction.project(messages)
+        self.context.history = messages
         async with _client() as client:
             gateway = ModelGateway(
                 client,
@@ -367,9 +370,12 @@ class Agent:
                     break
                 if self.before_model is not None:
                     self.before_model(messages)
+                from .workspace import refresh
+                self.workspace = refresh(self.workspace, getattr(self.context, "instruction_paths", ()))
+                from .effort import output_reserve
                 budget = prompt.Budget(
                     context_limit=self.context_limit or self.profile.context_window_tokens or 64_000,
-                    output_reserve=self.profile.max_output_tokens or 8_000,
+                    output_reserve=output_reserve(self.profile, self.effort),
                 )
                 prepared = messages
                 if self.plugins is not None:
@@ -403,35 +409,6 @@ class Agent:
                 stable, compaction_report = compaction.prune(prepared)
                 self.last_compaction = compaction_report
 
-                # If pruning was not enough, fold old history into a checkpoint.
-                # Only attempted when a summariser is wired up, and a failure
-                # here never stops the turn.
-                window = self.context_limit or self.profile.context_window_tokens or 64_000
-                if (
-                    self.compaction_epochs < self.max_epochs
-                    and compaction.approx_tokens(stable) >= window * compaction.TRIGGER_RATIO
-                    and not self.stopped
-                ):
-                    # Fold the projected history, before adding recall materials.
-                    # A plugin projection must never replace durable history.
-                    folded, fold_report = await self._fold(prepared, stable, window)
-                    if fold_report.summarised:
-                        if prepared == messages:
-                            messages[:] = folded
-                        prepared = folded
-                        self.compaction_epochs = fold_report.epochs
-                        self.last_compaction = fold_report
-                        yield RunEvent(
-                            "compacted",
-                            data={
-                                "epochs": fold_report.epochs,
-                                "before": fold_report.before_tokens,
-                                "after": fold_report.after_tokens,
-                            },
-                        )
-                    elif fold_report.reason:
-                        self.last_compaction = fold_report
-
                 self.request_materials = list(getattr(self, "request_materials", []) or [])
                 self.request_plugins = list(getattr(self, "request_plugins", []) or [])
                 tools = self.registry.schema()
@@ -453,7 +430,53 @@ class Agent:
                     skills=self.skills,
                     task_context=self.task_context,
                     interaction_context=interaction_context,
+                    permission_context=(
+                        f"Tool permission default: {self.policy.default}. Rules (last match wins): "
+                        + json.dumps([{"tool": rule.tool, "pattern": rule.pattern, "action": rule.action}
+                                      for rule in self.policy.rules])
+                        + ". File tools access only the workspace; allowing a call does not widen this boundary. "
+                        "Commands run as argument-list processes, without shell interpolation; invoke an installed shell explicitly when needed. "
+                        "A tool approval grants only that saved call. Task instructions do not change runtime permissions."
+                    ),
                 )
+                overhead = prompt.estimate(system) + prompt.estimate(json.dumps(tools))
+                self._history_limit = budget.input_limit - overhead
+                route = (self.profile.api_family, self.profile.model, self.profile.base_url)
+                estimated = overhead + compaction.approx_tokens(stable)
+                pressure = estimated
+                if self._usage_anchor is not None:
+                    old_route, old_overhead, old_messages, old_estimate, actual = self._usage_anchor
+                    if route == old_route and overhead == old_overhead and stable[:len(old_messages)] == old_messages:
+                        pressure = max(estimated, actual + estimated - old_estimate)
+                self._history_limit -= max(0, pressure - estimated)
+                # Preserve old goals before the final input selection would drop them.
+                window = self.context_limit or self.profile.context_window_tokens or 64_000
+                if (
+                    self.compaction_epochs < self.max_epochs
+                    and compaction.approx_tokens(stable) >= min(window * compaction.TRIGGER_RATIO, self._history_limit)
+                    and not self.stopped
+                ):
+                    # Only permanent history can become a durable checkpoint.
+                    folded, fold_report = await self._fold(messages, stable, window)
+                    if fold_report.summarised:
+                        messages[:] = folded
+                        prepared = folded
+                        self.compaction_epochs = fold_report.epochs
+                        self.last_compaction = fold_report
+                        yield RunEvent(
+                            "compacted",
+                            data={
+                                "epochs": fold_report.epochs,
+                                "before": fold_report.before_tokens,
+                                "after": fold_report.after_tokens,
+                            },
+                        )
+                    elif fold_report.reason:
+                        self.last_compaction = fold_report
+
+                if self.stopped:
+                    result.stopped = "cancelled"
+                    break
                 trimmed, _ = compaction.prune(prepared)
                 context = prompt.select(
                     trimmed,
@@ -461,6 +484,11 @@ class Agent:
                     system_tokens=prompt.estimate(system),
                     tools_tokens=prompt.estimate(json.dumps(tools)),
                 )
+                calibrated_input = context.manifest["estimated_input_tokens"] + max(0, pressure - estimated)
+                if context.manifest["dropped"] > len(trimmed) - len(compaction.paired(trimmed)) or calibrated_input > budget.input_limit:
+                    reason = (self.last_compaction.reason if self.last_compaction else "")
+                    yield RunEvent("error", "Context capacity exceeded; history retained. " + reason + " Reduce the input/tools or increase the model context window.")
+                    return
                 yield RunEvent(
                     "context",
                     data={
@@ -476,10 +504,12 @@ class Agent:
                 body = request_body(
                     self.profile, system, context.messages, tools, effort=self.effort
                 )
+                request_estimate = overhead + compaction.approx_tokens(context.messages)
                 text_parts: list[str] = []
                 thinking_parts: list[str] = []
                 calls: list[dict[str, Any]] = []
                 finish_reason = ""
+                native = None
                 # Usage belongs to one response. A tool step followed by a
                 # provider that reports no usage must not inherit the previous
                 # step's counts.
@@ -490,8 +520,7 @@ class Agent:
                     attempt += 1
                     retry_after: float | None = None
                     failure: ModelError | None = None
-                    async for event in gateway.stream(
-                        self.profile, body, credentials=self.credentials,
+                    async for event in self._stream(gateway, body,
                         request_budget=getattr(self.context, "model_budget", None),
                         scope=self._request_scope(),
                     ):
@@ -517,6 +546,19 @@ class Agent:
                             result.usage = _usage(event.usage, self.profile.api_family)
                         elif event.type == "complete":
                             finish_reason = event.finish_reason or ""
+                            if event.usage is not None:
+                                final_usage = _usage(event.usage)
+                                if final_usage:
+                                    result.usage = {**result.usage, **final_usage,
+                                                    "api_family": self.profile.api_family.value}
+                            from .replay import capture
+                            native = capture(self.profile, event.continuation)
+                            actual = result.usage.get("input_tokens")
+                            if actual is not None:
+                                if self.profile.api_family.value == "anthropic_messages":
+                                    actual += (result.usage.get("cached_input_tokens") or 0) + (result.usage.get("cache_creation_input_tokens") or 0)
+                                from copy import deepcopy
+                                self._usage_anchor = (route, overhead, deepcopy(context.messages), request_estimate, actual)
                         elif event.type == "error":
                             failure = event.error or ModelError("provider_error", "")
                             if event.error:
@@ -580,7 +622,7 @@ class Agent:
                     self._record(messages,
                         {"role": "assistant", "message_id": message_id, "content": text,
                          "thinking": thinking or None,
-                         "usage": result.usage or None}
+                         "usage": result.usage or None, **({"native": native} if native else {})}
                     )
                     result.stopped = (
                         "cancelled"
@@ -594,7 +636,7 @@ class Agent:
                 self._record(messages,
                     {"role": "assistant", "message_id": message_id, "content": text, "tool_calls": calls,
                      "thinking": thinking or None,
-                     "usage": result.usage or None}
+                     "usage": result.usage or None, **({"native": native} if native else {})}
                 )
                 for call_index, call in enumerate(calls):
                     result.tool_calls += 1
@@ -616,9 +658,15 @@ class Agent:
                             suspended.details.setdefault("remaining_calls", calls[call_index + 1:])
                             raise suspended from tool_suspension
                         except AgentSuspended as suspended:
-                            # The current tool call and every call after it remain
-                            # unresolved. The task runtime persists the whole
-                            # pending batch so no fabricated result is replayed.
+                            if suspended.control == "children":
+                                self._record(messages, {
+                                    "role": "tool", "tool_call_id": call["id"], "name": call["name"],
+                                    "parent_message_id": message_id,
+                                    "arguments": _safe_json(call["arguments"]),
+                                    "content": "Parent yielded while awaiting subagent results. Results return automatically.",
+                                    "ok": True, "error": "",
+                                })
+                            # Unexecuted calls remain pending across suspension.
                             suspended.details.setdefault("current_call", call)
                             suspended.details.setdefault("remaining_calls", calls[call_index + 1:])
                             raise
@@ -657,6 +705,7 @@ class Agent:
 
     async def _invoke(self, call: dict[str, Any]) -> ToolResult:
         name = call["name"]
+        self.context.call_id = str(call.get("id") or "")
         try:
             arguments = json.loads(call["arguments"] or "{}")
         except ValueError:
@@ -667,6 +716,18 @@ class Agent:
         prepared = self.registry.prepare(name, arguments, self.context)
         if isinstance(prepared, ToolResult):
             return prepared
+        if name in {"read_file", "write_file", "edit_file", "apply_patch", "glob", "grep"}:
+            from .workspace import refresh
+            paths = set(getattr(self.context, "instruction_paths", ()))
+            paths.add(str(arguments.get("path") or "."))
+            self.context.instruction_paths = paths
+            updated = refresh(self.workspace, paths)
+            if updated.instructions != self.workspace.instructions:
+                self.workspace = updated
+                if not prepared.spec.read_only:
+                    return ToolResult(False,
+                        "Project instructions changed or a new directory scope applies. Read these before retrying this edit:\n"
+                        + updated.instructions, error_code="instructions_updated")
         decision = self.policy.decide(name, target(name, arguments))
         if decision == DENY:
             return ToolResult(False, f"Blocked by policy: {name}", error_code="denied")

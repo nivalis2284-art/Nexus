@@ -58,6 +58,7 @@ async function main() {
   const home = path.join(temporary,'home'), workspace = path.join(temporary,'workspace');
   fs.mkdirSync(home); fs.mkdirSync(workspace);
   const artifact = path.join(workspace,'browser-result.txt');
+  const childArtifact = path.join(workspace,'child-browser-result.txt');
   let requests = 0, reads = 0, output = '', chromeOutput = '', python, chrome, page, browser;
   const provider = http.createServer(async (req,res) => {
     try {
@@ -70,8 +71,17 @@ async function main() {
       if (system.includes('# Continuing interaction')) {
         if (last.role === 'tool') delta = {reasoning_content:'Work accepted independently.',content:'工作已接收，主交流仍可聊。'};
         else if (String(last.content) === 'DELEGATE') delta = call('work_start',{title:'Browser work',goal:'BROWSER_WORK: write browser-result.txt with browser verified 7319, read it and finish.'});
+        else if (String(last.content) === 'DELEGATE_CHILDREN') delta = call('work_start',{title:'Parent browser',goal:'PARENT_CHILD_BROWSER: delegate the file check and report its actual result.'});
         else if (String(last.content).includes('[Work event;')) delta = {content:String(last.content).includes('"kind": "completed"') ? '后台工作已完成7319，文件已读回验证。' : '这项工作需要你批准写入，可以继续聊其他话题。'};
         else delta = {reasoning_content:'Checking the new topic independently.',content:'主交流正常7319。'};
+      } else if (system.includes('Task: CHILD_BROWSER:')) {
+        if (!fs.existsSync(childArtifact)) delta = call('write_file',{path:'child-browser-result.txt',content:'child browser verified'});
+        else delta = call('task_finish',{summary:'child browser verified; actual file saved'});
+      } else if (system.includes('PARENT_CHILD_BROWSER')) {
+        const started = messages.some(m => (m.tool_calls || []).some(c=>c.function?.name === 'subagent'));
+        if (!started) delta = call('subagent',{task:'CHILD_BROWSER: write child-browser-result.txt with child browser verified and finish.'});
+        else if (!JSON.stringify(messages).includes('Subagent observation')) delta = call('subagent_wait',{});
+        else delta = call('task_finish',{summary:'Parent combined child browser verified'});
       } else if (system.includes('BROWSER_WORK')) {
         if (!fs.existsSync(artifact)) delta = call('write_file',{path:'browser-result.txt',content:'browser verified 7319'});
         else if (!reads) { reads++; delta = call('read_file',{path:'browser-result.txt'}); }
@@ -130,11 +140,22 @@ async function main() {
     await page.call('Page.reload');
     await until(()=>page.evaluate('typeof lingView !== "undefined" && lingView.sessionId === '+JSON.stringify(sessionId)+' && document.querySelector("#transcript").textContent.includes("后台工作已完成7319")'),'Reload lost the main conversation or result');
     await new Promise(resolve=>setTimeout(resolve,500)); assert.equal(requests,count,'Reload repeated a model action');
+    await send('DELEGATE_CHILDREN');
+    await until(()=>page.evaluate('Boolean(document.querySelector(".ling-approval-allow"))'),'Child approval missing');
+    const family = await (await fetch(base+'/api/ling')).json();
+    const child = family.tasks.find(task=>task.parent_kind === 'task');
+    assert.ok(child,'Child ownership missing from live work projection');
+    await page.evaluate('openTask('+JSON.stringify(child.parent_id)+')');
+    await until(()=>page.evaluate('!document.querySelector("#task-children").hidden && document.querySelector("#task-children").textContent.includes("CHILD_BROWSER")'),'Parent detail lost child');
+    await page.evaluate('document.querySelector("#task-close").click(); document.querySelector(".ling-approval-allow").click()');
+    await until(()=>fs.existsSync(childArtifact),'Child approval did not reach child execution');
+    assert.equal(fs.readFileSync(childArtifact,'utf8'),'child browser verified');
+    await until(async()=>{const value=await(await fetch(base+'/api/ling')).json();return value.tasks.find(task=>task.id===child.parent_id)?.state==='completed'},'Parent did not resume after child result');
     assert.equal(page.errors.length,0,JSON.stringify(page.errors));
     fs.mkdirSync(path.join(root,'.artifacts'),{recursive:true});
     const screenshot = await page.call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
     fs.writeFileSync(path.join(root,'.artifacts','convergence-browser.png'),Buffer.from(screenshot.data,'base64'));
-    console.log(JSON.stringify({browser:'Chrome headless',mainSessionRetained:true,ownerInstructionsSaved:true,approvalDidNotBlockChat:true,workDetailReadOnly:true,draftRetained:true,artifactVerified:true,lingResultSaved:true,reloadDidNotRepeat:true,requests,pageErrors:0}));
+    console.log(JSON.stringify({browser:'Chrome headless',mainSessionRetained:true,ownerInstructionsSaved:true,approvalDidNotBlockChat:true,workDetailReadOnly:true,draftRetained:true,artifactVerified:true,lingResultSaved:true,reloadDidNotRepeat:true,childApprovalRouted:true,parentResumed:true,requests,pageErrors:0}));
   } finally {
     if (page) page.close();
     if (browser) { try {await browser.call('Browser.close')} catch {} browser.close(); }

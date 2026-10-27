@@ -373,9 +373,10 @@ class PluginManager:
         from ..core import compaction, prompt
         profile = getattr(agent, 'profile', None)
         if profile is not None:
+            from ..core.effort import output_reserve
             budget = prompt.Budget(
                 context_limit=agent.context_limit or profile.context_window_tokens or 64_000,
-                output_reserve=profile.max_output_tokens or 8_000)
+                output_reserve=output_reserve(profile, getattr(agent, 'effort', None)))
             base_system = prompt.build_system_prompt(
                 agent.workspace, agent.registry.declarations(),
                 platform=sys.platform, date='YYYY-MM-DD',

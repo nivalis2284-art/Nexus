@@ -11,7 +11,6 @@ from typing import Any
 
 from .. import skills
 from ..attachments import AttachmentStore
-from ..core import subagent
 from ..core.agent import Agent, AgentSuspended
 from ..core.config import ConfigStore, build_profile
 from ..core.permission import default_policy
@@ -160,29 +159,12 @@ class TaskAssembler:
         context.work_model = lambda **args: select_work_model({"store": self.config, "tasks": self.store}, task.id, **args).to_dict()
         registry.add(WORK_MODEL_TOOL)
         registry.add(WORK_MODELS_TOOL)
+        if self.store.child_relation(task.id):
+            registry._tools = {name: spec for name, spec in registry._tools.items()
+                               if not name.startswith("subagent")}
         policy = default_policy(permission, rules)
         system_task_state = callbacks.context_text()
 
-        # A subagent has a separate transcript and tools, but shares the parent's
-        # workspace, policy, approval channel and cancellation event. Completion
-        # of the parent task is reserved to the task agent.
-        child_registry, child_context = build(
-            skill_set.bodies(), root=workspace_path,
-            config={"webfetch_hosts": list(raw_settings.get("webfetch_hosts") or []),
-                    "search_endpoint": str(raw_settings.get("search_endpoint") or "")},
-            mcp=context.mcp, jobs=task_jobs, cancel_event=cancel,
-            attachment_source=(AttachmentStore(self.config.home), "tasks", task.id),
-            attachment_ids={a["id"] for item in stored_messages
-                            for a in item.get("attachments", [])},
-        )
-        child_registry = _subagent_registry(child_registry)
-        child_context.ask = callbacks.ask
-        child_callbacks = callbacks.child_scope()
-        child_callbacks.add_evidence = child_callbacks.add_child_evidence
-        child_context.task_callbacks = child_callbacks
-        child_context.file_effect = file_effect
-        child_context.web_allowlist = list(raw_settings.get("webfetch_hosts") or [])
-        child_context.search_endpoint = str(raw_settings.get("search_endpoint") or "")
         messages = callbacks.snapshot_history(include_images=profile.capabilities.images)
         if not messages:
             self.store.add_message(task.id, kind="user", text=(
@@ -199,42 +181,6 @@ class TaskAssembler:
             callbacks.approve(request)
             return True
 
-        def make_child_runner(prompt: str, budget: int):
-            scoped_callbacks = callbacks.child_scope()
-            scoped_callbacks.add_evidence = scoped_callbacks.add_child_evidence
-            child_context.task_callbacks = scoped_callbacks
-            child = Agent(
-                profile=agent.profile, credentials=agent.credentials,
-                registry=child_registry, context=child_context,
-                workspace=workspace, policy=policy, max_steps=budget,
-                context_limit=self.config.load().context_limit,
-                approve=approve, effort=agent.effort, owner_context=load_instructions(self.config.home),
-                skills=skill_set.manifest(), cancel_event=cancel,
-                task_context="You are a subagent. You cannot finish the parent task.",
-                on_tool_intent=lambda call_id, ready, tool_context: (
-                    self.controller.acquire_write(task.id, task.workspace, cancel) if self.controller and needs_project_write(ready.spec) else None,
-                    scoped_callbacks.prepare_dispatch(call_id, ready, tool_context),
-                ),
-                plugins=self.plugins,
-                plugin_scope={"kind": "subagent", "owner_id": task.id, "task_id": task.id},
-                request_history=self.request_history,
-                request_scope={"kind": "subagent", "owner_id": task.id},
-                execute_prepared=lambda prepared: scoped_callbacks.wrap_execute(
-                    prepared, child_context, child_registry.execute_prepared
-                ),
-            )
-            def child_before_model(history: list[dict[str, Any]]) -> None:
-                child_callbacks.refresh_child_context(
-                    history, agent=child, include_images=profile.capabilities.images,
-                    attachment_contexts=[child_context],
-                )
-            child.before_model = child_before_model
-            return child.run([{"role": "user", "content": prompt}])
-
-        async def child_runner(prompt: str, budget: int):
-            async for event in make_child_runner(prompt, budget):
-                yield event
-
         agent: Agent
 
         def require_running() -> None:
@@ -250,9 +196,11 @@ class TaskAssembler:
             agent.credentials = RuntimeCredentials(updated_key)
             agent.effort = current.effort
             agent.owner_context = load_instructions(self.config.home)
+            from .subagents import collect_children
+            collect_children(self.store, self.controller, task.id) if self.controller else None
             callbacks.before_model(
                 history, agent=agent, include_images=agent.profile.capabilities.images,
-                attachment_contexts=[context, child_context],
+                attachment_contexts=[context],
             )
 
         def execute_task_tool(prepared):
@@ -284,37 +232,10 @@ class TaskAssembler:
         )
 
 
-        def spawn_subagent(goal: str, steps: int):
-            request = subagent.SubagentRequest(task=goal, max_steps=steps, depth=1)
-            try:
-                result = asyncio.run(subagent.run_subagent(
-                    request, make_runner=child_runner,
-                ))
-            except subagent.SubagentSuspended as suspended:
-                saved = self.store.add_message(
-                    task.id, kind="notice",
-                    text="Subagent suspended while waiting for user; partial trace only.",
-                    data={"subagent": True, "status": "waiting_user",
-                          "stopped": "waiting_user", "trace_complete": False,
-                          "trace": suspended.trace},
-                )
-                suspended.message_seq = saved["seq"]
-                raise suspended.original from suspended
-            except Exception as error:
-                result = subagent.SubagentResult(
-                    text=f"Subagent failed: {type(error).__name__}: {error}",
-                    stopped="error", depth=1,
-                )
-            saved = self.store.add_message(
-                task.id, kind="notice",
-                text=f"Subagent result ({result.stopped})\n{result.text}",
-                data={"subagent": True, "stopped": result.stopped,
-                      "steps": result.steps, "trace": result.trace},
-            )
-            result.message_seq = saved["seq"]
-            return result
-
-        context.spawn_subagent = spawn_subagent
+        from .subagents import SubagentService
+        context.subagents = SubagentService(self.store, self.controller, self.config, task.id, "task",
+            history=lambda: messages, call_id=lambda: getattr(context, "call_id", self.store.current_run(task.id)),
+            attachments=lambda: [a for item in self.store.messages(task.id) for a in item.get("attachments", [])])
         try:
             final = None
             async def drive():
@@ -428,7 +349,10 @@ class TaskAssembler:
                 getattr(agent, "new_messages", []),
                 incomplete=incomplete,
             )
-            if self.store.get(task.id).state != "waiting_user":
+            from .subagents import WAITING
+            keep_jobs = (self.store.get(task.id).state == "waiting_user"
+                         or self.store.get(task.id).wait_reason == WAITING)
+            if not keep_jobs:
                 snapshots = []
                 for value in task_jobs.list():
                     job = task_jobs.get(str(value["id"]))
@@ -440,7 +364,7 @@ class TaskAssembler:
             # While waiting for its owner, retain the registry so the UI can
             # inspect and stop a live command. A controller suspension closes
             # the registry and removes it before this cleanup runs.
-            if self.store.get(task.id).state != "waiting_user":
+            if not keep_jobs:
                 task_jobs.close_all()
                 if isinstance(self._jobs, dict) and self._jobs.get(task.id) is task_jobs:
                     self._jobs.pop(task.id, None)

@@ -93,6 +93,14 @@ def apply(body: dict[str, Any], family: APIFamily, profile: Any, level: str | No
         body["max_tokens"] = budget + current
 
 
+def output_reserve(profile: Any, level: str | None = None) -> int:
+    """Use the same completion allowance as the effective wire request."""
+    tokens = profile.max_output_tokens or 8192
+    body = {"max_tokens": tokens}
+    apply(body, getattr(profile, "api_family", None), profile, level)
+    return body["max_tokens"]
+
+
 def describe(family: APIFamily, level: str, profile: Any = None) -> dict[str, Any]:
     """Human-readable summary for the UI, without sending anything."""
     if not level:

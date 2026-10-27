@@ -696,6 +696,18 @@ async function testTaskSwitchDoesNotCarryPreviousLiveState() {
 }
 
 async function main() {
+  {
+    const h = await harness();
+    h.setTaskDetail({id:"parent", state:"running", children:[{task_id:"child",title:"Research",state:"waiting_user"}],
+      messages:[{seq:1,kind:"checkpoint",text:"private context checkpoint"}], pending_interactions:[]});
+    await h.evaluate("openTask('parent')");
+    const children = h.ids.get("task-children");
+    assert.equal(children.hidden, false);
+    assert.match(children.textContent, /Research/);
+    assert.match(children.textContent, /等待你处理/);
+    assert.doesNotMatch(h.ids.get("task-messages").textContent, /private context checkpoint/);
+    console.log("ok - child ownership is visible without exposing context checkpoints as messages");
+  }
   await testNewWorkAppearsInSidebarAndCompletedCanBeTargeted();
   await testTaskRefreshPreservesOpenPanelAndControls();
   await testLingSendCannotOverwriteAnotherView();
