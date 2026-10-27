@@ -14,7 +14,7 @@ def test_main_elapsed_is_saved(runtime, monkeypatch):
     handler, session, config, ling = runtime
     model(monkeypatch, [stream(text="done")])
     events = []
-    handler._run_turn(session, config.load(), events.append, ling=ling)
+    web._application().run_turn(session, config.load(), events.append, ling=ling)
     done = next(event for event in events if event["type"] == "done")
     assert done["data"]["elapsed"] >= 0
     saved = web.STATE["sessions"].load(session.id)
@@ -26,7 +26,7 @@ def test_main_job_does_not_release_project_before_process_exit(runtime, monkeypa
     handler, session, config, ling = runtime
     command = f'"{sys.executable}" -c "import time; time.sleep(1)"'
     model(monkeypatch, [stream(calls=[("bash_background", {"command": command})]), stream(text="started")])
-    handler._run_turn(session, config.load(), lambda _: None, ling=ling)
+    web._application().run_turn(session, config.load(), lambda _: None, ling=ling)
     controller = web.STATE["task_controller"]
     with pytest.raises(TaskConflict, match="project"):
         controller.acquire_write("sibling", config.load().workspace, threading.Event(), wait=False)
@@ -85,7 +85,7 @@ def test_report_does_not_start_new_work_or_edit_owner_text(runtime, monkeypatch)
     model(monkeypatch, [stream(calls=[("work_start", {"goal": "unrequested"}),
                                      ("save_instructions", {"text": "unrequested preference"})]),
                         stream(text="saved result explained")])
-    handler._run_turn(session, config.load(), lambda _: None, ling=ling)
+    web._application().run_turn(session, config.load(), lambda _: None, ling=ling)
     assert web.STATE["tasks"].list() == []
     assert not (config.home / "owner-instructions.txt").exists()
     saved = web.STATE["sessions"].load(session.id)
@@ -98,7 +98,7 @@ def test_workspace_switch_requires_approval_for_the_new_target(runtime, monkeypa
     config.save_preferences(permission="ask")
     arguments = {"path": "approved.txt", "content": "7319"}
     model(monkeypatch, [stream(calls=[("write_file", arguments)])])
-    handler._run_turn(session, config.load(), lambda _: None, ling=ling)
+    web._application().run_turn(session, config.load(), lambda _: None, ling=ling)
     original = ling.decisions.pending()[0]
     ling.decisions.answer(original["id"], True)
 
@@ -106,7 +106,7 @@ def test_workspace_switch_requires_approval_for_the_new_target(runtime, monkeypa
     other.mkdir()
     config.save_preferences(workspace=str(other))
     model(monkeypatch, [stream(calls=[("write_file", arguments)])])
-    handler._run_turn(session, config.load(), lambda _: None, ling=ling)
+    web._application().run_turn(session, config.load(), lambda _: None, ling=ling)
     pending = ling.decisions.pending()[0]
     assert pending["id"] != original["id"]
     assert pending["payload"]["workspace"] == str(other.resolve())
@@ -115,7 +115,7 @@ def test_workspace_switch_requires_approval_for_the_new_target(runtime, monkeypa
 
     ling.decisions.answer(pending["id"], True)
     model(monkeypatch, [stream(calls=[("write_file", arguments)]), stream(text="done")])
-    handler._run_turn(session, config.load(), lambda _: None, ling=ling)
+    web._application().run_turn(session, config.load(), lambda _: None, ling=ling)
     assert (other / "approved.txt").read_text() == "7319"
     assert not (tmp_path / "approved.txt").exists()
 

@@ -175,7 +175,7 @@ def test_agent_reads_attachment_body_through_real_tool(tmp_path, monkeypatch):
         stream(calls=[("read_attachment", {"attachment_id": item["id"]})]),
         stream(text="the evidence is 7319"),
     ], seen)
-    handler._run_turn(session, config.load(), lambda event: None, ling=ling)
+    web._application().run_turn(session, config.load(), lambda event: None, ling=ling)
     assert len(seen) == 2
     tool = next(message for message in seen[1]["messages"] if message["role"] == "tool")
     assert "7319" in tool["content"]

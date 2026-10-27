@@ -7,7 +7,7 @@ import pytest
 from nexus.core.config import ConfigStore
 from nexus.instructions import load_instructions
 from nexus.task import TaskConflict
-from nexus.web.settings_api import save_settings
+from nexus.runtime.settings import save_settings
 
 
 @pytest.fixture()

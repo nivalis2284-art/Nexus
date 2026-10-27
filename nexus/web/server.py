@@ -16,17 +16,14 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse, urlsplit
 
-from .. import skills
-from ..attachments import AttachmentStore, message_content
+from ..application import (Application, MAX_IMAGE_BYTES, MAX_IMAGES_PER_TURN, ALLOWED_IMAGE_MIMES)
+from ..attachments import AttachmentStore
 from ..core import effort as reasoning
-from ..core.config import ConfigStore, build_profile
-from ..ling import LingInbox, ling_session_id
-from ..mcp import MCPError, MCPRegistry, ServerConfig
-from ..runtime import TaskController
-from ..runtime.assembly import TaskAssembler
+from ..core.config import ConfigStore
+from ..ling import LingInbox
+from ..mcp import MCPError, MCPRegistry
 from ..runtime.connections import start_mcp
 from ..session import SessionStore
-from ..skills import SkillSet
 from ..task import TaskConflict, TaskNotFound, TaskStore, TaskValidationError
 from . import instructions_api, mcp_api, plugin_api, skills_api
 from .attachments import route as attachment_route
@@ -34,43 +31,7 @@ from .task_api import TaskHTTP
 
 # Upload limits. Base64 inflates by ~33%, so 5MB becomes ~6.7MB of JSON; eight
 # of those is already a large request, which is why the count is capped too.
-MAX_IMAGE_BYTES = 5 * 1024 * 1024
-MAX_IMAGES_PER_TURN = 8
 MAX_REQUEST_BYTES = MAX_IMAGES_PER_TURN * ((MAX_IMAGE_BYTES + 2) // 3 * 4) + 4_000_000
-ALLOWED_IMAGE_MIMES = frozenset(
-    {"image/png", "image/jpeg", "image/webp", "image/gif"}
-)
-
-
-def _read_images(raw: Any) -> list[dict[str, str]]:
-    """Validate image blocks from a chat request.
-
-    Rejects anything that is not a supported image or is too large, rather than
-    forwarding it to a provider that would reject it more confusingly.
-    """
-    if not raw:
-        return []
-    if not isinstance(raw, list):
-        raise ValueError("images must be a list")
-    if len(raw) > MAX_IMAGES_PER_TURN:
-        raise ValueError(f"too many images (max {MAX_IMAGES_PER_TURN})")
-    out: list[dict[str, str]] = []
-    for index, item in enumerate(raw):
-        if not isinstance(item, dict):
-            raise ValueError(f"image {index} is not an object")
-        mime = str(item.get("mime") or "").strip().lower()
-        data = item.get("data")
-        if mime not in ALLOWED_IMAGE_MIMES:
-            raise ValueError(f"image {index} has unsupported type '{mime}'")
-        if not isinstance(data, str) or not data:
-            raise ValueError(f"image {index} has no data")
-        # Rough decoded size from the base64 length.
-        approx = len(data) * 3 // 4
-        if approx > MAX_IMAGE_BYTES:
-            raise ValueError(f"image {index} is larger than 5MB")
-        out.append({"mime": mime, "data": data})
-    return out
-
 
 def _content_blocks(text: str, images: list[dict[str, str]]) -> Any:
     """Build the internal content value: plain string when there are no images."""
@@ -85,26 +46,21 @@ def _content_blocks(text: str, images: list[dict[str, str]]) -> Any:
 
 
 STATE: dict[str, Any] = {}
-BUSY = threading.Lock()
-RESOURCES = threading.Lock()
 
 
 def _task_http() -> TaskHTTP:
     return TaskHTTP(STATE, _json)
 
 
+def _application() -> Application:
+    app = STATE.get("application")
+    if app is None:
+        app = Application(STATE)
+    return app
+
+
 def _ling() -> LingInbox:
-    with RESOURCES:
-        if STATE.get("closing"):
-            raise TaskConflict("服务正在关闭")
-        if "tasks" not in STATE:
-            raise TaskValidationError("task service is not initialized")
-        if STATE.get("ling") is None:
-            def run(session, emit, inbox):
-                from ..runtime.conversation import run_turn
-                run_turn(STATE, session, STATE["store"].load(), emit, ling=inbox, history=_internal(session))
-            STATE["ling"] = LingInbox(STATE, run, BUSY)
-        return STATE["ling"]
+    return _application().inbox()
 
 
 def _task_error(handler: BaseHTTPRequestHandler, error: BaseException) -> None:
@@ -322,53 +278,6 @@ def _transcript(session) -> list[dict[str, Any]]:
     return out
 
 
-def _internal(session) -> list[dict[str, Any]]:
-    """Rebuild the provider-neutral history the agent consumes.
-
-    Native continuation remains separate from display-only thinking text.
-    """
-    out: list[dict[str, Any]] = []
-    for index, item in enumerate(session.items):
-        before = len(out)
-        if item.kind == "user":
-            content = message_content(item.text, item.data.get("attachments") or [], include_images=True)
-            if item.data.get("images"):
-                if isinstance(content, str):
-                    content = [{"type": "text", "text": content}] if content else []
-                content.extend({"type": "image", **image} for image in item.data["images"])
-            if item.data.get("task_id"):
-                prefix = "[This message explicitly targets work " + item.data["task_id"] + ". Information alone does not resume it.]\n"
-                if isinstance(content, str):
-                    content = prefix + content
-                else:
-                    content.insert(0, {"type": "text", "text": prefix})
-            out.append({"role": "user", "content": content})
-        elif item.kind == "assistant":
-            calls = item.data.get("tool_calls") or []
-            if item.text or calls or item.data.get("native"):
-                out.append({"role": "assistant", "content": item.text, "tool_calls": calls,
-                            **({"native": item.data["native"]} if item.data.get("native") else {})})
-        elif item.kind == "tool":
-            out.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": item.data.get("tool_call_id", ""),
-                    "name": item.data.get("name", ""),
-                    "content": item.text,
-                }
-            )
-        elif item.kind == "checkpoint":
-            out.append({"role": "checkpoint", "content": item.text,
-                        "through": item.data.get("through")})
-        elif item.kind in ("experience", "work_report"):
-            out.append({"role": "user", "content": "[Internal experience, not a new user instruction] " + item.text})
-        for message in out[before:]:
-            message["_source"] = {"session_id": session.id, "index": index}
-            message["_source_id"] = str(index)
-    from ..core.compaction import project
-    return project(out)
-
-
 class Handler(BaseHTTPRequestHandler):
     server_version = "Nexus/0.2"
     protocol_version = "HTTP/1.1"
@@ -518,16 +427,10 @@ class Handler(BaseHTTPRequestHandler):
                 return _task_error(self, error)
         if path.startswith("/api/sessions/"):
             session_id = path.rsplit("/", 1)[-1]
-            if session_id == ling_session_id(STATE.get("tasks")):
-                return _json(self, 409, {"error": "灵的持续记录由统一入口管理，不能作为普通会话删除。"})
-            removed = STATE["sessions"].delete(session_id)
-            if removed:
-                AttachmentStore(STATE["store"].home).delete_owner("sessions", session_id)
-                if STATE.get("request_history"):
-                    STATE["request_history"].delete_owner(session_id)
-                jobs = STATE.get("jobs", {}).pop(session_id, None)
-                if jobs is not None:
-                    jobs.close_all()
+            try:
+                removed = _application().delete_session(session_id)
+            except TaskConflict as error:
+                return _json(self, 409, {"error": str(error)})
             return _json(self, 200 if removed else 404, {"removed": removed})
         if path.startswith("/api/providers/"):
             provider_id = path.rsplit("/", 1)[-1]
@@ -584,44 +487,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("未知 MCP 接口")
                 return _json(self, 200, mcp_api.command(STATE, unquote(pieces[4]), pieces[5]))
             if path == "/api/ling/input":
-                inbox = _ling()
-                text = str(body.get("text") or "").strip()
-                images = _read_images(body.get("images"))
-                request_id = str(body.get("request_id") or "")
-                if not request_id or len(request_id) > 200:
-                    raise TaskValidationError("request_id is required (at most 200 characters)")
-                target = body.get("task_id")
-                if target is not None and not isinstance(target, str):
-                    raise TaskValidationError("task_id must be text")
-                if target:
-                    STATE["tasks"].get(target)
-                words = text.lower().strip().rstrip("。.!！ ")
-                if not images and not body.get("attachments") and words in ("停一下", "先停一下", "暂停", "停止", "stop", "stop now"):
-                    notice = "已请求挂起所选工作；其余工作继续。" if target else "已停止当前主交流；后台工作继续。"
-                    accepted = inbox.enqueue(text, [], [], request_id, target, control=notice)
-                    if not accepted.get("duplicate"):
-                        if target:
-                            STATE["task_controller"].pause(target, request_id=request_id)
-                        else:
-                            inbox.stop()
-                    return _json(self, 202, accepted)
-                if not images and not body.get("attachments") and words in ("暂停全部工作", "暂停所有工作", "全部工作暂停"):
-                    accepted = inbox.enqueue(text, [], [], request_id, control="已请求挂起全部工作。")
-                    if not accepted.get("duplicate"):
-                        STATE["task_controller"].pause_all()
-                    return _json(self, 202, accepted)
-                settings = STATE["store"].load()
-                if not settings.api_key or not settings.provider.base_url:
-                    raise TaskValidationError("请先配置模型的 Base URL 和 API Key")
-                build_profile(settings.provider, settings.model)
-                if images and not settings.model.get("capabilities", {}).get("images"):
-                    raise TaskValidationError("当前模型没有声明图片能力")
-                attachments = AttachmentStore(STATE["store"].home).resolve(
-                    "sessions", inbox.session_id, body.get("attachments", []))
-                if len(images) + len(attachments) > 8:
-                    raise TaskValidationError("每次最多 8 个附件")
-                result = inbox.enqueue(text, images, attachments, request_id, target)
-                return _json(self, 202, result)
+                return _json(self, 202, _application().submit_input(body))
             if path == "/api/ling/resume":
                 return _json(self, 200, _ling().resume())
             if path == "/api/ling/stop":
@@ -802,40 +668,15 @@ class Handler(BaseHTTPRequestHandler):
         return _json(self, 201, {"provider": provider.to_dict(), **self._state()})
 
     def _select(self, value: dict[str, Any]) -> None:
-        store: ConfigStore = STATE["store"]
-        provider_id = str(value.get("provider") or "")
-        model_id = str(value.get("model") or "")
-        if not provider_id or not model_id:
-            raise ValueError("provider and model are required")
-        level = value.get("effort")
-        if level is not None:
-            # "off" / "" / "default" collapse to None = provider default.
-            level = reasoning.normalize(level)
-        store.select(provider_id, model_id, level)
+        _application().select_model(value)
         return _json(self, 200, self._state())
 
     def _settings(self, value: dict[str, Any]) -> None:
-        from .settings_api import save_settings
-
         try:
-            save_settings(STATE, value, BUSY, self._workspace_effect)
+            _application().save_settings(value)
         except TaskConflict as error:
             return _json(self, 409, {"error": str(error)})
         return _json(self, 200, self._state())
-
-    def _workspace_effect(self, workspace: Path) -> None:
-        store, live = STATE["store"], STATE.get("mcp")
-        if live:
-            for entry in store.load().mcp_servers:
-                config = ServerConfig.from_dict(entry)
-                if config is not None:
-                    live.remove(config.name)
-                    if config.enabled:
-                        try:
-                            live.add(config, cwd=workspace)
-                        except MCPError:
-                            pass
-        STATE["skills"] = _load_skills(store, workspace)
 
     def _workspace(self, value: dict[str, Any]) -> None:
         return self._settings({"workspace": value.get("workspace")})
@@ -851,101 +692,28 @@ class Handler(BaseHTTPRequestHandler):
     def _abort(self) -> None:
         return _json(self, 200, _ling().stop())
 
-    def _run_turn(self, session, settings, emit, *, ling=None):
-        from ..runtime.conversation import run_turn
-        return run_turn(STATE, session, settings, emit, ling=ling or _ling(), history=_internal(session))
-
-    def _persist(self, session, new_messages):
-        from ..runtime.conversation import persist
-        persist(STATE, session, new_messages)
-
-
-def _load_skills(store: ConfigStore, workspace: Path | None = None) -> SkillSet:
-    """Project skills first, then user skills; the project wins on a clash."""
-    return skills.discover([*skills.default_roots(workspace, store.home),
-                            Path(__file__).parents[1] / "builtin_skills"])
-
-
 def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None = None) -> None:
-    from ..runtime.stream import runtime_updates
-
-    previous_updates = STATE.pop("runtime_updates", None)
-    if previous_updates is not None:
-        previous_updates.close()
-    feed = runtime_updates(STATE)
-    previous_plugins = STATE.pop("plugins", None)
-    if previous_plugins is not None:
-        previous_plugins.close()
-    previous_ling = STATE.get("ling")
-    if previous_ling is not None:
-        previous_ling.close()
-    previous_controller = STATE.get("task_controller")
-    if previous_controller is not None:
-        previous_controller.close()
-    store = ConfigStore(home)
-    store.ensure()
-    if workspace is not None:
-        store.save_preferences(workspace=str(Path(workspace).resolve()))
-    STATE["store"] = store
-    STATE["sessions"] = SessionStore(store.sessions_dir)
-    STATE["jobs"] = {}
-    STATE.pop("ling", None)
-    STATE["closing"] = False
-    STATE["skills"] = _load_skills(store, Path(store.load().workspace))
-    previous_mcp = STATE.pop("mcp", None)
-    if previous_mcp is not None:
-        previous_mcp.close()
-    STATE["mcp"] = start_mcp(store.load().mcp_servers, Path(store.load().workspace)) or MCPRegistry()
-    task_store = TaskStore(store.home / "tasks.sqlite3")
-    task_store.recover_interrupted()
-    task_store.hold_queued_at_startup()
-    from ..model.request_history import RequestHistory
-    from ..plugins import PluginManager
-    STATE["request_history"] = RequestHistory(store.home / "model-requests.sqlite3")
-    STATE["plugins"] = PluginManager(STATE)
-    task_runner = TaskAssembler(task_store, store, mcp_registry=STATE["mcp"],
-                               plugins=STATE["plugins"], request_history=STATE["request_history"],
-                               updates=feed)
-    task_controller = TaskController(task_store, run=task_runner,
-                                     on_change=lambda task_id: feed.refresh("task", task_id))
-    task_runner.controller = task_controller
-    task_controller.start()
-    STATE["tasks"] = task_store
-    STATE["task_controller"] = task_controller
-    STATE["task_runner"] = task_runner
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    server.daemon_threads = True
-    actual = server.server_address[1]
-    STATE["plugins"].start(f"http://127.0.0.1:{actual}")
-    _ling()
-    print(f"Nexus: http://127.0.0.1:{actual}")
-    print(f"data:  {store.home}")
+    previous = STATE.get("application")
+    if previous is not None:
+        previous.close()
+    STATE.clear()
+    app = Application(STATE)
+    app.start(home=home, workspace=workspace)
+    server = None
     try:
+        server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+        server.daemon_threads = True
+        actual = server.server_address[1]
+        app.attach_http(f"http://127.0.0.1:{actual}")
+        print(f"Nexus: http://127.0.0.1:{actual}")
+        print(f"data:  {app.state['store'].home}")
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
-        plugins = STATE.get("plugins")
-        if plugins is not None:
-            plugins.close()
-        controller = STATE.get("task_controller")
-        if controller is not None:
-            controller.close()
-        for registry in list(getattr(task_runner, "_jobs", {}).values()):
-            registry.close_all()
-        with RESOURCES:
-            STATE["closing"] = True
-            feed.close()
-            session_jobs = list(STATE.pop("jobs", {}).values())
-        ling = STATE.get("ling")
-        if ling is not None:
-            ling.close()
-        for jobs in session_jobs:
-            jobs.close_all()
-        server.server_close()
-        live = STATE.get("mcp")
-        if live is not None:
-            live.close()
+        app.close()
+        if server is not None:
+            server.server_close()
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -56,7 +56,7 @@ def test_checkpoint_projection_keeps_newer_corrections_and_raw_history():
 def test_midrun_owner_input_has_the_same_checkpoint_id_after_reload(tmp_path):
     from nexus.ling import LingInbox
     from nexus.session import SessionStore
-    from nexus.web.server import _internal
+    from nexus.runtime.conversation import history_for_model
 
     sessions = SessionStore(tmp_path / "sessions")
     session = sessions.create("fake")
@@ -65,7 +65,7 @@ def test_midrun_owner_input_has_the_same_checkpoint_id_after_reload(tmp_path):
     inbox._applied_ids = []
     history = []
     inbox._append_input(session, {"id": 9, "text": "latest owner constraint", "data_json": "{}"}, history)
-    reloaded = _internal(sessions.load(session.id))
+    reloaded = history_for_model(sessions.load(session.id))
     assert history[-1]["_source_id"] == reloaded[-1]["_source_id"]
     assert compaction.project([*reloaded, {"role": "checkpoint", "through": history[-1]["_source_id"],
                                          "content": "saved constraint"}])[0]["content"] == "saved constraint"
@@ -177,7 +177,7 @@ def test_checkpoint_survives_reload_without_resummarizing(tmp_path, monkeypatch,
     from nexus.runtime.conversation import persist
     from nexus.session import Message, SessionStore
     from nexus.task import TaskStore
-    from nexus.web.server import _internal
+    from nexus.runtime.conversation import history_for_model
 
     calls = []
 
@@ -206,7 +206,7 @@ def test_checkpoint_survives_reload_without_resummarizing(tmp_path, monkeypatch,
         store.append(session, Message(kind="user", text="x" * 24000 + "TAIL_CONSTRAINT"))
         store.append(session, Message(kind="assistant", text="old answer"))
         store.append(session, Message(kind="user", text="continue"))
-        load = lambda: _internal(store.load(session.id))
+        load = lambda: history_for_model(store.load(session.id))
         save = lambda m: persist({"sessions": store}, session, [m])
     for _ in range(2):
         agent = make_agent(tmp_path, on_message=save)

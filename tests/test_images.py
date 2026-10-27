@@ -9,12 +9,8 @@ from nexus.core.protocol import (
     request_body,
 )
 from nexus.model import APIFamily, ModelCapabilities, ModelProfile
-from nexus.web.server import (
-    MAX_IMAGE_BYTES,
-    MAX_IMAGES_PER_TURN,
-    _content_blocks,
-    _read_images,
-)
+from nexus.application import MAX_IMAGE_BYTES, MAX_IMAGES_PER_TURN, read_images as _read_images
+from nexus.web.server import _content_blocks
 
 PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 

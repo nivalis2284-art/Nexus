@@ -20,6 +20,7 @@ from nexus.session import Message
 from nexus.task import TaskStore
 from nexus.tools import build
 from nexus.tools.registry import ToolResult
+from nexus.runtime.conversation import history_for_model
 from nexus.web import server as web
 
 
@@ -100,7 +101,7 @@ def test_compaction_keeps_full_transcript_and_new_answer(runtime, monkeypatch):
     monkeypatch.setattr(loop.Agent, "_fold", fold)
     model(monkeypatch, [stream(text="durable answer")])
     events = []
-    handler._run_turn(session, settings, events.append)
+    web._application().run_turn(session, settings, events.append)
     saved = web.STATE["sessions"].load(session.id)
     assert len(saved.items) == 12
     assert saved.items[-1].text == "durable answer"
@@ -118,7 +119,7 @@ def test_mcp_start_schema_call_failure_and_reload(runtime, monkeypatch):
     assert web.STATE["mcp"] is not None
     seen = model(monkeypatch, [stream(calls=[("mcp__stub__echo", {"text": "hello MCP"}),
                                            ("mcp__stub__fail", {})]), stream(text="finished")])
-    handler._run_turn(session, store.load(), lambda e: None)
+    web._application().run_turn(session, store.load(), lambda e: None)
     spec = next(s["function"] for s in seen[0]["tools"] if s["function"]["name"] == "mcp__stub__echo")
     assert spec["parameters"]["required"] == ["text"]
     assert spec["parameters"]["properties"]["text"]["type"] == "string"
@@ -135,15 +136,15 @@ def test_background_task_survives_turn_but_is_session_scoped(runtime, monkeypatc
     model(monkeypatch, [stream(calls=[("bash_background", {"command": command})]), stream(text="started"),
                         stream(calls=[("job_list", {})]), stream(text="listed"),
                         stream(calls=[("job_list", {})]), stream(text="empty")])
-    handler._run_turn(session, store.load(), lambda e: None)
+    web._application().run_turn(session, store.load(), lambda e: None)
     web.STATE["sessions"].append(session, Message(kind="user", text="list"))
     events = []
-    handler._run_turn(session, store.load(), events.append)
+    web._application().run_turn(session, store.load(), events.append)
     assert any(e["type"] == "tool_result" and "job_001" in e["tool"]["content"] for e in events)
     other = web.STATE["sessions"].create("fake")
     web.STATE["sessions"].append(other, Message(kind="user", text="list"))
     events = []
-    handler._run_turn(other, store.load(), events.append)
+    web._application().run_turn(other, store.load(), events.append)
     assert any(e["type"] == "tool_result" and "(no background jobs)" in e["tool"]["content"] for e in events)
 
 
@@ -156,8 +157,8 @@ def test_cancelled_multiple_calls_remain_paired(runtime, monkeypatch):
         events.append(event)
         if event["type"] == "tool_result":
             ling.agent.stop()
-    handler._run_turn(session, store.load(), emit)
-    messages = web._internal(web.STATE["sessions"].load(session.id))
+    web._application().run_turn(session, store.load(), emit)
+    messages = history_for_model(web.STATE["sessions"].load(session.id))
     compaction.assert_paired(messages)
     assert (Path(store.load().workspace) / "one").exists()
     assert not (Path(store.load().workspace) / "two").exists()
@@ -174,7 +175,7 @@ def test_child_stop_wakes_question_and_prevents_later_write(runtime, monkeypatch
             # The stop arrives while the run is still active; the durable
             # question remains visible to the owner and nothing later runs.
             ling.cancel_event.set()
-    handler._run_turn(session, store.load(), emit)
+    web._application().run_turn(session, store.load(), emit)
     assert not (Path(store.load().workspace) / "should-not-exist").exists()
     assert ling.decisions.pending()
     assert ling.decisions.pending()[0]["kind"] == "question"
@@ -186,7 +187,7 @@ def test_images_survive_session_reload(runtime):
     web.STATE["sessions"].append(session, Message(kind="user", text="", data={"images": images}))
     loaded = web.STATE["sessions"].load(session.id)
     assert web._transcript(loaded)[-1]["images"] == images
-    assert web._internal(loaded)[-1]["content"] == [{"type": "image", **images[0]}]
+    assert history_for_model(loaded)[-1]["content"] == [{"type": "image", **images[0]}]
 
 
 def test_stop_before_tool_execution_keeps_replay_paired(runtime, monkeypatch):
@@ -195,8 +196,8 @@ def test_stop_before_tool_execution_keeps_replay_paired(runtime, monkeypatch):
     def emit(event):
         if event["type"] == "tool_start":
             ling.cancel_event.set()
-    handler._run_turn(session, store.load(), emit)
-    messages = web._internal(web.STATE["sessions"].load(session.id))
+    web._application().run_turn(session, store.load(), emit)
+    messages = history_for_model(web.STATE["sessions"].load(session.id))
     compaction.assert_paired(messages)
     assert not (Path(store.load().workspace) / "never").exists()
     saved = web._transcript(web.STATE["sessions"].load(session.id))
@@ -211,9 +212,9 @@ def test_project_skills_follow_actual_workspace(runtime, monkeypatch):
         target.parent.mkdir(parents=True)
         target.write_text(f"---\nname: {name}\ndescription: test skill\n---\n{name}", encoding="utf-8")
     seen = model(monkeypatch, [stream(text="one"), stream(text="two")])
-    handler._run_turn(session, store.load(), lambda e: None)
+    web._application().run_turn(session, store.load(), lambda e: None)
     store.save_preferences(workspace=str(workspace / "other"))
-    handler._run_turn(session, store.load(), lambda e: None)
+    web._application().run_turn(session, store.load(), lambda e: None)
     assert "first" in seen[0]["messages"][0]["content"]
     assert "second" in seen[1]["messages"][0]["content"]
     assert "first" not in web.STATE["skills"].skills
@@ -253,7 +254,7 @@ def test_partial_model_error_is_saved(runtime, monkeypatch):
     handler, session, store, _ling = runtime
     malformed = 'data: {"choices":[{"index":0,"delta":{"content":"partial"},"finish_reason":null}]}\n\n'
     model(monkeypatch, [malformed])
-    handler._run_turn(session, store.load(), lambda e: None)
+    web._application().run_turn(session, store.load(), lambda e: None)
     assert web.STATE["sessions"].load(session.id).items[-1].text == "partial"
 
 
@@ -293,7 +294,7 @@ def test_shutdown_refuses_late_run_resource_registration(runtime):
     web.STATE["closing"] = True
     events = []
     with pytest.raises(web.TaskConflict, match="关闭"):
-        handler._run_turn(session, store.load(), events.append)
+        web._application().run_turn(session, store.load(), events.append)
     assert events == []
     assert web.STATE["jobs"] == {}
     assert web.STATE["ling"].cancel_event is None
@@ -305,6 +306,6 @@ def test_stop_at_tool_start_prevents_the_write(runtime, monkeypatch):
     def emit(event):
         if event["type"] == "tool_start":
             ling.agent.stop()
-    handler._run_turn(session, store.load(), emit)
+    web._application().run_turn(session, store.load(), emit)
     assert not (Path(store.load().workspace) / "cancelled").exists()
     assert web._transcript(web.STATE["sessions"].load(session.id))[-1]["error"] == "cancelled"

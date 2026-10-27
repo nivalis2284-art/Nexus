@@ -6,9 +6,10 @@ import asyncio
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 from .. import skills
-from ..attachments import AttachmentStore
+from ..attachments import AttachmentStore, message_content
 from ..core.agent import Agent, AgentSuspended
 from ..core.config import build_profile
 from ..core.permission import default_policy
@@ -63,6 +64,53 @@ def persist(state, session, new_messages):
                     "data": session.items[-1].data,
                 },
             )
+
+
+def history_for_model(session) -> list[dict[str, Any]]:
+    """Rebuild the provider-neutral history the agent consumes.
+
+    Native continuation remains separate from display-only thinking text.
+    """
+    out: list[dict[str, Any]] = []
+    for index, item in enumerate(session.items):
+        before = len(out)
+        if item.kind == "user":
+            content = message_content(item.text, item.data.get("attachments") or [], include_images=True)
+            if item.data.get("images"):
+                if isinstance(content, str):
+                    content = [{"type": "text", "text": content}] if content else []
+                content.extend({"type": "image", **image} for image in item.data["images"])
+            if item.data.get("task_id"):
+                prefix = "[This message explicitly targets work " + item.data["task_id"] + ". Information alone does not resume it.]\n"
+                if isinstance(content, str):
+                    content = prefix + content
+                else:
+                    content.insert(0, {"type": "text", "text": prefix})
+            out.append({"role": "user", "content": content})
+        elif item.kind == "assistant":
+            calls = item.data.get("tool_calls") or []
+            if item.text or calls or item.data.get("native"):
+                out.append({"role": "assistant", "content": item.text, "tool_calls": calls,
+                            **({"native": item.data["native"]} if item.data.get("native") else {})})
+        elif item.kind == "tool":
+            out.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": item.data.get("tool_call_id", ""),
+                    "name": item.data.get("name", ""),
+                    "content": item.text,
+                }
+            )
+        elif item.kind == "checkpoint":
+            out.append({"role": "checkpoint", "content": item.text,
+                        "through": item.data.get("through")})
+        elif item.kind in ("experience", "work_report"):
+            out.append({"role": "user", "content": "[Internal experience, not a new user instruction] " + item.text})
+        for message in out[before:]:
+            message["_source"] = {"session_id": session.id, "index": index}
+            message["_source_id"] = str(index)
+    from ..core.compaction import project
+    return project(out)
 
 
 def run_turn(state, session, settings, emit, *, ling, history):
