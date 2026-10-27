@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from copy import deepcopy
 from pathlib import Path
 
 from . import skills
@@ -17,6 +18,7 @@ from .runtime.connections import start_mcp
 from .runtime.controller import TaskController
 from .runtime.stream import runtime_updates
 from .session import SessionStore
+from .session.presentation import transcript
 from .task import TaskConflict, TaskStore, TaskValidationError
 
 
@@ -118,6 +120,17 @@ class Application:
                 raise TaskConflict("服务正在关闭")
         return run_turn(self.state, session, settings, emit, ling=inbox,
                         history=history_for_model(session))
+
+    def chat_snapshot(self):
+        """Current main conversation, shared by web and plugin clients."""
+        inbox = self.inbox()
+        # A completion may be persisted after the history read but before the
+        # live read. Only acknowledge events preceding the snapshot operation,
+        # so subscribe-first clients still process that completion and refresh.
+        watermark = runtime_updates(self.state).live("ling", inbox.session_id).get("revision", 0)
+        snapshot = deepcopy(inbox.projection(transcript))
+        snapshot["live_revision"] = watermark
+        return snapshot
 
     def submit_input(self, body):
         inbox = self.inbox()

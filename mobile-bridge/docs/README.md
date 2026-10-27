@@ -1,20 +1,22 @@
-# 灵 · Nexus 手机接入 0.1.0
+# 灵 · Nexus 手机接入 0.2.0
 
 在同一可信局域网内，用安卓手机继续电脑上的 Nexus 主交流。支持文字发送、回复逐步显示、基本 Markdown/代码块显示，以及回到 APP 后重新读取当前记录。模型调用与后台工作始终在电脑执行。
 
 ## 下载与安装
 
-- 插件：[`nexus-mobile-bridge-0.1.0.zip`](../releases/plugins/nexus-mobile-bridge-0.1.0.zip)
+- 插件：[`nexus-mobile-bridge-0.2.0.zip`](../releases/plugins/nexus-mobile-bridge-0.2.0.zip)
 - 安卓 APP：[`nexus-mobile-0.1.0.apk`](../releases/android/nexus-mobile-0.1.0.apk)，Android 8.0 或更高版本。
-- 第三方 SDK 与可安装示例：[`nexus-plugin-sdk-0.1.0.zip`](../releases/plugins/nexus-plugin-sdk-0.1.0.zip)。开发者参考 [SDK 说明](SDK.md)。
+- 第三方 SDK 与可安装示例：[`nexus-plugin-sdk-0.2.0.zip`](../releases/plugins/nexus-plugin-sdk-0.2.0.zip)。开发者参考 [SDK 说明](SDK.md)。
 
-从 GitHub 文件页下载时使用 Download raw file；将 APK 下载到手机后允许对应来源安装。此版本是开发签名的首版安装包。后续原位更新需要保留本地签名密钥，该密钥不进入 Git。
+从 GitHub 文件页下载时使用 Download raw file；将 APK 下载到手机后允许对应来源安装。APK 仍为开发签名的 0.1.0 安装包。后续原位更新需要保留本地签名密钥，该密钥不进入 Git。
 
 1. 在电脑启动 Nexus，确保其模型 Base URL、API Key 与模型已可正常交流。
 2. 进入 Nexus 的插件管理，导入插件 ZIP，点击加载，再打开「手机连接与配对」页面。
 3. 手机和电脑连接同一局域网。在手机 APP 右上角「连接」中填写电脑地址，例如 `192.168.1.20:18767`。
 4. 在电脑插件页面点击「生成一次性配对码」，将显示的八位配对码填入 APP 并配对。配对码五分钟有效，成功使用一次后失效。
 5. 输入文字并发送。手机与电脑共用同一段主交流，回复随电脑输出逐步显示。
+
+从 0.1.0 升级时，先更新并重启 Nexus 宿主，再停用旧插件、等待收尾、导入 0.2.0 ZIP 确认替换并加载。使用原 Nexus 数据目录时保留已有配对资料；安卓 APK 无需更新。
 
 默认监听 IPv4 的 `0.0.0.0:18767`。插件页面提供候选地址；多网卡时请选择手机可达的 Wi-Fi 或以太网地址，勿填写 `127.0.0.1`。Windows 防火墙需允许电脑的 Python/Nexus 在**专用网络**接收此端口；访客 Wi-Fi/AP 隔离可能阻止设备互通。修改插件监听设置后需重新加载插件。
 
@@ -29,12 +31,12 @@
 
 ## 数据与网络边界
 
-本版采用 HTTP + Bearer 设备凭据，**未加密传输**，仅用于可信局域网，不要做公网端口映射。配对不是传输加密。插件不持有模型密钥，只向 Nexus 本机接口提交文字并读取主交流与实时更新。
+本版采用 HTTP + Bearer 设备凭据，**未加密传输**，仅用于可信局域网，不要做公网端口映射。配对不是传输加密。插件不持有模型密钥，通过宿主直接接口提交文字并读取主交流与实时更新。
 
 电脑设备凭据的哈希保存在 Nexus 数据目录 `plugins/mobile-bridge/mobile-devices.json`；手机凭据保存在应用私有数据中并禁用系统备份。聊天的权威记录仍由 Nexus 保存。
 
 ## 验证与兼容性
 
-本版在未修改的 Nexus `b73ff103a1bbc53f978487d859cfe9bbde411a87` 上验证。详见 [验证记录](VALIDATION.md)。云端已完成实际插件加载和流式通信联调；安卓安装、键盘/滚动、手机与 Windows 的实际局域网互通仍需真机验收。
+插件和 SDK 0.2.0 要求宿主提供 `PluginHost.chat_api_version == 1` 的直接主交流接口；清单 `api_version: 1` 本身不足以判断支持情况。安卓 APK 仍为 0.1.0，手机桥接外部协议 v1 保持不变。验证状态和 0.1.0 的历史基线见[验证记录](VALIDATION.md)。安卓安装、键盘/滚动、手机与 Windows 的实际局域网互通仍需真机验收。
 
 本目录的源码位于忽略的 `dev/`，新增工具链在 `env/`，缓存在 `cache/`，构建与测试产物在 `build/`。仅发布插件/SDK ZIP、APK 和本说明文档；不发布本地签名密钥或依赖环境。

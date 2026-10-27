@@ -17,17 +17,19 @@ class RuntimeUpdates:
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._subscribers: set[queue.Queue] = set()
+        self._subscribers: set[Any] = set()
         self._live: dict[tuple[str, str], dict[str, Any]] = {}
         self._revision = 0
 
-    def subscribe(self) -> queue.Queue:
-        subscriber: queue.Queue = queue.Queue()
+    def subscribe(self, subscriber=None):
+        """Register a receiver with ``put(event)``, or create a queue."""
+        if subscriber is None:
+            subscriber = queue.Queue()
         with self._lock:
             self._subscribers.add(subscriber)
         return subscriber
 
-    def unsubscribe(self, subscriber: queue.Queue) -> None:
+    def unsubscribe(self, subscriber) -> None:
         with self._lock:
             self._subscribers.discard(subscriber)
 

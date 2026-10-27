@@ -24,6 +24,7 @@ from ..ling import LingInbox
 from ..mcp import MCPError, MCPRegistry
 from ..runtime.connections import start_mcp
 from ..session import SessionStore
+from ..session.presentation import transcript as _transcript
 from ..task import TaskConflict, TaskNotFound, TaskStore, TaskValidationError
 from . import instructions_api, mcp_api, plugin_api, skills_api
 from .attachments import route as attachment_route
@@ -236,48 +237,6 @@ def _is_attachment_upload(path: str) -> bool:
     )
 
 
-def _transcript(session) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    for item in session.items:
-        if item.kind in ("user", "assistant"):
-            if item.kind == "assistant" and not item.text and not item.data.get("thinking"):
-                continue
-            out.append(
-                {
-                    "role": item.kind,
-                    "message_id": item.data.get("message_id"),
-                    "text": item.text,
-                    "thinking": item.data.get("thinking") or "",
-                    "usage": item.data.get("usage") or None,
-                    "elapsed": item.data.get("elapsed"),
-                    "at": item.at,
-                    "images": item.data.get("images") or [],
-                    "attachments": item.data.get("attachments") or [],
-                    "automation_run_id": item.data.get("automation_run_id"),
-                    "plugin_id": item.data.get("plugin_id"),
-                    "plugin_event_id": item.data.get("plugin_event_id"),
-                    "sources": item.data.get("sources") or [],
-                }
-            )
-        elif item.kind == "tool":
-            out.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": item.data.get("tool_call_id"),
-                    "parent_message_id": item.data.get("parent_message_id"),
-                    "name": item.data.get("name", ""),
-                    "text": item.text,
-                    "ok": bool(item.data.get("ok", True)),
-                    "arguments": item.data.get("arguments"),
-                    "error": item.data.get("error", ""),
-                    "at": item.at,
-                }
-            )
-        elif item.kind == "notice":
-            out.append({"role": "notice", "text": item.text, "at": item.at})
-    return out
-
-
 class Handler(BaseHTTPRequestHandler):
     server_version = "Nexus/0.2"
     protocol_version = "HTTP/1.1"
@@ -391,7 +350,7 @@ class Handler(BaseHTTPRequestHandler):
                 return _json(self, 500, {"error": str(error)})
         if path == "/api/ling":
             try:
-                return _json(self, 200, _ling().projection(_transcript))
+                return _json(self, 200, _application().chat_snapshot())
             except (OSError, ValueError) as error:
                 return _task_error(self, error)
         if path == "/api/tasks":

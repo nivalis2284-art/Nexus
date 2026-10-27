@@ -15,7 +15,9 @@ from pathlib import Path
 from typing import Any
 
 from ..mcp import ServerConfig
+from ..runtime.stream import runtime_updates
 from .api import PluginHost
+from .chat import ChatSubscription
 from .events import EventStore
 
 
@@ -34,6 +36,8 @@ class Entry:
     python: Path | None = None
     pending_operation: str = ''
     progress: str = ''
+    loading: bool = False
+    chat_subscriptions: set = field(default_factory=set)
 
 
 class PluginManager:
@@ -139,14 +143,17 @@ class PluginManager:
     def load(self, plugin_id):
         with self.lock:
             item = self.entries[plugin_id]
-            if item.status in ('loading', 'ready', 'draining'):
+            if self.closing or item.status in ('loading', 'ready', 'draining', 'closing'):
                 return
             item.enabled, item.status, item.error = True, 'loading', ''
+            item.loading = True
             self._save()
         threading.Thread(target=self._load, args=(item,), name='plugin-load-' + plugin_id, daemon=True).start()
 
     def _load(self, item):
         from .environment import prepare
+        with self.lock:
+            item.loading = True
         try:
             item.python = prepare(item.path, self.data_dir(item.id), item.manifest,
                                   on_progress=lambda message: setattr(item, 'progress', message))
@@ -168,35 +175,31 @@ class PluginManager:
             if item.manifest.get('subscriptions'):
                 self.events.subscribe(item.id, item.manifest['subscriptions'])
             with self.lock:
-                if item.enabled and not self.closing:
+                if item.enabled and not self.closing and item.status == 'loading':
                     item.status = 'ready'
                     item.progress = ''
                     self.events.pause(item.id, False)
                 else:
                     item.status = 'draining'
-            if item.status == 'draining':
-                self._cleanup(item)
+                    self._close_chat_subscriptions(item)
         except Exception as error:  # noqa: BLE001 -- loading failures belong in plugin status.
             with self.lock:
                 item.error = f'{type(error).__name__}: {error}'
-                item.status = 'error'
-            self._close_resources(item)
+                item.status = 'draining'
+                if not item.pending_operation:
+                    item.pending_operation = 'load_failed'
+                self._close_chat_subscriptions(item)
+        finally:
+            with self.lock:
+                item.loading = False
+            self._cleanup(item)
 
     def operate(self, plugin_id, operation):
         item = self.entries[plugin_id]
         if operation == 'load':
             self.load(plugin_id)
         elif operation in ('unload', 'restart', 'uninstall'):
-            with self.lock:
-                if item.status == 'draining' and item.pending_operation:
-                    raise ValueError('插件正在收尾，请等待当前操作完成')
-                item.enabled = False
-                item.pending_operation = operation
-                was_loading = item.status == 'loading'
-                item.status = 'draining'
-                self.events.pause(plugin_id, True)
-                self._save()
-            if not was_loading:
+            if self._begin_drain(item, operation):
                 self._cleanup(item)
         elif operation == 'stop':
             stopped = False
@@ -210,6 +213,19 @@ class PluginManager:
             raise ValueError('未知插件操作')
         return self.snapshot()
 
+    def _begin_drain(self, item, operation):
+        with self.lock:
+            if item.status == 'closing' or (item.status == 'draining' and item.pending_operation):
+                raise ValueError('插件正在收尾，请等待当前操作完成')
+            item.enabled = False
+            item.pending_operation = operation
+            was_loading = item.status == 'loading'
+            item.status = 'draining'
+            self._close_chat_subscriptions(item)
+            self.events.pause(item.id, True)
+            self._save()
+        return not was_loading
+
     def _close_resources(self, item):
         try:
             if item.instance and hasattr(item.instance, 'close'):
@@ -220,16 +236,24 @@ class PluginManager:
                 self.state['mcp'].remove(name)
             item.services.clear()
 
+    def _close_chat_subscriptions(self, item):
+        # Called with the manager lock held, so no new subscription can be
+        # registered between changing lifecycle state and closing this set.
+        subscriptions = tuple(item.chat_subscriptions)
+        item.chat_subscriptions.clear()
+        for subscription in subscriptions:
+            subscription.close()
+
     def _cleanup(self, item):
         with self.lock:
-            if item.active_calls or item.status != 'draining':
+            if item.loading or item.active_calls or item.status != 'draining':
                 return
             item.status = 'closing'
         try:
             self._close_resources(item)
             operation = item.pending_operation
             item.pending_operation = ''
-            item.status = 'unloaded'
+            item.status = 'error' if operation == 'load_failed' else 'unloaded'
             if operation == 'uninstall':
                 # Verify the actual target; imported directories always live under root.
                 target = item.path.resolve()
@@ -247,10 +271,11 @@ class PluginManager:
             item.status, item.error = 'error', str(error)
 
     @contextmanager
-    def lease(self, plugin_id, context=None, scope=None):
+    def lease(self, plugin_id, context=None, scope=None, *, allow_loading=False):
         item = self.entries[plugin_id]
         with self.lock:
-            if not item.enabled or item.status != 'ready':
+            allowed = ('ready', 'loading') if allow_loading else ('ready',)
+            if self.closing or not item.enabled or item.status not in allowed:
                 raise ValueError('插件已停用或尚未就绪')
             item.active_calls += 1
             settings = deepcopy(item.settings)
@@ -267,6 +292,22 @@ class PluginManager:
                 item.active_calls -= 1
             if item.status == 'draining':
                 self._cleanup(item)
+
+    def chat_subscribe(self, plugin_id):
+        with self.lease(plugin_id, allow_loading=True) as item, self.lock:
+            # Unload may have started after the lease was granted.
+            if self.closing or not item.enabled or item.status not in ('loading', 'ready'):
+                raise ValueError('插件已停用或尚未就绪')
+            if self.state.get('application') is None:
+                raise RuntimeError('application is not available')
+
+            def forget(subscription):
+                with self.lock:
+                    item.chat_subscriptions.discard(subscription)
+
+            subscription = ChatSubscription(runtime_updates(self.state), forget)
+            item.chat_subscriptions.add(subscription)
+            return subscription
 
     def enabled_ids(self):
         with self.lock:
@@ -612,10 +653,17 @@ class PluginManager:
                 self._remove_directory(staging)
 
     def close(self):
-        self.closing = True
+        with self.lock:
+            self.closing = True
         self._events_stop.set()
+        for item in list(self.entries.values()):
+            with self.lock:
+                if item.status in ('draining', 'closing'):
+                    self._close_chat_subscriptions(item)
+                    continue
+                needs_unload = item.loading or item.instance or item.services or item.chat_subscriptions
+                cleanup = self._begin_drain(item, 'unload') if needs_unload else False
+            if cleanup:
+                self._cleanup(item)
         if self._events_thread and self._events_thread is not threading.current_thread():
             self._events_thread.join(timeout=5)
-        for item in list(self.entries.values()):
-            if item.instance or item.services:
-                self.operate(item.id, 'unload')

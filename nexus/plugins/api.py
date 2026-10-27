@@ -16,6 +16,8 @@ class EmptyArgs(BaseModel):
 class PluginHost:
     """A scoped facade. A plugin never needs the web server's mutable STATE."""
 
+    chat_api_version = 1
+
     def __init__(self, manager, plugin_id: str):
         self._manager, self.id = manager, plugin_id
 
@@ -66,6 +68,26 @@ class PluginHost:
 
     def subscribe(self, event_names: list[str]):
         self._manager.events.subscribe(self.id, event_names)
+
+    def chat_snapshot(self):
+        """Return the current application chat state."""
+        with self._manager.lease(self.id, allow_loading=True):
+            return self._chat_application().chat_snapshot()
+
+    def chat_send(self, text, request_id):
+        """Submit input through the same application path as the main chat."""
+        with self._manager.lease(self.id, allow_loading=True):
+            return self._chat_application().submit_input({'text': text, 'request_id': request_id})
+
+    def chat_subscribe(self):
+        """Subscribe to runtime updates until closed or the plugin is unloaded."""
+        return self._manager.chat_subscribe(self.id)
+
+    def _chat_application(self):
+        application = self._manager.state.get('application')
+        if application is None:
+            raise RuntimeError('application is not available')
+        return application
 
     def background(self, callback):
         """Keep an already-started plugin job leased until its callback finishes."""
