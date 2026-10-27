@@ -34,10 +34,9 @@ def live(tmp_path: Path, monkeypatch):
             "store": store,
             "sessions": web.SessionStore(store.sessions_dir),
             "skills": {},
+            "closing": False,
         },
     )
-    monkeypatch.setattr(web, "APPROVALS", web.Approvals())
-    monkeypatch.setattr(web, "RUNNING", {"agent": None})
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), web.Handler)
     httpd.daemon_threads = True
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
@@ -151,7 +150,7 @@ def test_json_with_charset_parameter_is_accepted(live):
 @pytest.mark.parametrize("host", [
     "evil.example",
     "evil.example:80",
-    f"127.0.0.1.evil.example",
+    "127.0.0.1.evil.example",
     "127.0.0.1:1@evil.example",
     "127.0.0.1, evil.example",
 ])

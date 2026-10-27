@@ -10,6 +10,8 @@ from __future__ import annotations
 import difflib
 import hashlib
 
+import pytest
+
 from nexus.tools import build
 from nexus.tools.patch import TOOLS
 
@@ -214,18 +216,22 @@ def test_inserting_into_an_empty_file(tmp_path):
     assert contents(target) == "first\nsecond\n"
 
 
-def test_mixed_line_endings_are_refused(tmp_path):
-    """Silently normalising would rewrite every untouched line, not apply a diff."""
+@pytest.mark.parametrize(("before", "after"), [
+    (b"a\nb\r\nc\n", b"a\nB\r\nc\n"),
+    (b"a\nb\nc\r\n", b"a\nB\nc\r\n"),
+    (b"a\r\nb\nc", b"a\r\nB\nc"),
+])
+def test_mixed_line_endings_are_preserved(tmp_path, before, after):
+    """A changed line inherits its ending; untouched lines keep theirs."""
     target = tmp_path / "sample.txt"
-    target.write_bytes(b"a\nb\r\nc\n")
+    target.write_bytes(before)
     diff = "--- sample.txt\n+++ sample.txt\n@@ -1,3 +1,3 @@\n a\n-b\n+B\n c\n"
 
     registry, context = make_registry(tmp_path)
     result = registry.execute("apply_patch", {"path": "sample.txt", "patch": diff}, context)
 
-    assert not result.ok
-    assert "mixes CRLF" in result.content
-    assert target.read_bytes() == b"a\nb\r\nc\n"
+    assert result.ok, result.content
+    assert target.read_bytes() == after
 
 
 def test_unified_diff_generated_from_files_round_trips(tmp_path):

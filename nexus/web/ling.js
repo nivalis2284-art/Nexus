@@ -1,8 +1,9 @@
 "use strict";
 
 // The continuous entry point. The server owns the Ling session and its input
-// queue; this module renders snapshots and submits intent. It never starts a
-// second request stream, and polling cannot replace a draft or the legacy view.
+// queue; this module renders snapshots and submits intent. Live events update
+// the current transcript; full snapshots recover after reconnect or a durable
+// boundary.
 
 const lingView = {
   active: false,
@@ -13,28 +14,17 @@ const lingView = {
   queueCount: 0,
   inputs: [],
   tasks: [],
-  notifications: [],
-  unreadCount: 0,
-  interaction: null,
-  interactionDraft: null,
-  interactionHandled: false,
-  // One action panel per notification, keyed by notification id. A panel's
-  // buttons are bound to that panel's own state, so an approval can never be
-  // sent to whichever notification happened to be opened last.
-  notificationDrafts: new Map(),
-  pollTimer: null,
+  requests: [],
+  requestDrafts: new Map(),
   polling: false,
+  refreshPending: false,
   submitting: false,
-  requests: new Map(),
-  notificationAfter: 0,
-  notificationSeen: new Set(),
-  notificationHydrated: false,
-  notificationsOpen: false,
-  notificationsDismissed: new Set(),
-  autoOpened: new Set(),
-  notificationTimer: null,
+  sentRequests: new Map(),
   initialized: false,
   renderedTaskState: "",
+  renderedRequestsSignature: "",
+  live: null,
+  liveRevision: 0,
 };
 
 function lingRequestId(prefix) {
@@ -46,35 +36,27 @@ function showLingChrome(show) {
   $("ling-mode-label").hidden = !show;
   $("ling-stop").hidden = !show || !lingView.running;
   $("ling-inputs").hidden = !show || !lingView.inputs.length;
-  $("ling-interaction").hidden = !show || !lingView.interaction;
+  $("ling-requests").hidden = !show || !lingView.requests.length;
 }
 
 function clearLingView() {
   lingView.active = false;
-  if (lingView.pollTimer) clearTimeout(lingView.pollTimer);
-  lingView.pollTimer = null;
   showLingChrome(false);
-}
-
-function updateNotificationBadge() {
-  $("notifications-toggle").classList.toggle("has-unread", lingView.unreadCount > 0);
-  $("notification-count").textContent = String(lingView.unreadCount || 0);
-  $("notification-count").hidden = !lingView.unreadCount;
 }
 
 function renderLingStatus() {
   if (!lingView.active) {
-    updateNotificationBadge();
     return;
   }
   if (lingView.connectionError) {
     $("ling-state-text").textContent = "连接暂时中断，稍后自动重试";
-    updateNotificationBadge();
     $("ling-stop").hidden = !lingView.running;
     return;
   }
   const stateText = $("ling-state-text");
-  if (lingView.running && lingView.interaction) stateText.textContent = "灵在等待你处理请求";
+  if (lingView.running && (lingView.requests || []).some((item) => item.status !== "resolved")) {
+    stateText.textContent = "灵在等你处理请求，其他交流仍可继续";
+  }
   else if (lingView.running) stateText.textContent = "灵正在处理当前输入";
   else if (lingView.inputs.some((item) => item.status === "held")) {
     stateText.textContent = "有输入等待恢复";
@@ -86,7 +68,8 @@ function renderLingStatus() {
     : "";
   $("ling-stop").hidden = !lingView.running;
   $("ling-resume").hidden = !lingView.inputs.some((item) => item.status === "held");
-  updateNotificationBadge();
+  $("ling-pause-all").hidden = !lingView.tasks.some((task) =>
+    ["running", "queued", "pending", "waiting_user"].includes(task.state));
   const send = $("send");
   send.classList.remove("stop");
   send.textContent = "↑";
@@ -103,12 +86,19 @@ function lingTaskLabel(state) {
 }
 
 function renderLingTasks() {
+  if (typeof taskView !== "undefined" && JSON.stringify(taskView.tasks) !== JSON.stringify(lingView.tasks)) {
+    taskView.tasks = lingView.tasks;
+    renderTasks();
+  }
   const box = $("ling-tasks");
   const nextState = JSON.stringify(lingView.tasks);
-  if (nextState === lingView.renderedTaskState) return;
+  if (nextState === lingView.renderedTaskState) {
+    renderComposerTargets();
+    return;
+  }
   lingView.renderedTaskState = nextState;
   box.innerHTML = "";
-  for (const task of lingView.tasks.slice(0, 4)) {
+  for (const task of lingView.tasks.slice(0, 5)) {
     const button = el("button", "ling-task", task.title || "未命名任务");
     button.type = "button";
     button.title = (task.status_detail || task.goal || task.title || "") + " · 打开任务详情";
@@ -120,11 +110,29 @@ function renderLingTasks() {
     button.addEventListener("click", () => openLingTask(task.id));
     box.appendChild(button);
   }
-  if (lingView.tasks.length) {
-    const all = el("button", "ling-task-all", "全部任务");
-    all.type = "button";
-    all.addEventListener("click", () => { document.querySelector(".side-group:nth-of-type(2)")?.scrollIntoView(); });
-    box.appendChild(all);
+  renderComposerTargets();
+}
+
+function renderComposerTargets() {
+  const select = $("composer-task");
+  if (!select) return;
+  const signature = JSON.stringify(lingView.tasks.map((task) =>
+    [task.id, task.title, task.state]));
+  if (signature === lingView.renderedTargetsSignature) return;
+  lingView.renderedTargetsSignature = signature;
+  const selected = select.value;
+  select.innerHTML = "";
+  const ling = el("option", "", "灵");
+  ling.value = "";
+  select.appendChild(ling);
+  for (const task of lingView.tasks) {
+    if (task.state === "cancelled") continue;
+    const option = el("option", "", (task.title || "未命名工作") + (task.state === "completed" ? "（已完成）" : ""));
+    option.value = task.id;
+    select.appendChild(option);
+  }
+  if (selected && [...select.children].some((option) => option.value === selected)) {
+    select.value = selected;
   }
 }
 
@@ -155,57 +163,133 @@ function renderLingInputs() {
   }
 }
 
+function liveRevision(event) {
+  const value = event && (event.revision ?? (event.live && event.live.revision));
+  return Number.isFinite(Number(value)) ? Number(value) : 0;
+}
+
+function mergeLiveItems(items, live) {
+  const out = items.filter((item) => !item.live);
+  if (!live || typeof live !== "object") return out;
+  if (live.text || live.thinking) {
+    const messageId = live.message_id || "";
+    const index = messageId
+      ? out.findIndex((item) => item.role === "assistant" && item.message_id === messageId)
+      : -1;
+    const item = {role: "assistant", message_id: messageId, text: live.text || "",
+      thinking: live.thinking || "", live: true,
+      key: "live:" + (messageId || "current")};
+    if (index >= 0) out[index] = item;
+    else out.push(item);
+  }
+  if (live.tool) {
+    const tool = live.tool;
+    const callId = tool.id || tool.tool_call_id || "";
+    const parentId = tool.parent_message_id || live.message_id || "";
+    const index = callId
+      ? out.findIndex((item) => item.role === "tool" &&
+          (item.tool_call_id === callId || item.id === callId) &&
+          (parentId ? item.parent_message_id === parentId : !item.parent_message_id))
+      : -1;
+    const item = {role: "tool", name: tool.name || "",
+      text: tool.content || (tool.ok === undefined ? "正在调用" : ""),
+      arguments: tool.arguments, ok: tool.ok, tool_call_id: callId,
+      parent_message_id: parentId, live: true,
+      key: "live-tool:" + (parentId || "-") + ":" + (callId || "current")};
+    if (index >= 0) out[index] = item;
+    else out.push(item);
+  }
+  if (live.error) out.push({role: "notice", text: live.error, key: "live-error"});
+  return out;
+}
+
+function renderLingItems(preserveScroll) {
+  if (!lingView.active) return;
+  state.sessionId = lingView.sessionId;
+  state.items = mergeLiveItems(lingView.items, lingView.live);
+  state.turns = state.items.filter((item) => item.role === "user").length;
+  renderTranscript({preserveScroll: Boolean(preserveScroll)});
+}
+
+function setLingLive(event) {
+  const revision = liveRevision(event);
+  if (revision < lingView.liveRevision) return false;
+  lingView.liveRevision = revision;
+  const live = event.live && typeof event.live === "object" ? event.live : null;
+  lingView.live = live && Object.keys(live).length ? live : null;
+  if (["delta", "thinking", "tool_start", "tool_result", "error"].includes(event.type)) {
+    lingView.running = true;
+    state.running = true;
+    renderLingStatus();
+  }
+  if (["delta", "thinking", "tool_start"].includes(event.type)) {
+    lingView.running = true;
+    state.running = true;
+  } else if (event.type === "done" || (event.type === "refresh" && event.clear)) {
+    lingView.running = false;
+    state.running = false;
+  }
+  if (lingView.live && lingView.live.context !== undefined &&
+      typeof applyUsageSnapshot === "function") {
+    applyUsageSnapshot({context: lingView.live.context});
+  }
+  return true;
+}
+
 function renderLingSnapshot(value) {
   if (!lingView.active) return;
   if (lingView.sessionId && value.session_id && value.session_id !== lingView.sessionId) return;
-  if (lingView.submitting) {
-    value = {...value, items: lingView.items};
-  }
   if (!lingView.sessionId && value.session_id) lingView.sessionId = value.session_id;
-  lingView.running = Boolean(value.running);
   lingView.queueCount = Number(value.queue_count || 0);
   lingView.inputs = Array.isArray(value.inputs) ? value.inputs : [];
   lingView.tasks = Array.isArray(value.tasks) ? value.tasks : [];
-  if (typeof value.unread_count === "number") lingView.unreadCount = value.unread_count;
+  const activeMain = value.interaction || value.interaction_request || null;
+  const mainRequests = Array.isArray(value.main_requests) ? value.main_requests.slice() : [];
+  if (activeMain && !mainRequests.some((item) => requestKey(item) === requestKey(activeMain)) &&
+      !(lingView.requestAnswered || new Map()).has(requestKey(activeMain))) {
+    mainRequests.unshift({...activeMain, status: activeMain.status || "pending"});
+  }
+  lingView.requests = mainRequests;
+  if (lingView.requestAnswered) {
+    for (const [key, at] of [...lingView.requestAnswered]) {
+      if (!mainRequests.some((item) => requestKey(item) === key) || Date.now() - at > 10000) {
+        lingView.requestAnswered.delete(key);
+      }
+    }
+  }
 
-  const signature = JSON.stringify(value.items || []);
+  const snapshotItems = (Array.isArray(value.items) ? value.items : []).filter((item) => !item.live);
+  const snapshotRevision = Number(value.live_revision ?? (value.live && value.live.revision) ?? 0);
+  const newerLive = snapshotRevision < lingView.liveRevision;
+  if (!newerLive) {
+    lingView.liveRevision = snapshotRevision;
+    lingView.live = value.live && typeof value.live === "object" && Object.keys(value.live).length
+      ? value.live : null;
+  }
+  if (!newerLive) {
+    lingView.running = Boolean(value.running);
+    state.running = lingView.running;
+  }
+  const signature = JSON.stringify(snapshotItems);
   if (signature !== lingView.itemsSignature) {
     lingView.itemsSignature = signature;
-    lingView.items = Array.isArray(value.items) ? value.items : [];
-    state.sessionId = lingView.sessionId;
-    state.items = lingView.items;
-    state.turns = state.items.filter((item) => item.role === "user").length;
-    state.tokens = state.items.reduce((sum, item) => {
-      const usage = item.usage || {};
-      return sum + (usage.input_tokens || 0) + (usage.output_tokens || 0);
-    }, 0);
-    if (!taskView.current) {
-      $("task-panel").hidden = true;
-      renderTranscript({preserveScroll: true});
-    }
+    lingView.items = snapshotItems;
+    renderLingItems(true);
   }
+  if (typeof applyUsageSnapshot === "function") applyUsageSnapshot(value);
+  if (lingView.live) renderLingItems(true);
   renderLingTasks();
   renderLingInputs();
-  const interaction = value.interaction || null;
-  if (interaction) {
-    if (interaction.task_id === undefined && interaction.taskId !== undefined) interaction.task_id = interaction.taskId;
-    if (interaction.type === "approval" || interaction.kind === "approval") interaction.kind = "approval";
-    if (interaction.payload && typeof interaction.payload === "object") {
-      if (!interaction.tool && interaction.payload.tool) interaction.tool = interaction.payload.tool;
-      if (!interaction.arguments && interaction.payload.arguments) interaction.arguments = interaction.payload.arguments;
-      if (!interaction.questions && interaction.payload.questions) interaction.questions = interaction.payload.questions;
-    }
-    if (interaction.type === "question" || interaction.kind === "question") interaction.kind = "question";
-  }
-  renderLingInteraction(interaction);
-  const merged = mergeNotifications(value.notifications || []);
-  maybeAutoOpenNotifications(merged.freshUnread);
-  renderNotifications();
+  renderLingRequests();
   renderLingStatus();
 }
 
 async function pollLing() {
-  if (!lingView.active || lingView.polling || document.hidden) return;
+  if (!lingView.active || document.hidden) return;
+  if (lingView.polling) {
+    lingView.refreshPending = true;
+    return;
+  }
   lingView.polling = true;
   try {
     lingView.connectionError = "";
@@ -218,64 +302,55 @@ async function pollLing() {
     }
   } finally {
     lingView.polling = false;
+    if (lingView.refreshPending && lingView.active && !document.hidden) {
+      lingView.refreshPending = false;
+      pollLing();
+    }
   }
-}
-
-function armLingPolling() {
-  if (lingView.pollTimer) clearTimeout(lingView.pollTimer);
-  lingView.pollTimer = setTimeout(async () => {
-    lingView.pollTimer = null;
-    if (lingView.active && !document.hidden) await pollLing();
-    if (lingView.active) armLingPolling();
-  }, 1000);
 }
 
 async function openLing(options) {
   const settings = options || {};
   lingView.active = true;
+  lingView.live = null;
+  lingView.liveRevision = 0;
+  lingView.renderedTargetsSignature = "";
+  lingView.renderedRequestsSignature = "";
+  if (typeof taskView !== "undefined" && taskView.current) {
+    taskView.current = null;
+    taskView.request = (taskView.request || 0) + 1;
+    if (taskView.timer) clearTimeout(taskView.timer);
+    taskView.timer = null;
+    $("task-panel").hidden = true;
+  }
   lingView.itemsSignature = "";
   rememberCurrentScroll();
   state.scrollKey = "ling";
   const viewVersion = state.viewVersion = (state.viewVersion || 0) + 1;
-  if (typeof taskView !== "undefined") {
-    taskView.current = null;
-    if (taskView.timer) clearTimeout(taskView.timer);
-    taskView.timer = null;
-    $("task-panel").hidden = true;
-    renderTasks();
-  }
+  if (typeof taskView !== "undefined") renderTasks();
   $("title").textContent = "灵";
   $("scroller").hidden = false;
   $("composer").hidden = false;
   showLingChrome(true);
   renderLingInputs();
-  renderLingInteraction(lingView.interaction);
+  renderLingRequests();
   renderLingStatus();
   $("transcript").innerHTML = "";
   $("transcript").classList.add("empty");
   $("main").classList.add("empty");
+  state.scrollAtBottom = state.scrollAtBottom || {};
+  state.scrollAtBottom.ling = true;
   if (!settings.keepTranscript) {
     const hello = el("div", "welcome ling-welcome");
     hello.appendChild(el("div", "welcome-title", "灵"));
-    hello.appendChild(el("div", "welcome-sub", "你可以在这里继续交流。复杂工作会独立推进，重要进展会出现在通知里。"));
+    hello.appendChild(el("div", "welcome-sub", "你可以在这里继续交流。复杂工作会独立推进，需要你决定的请求会出现在上方。"));
     $("transcript").appendChild(hello);
   }
   await pollLing();
   if (viewVersion !== state.viewVersion || !lingView.active) return;
-  if (!settings.keepTranscript && lingView.itemsSignature === "[]") {
-    const hello = el("div", "welcome ling-welcome");
-    hello.appendChild(el("div", "welcome-title", "灵"));
-    hello.appendChild(el("div", "welcome-sub", "你可以在这里继续交流。复杂工作会独立推进，重要进展会出现在通知里。"));
-    $("transcript").appendChild(hello);
-  }
-  // Restore once the transcript is present. Notification loading can be slow
-  // and does not change this scroller, so it must not override a reader who
-  // scrolls while that request is still pending.
+  // Restore once the transcript is present.
   restoreViewScroll("ling");
-  armLingPolling();
-  await pollNotifications({ startup: true });
-  if (viewVersion !== state.viewVersion || !lingView.active) return;
-  armNotificationPolling();
+  if (typeof connectRuntimeStream === "function") connectRuntimeStream();
   $("input").focus();
 }
 
@@ -290,6 +365,7 @@ async function submitLingMessage(text) {
     return false;
   }
   const sessionId = lingView.sessionId;
+  const submittedDraft = $("input").value;
   // Leaving and reopening Ling creates a new view version for the same
   // conversation. A pending send must still update that conversation when it
   // settles, while a different view must remain untouched.
@@ -297,6 +373,12 @@ async function submitLingMessage(text) {
   const sentItems = pendingImages.slice();
   const sentFiles = pendingFiles.slice();
   const images = sentItems.map((item) => ({ mime: item.mime, data: item.data }));
+  const target = $("composer-task") ? $("composer-task").value : "";
+  if (!target && !text && !images.length && !sentFiles.length) {
+    lingView.submitting = false;
+    state.preparing = false;
+    return false;
+  }
   lingView.submitting = true;
   state.preparing = true;
   const visibleItems = lingView.items.slice();
@@ -308,8 +390,6 @@ async function submitLingMessage(text) {
   if (text || images.length) {
     localId = lingRequestId("local");
     appendLingMessages(text, images, [], localId);
-    $("input").value = "";
-    $("input").style.height = "auto";
   }
   try {
     const attachments = await uploadFiles("sessions", lingView.sessionId, sentFiles);
@@ -319,11 +399,12 @@ async function submitLingMessage(text) {
       images,
       attachments: attachments.map((file) => file.id),
       request_id: requestId,
+      task_id: target || undefined,
     });
     pendingImages = pendingImages.filter((item) => !sentItems.includes(item));
     pendingFiles = pendingFiles.filter((item) => !sentFiles.includes(item));
     renderAttachments();
-    lingView.requests.set(requestId, result.input_id);
+    lingView.sentRequests.set(requestId, result.input_id);
     if (result.session_id) lingView.sessionId = result.session_id;
     const queued = {
       id: result.input_id || requestId,
@@ -334,7 +415,9 @@ async function submitLingMessage(text) {
     localInput = queued;
     if (!lingView.inputs.some((item) => item.id === queued.id)) lingView.inputs.push(queued);
     lingView.queueCount += 1;
-    if (text || images.length || attachments.length) {
+    if (target) {
+      $("composer-task").value = "";
+    } else if (text || images.length || attachments.length) {
       const optimistic = lingView.items.find((item) => item.client_request_id === localId);
       if (optimistic) optimistic.attachments = attachments;
       lingView.itemsSignature = JSON.stringify(lingView.items);
@@ -344,9 +427,20 @@ async function submitLingMessage(text) {
       }
     }
     if (isCurrentLing()) {
+      if (text) {
+        const input = $("input");
+        // Keep text typed while the request was in flight.
+        if (input.value === submittedDraft) {
+          input.value = "";
+          input.style.height = "auto";
+        }
+      }
       renderLingInputs();
       renderLingStatus();
-      setStatus("已交给灵，可以继续输入");
+      const task = lingView.tasks.find((item) => item.id === target);
+      setStatus(target
+        ? "已交给「" + (task?.title || "这项工作") + "」，可以继续输入"
+        : "已交给灵，可以继续输入");
     }
     await pollLing();
     return true;
@@ -358,14 +452,12 @@ async function submitLingMessage(text) {
     if (isCurrentLing()) {
       state.items = visibleItems;
       state.turns = state.items.filter((item) => item.role === "user").length;
-      state.tokens = state.items.reduce((sum, item) => {
-        const usage = item.usage || {};
-        return sum + (usage.input_tokens || 0) + (usage.output_tokens || 0);
-      }, 0);
+      state.tokens = state.usage.total || 0;
       renderTranscript();
       renderLingInputs();
       renderLingStatus();
       if (!$("input").value) $("input").value = text;
+      if (target && $("composer-task")) $("composer-task").value = target;
       setStatus(error.message, true);
     }
     return false;
@@ -417,541 +509,350 @@ async function resumeLing() {
   }
 }
 
-function interactionKey(interaction) {
-  if (!interaction) return "";
-  return JSON.stringify([interaction.type, interaction.token, interaction.task_id,
-    interaction.interaction_id]);
-}
-
-function interactionVersion(interaction) {
-  return Number(interaction && (interaction.control_version || interaction.version)) || 0;
-}
-
-function readInteractionDraft(box) {
-  const draft = { answers: {} };
-  for (const block of box.querySelectorAll(".ling-question-block")) {
-    const input = block.querySelector(".ling-question-free");
-    draft.answers[block.dataset.index] = input ? input.value : "";
+async function pauseAllWorks() {
+  setStatus("正在挂起全部工作…");
+  $("ling-pause-all").disabled = true;
+  try {
+    await post("/api/ling/pause-all", {});
+    await pollLing();
+    setStatus("已请求挂起全部工作");
+  } catch (error) {
+    setStatus(error.message, true);
+  } finally {
+    $("ling-pause-all").disabled = false;
   }
-  return draft;
 }
 
-function renderLingInteraction(interaction) {
-  const box = $("ling-interaction");
-  const key = interactionKey(interaction);
-  if (key === lingView.interactionDraft?.key && box.children.length) {
-    lingView.interaction = interaction;
-    const current = readInteractionDraft(box);
-    const hasText = Object.values(current.answers || {}).some((answer) => String(answer || "").trim());
-    if (hasText) lingView.interactionDraft.value = current;
-    return;
+function requestKey(request) {
+  return String((request && (request.token || request.id)) || "");
+}
+
+function uniqueMainRequests(values) {
+  const seen = new Set();
+  const answered = lingView.requestAnswered || new Map();
+  return (values || []).filter((request) => {
+    if (!request || !["pending", "unknown"].includes(request.status || "pending")) return false;
+    const key = request ? requestKey(request) : "";
+    if (!key || seen.has(key)) return false;
+    const at = answered.get(key);
+    if (at && Date.now() - at < 10000) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function requestPayload(request) {
+  return request && request.payload && typeof request.payload === "object" ? request.payload : (request || {});
+}
+
+function requestDraft(key) {
+  const id = String(key || "");
+  if (!id) return { answers: {} };
+  if (!lingView.requestDrafts.has(id)) lingView.requestDrafts.set(id, { answers: {} });
+  return lingView.requestDrafts.get(id);
+}
+
+function workRequestDraft(key) {
+  const id = String(key || "");
+  if (!id) return { answers: {} };
+  lingView.workRequestDrafts = lingView.workRequestDrafts || new Map();
+  if (!lingView.workRequestDrafts.has(id)) lingView.workRequestDrafts.set(id, { answers: {} });
+  return lingView.workRequestDrafts.get(id);
+}
+
+function requestBusy(key) {
+  return Boolean(lingView.requestBusy && lingView.requestBusy.has(String(key || "")));
+}
+
+function renderRequestQuestions(panel, request, key, busy) {
+  const payload = requestPayload(request);
+  const questions = Array.isArray(payload.questions) ? payload.questions : [];
+  const draft = requestDraft(key);
+  questions.forEach((question, index) => {
+    const block = el("div", "ling-question-block");
+    block.appendChild(el("p", "ling-question-text", question.question || question.text || "需要你的回答"));
+    const choices = el("div", "ling-question-choices");
+    for (const choice of question.options || []) {
+      const button = el("button", "ling-question-choice", String(choice));
+      button.type = "button";
+      button.disabled = busy;
+      button.addEventListener("click", () => {
+        draft.answers[index] = String(choice);
+        const input = block.querySelector(".ling-question-free");
+        if (input) input.value = String(choice);
+      });
+      choices.appendChild(button);
+    }
+    if (choices.children.length) block.appendChild(choices);
+    const input = el("input", "ling-question-free");
+    input.type = "text";
+    input.placeholder = "输入回答";
+    input.value = draft.answers[index] || "";
+    input.disabled = busy;
+    input.addEventListener("input", () => { draft.answers[index] = input.value; });
+    block.appendChild(input);
+    panel.appendChild(block);
+  });
+  const submit = el("button", "primary ling-request-submit", "提交回答并继续");
+  submit.type = "button";
+  submit.disabled = busy;
+  submit.addEventListener("click", () => {
+    const answers = questions.map((_, index) => String(draft.answers[index] || ""));
+    if (answers.some((answer) => !answer.trim())) {
+      setStatus("请回答所有问题", true);
+      return;
+    }
+    answerMainRequest(request, answers).catch((error) => setStatus(error.message, true));
+  });
+  panel.appendChild(submit);
+}
+
+function renderMainRequest(box, request) {
+  const key = requestKey(request);
+  const busy = requestBusy(key);
+  const approval = request.kind === "approval";
+  const panel = el("article", "ling-request" + (busy ? " submitting" : ""));
+  panel.dataset.requestKey = key;
+  const head = el("div", "ling-request-head");
+  head.appendChild(el("span", "ling-request-owner", "灵"));
+  head.appendChild(el("span", "ling-request-title", approval ? "需要你确认" : "需要你回答"));
+  if (request.status === "unknown") {
+    head.appendChild(el("span", "ling-request-state", "结果待核对"));
   }
-  if (!key && lingView.interactionHandled && box.children.length) return;
-  if (key) lingView.interactionHandled = false;
-  box.innerHTML = "";
-  lingView.interaction = interaction;
-  lingView.interactionDraft = null;
-  box.hidden = !lingView.active || !interaction;
-  if (!interaction) return;
-  const draft = { key, value: { answers: {} } };
-  lingView.interactionDraft = draft;
-  box.appendChild(el("div", "ling-interaction-label", "灵在等待你处理"));
-  if (interaction.type === "approval" || interaction.kind === "approval") {
-    box.appendChild(el("div", "ling-interaction-tool", String(interaction.tool || interaction.value || "需要确认")));
-    const detail = el("pre", "ling-interaction-detail", JSON.stringify(interaction.arguments || {}, null, 2));
-    box.appendChild(detail);
-    // Approval is an explicit binary choice: no free text can be mistaken for
-    // a rejection, so the buttons directly submit true / false.
+  panel.appendChild(head);
+  const payload = requestPayload(request);
+  if (approval) {
+    panel.appendChild(el("div", "ling-interaction-tool", String(payload.tool || payload.value || "请求确认")));
+    if (payload.arguments && Object.keys(payload.arguments).length) {
+      panel.appendChild(el("pre", "ling-interaction-detail", JSON.stringify(payload.arguments, null, 2)));
+    }
+    if (request.status === "unknown") {
+      panel.appendChild(el("div", "ling-request-message",
+        "这次操作的结果尚未确认。系统不会自动重放或重复授权；请先核对实际影响。"));
+      const reviewed = el("button", "ling-request-reviewed", "我已核对，关闭提示");
+      reviewed.type = "button";
+      reviewed.disabled = busy;
+      reviewed.addEventListener("click", () => reviewUnknownRequest(request)
+        .catch((error) => setStatus(error.message, true)));
+      panel.appendChild(reviewed);
+      box.appendChild(panel);
+      return;
+    }
     const choices = el("div", "ling-approval-choices");
     const deny = el("button", "ling-approval-deny", "拒绝");
     deny.type = "button";
-    deny.addEventListener("click", () => answerLingInteraction(false));
-    const allow = el("button", "primary ling-approval-allow", "允许");
+    deny.disabled = busy;
+    deny.addEventListener("click", () => answerMainRequest(request, false)
+      .catch((error) => setStatus(error.message, true)));
+    const allow = el("button", "ling-approval-allow", "允许");
     allow.type = "button";
-    allow.addEventListener("click", () => answerLingInteraction(true));
+    allow.disabled = busy;
+    allow.addEventListener("click", () => answerMainRequest(request, true)
+      .catch((error) => setStatus(error.message, true)));
     choices.appendChild(deny);
     choices.appendChild(allow);
-    box.appendChild(choices);
-    allow.focus();
+    panel.appendChild(choices);
   } else {
-    const questions = interaction.questions || [];
-    questions.forEach((item, index) => {
-      const block = el("div", "ling-question-block");
-      block.dataset.index = String(index);
-      block.appendChild(el("p", "ling-question-text", item.question || item.text || ""));
-      const choices = el("div", "ling-question-choices");
-      for (const choice of item.options || []) {
-        const button = el("button", "ling-question-choice", choice);
-        button.type = "button";
-        button.addEventListener("click", () => {
-          const input = block.querySelector(".ling-question-free");
-          if (input) input.value = choice;
-          draft.value.answers[index] = choice;
-        });
-        choices.appendChild(button);
-      }
-      block.appendChild(choices);
-      const input = el("input", "ling-question-free");
-      input.type = "text";
-      input.placeholder = "或输入自定义回答";
-      input.addEventListener("input", () => { draft.value.answers[index] = input.value; });
-      block.appendChild(input);
-      box.appendChild(block);
-      if (index === 0) input.focus();
-    });
-    const submit = el("button", "primary", "提交回答");
-    submit.type = "button";
-    submit.addEventListener("click", () => {
-      const answers = questions.map((_, index) => draft.value.answers[index] || "");
-      answerLingInteraction(answers);
-    });
-    box.appendChild(submit);
+    renderRequestQuestions(panel, request, key, busy);
   }
+  box.appendChild(panel);
 }
 
-async function answerLingInteraction(value) {
-  const interaction = lingView.interaction;
-  if (!interaction) return;
-  const box = $("ling-interaction");
-  box.classList.add("submitting");
-  try {
-    if (interaction.task_id) {
-      const answers = Array.isArray(value) ? value : [String(value)];
-      await post("/api/tasks/" + encodeURIComponent(interaction.task_id) + "/interactions/" +
-        encodeURIComponent(interaction.interaction_id) + "/answer", {
-          answer: interaction.kind === "approval" ? value === true
-            : (answers.length === 1 ? answers[0] : answers),
-          resume: true,
-          expected_version: interaction.control_version,
-        });
-    } else if (interaction.type === "approval" || interaction.kind === "approval") {
-      await post("/api/approval", { token: interaction.token, allowed: value === true });
-    } else {
-      await post("/api/answer", { token: interaction.token, text: value });
+function renderWorkRequest(box, task, interaction) {
+  const key = "task:" + task.id + ":" + interaction.id;
+  const busy = requestBusy(key);
+  const payload = interaction.payload || {};
+  const approval = interaction.kind === "approval";
+  const panel = el("article", "ling-request work" + (busy ? " submitting" : ""));
+  panel.dataset.requestKey = key;
+  const head = el("div", "ling-request-head");
+  head.appendChild(el("span", "ling-request-owner", task.title || "这项工作"));
+  head.appendChild(el("span", "ling-request-title", approval ? "需要你确认" : "需要你回答"));
+  panel.appendChild(head);
+  if (approval) {
+    panel.appendChild(el("div", "ling-interaction-tool", String(payload.tool || "请求确认")));
+    if (payload.arguments && Object.keys(payload.arguments).length) {
+      panel.appendChild(el("pre", "ling-interaction-detail", JSON.stringify(payload.arguments, null, 2)));
     }
-    lingView.interactionDraft = null;
-    lingView.interaction = null;
-    box.innerHTML = "";
-    box.appendChild(el("div", "ling-interaction-expired", "已处理，任务正在继续"));
-    lingView.interactionHandled = true;
-    await pollLing();
-  } catch (error) {
-    if (/not found|resolved|expired|409|404/i.test(error.message)) {
-      lingView.interactionDraft = null;
-      lingView.interaction = null;
-      box.innerHTML = "";
-      box.appendChild(el("div", "ling-interaction-expired", "这项交互已处理或已过期，当前状态已刷新。"));
-    } else {
-      setStatus(error.message, true);
-    }
-  } finally {
-    box.classList.remove("submitting");
-  }
-}
-
-function notificationId(item) {
-  return item && item.id !== undefined && item.id !== null ? String(item.id) : "";
-}
-
-function notificationCursor(item) {
-  return Number(item && (item.id || item.cursor || item.seq)) || 0;
-}
-
-function mergeNotifications(items) {
-  let freshUnread = [];
-  let changed = false;
-  for (const item of items || []) {
-    const id = notificationId(item);
-    const cursor = notificationCursor(item);
-    const existing = id ? lingView.notifications.find((old) => notificationId(old) === id) : null;
-    if (existing) {
-      const wasUnread = !existing.read_at;
-      const before = JSON.stringify(existing);
-      Object.assign(existing, item);
-      if (before !== JSON.stringify(existing)) changed = true;
-      if (!wasUnread && !item.read_at) freshUnread.push(item);
-    } else if (id) {
-      lingView.notificationSeen.add(id);
-      lingView.notifications.push(item);
-      changed = true;
-      if (!item.read_at) freshUnread.push(item);
-    } else if (!id && cursor && !lingView.notifications.some((old) => notificationCursor(old) === cursor)) {
-      lingView.notifications.push(item);
-      changed = true;
-      if (!item.read_at) freshUnread.push(item);
-    }
-    if (cursor > lingView.notificationAfter) lingView.notificationAfter = cursor;
-  }
-  const limit = 100;
-  if (lingView.notifications.length > limit) lingView.notifications = lingView.notifications.slice(-limit);
-  return {freshUnread, changed};
-}
-
-async function pollNotifications(options) {
-  const settings = options || {};
-  const hydrate = settings.startup || !lingView.notificationHydrated;
-  const after = hydrate ? 0 : lingView.notificationAfter;
-  try {
-    const hadBadge = lingView.unreadCount > 0;
-    const value = await api("/api/notifications?after=" + encodeURIComponent(after) +
-      (hydrate ? "&unread=0" : "") + "&limit=100");
-    const merged = mergeNotifications(value.notifications || []);
-    if (typeof value.unread_count === "number") lingView.unreadCount = value.unread_count;
-    if (Number.isFinite(Number(value.next))) lingView.notificationAfter = Number(value.next);
-    lingView.notificationHydrated = true;
-    const caughtUp = !hadBadge && settings.startup && lingView.unreadCount > 0 && !merged.changed;
-    maybeAutoOpenNotifications(caughtUp ? lingView.notifications.filter((item) => !item.read_at) : merged.freshUnread);
-    renderNotifications();
-    renderLingStatus();
-  } catch (error) {
-    if (settings.startup) return;
-    throw error;
-  }
-}
-
-function syncLegacyNotifications() {
-  mergeNotifications(lingView.notifications);
-  renderNotifications();
-  renderLingStatus();
-}
-
-function notificationDraft(key) {
-  return key === undefined || key === null ? null : (lingView.notificationDrafts.get(String(key)) || null);
-}
-
-// Panels are keyed by notification identity. Notifications normally carry an
-// id; a cursor-only entry still gets a distinct key so two panels can never
-// collapse onto the same state.
-function notificationPanelKey(item) {
-  const id = notificationId(item);
-  if (id) return "id:" + id;
-  if (item && item.__panelKey) return item.__panelKey;
-  const key = "local:" + (notificationCursor(item) || Date.now().toString(36) + Math.random().toString(36).slice(2));
-  if (item) item.__panelKey = key;
-  return key;
-}
-
-// A submission always names its own notification. The single-argument form is
-// kept for callers that only ever open one panel; with several panels open it
-// refuses rather than guessing which notification the answer belongs to.
-function soleOpenNotificationDraft() {
-  const open = [...lingView.notificationDrafts.values()].filter((state) => state.open);
-  return open.length === 1 ? open[0] : null;
-}
-
-function closeNotificationDraft(key) {
-  const state = notificationDraft(key);
-  if (!state || state.status === "submitting") return false;
-  state.open = false;
-  if (state.panel) state.panel.remove();
-  lingView.notificationDrafts.delete(String(key));
-  return true;
-}
-
-function closeAllNotificationDrafts() {
-  for (const key of [...lingView.notificationDrafts.keys()]) closeNotificationDraft(key);
-}
-
-function renderNotifications() {
-  $("notification-summary").textContent = lingView.unreadCount
-    ? lingView.unreadCount + " 条未读"
-    : (lingView.notifications.length ? "全部已读" : "暂无通知");
-  const list = $("notification-list");
-  const preserved = new Map();
-  for (const [key, state] of lingView.notificationDrafts) {
-    if (!state.open || !state.panel) continue;
-    preserved.set(key, state.panel);
-  }
-  const nextList = el("div", "notification-list-content");
-  list.innerHTML = "";
-  // A notification that left the feed can no longer be acted on.
-  for (const key of [...lingView.notificationDrafts.keys()]) {
-    const state = notificationDraft(key);
-    if (state && state.status !== "submitting" &&
-        !lingView.notifications.some((item) => notificationPanelKey(item) === key)) {
-      closeNotificationDraft(key);
-    }
-  }
-  if (!lingView.notifications.length) {
-    nextList.appendChild(el("div", "notification-empty", "任务需要你、完成或受阻时，会在这里主动提示。"));
-    list.appendChild(nextList);
-    updateNotificationBadge();
-    return;
-  }
-  for (const item of lingView.notifications.slice().reverse()) {
-    const key = notificationId(item);
-    const panelKey = notificationPanelKey(item);
-    const row = el("article", "notification-item" + (item.read_at ? " read" : " unread"));
-    row.dataset.notificationId = key;
-    const head = el("div", "notification-item-head");
-    head.appendChild(el("span", "notification-dot"));
-    head.appendChild(el("span", "notification-title", item.title || "工作进展"));
-    head.appendChild(el("span", "notification-time", clock(item.created_at)));
-    row.appendChild(head);
-    if (item.text) row.appendChild(el("div", "notification-text", item.text));
-    const actions = el("div", "notification-item-actions");
-    if (item.task_id) {
-      const task = el("button", "notification-task", "查看关联任务");
-      task.type = "button";
-      task.addEventListener("click", () => openLingTask(item.task_id));
-      actions.appendChild(task);
-      if (item.interaction_id && !item.interaction_expired) {
-        const state = notificationDraft(panelKey);
-        const handle = el("button", "notification-handle",
-          state && state.open ? "收起" : "处理请求");
-        handle.type = "button";
-        handle.addEventListener("click", () => openNotificationAction(item, row, handle));
-        actions.appendChild(handle);
-      } else if (item.interaction_id) {
-        actions.appendChild(el("span", "small", "请求已处理或已过期"));
-      }
-    }
-    if (!item.read_at) {
-      const read = el("button", "notification-read", "标为已读");
-      read.type = "button";
-      read.addEventListener("click", () => markNotificationRead(item));
-      actions.appendChild(read);
-    }
-    row.appendChild(actions);
-    const panel = preserved.get(panelKey);
-    if (panel) {
-      const state = notificationDraft(panelKey);
-      if (state) {
-        state.row = row;
-        state.panel = panel;
-      }
-      row.appendChild(panel);
-    }
-    nextList.appendChild(row);
-  }
-  list.appendChild(nextList);
-  updateNotificationBadge();
-}
-
-async function markNotificationRead(item) {
-  if (!item || !item.id || item.read_at) return;
-  try {
-    await post("/api/notifications/" + encodeURIComponent(item.id) + "/read", {});
-    item.read_at = new Date().toISOString();
-    lingView.unreadCount = Math.max(0, lingView.unreadCount - 1);
-    renderNotifications();
-  } catch (error) {
-    setStatus(error.message, true);
-  }
-}
-
-async function markAllNotificationsRead() {
-  const unread = lingView.notifications.filter((item) => !item.read_at);
-  for (const item of unread) await markNotificationRead(item);
-}
-
-function setNotificationsOpen(open) {
-  if (!open) {
-    for (const item of lingView.notifications) {
-      if (!item.read_at) lingView.notificationsDismissed.add(notificationId(item));
-    }
-  }
-  lingView.notificationsOpen = open;
-  $("notification-region").hidden = !open;
-  $("notifications-toggle").setAttribute("aria-expanded", String(open));
-  if (open) {
-    renderNotifications();
-    if (!lingView.notificationHydrated) {
-      pollNotifications({ startup: true }).catch((error) => setStatus(error.message, true));
-    }
-  } else {
-    // Closing the feed discards every open panel; an in-flight submission keeps
-    // its own state until the request settles, but is no longer rendered.
-    for (const state of [...lingView.notificationDrafts.values()]) {
-      if (state.status === "submitting") state.open = false;
-    }
-    closeAllNotificationDrafts();
-  }
-}
-
-function maybeAutoOpenNotifications(freshItems) {
-  const candidates = (freshItems || []).filter((item) => {
-    const id = notificationId(item);
-    return id && !lingView.notificationsDismissed.has(id) && !lingView.autoOpened.has(id);
-  });
-  if (!candidates.length || lingView.notificationsOpen) return;
-  for (const item of candidates) lingView.autoOpened.add(notificationId(item));
-  setNotificationsOpen(true);
-}
-
-function notificationInteractionPayload(interaction) {
-  const payload = interaction.payload && typeof interaction.payload === "object" ? interaction.payload : interaction;
-  return {
-    kind: interaction.kind,
-    tool: payload.tool || "",
-    arguments: payload.arguments || {},
-    questions: Array.isArray(payload.questions) ? payload.questions : [],
-  };
-}
-
-function findPendingInteraction(detail, notification) {
-  const pending = Array.isArray(detail.pending_interactions) ? detail.pending_interactions : [];
-  return pending.find((item) => item.id === notification.interaction_id) || null;
-}
-
-function renderNotificationAction(panel, state) {
-  panel.innerHTML = "";
-  if (state.status === "loading") {
-    panel.appendChild(el("div", "notification-action-message", "正在读取最新任务状态…"));
-    return;
-  }
-  if (state.status === "submitting") {
-    panel.appendChild(el("div", "notification-action-message", "正在提交处理结果…"));
-    return;
-  }
-  if (state.status === "done") {
-    panel.appendChild(el("div", "notification-action-message", "已处理，通知状态已更新。"));
-    return;
-  }
-  if (state.status === "stale") {
-    panel.appendChild(el("div", "notification-action-message", "这项请求已处理或已过期。"));
-    return;
-  }
-  if (state.status === "error") {
-    panel.appendChild(el("div", "notification-action-message error", state.error || "读取任务失败"));
-    return;
-  }
-  const interaction = state.interaction;
-  const info = notificationInteractionPayload(interaction);
-  if (info.tool) {
-    panel.appendChild(el("div", "notification-action-tool", "需要批准：" + info.tool));
-    panel.appendChild(el("pre", "notification-action-detail", JSON.stringify(info.arguments, null, 2)));
-  }
-  if (info.questions.length) {
-    info.questions.forEach((question, index) => {
-      panel.appendChild(el("div", "notification-action-question", question.question || question.text || ""));
-      if (Array.isArray(question.options) && question.options.length) {
-        panel.appendChild(el("div", "notification-action-options", question.options.join(" / ")));
-      }
-      const answer = el("input", "notification-action-input");
-      answer.type = "text";
-      answer.dataset.index = String(index);
-      answer.placeholder = "回答这个问题";
-      answer.value = state.draft?.answers?.[index] || "";
-      answer.addEventListener("input", () => {
-        if (!state.draft) state.draft = { answers: {} };
-        state.draft.answers[index] = answer.value;
-      });
-      panel.appendChild(answer);
-    });
-  }
-  if (interaction.kind === "approval") {
-    // Approval is an explicit binary choice. Each button is bound to this
-    // panel's own state, so a second open panel cannot receive the answer.
-    const actions = el("div", "notification-action-buttons");
-    const deny = el("button", "notification-deny", "拒绝");
+    const choices = el("div", "ling-approval-choices");
+    const deny = el("button", "ling-approval-deny", "拒绝");
     deny.type = "button";
-    deny.addEventListener("click", () => submitNotificationAction(false, state));
-    const allow = el("button", "notification-allow", "允许并继续");
+    deny.disabled = busy;
+    deny.addEventListener("click", () => answerWorkRequest(task, interaction, false)
+      .catch((error) => setStatus(error.message, true)));
+    const allow = el("button", "ling-approval-allow", "允许");
     allow.type = "button";
-    allow.addEventListener("click", () => submitNotificationAction(true, state));
-    actions.appendChild(deny);
-    actions.appendChild(allow);
-    panel.appendChild(actions);
-  } else if (info.questions.length) {
-    const submit = el("button", "notification-allow", "提交并继续");
-    submit.type = "button";
-    submit.addEventListener("click", () => submitNotificationAction(undefined, state));
-    panel.appendChild(submit);
+    allow.disabled = busy;
+    allow.addEventListener("click", () => answerWorkRequest(task, interaction, true)
+      .catch((error) => setStatus(error.message, true)));
+    choices.appendChild(deny);
+    choices.appendChild(allow);
+    panel.appendChild(choices);
   } else {
-    panel.appendChild(el("div", "notification-action-message", "当前任务没有待回答的问题。"));
+    renderWorkQuestions(panel, task, interaction, key, busy);
+  }
+  const open = el("button", "ling-request-open", "查看工作");
+  open.type = "button";
+  open.addEventListener("click", () => openLingTask(task.id));
+  panel.appendChild(open);
+  box.appendChild(panel);
+}
+
+function renderWorkQuestions(panel, task, interaction, key, busy) {
+  const questions = interaction.payload && Array.isArray(interaction.payload.questions)
+    ? interaction.payload.questions : [];
+  const draft = workRequestDraft(key);
+  questions.forEach((question, index) => {
+    const block = el("div", "ling-question-block");
+    block.appendChild(el("p", "ling-question-text", question.question || question.text || "需要你的回答"));
+    const choices = el("div", "ling-question-choices");
+    for (const choice of question.options || []) {
+      const button = el("button", "ling-question-choice", String(choice));
+      button.type = "button";
+      button.disabled = busy;
+      button.addEventListener("click", () => {
+        draft.answers[index] = String(choice);
+        const input = block.querySelector(".ling-question-free");
+        if (input) input.value = String(choice);
+      });
+      choices.appendChild(button);
+    }
+    if (choices.children.length) block.appendChild(choices);
+    const input = el("input", "ling-question-free");
+    input.type = "text";
+    input.placeholder = "输入回答";
+    input.value = draft.answers[index] || "";
+    input.disabled = busy;
+    input.addEventListener("input", () => { draft.answers[index] = input.value; });
+    block.appendChild(input);
+    panel.appendChild(block);
+  });
+  const submit = el("button", "primary ling-request-submit", "提交回答并继续");
+  submit.type = "button";
+  submit.disabled = busy;
+  submit.addEventListener("click", () => {
+    const answers = questions.map((_, index) => String(draft.answers[index] || ""));
+    if (answers.some((answer) => !answer.trim())) {
+      setStatus("请回答所有问题", true);
+      return;
+    }
+    answerWorkRequest(task, interaction, answers).catch((error) => setStatus(error.message, true));
+  });
+  panel.appendChild(submit);
+}
+
+function visibleWorkRequests() {
+  const values = [];
+  const answered = lingView.workRequestAnswered || new Map();
+  for (const task of lingView.tasks || []) {
+    for (const interaction of task.pending_interactions || []) {
+      if (!interaction || !interaction.id) continue;
+      const key = "task:" + task.id + ":" + interaction.id;
+      const at = answered.get(key);
+      if (at && Date.now() - at < 10000) continue;
+      values.push({ task, interaction });
+    }
+  }
+  for (const [key, at] of [...answered]) {
+    if (Date.now() - at > 10000) answered.delete(key);
+  }
+  return values;
+}
+
+function renderLingRequests() {
+  const box = $("ling-requests");
+  if (!box) return;
+  const requests = uniqueMainRequests(lingView.requests);
+  const works = visibleWorkRequests();
+  const signature = JSON.stringify({requests, works});
+  if (signature === lingView.renderedRequestsSignature) return;
+  lingView.renderedRequestsSignature = signature;
+  box.innerHTML = "";
+  box.hidden = !lingView.active || (!requests.length && !works.length);
+  if (box.hidden) return;
+  if (requests.length) {
+    const section = el("section", "ling-request-section");
+    section.appendChild(el("div", "ling-request-kicker", "灵在等你"));
+    for (const request of requests) renderMainRequest(section, request);
+    box.appendChild(section);
+  }
+  if (works.length) {
+    const section = el("section", "ling-request-section work");
+    section.appendChild(el("div", "ling-request-kicker", "工作请求"));
+    for (const value of works) renderWorkRequest(section, value.task, value.interaction);
+    box.appendChild(section);
   }
 }
 
-async function openNotificationAction(item, row, button) {
-  const key = notificationPanelKey(item);
-  const existing = notificationDraft(key);
-  if (existing && existing.open) {
-    if (existing.status === "submitting") return;
-    closeNotificationDraft(key);
-    button.textContent = "处理请求";
-    return;
-  }
-  let panel = row.querySelector(".notification-action-panel");
-  if (!panel) {
-    panel = el("div", "notification-action-panel");
-    row.appendChild(panel);
-  }
-  const state = { key, item, open: true, status: "loading", interaction: null, draft: null, row, panel };
-  lingView.notificationDrafts.set(key, state);
-  button.textContent = "收起";
-  renderNotificationAction(panel, state);
+async function answerMainRequest(request, value) {
+  const key = requestKey(request);
+  if (!key) return;
+  lingView.requestBusy = lingView.requestBusy || new Set();
+  lingView.requestBusy.add(key);
+  lingView.renderedRequestsSignature = "";
+  renderLingRequests();
   try {
-    const detail = await api("/api/tasks/" + encodeURIComponent(item.task_id));
-    if (notificationDraft(key) !== state) return;
-    const interaction = findPendingInteraction(detail, item);
-    if (!interaction) {
-      state.status = "stale";
-      renderNotificationAction(panel, state);
-      await markNotificationRead(item);
-      return;
+    if (request.kind === "approval") {
+      await post("/api/approval", { token: request.token || request.id, allowed: value === true });
+    } else {
+      await post("/api/answer", { token: request.token || request.id, answers: Array.isArray(value) ? value : [String(value)] });
     }
-    state.interaction = interaction;
-    state.controlVersion = detail.control_version;
-    state.taskId = item.task_id;
-    state.status = "ready";
-    renderNotificationAction(panel, state);
-  } catch (error) {
-    if (notificationDraft(key) !== state) return;
-    state.status = /not found|404/i.test(error.message) ? "stale" : "error";
-    state.error = error.message;
-    renderNotificationAction(panel, state);
+    lingView.requestAnswered = lingView.requestAnswered || new Map();
+    lingView.requestAnswered.set(key, Date.now());
+    await pollLing();
+  } finally {
+    lingView.requestBusy.delete(key);
+    lingView.renderedRequestsSignature = "";
+    renderLingRequests();
   }
 }
 
-async function submitNotificationAction(approval, target) {
-  // A caller that has a panel passes its own state; otherwise resolve it only
-  // when exactly one panel is open, never by "most recently opened".
-  const state = target || soleOpenNotificationDraft();
-  if (!state || !state.open || state.status !== "ready" || !state.interaction) return;
-  const panel = state.panel;
-  const taskId = state.taskId;
-  const key = state.key;
-  const interaction = state.interaction;
-  const info = notificationInteractionPayload(interaction);
-  const draft = state.draft || { answers: {} };
-  const answers = info.questions.map((_, index) => String(draft.answers?.[index] || ""));
-  if (info.questions.length && answers.every((answer) => !answer.trim())) return;
-  if (interaction.kind === "approval" && typeof approval !== "boolean") return;
-  state.status = "submitting";
-  renderNotificationAction(panel, state);
+async function reviewUnknownRequest(request) {
+  const key = requestKey(request);
+  if (!key) return;
+  lingView.requestBusy = lingView.requestBusy || new Set();
+  lingView.requestBusy.add(key);
+  lingView.renderedRequestsSignature = "";
+  renderLingRequests();
   try {
-    const fresh = await api("/api/tasks/" + encodeURIComponent(taskId));
-    const pending = findPendingInteraction(fresh, { interaction_id: interaction.id });
-    if (!pending) {
-      state.status = "stale";
-      renderNotificationAction(panel, state);
-      return;
-    }
-    await post("/api/tasks/" + encodeURIComponent(taskId) + "/interactions/" +
+    await post("/api/approval", { token: request.token || request.id, reviewed_unknown: true });
+    lingView.requestAnswered = lingView.requestAnswered || new Map();
+    lingView.requestAnswered.set(key, Date.now());
+    await pollLing();
+  } finally {
+    lingView.requestBusy.delete(key);
+    lingView.renderedRequestsSignature = "";
+    renderLingRequests();
+  }
+}
+
+async function answerWorkRequest(task, interaction, value) {
+  const key = "task:" + task.id + ":" + interaction.id;
+  lingView.requestBusy = lingView.requestBusy || new Set();
+  lingView.requestBusy.add(key);
+  lingView.renderedRequestsSignature = "";
+  renderLingRequests();
+  try {
+    const answers = Array.isArray(value) ? value : [String(value)];
+    await post("/api/tasks/" + encodeURIComponent(task.id) + "/interactions/" +
       encodeURIComponent(interaction.id) + "/answer", {
-        answer: interaction.kind === "approval" ? approval === true
+        answer: interaction.kind === "approval" ? value === true
           : (answers.length === 1 ? answers[0] : answers),
         resume: true,
-        expected_version: fresh.control_version,
+        expected_version: interaction.control_version ?? task.control_version,
       });
-    state.status = "done";
-    renderNotificationAction(panel, state);
-    if (!state.open && notificationDraft(key) === state) lingView.notificationDrafts.delete(key);
-    const item = state.item || lingView.notifications.find((value) => notificationId(value) === key);
-    if (item) await markNotificationRead(item);
+    lingView.workRequestDrafts.delete(key);
+    lingView.workRequestAnswered = lingView.workRequestAnswered || new Map();
+    lingView.workRequestAnswered.set(key, Date.now());
     await pollLing();
-  } catch (error) {
-    state.status = /not found|resolved|expired|409|404|interaction/i.test(error.message) ? "stale" : "error";
-    state.error = error.message;
-    renderNotificationAction(panel, state);
-    if (!state.open && notificationDraft(key) === state) lingView.notificationDrafts.delete(key);
+    if (typeof taskView !== "undefined" && taskView.current?.id === task.id) {
+      await openTask(task.id, {refresh: true});
+    }
+  } finally {
+    lingView.requestBusy.delete(key);
+    lingView.renderedRequestsSignature = "";
+    renderLingRequests();
   }
-}
-
-function findLingTask(id) {
-  return lingView.tasks.find((item) => item.id === id) ||
-    (typeof taskView !== "undefined" ? taskView.tasks.find((item) => item.id === id) : null);
 }
 
 async function openLingTask(id) {
@@ -960,19 +861,28 @@ async function openLingTask(id) {
   await openTask(id);
 }
 
-function armNotificationPolling() {
-  if (lingView.notificationTimer) clearTimeout(lingView.notificationTimer);
-  lingView.notificationTimer = setTimeout(async () => {
-    lingView.notificationTimer = null;
-    if (!document.hidden) {
-      try {
-        await pollNotifications();
-      } catch (error) {
-        setStatus(error.message, true);
-      }
+function receiveRuntimeEvent(event) {
+  if (!event || typeof event !== "object") return;
+  const ownerId = String(event.owner_id || "");
+  if (event.scope === "ling") {
+    if (ownerId && ownerId !== lingView.sessionId) return;
+    if (!["delta", "thinking", "tool_start", "tool_result", "context", "error", "done", "refresh"].includes(event.type)) {
+      return;
     }
-    armNotificationPolling();
-  }, 5000);
+    lingView.connectionError = "";
+    const changed = setLingLive(event);
+    if (changed && ["delta", "thinking", "tool_start", "tool_result", "error", "done", "refresh"].includes(event.type)) {
+      renderLingItems(true);
+    }
+    if (event.type === "refresh" || event.type === "done") {
+      if (lingView.active && !document.hidden) pollLing();
+    }
+    renderLingStatus();
+    return;
+  }
+  if (event.scope === "task" && typeof taskRuntimeEvent === "function") {
+    taskRuntimeEvent(event);
+  }
 }
 
 function initLing() {
@@ -981,14 +891,19 @@ function initLing() {
   $("ling-home").addEventListener("click", () => openLing().catch((error) => setStatus(error.message, true)));
   $("ling-stop").addEventListener("click", stopLing);
   $("ling-resume").addEventListener("click", resumeLing);
-  $("notifications-toggle").addEventListener("click", () => setNotificationsOpen(!lingView.notificationsOpen));
-  $("notifications-close").addEventListener("click", () => setNotificationsOpen(false));
-  $("notifications-read-all").addEventListener("click", markAllNotificationsRead);
+  $("ling-pause-all").addEventListener("click", pauseAllWorks);
+  $("composer-task").addEventListener("change", () => {
+    const task = lingView.tasks.find((item) => item.id === $("composer-task").value);
+    $("input").placeholder = task
+      ? "给「" + (task.title || "这项工作") + "」补充要求"
+      : "和灵说话，或交代一件工作";
+  });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
-      pollNotifications({ startup: true }).catch((error) => setStatus(error.message, true));
       if (lingView.active) pollLing();
-      else syncLegacyNotifications();
+      if (typeof taskView !== "undefined" && taskView.current) {
+        openTask(taskView.current.id, {refresh: true}).catch((error) => setStatus(error.message, true));
+      }
     }
   });
 }

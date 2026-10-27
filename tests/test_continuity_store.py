@@ -175,9 +175,10 @@ def test_restart_and_held_queue_persist_interrupted_and_interaction(tmp_path):
     store.command(held.id, "queued", request_id="queue")
     reopened = TaskStore(store.path)
     assert reopened.hold_queued_at_startup() == [held.id]
+    assert reopened.get(held.id).state == "paused"
+    assert not reopened.pending_interactions(held.id)
     held_notice = next(item for item in reopened.notifications() if item["task_id"] == held.id)
-    assert held_notice["kind"] == "interaction"
-    assert held_notice["interaction_expired"] is False
+    assert held_notice["kind"] == "paused"
 
 
 def test_notification_ack_is_idempotent_and_persistent(tmp_path):

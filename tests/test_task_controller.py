@@ -194,8 +194,6 @@ def test_cancel_while_a_slow_worker_still_owns_the_task_stays_cancelled(tmp_path
         item = task(store, "slow cancel")
         controller.submit(item.id, request_id="slow-cancel-start")
         assert entered.wait(3)
-        real_wait = controller._wait_inactive
-        controller._wait_inactive = lambda task_id: real_wait(task_id, timeout=0.2)
 
         cancelled = controller.cancel(item.id, request_id="slow-cancel")
 

@@ -1,50 +1,9 @@
 import sqlite3
 import threading
 
-from nexus import skills
 from nexus.ling import LingInbox
-from nexus.persona import PersonaStore
 from nexus.session import SessionStore
 from nexus.task import TaskStore
-
-
-def test_persona_gbk_entry_reads_and_saves_without_losing_text(tmp_path):
-    folder = tmp_path / "persona-skills" / "test"
-    folder.mkdir(parents=True)
-    path = folder / "SKILL.md"
-    source = (
-        "---\n"
-        "name: test\n"
-        "description: 旧摘要\n"
-        "when: 需要核对时\n"
-        "custom:\n"
-        "  owner: 团队\n"
-        "---\n"
-        "中文正文：保留原样。\n"
-    ).encode("gbk")
-    path.write_bytes(source)
-
-    store = PersonaStore(tmp_path)
-    entries = store.load()["entries"]
-    assert entries[0]["name"] == "test"
-    assert entries[0]["description"] == "旧摘要"
-    assert entries[0]["body"] == "中文正文：保留原样。\n"
-    assert path.read_bytes() == source
-
-    document = store.load()
-    document["entries"][0]["body"] = "保存后的中文正文。\n"
-    document["entries"][0]["description"] = "新摘要"
-    saved = store.save(document)
-    assert saved["entries"][0]["body"] == "保存后的中文正文。\n"
-
-    encoded = path.read_bytes()
-    text = encoded.decode("utf-8").replace("\r\n", "\n")
-    metadata, body = skills.parse_frontmatter(text)
-    assert body == "保存后的中文正文。\n"
-    assert metadata["name"] == "test"
-    assert metadata["description"] == "新摘要"
-    assert metadata["when"] == "需要核对时"
-    assert "custom:\n  owner: 团队\n" in text
 
 
 def test_ling_worker_survives_inbox_read_error(tmp_path, monkeypatch):

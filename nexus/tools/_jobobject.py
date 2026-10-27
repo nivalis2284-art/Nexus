@@ -1,11 +1,10 @@
 """Windows Job Object resource limits through ctypes; no third-party dependency.
 
 A Job Object is the only mechanism available on this host (no psutil, no
-resource module) that can bound a process tree. It supplies four guarantees:
+resource module) that can bound a process tree. It supplies three guarantees:
 
 * process-count limit (new processes fail to start beyond the cap),
 * memory limit (further commits fail),
-* CPU-time limit (the whole job is terminated when exceeded),
 * kill-on-close (every remaining process in the tree is killed when the job
   handle closes, so no child outlives a run).
 
@@ -20,14 +19,11 @@ from dataclasses import dataclass
 
 CREATE_SUSPENDED = 0x00000004
 
-_JOB_OBJECT_LIMIT_PROCESS_TIME = 0x00000002
-_JOB_OBJECT_LIMIT_JOB_TIME = 0x00000004
 _JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 0x00000008
 _JOB_OBJECT_LIMIT_PROCESS_MEMORY = 0x00000100
 _JOB_OBJECT_LIMIT_JOB_MEMORY = 0x00000200
 _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
 _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
-_CPU_TICKS_PER_SECOND = 10_000_000
 
 
 @dataclass(frozen=True)
@@ -35,7 +31,6 @@ class ResourceLimits:
     """Per-run resource bounds enforced through a Windows Job Object."""
 
     memory_bytes: int | None = None
-    cpu_seconds: float | None = None
     pids_limit: int | None = None
 
     def __post_init__(self):
@@ -43,10 +38,6 @@ class ResourceLimits:
             value = getattr(self, field)
             if value is not None and (type(value) is not int or value <= 0):
                 raise ValueError(f"{field} must be a positive integer or None")
-        if self.cpu_seconds is not None and (
-            type(self.cpu_seconds) not in (int, float) or self.cpu_seconds <= 0
-        ):
-            raise ValueError("cpu_seconds must be a positive number or None")
 
 
 def available() -> bool:
@@ -126,11 +117,6 @@ class JobObject:
             info.ProcessMemoryLimit = limits.memory_bytes
             info.JobMemoryLimit = limits.memory_bytes
             flags |= _JOB_OBJECT_LIMIT_PROCESS_MEMORY | _JOB_OBJECT_LIMIT_JOB_MEMORY
-        if limits.cpu_seconds is not None:
-            ticks = int(limits.cpu_seconds * _CPU_TICKS_PER_SECOND)
-            info.BasicLimitInformation.PerProcessUserTimeLimit = ticks
-            info.BasicLimitInformation.PerJobUserTimeLimit = ticks
-            flags |= _JOB_OBJECT_LIMIT_PROCESS_TIME | _JOB_OBJECT_LIMIT_JOB_TIME
         info.BasicLimitInformation.LimitFlags = flags
         ok = self._kernel.SetInformationJobObject(
             self._handle, _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,

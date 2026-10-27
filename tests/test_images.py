@@ -132,6 +132,19 @@ def test_text_only_messages_are_unchanged():
         assert "just text" in str(body)
 
 
+@pytest.mark.parametrize("family", list(APIFamily))
+def test_text_model_projection_keeps_history_available_for_vision(family):
+    vision = a_profile(family)
+    profile = vision.model_copy(update={"capabilities": ModelCapabilities(images=False)})
+    history = [image_message()]
+    body = request_body(profile, "sys", history, [])
+    assert PNG not in str(body)
+    assert "what is this" in str(body)
+    assert "Image data omitted" in str(body)
+    assert history[0]["content"][1]["data"] == PNG
+    assert PNG in str(request_body(vision, "sys", history, []))
+
+
 # ---------------------------------------------------------------- estimation
 
 

@@ -140,7 +140,7 @@ function harness() {
     return response({ error: "unexpected " + requestPath }, 500);
   };
   const context = vm.createContext({
-    document, fetch, console, structuredClone, confirm: () => true,
+    document, fetch, console, structuredClone, confirm: () => true, addEventListener() {},
     setTimeout, clearTimeout, location: { href: "http://127.0.0.1/" },
   });
   context.window = context;
@@ -285,7 +285,18 @@ async function testRenamingNonFirstRowAfterDeletionSelectsThatRow() {
   console.log("ok - a renamed current row is found after earlier rows are deleted");
 }
 
+async function testBlankKeyDoesNotEraseStoredCredential() {
+  const h = harness();
+  await h.context.refresh();
+  h.context.openProviderDialog(h.current.providers[0]);
+  await h.context.saveProvider();
+  const saved = h.calls.find(call => call.path === "/api/providers/prov-1" && call.options.method === "PUT");
+  assert.equal(Object.hasOwn(JSON.parse(saved.options.body), "api_key"), false);
+  console.log("ok - blank key is omitted when editing a provider");
+}
+
 async function main() {
+  await testBlankKeyDoesNotEraseStoredCredential();
   await testHasModelRowsAndEffectiveWindow();
   await testDifferentWindowsAndMetadataSurviveRename();
   await testEmptyRemovesOverrideAndInvalidIsRejected();

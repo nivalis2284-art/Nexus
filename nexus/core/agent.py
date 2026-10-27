@@ -11,6 +11,7 @@ import asyncio
 import json
 import threading
 import time
+import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from itertools import count
@@ -130,8 +131,7 @@ class Agent:
         before_model: Callable[[list[dict[str, Any]]], None] | None = None,
         interaction_context: str = "",
         role: str = prompt.ROLE,
-        persona_context: str = "",
-        on_model_request: Callable[[str], None] | None = None,
+        owner_context: str = "",
         request_history: RequestHistory | None = None,
         request_scope: dict[str, Any] | None = None,
         plugins: Any = None,
@@ -163,8 +163,7 @@ class Agent:
         self.before_model = before_model
         self.interaction_context = interaction_context
         self.role = role
-        self.persona_context = persona_context
-        self.on_model_request = on_model_request
+        self.owner_context = owner_context
         self.request_history = request_history
         self.request_scope = dict(request_scope or {})
         self.plugins = plugins
@@ -353,10 +352,6 @@ class Agent:
         """Yield events; mutate ``messages`` in place so callers can persist."""
         result = RunResult()
         self.new_messages = []
-        budget = prompt.Budget(
-            context_limit=self.context_limit or self.profile.context_window_tokens or 64_000,
-            output_reserve=self.profile.max_output_tokens or 8_000,
-        )
         async with _client() as client:
             gateway = ModelGateway(
                 client,
@@ -364,21 +359,18 @@ class Agent:
                 request_history=self.request_history,
                 request_scope=self.request_scope,
             )
-            if self.on_model_request is not None:
-                async def record_persona_request(request):
-                    # httpx calls request hooks at the transport boundary, after
-                    # the native request has been built and validated. Summary
-                    # calls use a separate client and never replace this record.
-                    self.on_model_request(self.persona_context)
-
-                client.event_hooks["request"].append(record_persona_request)
             steps = count(1) if self.max_steps is None else range(1, self.max_steps + 1)
             for step in steps:
+                message_id = uuid.uuid4().hex
                 if self.stopped:
                     result.stopped = "cancelled"
                     break
                 if self.before_model is not None:
                     self.before_model(messages)
+                budget = prompt.Budget(
+                    context_limit=self.context_limit or self.profile.context_window_tokens or 64_000,
+                    output_reserve=self.profile.max_output_tokens or 8_000,
+                )
                 prepared = messages
                 if self.plugins is not None:
                     try:
@@ -457,7 +449,7 @@ class Agent:
                     platform=_platform(),
                     date=time.strftime("%Y-%m-%d"),
                     role=self.role,
-                    persona=self.persona_context,
+                    owner_instructions=self.owner_context,
                     skills=self.skills,
                     task_context=self.task_context,
                     interaction_context=interaction_context,
@@ -506,11 +498,11 @@ class Agent:
                         if event.type == "text_delta" and event.text:
                             produced = True
                             text_parts.append(event.text)
-                            yield RunEvent("delta", event.text)
+                            yield RunEvent("delta", event.text, data={"message_id": message_id})
                         elif event.type == "thinking_delta" and event.text:
                             produced = True
                             thinking_parts.append(event.text)
-                            yield RunEvent("thinking", event.text)
+                            yield RunEvent("thinking", event.text, data={"message_id": message_id})
                         elif event.type == "tool_call" and event.tool_call:
                             produced = True
                             call = event.tool_call
@@ -522,7 +514,7 @@ class Agent:
                                 }
                             )
                         elif event.type == "usage" and event.usage:
-                            result.usage = _usage(event.usage)
+                            result.usage = _usage(event.usage, self.profile.api_family)
                         elif event.type == "complete":
                             finish_reason = event.finish_reason or ""
                         elif event.type == "error":
@@ -542,7 +534,7 @@ class Agent:
                         result.stopped = failure.message or "model error"
                         if text_parts or thinking_parts or calls:
                             self._record(messages, {
-                                "role": "assistant", "content": "".join(text_parts),
+                                "role": "assistant", "message_id": message_id, "content": "".join(text_parts),
                                 "thinking": "".join(thinking_parts) or None,
                                 "tool_calls": calls,
                             })
@@ -586,7 +578,7 @@ class Agent:
                 result.steps = step
                 if not calls:
                     self._record(messages,
-                        {"role": "assistant", "content": text,
+                        {"role": "assistant", "message_id": message_id, "content": text,
                          "thinking": thinking or None,
                          "usage": result.usage or None}
                     )
@@ -600,7 +592,7 @@ class Agent:
                                                  "finish_reason": finish_reason or None})
                     return
                 self._record(messages,
-                    {"role": "assistant", "content": text, "tool_calls": calls,
+                    {"role": "assistant", "message_id": message_id, "content": text, "tool_calls": calls,
                      "thinking": thinking or None,
                      "usage": result.usage or None}
                 )
@@ -608,7 +600,7 @@ class Agent:
                     result.tool_calls += 1
                     yield RunEvent(
                         "tool_start",
-                        data={"id": call["id"], "name": call["name"],
+                        data={"id": call["id"], "parent_message_id": message_id, "name": call["name"],
                               "arguments": _safe_json(call["arguments"])},
                     )
                     if self.stopped:
@@ -632,6 +624,7 @@ class Agent:
                             raise
                     tool_message = {
                             "role": "tool",
+                            "parent_message_id": message_id,
                             "tool_call_id": call["id"],
                             "name": call["name"],
                             "content": outcome.content,
@@ -648,6 +641,7 @@ class Agent:
                         "tool_result",
                         data={
                             "id": call["id"],
+                            "parent_message_id": message_id,
                             "name": call["name"],
                             "arguments": _safe_json(call["arguments"]),
                             "ok": outcome.ok,
@@ -721,8 +715,8 @@ def _safe_json(text: str) -> Any:
         return text
 
 
-def _usage(usage: Any) -> dict[str, Any]:
-    return {
+def _usage(usage: Any, family: Any = None) -> dict[str, Any]:
+    result = {
         key: getattr(usage, key)
         for key in (
             "input_tokens",
@@ -736,6 +730,9 @@ def _usage(usage: Any) -> dict[str, Any]:
         )
         if getattr(usage, key, None) is not None
     }
+    if family is not None:
+        result["api_family"] = str(getattr(family, "value", family))
+    return result
 
 
 def _finish_status(finish_reason: str, *, has_calls: bool) -> str:

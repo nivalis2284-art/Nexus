@@ -1,7 +1,6 @@
-"""First-stage checks through actual HTTP and the common activity queue."""
+"""Plugin lifecycle checks through actual HTTP."""
 import io
 import json
-import sqlite3
 import threading
 import time
 import urllib.error
@@ -12,9 +11,7 @@ from types import SimpleNamespace
 
 from nexus.core.config import ConfigStore
 from nexus.model.request_history import RequestHistory
-from nexus.plugins.activity import ActivityRuntime
 from nexus.plugins.manager import PluginManager
-from nexus.session import SessionStore
 from nexus.web import server as web
 
 
@@ -89,120 +86,4 @@ def test_import_load_configure_page_events_requests_uninstall_over_http(tmp_path
         http.shutdown()
         http.server_close()
         thread.join(timeout=2)
-        manager.close()
-
-
-def test_activity_finishes_through_common_runtime_and_survives_reopen(tmp_path):
-    home = tmp_path / 'home'
-    config = ConfigStore(home)
-    config.ensure()
-    sessions = SessionStore(config.sessions_dir)
-    session = sessions.create('model')
-    database = home / 'tasks.sqlite3'
-    with sqlite3.connect(database) as db:
-        db.execute('CREATE TABLE ling_inbox(status TEXT)')
-    class Tasks:
-        def _connect(self):
-            return sqlite3.connect(database)
-    state = {'store': config, 'sessions': sessions}
-    manager = PluginManager(state, root=tmp_path / 'plugins')
-    manager.import_zip(bundle())
-    entry = manager.entries['check']
-    entry.enabled, entry.status = True, 'loading'
-    manager._load(entry)
-    manager._save()
-    inbox = SimpleNamespace(store=Tasks(), running=False, session_id=session.id,
-                            interaction=None, live={}, emit=lambda value: None)
-    def run(session, emit, inbox, event):
-        runtime.finish('check', summary='one saved experience')
-        emit({'type': 'done', 'data': {'stopped': 'cancelled'}})
-    runtime = ActivityRuntime(manager, threading.Lock(), lambda: inbox, run)
-    manager.runtime = runtime
-    event = manager.receive('check', {'id': 'stable', 'text': 'new event'})
-    runtime.tick()
-    assert manager.events.get(event['id'])['status'] == 'done'
-    assert sessions.load(session.id).items[-1].text == 'one saved experience'
-    assert manager.receive('check', {'id': 'stable', 'text': 'duplicate'})['status'] == 'done'
-    manager.close()
-    reopened = PluginManager(state, root=manager.root)
-    assert reopened.entries['check'].enabled
-    assert reopened.events.get(event['id'])['status'] == 'done'
-
-
-def test_existing_activity_migration_preserves_results_and_does_not_replay(tmp_path):
-    config = ConfigStore(tmp_path / 'home')
-    config.ensure()
-    source = config.home / 'automation.sqlite3'
-    with sqlite3.connect(source) as db:
-        db.execute('''CREATE TABLE runs (id TEXT,status TEXT,reasons TEXT,prompt TEXT,
-            notify INTEGER,kind TEXT,summary TEXT,reply TEXT,error TEXT,created_at TEXT,read_at TEXT)''')
-        for event_id, status, reply, error in [('finished', 'done', 'old reply', ''),
-                                                ('waiting', 'pending', '', None),
-                                                ('in-progress', 'running', '', '')]:
-            db.execute('INSERT INTO runs VALUES(?,?,?,?,?,?,?,?,?,?,?)',
-                       (event_id, status, '[{"type":"task"}]', 'original instruction', 1, 'task',
-                        '', reply, error, '2026-10-23T01:00:00+00:00', '2026-10-23T02:00:00+00:00'))
-    manager = PluginManager({'store': config}, root=tmp_path / 'plugins')
-    manager._migrate_events()
-    manager._migrate_events()
-    values = {event['external_id']: event for event in manager.events.list('autonomy')}
-    assert len(values) == 3
-    assert values['finished']['status'] == 'done'
-    assert values['finished']['result']['reply'] == 'old reply'
-    assert values['finished']['data']['read_at'] == '2026-10-23T02:00:00+00:00'
-    assert values['waiting']['status'] == 'pending' and values['waiting']['reply_required']
-    assert values['waiting']['error'] == ''
-    assert values['in-progress']['status'] == 'interrupted'
-    assert (config.home / 'plugins-migration-backup' / 'automation.sqlite3').exists()
-    with sqlite3.connect(source) as db:
-        assert db.execute('SELECT COUNT(*) FROM runs').fetchone()[0] == 3
-
-
-def test_uninstall_does_not_release_a_paused_task_without_owner_control(tmp_path):
-    config = ConfigStore(tmp_path / 'home')
-    config.ensure()
-    manager = PluginManager({'store': config}, root=tmp_path / 'plugins')
-    manager.import_zip(bundle())
-    manager.command('check', 'task.hold', id='task-a', held=True)
-    manager.operate('check', 'uninstall')
-    assert not manager.can_schedule('task-a')
-    manager.release_task('task-a')
-    assert manager.can_schedule('task-a')
-
-
-def test_manager_restores_saved_pause_hold_before_scheduler_runs(tmp_path):
-    home = tmp_path / 'home'
-    config = ConfigStore(home)
-    config.ensure()
-    with sqlite3.connect(home / 'tasks.sqlite3') as db:
-        db.executescript('''
-            CREATE TABLE responsibilities (id TEXT PRIMARY KEY, state TEXT);
-            CREATE TABLE work_metadata (task_id TEXT PRIMARY KEY, responsibility_id TEXT);
-            INSERT INTO responsibilities VALUES ('old-role', 'paused');
-            INSERT INTO work_metadata VALUES ('old-task', 'old-role');
-        ''')
-    state = {'store': config, 'mcp': SimpleNamespace(tools={}, servers={})}
-    manager = PluginManager(state, root=tmp_path / 'plugins')
-    try:
-        assert not manager.can_schedule('old-task')
-    finally:
-        manager.close()
-
-
-def test_manager_restores_existing_plugin_pause_hold_before_scheduler_runs(tmp_path):
-    config = ConfigStore(tmp_path / 'home')
-    config.ensure()
-    plugin_data = config.home / 'plugins' / 'autonomy'
-    plugin_data.mkdir(parents=True)
-    with sqlite3.connect(plugin_data / 'autonomy.sqlite3') as db:
-        db.executescript('''
-            CREATE TABLE responsibilities (id TEXT PRIMARY KEY, state TEXT);
-            CREATE TABLE work_metadata (task_id TEXT PRIMARY KEY, responsibility_id TEXT);
-            INSERT INTO responsibilities VALUES ('old-role', 'paused');
-            INSERT INTO work_metadata VALUES ('existing-task', 'old-role');
-        ''')
-    manager = PluginManager({'store': config}, root=tmp_path / 'plugins')
-    try:
-        assert not manager.can_schedule('existing-task')
-    finally:
         manager.close()

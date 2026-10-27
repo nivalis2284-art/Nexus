@@ -1,13 +1,10 @@
-"""HTTP integration test: the real server, a stubbed model transport.
-
-This drives the actual handler (chunked NDJSON, persistence, settings) rather
-than the agent in isolation. Only the outbound model call is faked.
-"""
+"""HTTP integration: Ling intake, persistence, and settings."""
 
 from __future__ import annotations
 
 import json
 import threading
+import time
 import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -16,6 +13,8 @@ import httpx
 import pytest
 
 from nexus.model import APIFamily
+from nexus.runtime import TaskController
+from nexus.task import TaskStore
 from nexus.web import server as web
 
 
@@ -33,6 +32,16 @@ def post(url: str, payload: dict) -> tuple[int, bytes]:
 def get(url: str) -> tuple[int, bytes]:
     with urllib.request.urlopen(url, timeout=10) as response:
         return response.status, response.read()
+
+
+def until(predicate, timeout=10):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        value = predicate()
+        if value:
+            return value
+        time.sleep(0.02)
+    raise AssertionError("condition did not become true")
 
 
 @pytest.fixture()
@@ -59,10 +68,13 @@ def live(tmp_path: Path, monkeypatch):
         )
         store.select(provider.id, "fake", "off")
         store.write_credential(provider.id, "test-key")
+    tasks = TaskStore(home / "tasks.sqlite3")
+    controller = TaskController(tasks)
     monkeypatch.setattr(web, "STATE", {
         "store": store,
         "sessions": web.SessionStore(store.sessions_dir),
-        "skills": {},
+        "tasks": tasks, "task_controller": controller,
+        "skills": {}, "jobs": {}, "closing": False,
         "mcp": web.MCPRegistry(),
     })
 
@@ -101,27 +113,33 @@ def live(tmp_path: Path, monkeypatch):
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     base = f"http://127.0.0.1:{httpd.server_address[1]}"
-    yield base, workspace, store
+    yield base, workspace, store, tasks, controller
+    ling = web.STATE.get("ling")
+    if ling:
+        ling.close()
+    controller.close()
     httpd.shutdown()
     httpd.server_close()
 
 
 def test_full_turn_over_http(live):
-    base, workspace, _ = live
+    base, workspace, _, _, _ = live
     status, body = post(base + "/api/workspace", {"workspace": str(workspace)})
     assert status == 200, body
 
-    status, body = post(base + "/api/sessions", {})
-    session_id = json.loads(body)["id"]
+    status, body = post(base + "/api/ling/input", {"text": "读一下 a.txt", "request_id": "full-turn"})
+    assert status == 202, body
+    accepted = json.loads(body)
+    input_id, session_id = accepted["input_id"], accepted["session_id"]
 
-    status, raw = post(base + "/api/chat", {"session_id": session_id, "text": "读一下 a.txt"})
-    assert status == 200
-    lines = [json.loads(line) for line in raw.decode().splitlines() if line.strip()]
-    kinds = [item["type"] for item in lines]
-    assert "tool_start" in kinds
-    assert "tool_result" in kinds
-    assert "done" in kinds
-    assert any(item.get("text", "").startswith("它写着") for item in lines)
+    def finished():
+        value = json.loads(get(base + "/api/ling")[1])
+        input_status = next((item["status"] for item in value["inputs"] if item["id"] == input_id), None)
+        return value if input_status == "done" else None
+
+    projection = until(finished)
+    assert any(item["role"] == "tool" for item in projection["items"])
+    assert any(item.get("text", "").startswith("它写着") for item in projection["items"])
 
     # The transcript is durable, and the tool call survived the round trip.
     status, body = get(base + f"/api/sessions/{session_id}")
@@ -131,19 +149,20 @@ def test_full_turn_over_http(live):
     assert "hello" in saved[1]["text"]
 
 
-def test_chat_requires_a_key(live):
-    base, workspace, store = live
+def test_input_requires_a_key(live):
+    base, _workspace, store, _, _ = live
     for provider in store.providers():
         store.write_credential(provider.id, "")
-    status, body = post(base + "/api/sessions", {})
-    session_id = json.loads(body)["id"]
     with pytest.raises(urllib.error.HTTPError) as caught:
-        post(base + "/api/chat", {"session_id": session_id, "text": "hi"})
+        post(base + "/api/ling/input", {"text": "hi", "request_id": "no-key"})
     assert caught.value.code == 400
 
 
-def test_unknown_session_is_rejected(live):
-    base, _, _ = live
+def test_retired_chat_and_session_creation_routes_are_absent(live):
+    base, _, _, _, _ = live
     with pytest.raises(urllib.error.HTTPError) as caught:
-        post(base + "/api/chat", {"session_id": "nope", "text": "hi"})
-    assert caught.value.code == 400
+        post(base + "/api/chat", {"text": "hi"})
+    assert caught.value.code == 404
+    with pytest.raises(urllib.error.HTTPError) as caught:
+        post(base + "/api/sessions", {})
+    assert caught.value.code == 404

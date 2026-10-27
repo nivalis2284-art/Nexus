@@ -84,7 +84,6 @@ async function refresh() {
   state.contextOverride = value.context_limit || null;
   $("workspace").textContent = shortPath(value.workspace || "");
   $("workspace").title = value.workspace || "";
-  renderSessions();
   renderModelLabel();
   renderEffortLabel();
   renderContextWindowInfo();
@@ -142,195 +141,90 @@ function renderContextWindowInfo() {
       : "（可在编辑提供商时为每个模型单独设置）");
 }
 
-function renderSessions() {
-  const list = $("sessions");
-  list.innerHTML = "";
-  for (const session of state.sessions) {
-    const item = el("li");
-    if (session.id === state.sessionId) item.classList.add("active");
-    const label = el("span", "label", session.title || "新会话");
-    label.title = session.title || "";
-    label.title = "双击重命名";
-    label.addEventListener("dblclick", (event) => {
-      event.stopPropagation();
-      renameSession(session.id, label, item);
-    });
-    item.appendChild(label);
-    const remove = el("button", "del", "×");
-    remove.type = "button";
-    remove.title = "删除会话";
-    remove.addEventListener("click", async (event) => {
-      event.stopPropagation();
-      if (!confirm("删除这个会话？")) return;
-      await api("/api/sessions/" + encodeURIComponent(session.id), { method: "DELETE" });
-      if (state.sessionId === session.id) {
-        state.sessionId = null;
-        state.items = [];
-        $("title").textContent = "新会话";
-        renderTranscript();
-      }
-      await refresh();
-    });
-    item.appendChild(remove);
-    item.addEventListener("click", () => openSession(session.id));
-    list.appendChild(item);
-  }
+function syncTranscriptNodes(box, entries, create, update) {
+  const old = new Map([...box.children].map(node => [node.dataset.key, node]));
+  entries.forEach((entry, index) => {
+    let node = old.get(entry.key);
+    if (!node) node = create(entry);
+    node.dataset.key = entry.key;
+    update(node, entry);
+    if (box.children[index] !== node) box.insertBefore(node, box.children[index] || null);
+    old.delete(entry.key);
+  });
+  // Keys describe current identity; a poll that only adds ids must not leave
+  // an earlier copy of the same visible item behind under a different key.
+  for (const node of old.values()) node.remove();
 }
 
-// ---------------------------------------------------------------- rename
-
-async function renameSession(sessionId, label, item) {
-  const input = el("input", "rename-input");
-  input.type = "text";
-  input.value = label.textContent;
-  input.maxLength = 80;
-  label.replaceWith(input);
-  input.focus();
-  input.select();
-
-  let settled = false;
-  const finish = async (save) => {
-    if (settled) return;
-    settled = true;
-    const value = input.value.trim();
-    if (!save || !value) {
-      input.replaceWith(label);
-      return;
+function reconcileTranscript(box, items, workspace) {
+  const entries = [];
+  let phase = null;
+  const flush = () => { if (phase) entries.push(phase); phase = null; };
+  items.forEach((item, index) => {
+    const key = item.role === "tool"
+      ? String(item.parent_message_id ? item.parent_message_id + ":" + item.tool_call_id : (item.seq || index))
+      : String(item.message_id || item.key || index);
+    if (item.role === "user" || item.role === "notice") {
+      flush(); entries.push({key: "message:" + key, item, workspace}); return;
     }
-    try {
-      await post(
-        "/api/sessions/" + encodeURIComponent(sessionId) + "/rename",
-        { title: value }
-      );
-      label.textContent = value;
-      input.replaceWith(label);
-      await refresh();
-    } catch (error) {
-      setStatus(error.message, true);
-      input.replaceWith(label);
+    if (item.thinking || item.role === "tool") {
+      if (!phase) phase = {key: "phase:" + key, steps: [], live: false, elapsed: null};
+      phase.live ||= Boolean(item.live);
+      if (typeof item.elapsed === "number") phase.elapsed = item.elapsed;
+      if (item.thinking) phase.steps.push({key: "thinking:" + key, thinking: item.thinking});
+      if (item.role === "tool") phase.steps.push({key: "tool:" + key, item});
     }
-  };
-  input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      finish(true);
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      finish(false);
+    if (item.role === "assistant" && item.text) {
+      if (phase && typeof item.elapsed === "number") phase.elapsed = item.elapsed;
+      flush(); entries.push({key: "answer:" + key, item, workspace});
     }
   });
-  input.addEventListener("blur", () => finish(true));
-}
-
-// ---------------------------------------------------------------- session
-
-async function newSession() {
-  if (typeof clearLingView === "function") clearLingView();
-  const created = await post("/api/sessions", {});
-  await refresh();
-  await openSession(created.id);
-}
-
-async function openSession(id) {
-  rememberCurrentScroll();
-  const viewVersion = state.viewVersion = (state.viewVersion || 0) + 1;
-  if (typeof clearLingView === "function") clearLingView();
-  if (typeof taskView !== "undefined") {
-    taskView.current = null;
-    if (taskView.timer) clearTimeout(taskView.timer);
-    taskView.timer = null;
-  }
-  const value = await api("/api/sessions/" + encodeURIComponent(id));
-  if (viewVersion !== state.viewVersion) return;
-  state.sessionId = value.id;
-  state.items = value.items || [];
-  $("scroller").hidden = false;
-  $("composer").hidden = false;
-  state.turns = state.items.filter((i) => i.role === "user").length;
-  state.tokens = state.items.reduce((sum, item) => {
-    const usage = item.usage || {};
-    return sum + (usage.input_tokens || 0) + (usage.output_tokens || 0);
-  }, 0);
-  state.usage = state.items.reduce(
-    (acc, item) => {
-      const usage = item.usage || {};
-      acc.input += usage.input_tokens || 0;
-      acc.output += usage.output_tokens || 0;
-      acc.cached += usage.cached_input_tokens || 0;
-      acc.created += usage.cache_creation_input_tokens || 0;
-      return acc;
-    },
-    { input: 0, output: 0, cached: 0, created: 0 }
-  );
-  $("title").textContent = value.title || "新会话";
-  if (typeof taskView !== "undefined") {
-    taskView.current = null;
-    $("task-panel").hidden = true;
-    renderTasks();
-  }
-  renderSessions();
-  renderTranscript();
-  restoreViewScroll("session:" + value.id);
-  $("input").focus();
+  flush();
+  syncTranscriptNodes(box, entries, entry => entry.steps ? phaseNode(entry) : nodeFor(entry.item, entry.workspace),
+    (node, entry) => {
+      if (entry.steps) { updatePhase(node, entry); return; }
+      const signature = JSON.stringify(entry.item);
+      if (node._signature === signature) return;
+      if (entry.item.role === "assistant") {
+        const answer = node.querySelector(".answer");
+        const content = renderContent(entry.item.text || "", entry.workspace);
+        answer.replaceChildren(content);
+        if (entry.item.elapsed > 0) {
+          let meta = node.querySelector(".msg-meta");
+          if (!meta) { meta = el("div", "msg-meta"); node.appendChild(meta); }
+          meta.textContent = "用时 " + formatElapsed(entry.item.elapsed);
+        }
+      } else if (node._signature !== undefined) {
+        const fresh = nodeFor(entry.item, entry.workspace);
+        node.replaceChildren(...fresh.childNodes);
+      }
+      node._signature = signature;
+    });
 }
 
 function renderTranscript(options) {
-  const box = $("transcript");
-  const scroller = $("scroller");
-  const preserveScroll = Boolean(options && options.preserveScroll);
-  const previousTop = Number(scroller.scrollTop) || 0;
-  const wasAtBottom = preserveScroll &&
-    scroller.scrollHeight - previousTop - (Number(scroller.clientHeight) || 0) < 48;
-  box.innerHTML = "";
-  box.classList.toggle("empty", state.items.length === 0);
-  $("main").classList.toggle("empty", state.items.length === 0);
+  const box = $("transcript"), scroller = $("scroller");
+  const following = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 48;
+  const previousTop = scroller.scrollTop;
+  const preserve = Boolean(options && options.preserveScroll);
+  box.classList.toggle("empty", !state.items.length);
+  $("main").classList.toggle("empty", !state.items.length);
   if (!state.items.length) {
-    const hello = el("div", "welcome");
-    hello.appendChild(el("div", "welcome-title", "想做点什么？"));
-    hello.appendChild(
-      el("div", "welcome-sub", "描述一个任务，我会读文件、改代码、跑命令。")
-    );
-    box.appendChild(hello);
+    if (!box.querySelector(".welcome")) {
+      box.replaceChildren();
+      const hello = el("div", "welcome ling-welcome");
+      hello.appendChild(el("div", "welcome-title", "灵"));
+      hello.appendChild(el("div", "welcome-sub", "你可以在这里继续交流。复杂工作会独立推进，需要你决定的请求会出现在上方。"));
+      box.appendChild(hello);
+    }
+  } else {
+    const welcome = box.querySelector(".welcome");
+    if (welcome) welcome.remove();
+    reconcileTranscript(box, state.items, state.workspacePath);
   }
-  // A turn's reasoning and tool calls belong to one collapsible phase, so the
-  // transcript reads as: your message, the phase, the answer.
-  let batch = null;
-  for (const item of state.items) {
-    if (item.role === "user") {
-      if (batch) { box.appendChild(phaseNode(batch)); batch = null; }
-      box.appendChild(nodeFor(item));
-      continue;
-    }
-    if (item.role === "tool" || (item.role === "assistant" && item.thinking)) {
-      if (!batch) batch = { tools: [], thinking: [], elapsed: null, live: false };
-      // A message can carry reasoning *and* prose (the final answer often
-      // does). Keep the reasoning in the fold and let the prose fall through.
-      const hasBody = Boolean((item.text || "").trim());
-      if (typeof item.elapsed === "number") batch.elapsed = item.elapsed;
-      if (item.role === "tool") {
-        batch.tools.push(item);
-        continue;
-      }
-      batch.thinking.push(item.thinking);
-      if (!hasBody) continue;
-    }
-    if (item.role === "assistant") {
-      if (batch) {
-        // The turn's elapsed time sits on its final answer, which closes the
-        // batch; adopt it before the fold is emitted.
-        if (typeof item.elapsed === "number") batch.elapsed = item.elapsed;
-        box.appendChild(phaseNode(batch));
-        batch = null;
-      }
-      box.appendChild(nodeFor(item));
-    } else {
-      box.appendChild(nodeFor(item));
-    }
-  }
-  if (batch) box.appendChild(phaseNode(batch));
   updateStats();
-  if (preserveScroll) scroller.scrollTop = wasAtBottom ? scroller.scrollHeight : previousTop;
-  else scrollDown();
+  if (!preserve || following) scroller.scrollTop = scroller.scrollHeight;
+  else scroller.scrollTop = previousTop;
 }
 
 function formatElapsed(seconds) {
@@ -343,29 +237,45 @@ function formatElapsed(seconds) {
 
 /** The outer fold: everything the agent did before it answered. */
 function phaseNode(batch) {
-  const details = el("details", "phase" + (batch.live ? " live" : ""));
-  details.open = Boolean(batch.live);
+  const node = el("details", "phase");
+  node.open = Boolean(batch.live);
   const summary = el("summary");
   summary.appendChild(el("span", "tw", "▸"));
-  const state_ = batch.live ? "正在思考" : "思考完成";
-  const label = el("span", "plabel", state_);
-  summary.appendChild(label);
-  const stamp = formatElapsed(batch.elapsed);
-  if (stamp) summary.appendChild(el("span", "pnote", "（已思考 " + stamp + "）"));
-  const meta = [];
-  if (batch.thinking.length) meta.push(batch.thinking.length + " 段思考");
-  if (batch.tools.length) meta.push(batch.tools.length + " 次工具");
-  if (meta.length && !stamp) summary.appendChild(el("span", "pnote", "（" + meta.join(" · ") + "）"));
-  details.appendChild(summary);
-
-  const body = el("div", "pbody");
-  for (const text of batch.thinking) body.appendChild(stepThinking(text));
-  for (const tool of batch.tools) body.appendChild(stepTool(tool));
-  details.appendChild(body);
-  return details;
+  summary.appendChild(el("span", "plabel"));
+  summary.appendChild(el("span", "pnote"));
+  node.appendChild(summary);
+  node.appendChild(el("div", "pbody"));
+  return node;
 }
 
-/** A step inside the phase. Collapsed by default; shows one line when closed. */
+function updatePhase(node, batch) {
+  const body = node.querySelector(".pbody");
+  const following = body.scrollHeight - body.scrollTop - body.clientHeight < 48;
+  const previousTop = body.scrollTop;
+  node.classList.toggle("live", batch.live);
+  node.querySelector(".plabel").textContent = batch.live ? "正在处理" : "处理过程";
+  node.querySelector(".pnote").textContent = batch.elapsed
+    ? "（本轮用时 " + formatElapsed(batch.elapsed) + "）" : "（" + batch.steps.length + " 项）";
+  syncTranscriptNodes(body, batch.steps,
+    step => step.item ? stepTool(step.item) : stepThinking(step.thinking),
+    (child, step) => {
+      const signature = JSON.stringify(step);
+      if (child._signature === signature) return;
+      if (step.thinking) {
+        child.querySelector(".stitle").textContent = truncate(step.thinking.split("\n").find(line => line.trim()) || "", 120);
+        child.querySelector(".scount").textContent = step.thinking.length + " 字";
+        child.querySelector(".sbody").textContent = step.thinking;
+      } else if (child._signature !== undefined) {
+        const fresh = stepTool(step.item);
+        child.className = fresh.className;
+        child.replaceChildren(...fresh.childNodes);
+      }
+      child._signature = signature;
+    });
+  body.scrollTop = following ? body.scrollHeight : previousTop;
+}
+
+/** A reasoning step keeps one readable line while collapsed. */
 function stepThinking(text) {
   const details = el("details", "step");
   const summary = el("summary");
@@ -378,30 +288,19 @@ function stepThinking(text) {
   return details;
 }
 
+/** A step inside the phase. Collapsed by default; shows one line when closed. */
 function stepTool(item) {
-  const details = el("details", "step");
-  const summary = el("summary");
-  summary.appendChild(el("span", "sicon", item.ok === false ? "✕" : "✓"));
-  summary.appendChild(el("span", "sname", item.name || "tool"));
-  const args = briefArgs(item.arguments);
-  if (args) summary.appendChild(el("span", "sargs", args));
-  summary.appendChild(
-    el("span", "sstate " + (item.ok === false ? "bad" : "good"), item.ok === false ? "失败" : "完成")
-  );
-  details.appendChild(summary);
-  const body = el("div", "sbody mono");
-  if (item.arguments) body.appendChild(el("div", "sargs-full", JSON.stringify(item.arguments, null, 2)));
-  body.appendChild(el("div", "", item.text || ""));
-  details.appendChild(body);
-  return details;
+  return toolNode(item);
 }
 
 function truncate(text, size) {
   return text.length > size ? text.slice(0, size) + "…" : text;
 }
 
-function nodeFor(item) {
-  if (item.role === "tool") return toolNode(item);
+function nodeFor(item, workspace) {
+  if (item.role === "tool") {
+    return el("div", "small", (item.ok === false ? "✕ " : "✓ ") + (item.name || "工具"));
+  }
   if (item.role === "notice") {
     const wrap = el("div", "msg");
     wrap.appendChild(el("div", "small error", item.text || ""));
@@ -445,51 +344,15 @@ function nodeFor(item) {
     return wrap;
   }
   const wrap = el("div", "msg assistant");
-  wrap.appendChild(el("div", "answer", item.text || ""));
+  const answer = el("div", "answer");
+  answer.appendChild(renderContent(item.text || "", workspace));
+  wrap.appendChild(answer);
   const stamp = el("div", "msg-meta");
   if (typeof item.elapsed === "number" && item.elapsed > 0) {
     stamp.textContent = "用时 " + formatElapsed(item.elapsed);
   }
   if (stamp.textContent) wrap.appendChild(stamp);
   return wrap;
-}
-
-function thinkingNode(text, live) {
-  const details = el("details", "thinking" + (live ? " live" : ""));
-  // Live reasoning opens itself: the point of streaming it is to be seen. A
-  // settled turn stays collapsed so the answer is what the reader lands on.
-  if (live) details.open = true;
-  const summary = el("summary");
-  summary.appendChild(el("span", "tw", "▸"));
-  summary.appendChild(el("span", "tlabel", "思考"));
-  summary.appendChild(el("span", "tnote", live ? "进行中" : text.length + " 字"));
-  details.appendChild(summary);
-  details.appendChild(el("div", "tbody", text || ""));
-  return details;
-}
-
-function toolNode(item) {
-  const details = el("details", "tool");
-  const summary = el("summary");
-  summary.appendChild(el("span", "ticon", item.ok === false ? "✕" : "✓"));
-  summary.appendChild(el("span", "tname", item.name || "tool"));
-  const args = briefArgs(item.arguments);
-  if (args) summary.appendChild(el("span", "small", args));
-  const mark = el("span", "tstate " + (item.ok === false ? "bad" : "good"), item.ok === false ? "失败" : "");
-  summary.appendChild(mark);
-  details.appendChild(summary);
-  const body = el("div", "tbody");
-  if (item.arguments) body.appendChild(el("div", "args", JSON.stringify(item.arguments, null, 2)));
-  body.appendChild(el("div", "", item.text || ""));
-  details.appendChild(body);
-  return details;
-}
-
-function briefArgs(args) {
-  if (!args) return "";
-  if (typeof args === "string") return args.length > 60 ? args.slice(0, 60) + "…" : args;
-  const value = args.path || args.command || args.pattern || args.name;
-  return value ? (String(value).length > 60 ? String(value).slice(0, 60) + "…" : String(value)) : "";
 }
 
 function scrollDown() {
@@ -520,255 +383,22 @@ function restoreViewScroll(key) {
   setTimeout(apply, 0);
 }
 
-function updateStats() {
-  $("stat-turn").textContent = state.turns + " 轮";
-  $("stat-tokens").textContent = state.tokens ? state.tokens.toLocaleString() + " tok" : "0 tok";
-  const limit = state.contextWindow || state.contextLimit;
-  $("stat-context").textContent = limit
-    ? "上下文 " + Math.min(100, Math.round((state.tokens / limit) * 100)) + "%"
-    : "上下文 —";
+function applyUsageSnapshot(value) {
+  if (value.usage) state.usage = value.usage;
+  if (value.context !== undefined) state.context = value.context;
+  state.tokens = state.usage.total || 0;
+  updateStats();
 }
 
-// ---------------------------------------------------------------- send
-
-// During a turn the DOM is built incrementally: one phase fold holds the
-// thinking and tool steps, and the answer grows below it. The final render
-// comes from the server transcript, so this only has to be good enough to
-// watch.
-async function send(text) {
-  if (state.running || state.preparing) return;
-  // Freeze the attachments for this turn. A new session request may yield, and
-  // the composer's array must not decide later what was actually sent.
-  const sentItems = pendingImages.slice();
-  const sentFiles = pendingFiles.slice();
-  const images = sentItems.map((image) => ({ mime: image.mime, data: image.data }));
-  let attachments;
-  state.preparing = true;
-  try {
-    if (!state.sessionId) await newSession();
-    if (!state.sessionId) return;
-    const targetSession = state.sessionId;
-    attachments = await uploadFiles("sessions", targetSession, sentFiles);
-    if (state.sessionId !== targetSession) throw new Error("上传期间已切换会话，附件已保留，请在目标会话重新发送");
-  } catch (error) {
-    setStatus(error.message, true);
-    if (!$("input").value) $("input").value = text;
-    return;
-  } finally {
-    state.preparing = false;
-  }
-
-  state.running = true;
-  state.turns += 1;
-  setRunning(true);
-  setStatus("运行中…");
-
-  state.items.push({
-    role: "user",
-    text,
-    images,
-    attachments,
-    at: new Date().toISOString(),
-  });
-  pendingImages = pendingImages.filter((image) => !sentItems.includes(image));
-  pendingFiles = pendingFiles.filter((file) => !sentFiles.includes(file));
-  renderAttachments();
-  const box = $("transcript");
-  box.innerHTML = "";
-  box.classList.remove("empty");
-  $("main").classList.remove("empty");
-  for (const item of state.items) box.appendChild(nodeFor(item));
-
-  const phase = el("details", "phase live");
-  phase.open = true;
-  const summary = el("summary");
-  summary.appendChild(el("span", "tw", "▸"));
-  const plabel = el("span", "plabel", "正在思考");
-  summary.appendChild(plabel);
-  const pnote = el("span", "pnote", "（计时中）");
-  summary.appendChild(pnote);
-  phase.appendChild(summary);
-  const pbody = el("div", "pbody");
-  phase.appendChild(pbody);
-  box.appendChild(phase);
-
-  const wrap = el("div", "msg assistant");
-  const answer = el("div", "answer streaming-caret");
-  wrap.appendChild(answer);
-  box.appendChild(wrap);
-  scrollDown();
-
-  let thinkingText = "";
-  let stepEl = null;
-  let stepBody = null;
-  let started = Date.now();
-  let active = false;
-
-  const openThinkingStep = () => {
-    const step = el("details", "step");
-    step.open = true;
-    const head = el("summary");
-    head.appendChild(el("span", "sicon", "◇"));
-    const title = el("span", "stitle", "思考中…");
-    head.appendChild(title);
-    const count = el("span", "scount", "");
-    head.appendChild(count);
-    step.appendChild(head);
-    const body = el("div", "sbody");
-    step.appendChild(body);
-    pbody.appendChild(step);
-    return { step, body, title, count };
-  };
-
-  let accepted = false;
-  try {
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: state.sessionId, text, images, attachments: attachments.map(file => file.id) }),
-    });
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-      throw new Error(payload.error || response.statusText);
-    }
-    accepted = true;
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const event = JSON.parse(line);
-        if (event.type === "thinking") {
-          active = true;
-          if (!stepEl) {
-            const built = openThinkingStep();
-            stepEl = built.step;
-            stepBody = built.body;
-            stepEl._title = built.title;
-            stepEl._count = built.count;
-          }
-          thinkingText += event.text;
-          stepBody.textContent = thinkingText;
-          stepEl._count.textContent = thinkingText.length + " 字";
-          const first = thinkingText.split("\n").find((l) => l.trim()) || "";
-          stepEl._title.textContent = truncate(first.trim(), 120) || "思考中…";
-          scrollDown();
-        } else if (event.type === "delta") {
-          answer.textContent += event.text;
-          scrollDown();
-        } else if (event.type === "tool_start") {
-          answer.classList.remove("streaming-caret");
-          if (stepEl) stepEl.open = false;
-          stepEl = null;
-          stepBody = null;
-          thinkingText = "";
-          const step = stepTool({
-            name: event.tool.name,
-            arguments: event.tool.arguments,
-            text: "运行中…",
-          });
-          step.dataset.live = "1";
-          step._toolArguments = event.tool.arguments;
-          pbody.appendChild(step);
-          scrollDown();
-        } else if (event.type === "tool_result") {
-          const steps = pbody.querySelectorAll('.step[data-live="1"]');
-          const last = steps[steps.length - 1];
-          if (last) {
-            const argumentsValue =
-              event.tool.arguments === undefined ? last._toolArguments : event.tool.arguments;
-            last.replaceWith(
-              stepTool({
-                name: event.tool.name,
-                arguments: argumentsValue,
-                text: event.tool.content,
-                ok: event.tool.ok,
-              })
-            );
-          }
-          scrollDown();
-        } else if (event.type === "context") {
-          state.context = event.data;
-          renderUsage();
-        } else if (event.type === "retrying") {
-          const info = event.data || {};
-          setStatus(
-            "重试中 " + info.attempt + "/" + info.max + "（" + info.code + "）"
-          );
-        } else if (event.type === "question") {
-          askQuestion(event).then((text) =>
-            post("/api/answer", { token: event.token, text }).catch(() => {})
-          );
-        } else if (event.type === "approval") {
-          askApproval(event).then((allowed) =>
-            post("/api/approval", { token: event.token, allowed }).catch(() => {})
-          );
-        } else if (event.type === "error") {
-          answer.textContent += "\n[错误] " + event.message;
-          setStatus(event.message, true);
-        } else if (event.type === "done") {
-          answer.classList.remove("streaming-caret");
-          if (stepEl) stepEl.open = false;
-          phase.classList.remove("live");
-          const elapsed =
-            (event.data && typeof event.data.elapsed === "number" && event.data.elapsed) ||
-            (Date.now() - started) / 1000;
-          plabel.textContent = "思考完成";
-          pnote.textContent = "（已思考 " + formatElapsed(elapsed) + "）";
-          // Nothing happened before the answer: the phase is noise, drop it.
-          if (!pbody.children.length) phase.remove();
-          else phase.open = false;
-          const usage = (event.data && event.data.usage) || {};
-          const total = (usage.input_tokens || 0) + (usage.output_tokens || 0);
-          if (total) {
-            state.tokens += total;
-            state.usage.input += usage.input_tokens || 0;
-            state.usage.output += usage.output_tokens || 0;
-            state.usage.cached += usage.cached_input_tokens || 0;
-            state.usage.created += usage.cache_creation_input_tokens || 0;
-            if (state.context) state.context.source = "actual";
-            updateStats();
-            renderUsage();
-          }
-          const stopped = event.data && event.data.stopped;
-          if (stopped && !["complete", "cancelled"].includes(stopped)) {
-            setStatus("模型输出未完整结束（" + stopped + "）", true);
-          } else {
-            setStatus("");
-          }
-        }
-      }
-    }
-  } catch (error) {
-    answer.classList.remove("streaming-caret");
-    if (!accepted) {
-      pendingFiles = [...sentFiles, ...pendingFiles];
-      pendingImages = [...sentItems, ...pendingImages];
-      if (!$("input").value) $("input").value = text;
-      renderAttachments();
-    }
-    answer.textContent += "\n[错误] " + error.message;
-    setStatus(error.message, true);
-  } finally {
-    const finishedSession = state.sessionId;
-    state.running = false;
-    setRunning(false);
-    answer.classList.remove("streaming-caret");
-    updateStats();
-    await refresh().catch(() => {});
-    // Do not drag the reader back if they moved to Ling or another task while
-    // this legacy stream was finishing.
-    const sameView = (typeof lingView === "undefined" || !lingView.active) &&
-      (typeof taskView === "undefined" || !taskView.current) &&
-      state.sessionId === finishedSession;
-    if (sameView && state.sessionId) await openSession(state.sessionId).catch(() => {});
-  }
+function updateStats() {
+  $("stat-turn").textContent = state.turns + " 轮";
+  $("stat-tokens").textContent = (state.usage.estimated ? "~" : "") + (state.tokens ? state.tokens.toLocaleString() + " tok" : "0 tok");
+  const limit = state.contextWindow || state.contextLimit;
+  const ctx = state.context;
+  const used = ctx ? (ctx.system || 0) + (ctx.tools || 0) + (ctx.messages || 0) : null;
+  $("stat-context").textContent = used !== null && limit
+    ? "上下文 ~" + Math.min(100, Math.round(used / limit * 100)) + "%" : "上下文 —";
+  renderUsage();
 }
 
 // ---------------------------------------------------------------- attachments
@@ -919,7 +549,8 @@ function approx(value) {
 
 /** Cache hit rate, or an em dash when there is nothing to divide by. */
 function cacheRate(usage) {
-  const denominator = usage.cached + usage.input;
+  if (usage.estimated) return "—";
+  const denominator = usage.total_input || 0;
   if (!denominator) return "—";
   return Math.round((usage.cached / denominator) * 100) + "%";
 }
@@ -927,6 +558,7 @@ function cacheRate(usage) {
 function renderUsage() {
   const panel = $("usage-panel");
   if (panel.hidden) return;
+  const previousTop = panel.scrollTop;
 
   const parts = [];
   const ctx = state.context;
@@ -953,11 +585,11 @@ function renderUsage() {
   }
 
   const u = state.usage;
-  const grand = u.cached + u.created + u.input + u.output;
+  const grand = u.total || 0;
   parts.push(
     '<div class="usage-head usage-q">' +
       "<span>Token 用量</span>" +
-      '<span class="usage-total"><b>' + (grand ? grand.toLocaleString() : 0) + "</b> tok</span>" +
+      '<span class="usage-total"><b>' + (u.estimated ? "~" : "") + (grand ? grand.toLocaleString() : 0) + "</b> tok</span>" +
       "</div>"
   );
   parts.push(
@@ -965,109 +597,44 @@ function renderUsage() {
       "<li>缓存命中<em>" + cacheRate(u) + "</em></li>" +
       "<li>未缓存输入<em>" + (u.input ? u.input.toLocaleString() : 0) + " tok</em></li>" +
       "<li>缓存读取<em>" + (u.cached ? u.cached.toLocaleString() : 0) + " tok</em></li>" +
+      "<li>缓存写入<em>" + (u.created ? u.created.toLocaleString() : 0) + " tok</em></li>" +
       "<li>输出<em>" + (u.output ? u.output.toLocaleString() : 0) + " tok</em></li>" +
       "</ul>"
   );
-  parts.push('<p class="usage-note">~ 表示估算，不是计费口径。</p>');
+  parts.push('<p class="usage-note">~ 表示估算；累计用量与上下文占用分别统计。</p>');
+  if (u.has_usage && u.complete === false) {
+    parts.push('<p class="usage-note">部分消息未报告完整用量，以上为已记录部分。</p>');
+  }
+  if (u.estimated) parts.push('<p class="usage-note">旧记录缺少缓存口径，累计用量为估算。</p>');
   panel.innerHTML = parts.join("");
+  panel.scrollTop = previousTop;
+  positionUsage();
 }
 
-function toggleUsage() {
+let usageAnchor = null;
+
+function positionUsage() {
+  const panel = $("usage-panel");
+  if (panel.hidden || !usageAnchor) return;
+  const rect = usageAnchor.getBoundingClientRect();
+  const width = panel.offsetWidth;
+  panel.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)) + "px";
+  panel.style.top = Math.max(8, rect.top - panel.offsetHeight - 8) + "px";
+}
+
+function toggleUsage(event) {
   const panel = $("usage-panel");
   panel.hidden = !panel.hidden;
+  usageAnchor = event ? event.currentTarget : $("stat-context");
   renderUsage();
+  positionUsage();
+  usageAnchor.setAttribute("aria-expanded", String(!panel.hidden));
 }
 
-// ---------------------------------------------------------------- run control
-
-function setRunning(isRunning) {
-  const button = $("send");
-  button.disabled = false;
-  button.classList.toggle("stop", isRunning);
-  button.textContent = isRunning ? "■" : "↑";
-  button.title = isRunning ? "停止" : "发送";
-  button.setAttribute("aria-label", isRunning ? "停止" : "发送");
-}
-
-async function abortRun() {
-  setStatus("正在停止…");
-  try {
-    await post("/api/chat/abort", {});
-  } catch (error) {
-    setStatus(error.message, true);
-  }
-}
-
-function askQuestion(event) {
-  // All questions are shown together and answered in one submit; asking them
-  // one at a time turns a decision into a queue of dialogs.
-  return new Promise((resolve) => {
-    const dialog = $("question-dialog");
-    const list = $("question-options");
-    list.innerHTML = "";
-    const questions = event.questions || [];
-    const answers = new Array(questions.length).fill("");
-
-    questions.forEach((item, index) => {
-      const block = el("div", "question-block");
-      block.appendChild(el("p", "question-text", item.question || ""));
-      const choices = el("div", "question-choices");
-      (item.options || []).forEach((choice) => {
-        const button = el("button", "question-choice", choice);
-        button.type = "button";
-        button.addEventListener("click", () => {
-          answers[index] = choice;
-          choices.querySelectorAll(".question-choice").forEach((node) => {
-            node.classList.toggle("picked", node === button);
-          });
-          const input = block.querySelector(".question-free");
-          if (input) input.value = "";
-        });
-        choices.appendChild(button);
-      });
-      block.appendChild(choices);
-      const input = el("input", "question-free");
-      input.type = "text";
-      input.placeholder = "或输入自定义回答";
-      input.addEventListener("input", () => {
-        answers[index] = input.value;
-        choices.querySelectorAll(".question-choice").forEach((node) => {
-          node.classList.remove("picked");
-        });
-      });
-      block.appendChild(input);
-      list.appendChild(block);
-    });
-
-    const finish = () => {
-      dialog.close();
-      resolve(answers);
-    };
-    $("question-send").onclick = finish;
-    list.querySelectorAll(".question-free").forEach((input, index) => {
-      if (index === 0) input.focus();
-    });
-    dialog.showModal();
-  });
-}
-
-// ---------------------------------------------------------------- approval
-
-function askApproval(event) {
-  return new Promise((resolve) => {
-    const dialog = $("approval-dialog");
-    $("approval-what").textContent = event.tool + " · " + event.value;
-    $("approval-detail").textContent = JSON.stringify(event.arguments, null, 2);
-    const finish = (allowed) => {
-      dialog.close();
-      $("allow").onclick = null;
-      $("deny").onclick = null;
-      resolve(allowed);
-    };
-    $("allow").onclick = () => finish(true);
-    $("deny").onclick = () => finish(false);
-    dialog.showModal();
-  });
+function closeUsage() {
+  $("usage-panel").hidden = true;
+  $("stat-tokens").setAttribute("aria-expanded", "false");
+  $("stat-context").setAttribute("aria-expanded", "false");
 }
 
 // ---------------------------------------------------------------- menu
@@ -1180,9 +747,10 @@ function familyLabel(family) {
 // ---------------------------------------------------------------- settings
 
 async function openSettings() {
-  const value = await refresh();
+  const [value, instructions] = await Promise.all([refresh(), api("/api/instructions")]);
   $("permission").value = value.permission || "ask";
   $("workspace_input").value = value.workspace || "";
+  $("instructions").value = instructions.text || "";
   $("settings-error").textContent = "";
   renderProviders();
   $("settings-dialog").showModal();
@@ -1298,6 +866,7 @@ function addProviderModel() {
 }
 
 function providerModelsPayload() {
+  if (!state.editingModels.length) throw new Error("请至少配置一个模型");
   const models = [];
   const seen = new Set();
   const rows = [];
@@ -1341,8 +910,8 @@ async function saveProvider() {
       family: $("p-family").value,
       base_url: $("p-base").value.trim(),
       models: edited.models,
-      api_key: $("p-key").value.trim(),
     };
+    if ($("p-key").value.trim()) payload.api_key = $("p-key").value.trim();
     if (state.editingProvider) {
       const previous = state.editingProvider;
       const renamed = renamedSelectedModel(previous, edited.rows);
@@ -1381,9 +950,11 @@ async function deleteProvider() {
 
 async function saveSettings() {
   try {
-    await post("/api/settings", { permission: $("permission").value });
-    const workspace = $("workspace_input").value.trim();
-    if (workspace) await post("/api/workspace", { workspace });
+    await post("/api/settings", {
+      permission: $("permission").value,
+      instructions: $("instructions").value,
+      workspace: $("workspace_input").value.trim(),
+    });
     $("settings-dialog").close();
     await refresh();
   } catch (error) {
@@ -1394,10 +965,16 @@ async function saveSettings() {
 // ---------------------------------------------------------------- wiring
 
 document.addEventListener("click", (event) => {
+  if (!$("usage-panel").contains(event.target) && event.target !== $("stat-tokens") && event.target !== $("stat-context")) closeUsage();
   if (menuOwner && !$("menu").contains(event.target) && event.target !== menuOwner) {
     closeMenu();
   }
 });
+
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") { closeUsage(); closeMenu(); }
+});
+window.addEventListener("resize", positionUsage);
 
 document.querySelectorAll("[data-close]").forEach((button) => {
   button.addEventListener("click", () => $(button.getAttribute("data-close")).close());
@@ -1425,7 +1002,6 @@ $("composer").addEventListener("drop", (event) => {
   }
 });
 
-$("new").addEventListener("click", () => newSession().catch((e) => setStatus(e.message, true)));
 $("settings").addEventListener("click", () => openSettings().catch((e) => setStatus(e.message, true)));
 $("add-provider").addEventListener("click", () => openProviderDialog(null));
 $("p-model-add").addEventListener("click", addProviderModel);
@@ -1464,40 +1040,20 @@ $("composer").addEventListener("submit", async (event) => {
   if (typeof lingView !== "undefined" && lingView.active) {
     const viewVersion = state.viewVersion;
     const sent = await submitLingMessage(text);
-    if (sent && lingView.active && state.viewVersion === viewVersion) {
-      input.value = "";
-      input.style.height = "auto";
-    }
+    if (!sent) return;
     return;
   }
-  if (state.running) {
-    abortRun();
-    return;
+  await openLing({keepTranscript: lingView.itemsSignature !== "[]"});
+  if (typeof lingView !== "undefined" && lingView.active) {
+    const sent = await submitLingMessage(text);
+    if (!sent) return;
+  } else {
+    setStatus("灵还没有准备好，请稍后重试", true);
   }
-  if (typeof taskView !== "undefined") {
-    if (text && !pendingImages.length && !pendingFiles.length) {
-      const controlled = await naturalTaskControl(text);
-      if (controlled === null) return;
-      if (controlled) {
-        input.value = "";
-        input.style.height = "auto";
-        return;
-      }
-    }
-    if (taskView.current) {
-      if (await sendTaskMessage(text)) {
-        input.value = "";
-        input.style.height = "auto";
-      }
-      return;
-    }
-  }
-  input.value = "";
-  input.style.height = "auto";
-  send(text);
 });
 
 $("input").addEventListener("keydown", (event) => {
+  if (event.isComposing || event.keyCode === 229) return;
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
     $("composer").requestSubmit();
@@ -1516,7 +1072,7 @@ async function startApp() {
     await refresh();
     if (state.viewVersion !== initialViewVersion) return;
     setStatus("");
-    await openLing();
+    await openLing({keepTranscript: true});
   } catch (error) {
     setStatus(error.message, true);
   }

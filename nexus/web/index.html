@@ -6,6 +6,8 @@
 <title>Nexus</title>
 <link rel="stylesheet" href="/app.css">
 <link rel="stylesheet" href="/plugins.css">
+<link rel="stylesheet" href="/vendor/highlight.css">
+<link rel="stylesheet" href="/presentation.css">
 </head>
 <body>
 <div id="app">
@@ -18,18 +20,12 @@
       <button id="sidebar-close" class="sidebar-toggle" type="button" aria-label="收起导航菜单">收起</button>
     </div>
     <button id="ling-home" class="side-new side-ling" type="button">✦ 灵</button>
-    <button id="persona-open" class="side-new" type="button">人设与自我</button>
+    <button id="work-reopen" class="side-new" type="button" hidden>返回工作详情</button>
     <button id="skills-open" class="side-new" type="button">技能</button>
     <button id="plugins-open" class="side-new" type="button">插件管理</button>
-    <button id="new" class="side-new" type="button">＋ 新建会话</button>
-    <button id="task-new" class="side-new" type="button">＋ 新建任务</button>
     <div class="side-group">
-      <div class="side-title">任务</div>
-      <ul id="tasks" aria-label="任务列表"></ul>
-    </div>
-    <div class="side-group">
-      <div class="side-title">会话</div>
-      <ul id="sessions" aria-label="会话列表"></ul>
+      <div class="side-title">工作</div>
+      <ul id="tasks" aria-label="工作列表"></ul>
     </div>
     <div class="side-foot">
       <div class="side-workspace">
@@ -47,27 +43,10 @@
         <div id="title">灵</div>
         <span id="ling-mode-label" class="ling-mode-label" hidden>持续入口</span>
       </div>
-      <div class="top-actions">
-        <button id="notifications-toggle" class="notification-toggle" type="button" aria-expanded="false" aria-controls="notification-region">
-          通知 <span id="notification-count" class="notification-count">0</span>
-        </button>
-        <span id="status" class="small"></span>
-      </div>
+      <div class="top-actions"><span id="status" class="small"></span></div>
     </header>
 
-    <section id="notification-region" class="notification-region" hidden aria-label="主动通知">
-      <div class="notification-head">
-        <div class="notification-heading">
-          <span class="notification-kicker">灵的通知</span>
-          <span id="notification-summary" class="small"></span>
-        </div>
-        <div class="notification-actions">
-          <button id="notifications-read-all" class="link-button" type="button">全部已读</button>
-          <button id="notifications-close" class="link-button" type="button">收起</button>
-        </div>
-      </div>
-      <div id="notification-list" class="notification-list"></div>
-    </section>
+    <section id="ling-requests" class="ling-requests" aria-label="灵在等待你处理的事项" hidden></section>
 
     <section id="ling-bar" class="ling-bar" hidden aria-live="polite">
       <div class="ling-identity">
@@ -77,9 +56,9 @@
       <span id="ling-queue-count" class="ling-queue-count"></span>
       <div id="ling-tasks" class="ling-tasks"></div>
       <button id="ling-resume" class="ling-resume" type="button" hidden>继续待恢复输入</button>
+      <button id="ling-pause-all" class="ling-resume" type="button">全部工作挂起</button>
     </section>
     <div id="ling-inputs" class="ling-inputs" hidden aria-label="灵的工作队列"></div>
-    <section id="ling-interaction" class="ling-interaction" hidden aria-live="polite"></section>
 
     <div id="scroller">
       <div id="transcript" aria-live="polite"></div>
@@ -92,16 +71,11 @@
           <div id="task-status" class="small"></div>
         </div>
         <div class="task-actions">
-          <button id="task-start" type="button" hidden>开始</button>
-          <button id="task-pause" type="button" hidden>挂起</button>
-          <button id="task-cancel" type="button" class="danger-link" hidden>取消</button>
-          <button id="task-reopen" type="button" hidden>重新启用</button>
-          <button id="task-mark-complete" type="button" hidden>用户确认完成</button>
+          <button id="task-close" type="button">收起详情</button>
         </div>
       </div>
       <div id="task-display" class="task-display" hidden>
         <div><span class="task-display-label">状态</span><span id="task-state-label"></span></div>
-        <div><span class="task-display-label">安排</span><span id="task-schedule-label"></span></div>
         <div><span class="task-display-label">进展</span><span id="task-progress-text"></span></div>
       </div>
       <div id="task-summary" class="task-summary"></div>
@@ -109,27 +83,23 @@
         <summary>步骤与验证记录</summary>
         <div id="task-steps" class="task-steps"></div>
       </details>
-      <div id="task-interactions" class="task-interactions"></div>
-      <details class="task-schedule">
-        <summary>安排</summary>
-        <label>时间 <input id="task-due" type="datetime-local"></label>
-        <label>时区 <input id="task-timezone" type="text" placeholder="Asia/Tokyo"></label>
-        <label>方式
-          <select id="task-mode">
-            <option value="auto">到时自动恢复</option>
-            <option value="confirm">到时等待确认</option>
-          </select>
-        </label>
-        <div class="task-schedule-actions">
-          <button id="task-schedule-clear" type="button" hidden>取消安排</button>
-          <button id="task-schedule-save" type="button">保存安排</button>
-        </div>
+      <details id="task-messages-panel" class="task-records" hidden open>
+        <summary>工作记录</summary>
+        <div id="task-messages" class="task-messages"></div>
       </details>
+      <div id="task-interactions" class="task-interactions"></div>
+      <p class="small">这里的记录只读。开始、挂起、恢复或取消，以及补充要求，都通过主交流交代。</p>
     </section>
 
     <form id="composer">
       <div class="composer-card">
-        <textarea id="input" rows="1" placeholder="描述你想构建的内容，或直接提问"></textarea>
+        <div class="composer-target">
+          <label for="composer-task">发送给</label>
+          <select id="composer-task" aria-label="发送目标">
+            <option value="">灵</option>
+          </select>
+        </div>
+        <textarea id="input" rows="1" placeholder="和灵说话，或交代一件工作"></textarea>
         <div id="attachments" class="attachments" hidden></div>
         <div class="composer-bar">
           <div class="bar-left">
@@ -171,6 +141,12 @@
     <p class="small">填入各提供商的 API 密钥即可使用其模型。</p>
     <div id="provider-list" class="provider-list"></div>
     <button id="add-provider" class="add-provider" type="button">＋ 添加模型提供商</button>
+
+    <h2 class="sep">基本原则</h2>
+    <p class="small">这些原则会随每次请求交给灵；只有保存后才会生效。</p>
+    <label>原则与交流偏好
+      <textarea id="instructions" rows="5" placeholder="例如：先说明关键取舍，再执行；遇到不确定的外部影响时先停下确认。"></textarea>
+    </label>
 
     <h2 class="sep">MCP 服务</h2>
     <p class="small">连接本地 stdio 或 HTTP MCP 服务。</p>
@@ -289,177 +265,24 @@
   </div>
 </dialog>
 
-<dialog id="question-dialog">
-  <div class="dialog-body">
-    <div class="dialog-head">
-      <h2>需要你回答</h2>
-    </div>
-    <div id="question-options" class="question-options"></div>
-    <menu>
-      <button id="question-send" class="primary" type="button">提交回答</button>
-    </menu>
-  </div>
-</dialog>
-
-<dialog id="task-dialog">
-  <div class="dialog-body">
-    <div class="dialog-head">
-      <h2>新建任务</h2>
-      <button class="dialog-x" type="button" data-close="task-dialog">×</button>
-    </div>
-    <label>标题 <input id="task-name" type="text" maxlength="160" placeholder="例如：实现任务生命周期"></label>
-    <label>目标 <textarea id="task-goal" rows="5" placeholder="说明最终目标与约束"></textarea></label>
-    <label>约束 <textarea id="task-constraints" rows="2" placeholder="可选"></textarea></label>
-    <p id="task-error" class="error small"></p>
-    <menu>
-      <button class="link" type="button" data-close="task-dialog">取消</button>
-      <button id="task-create" class="primary" type="button">创建任务（不执行）</button>
-    </menu>
-  </div>
-</dialog>
-
-<dialog id="approval-dialog">
-  <div class="dialog-body">
-    <div class="dialog-head">
-      <h2>需要确认</h2>
-    </div>
-    <p id="approval-what" class="mono"></p>
-    <pre id="approval-detail" class="code"></pre>
-    <menu>
-      <button id="deny" class="link" type="button">拒绝</button>
-      <button id="allow" class="primary" type="button">允许</button>
-    </menu>
-  </div>
-</dialog>
-
-<dialog id="persona-dialog" aria-labelledby="persona-title">
-  <div class="dialog-body persona-dialog-body">
-    <div class="dialog-head">
-      <h2 id="persona-title">人设与自我</h2>
-      <button id="persona-close" class="dialog-x" type="button" aria-label="关闭人设与自我">×</button>
-    </div>
-    <p class="persona-intro">上方设定按顺序构成核心设定与回复原则，下方条目可按需启用。改动只在保存后进入下一次请求。</p>
-    <p id="persona-load-error" class="persona-error" role="alert" hidden></p>
-    <p id="persona-snapshot-status" class="small persona-status" aria-live="polite"></p>
-
-    <section class="persona-section" aria-labelledby="persona-sections-title">
-      <div class="persona-section-head">
-        <div>
-          <h3 id="persona-sections-title">核心设定与回复原则</h3>
-          <span id="persona-section-status" class="small persona-status" aria-live="polite"></span>
-        </div>
-        <button id="persona-add-section" class="persona-action" type="button">＋ 新增设定</button>
-      </div>
-      <div id="persona-sections" class="persona-entries"></div>
-    </section>
-
-    <section class="persona-section" aria-labelledby="persona-entries-title">
-      <div class="persona-section-head">
-        <div>
-          <h3 id="persona-entries-title">条目</h3>
-          <span id="persona-entry-count" class="persona-count"></span>
-        </div>
-        <button id="persona-add" class="persona-action" type="button">＋ 新建条目</button>
-      </div>
-      <p id="persona-list-status" class="small persona-status" aria-live="polite"></p>
-      <div id="persona-entries" class="persona-entries"></div>
-    </section>
-
-    <section class="persona-section" aria-labelledby="persona-preview-title">
-      <div class="persona-section-head">
-        <h3 id="persona-preview-title">当前注入预览</h3>
-        <button id="persona-refresh" class="persona-secondary" type="button">刷新</button>
-      </div>
-      <pre id="persona-preview" class="persona-preview"></pre>
-      <p class="persona-note">这里显示已保存的人设；预览尚未发送，也不会自动发送。</p>
-    </section>
-
-    <section class="persona-section" aria-labelledby="persona-last-title">
-      <h3 id="persona-last-title">最近发送</h3>
-      <div id="persona-last" class="persona-last"></div>
-    </section>
-  </div>
-</dialog>
-
-<dialog id="persona-section-dialog" aria-labelledby="persona-section-dialog-title">
-  <form id="persona-section-form" class="dialog-body">
-    <div class="dialog-head">
-      <h2 id="persona-section-dialog-title">编辑设定</h2>
-      <button id="persona-section-dialog-close" class="dialog-x" type="button" aria-label="关闭设定">×</button>
-    </div>
-    <label>标题
-      <input id="persona-section-title" type="text" maxlength="120" autocomplete="off">
-    </label>
-    <label>正文
-      <textarea id="persona-section-content" rows="6" placeholder="这一设定会随核心人设一起生效"></textarea>
-    </label>
-    <p id="persona-section-error" class="persona-error" role="alert" hidden></p>
-    <menu>
-      <button id="persona-section-cancel" class="link" type="button">取消</button>
-      <button id="persona-section-save" class="primary" type="submit">保存设定</button>
-    </menu>
-  </form>
-</dialog>
-
-<dialog id="persona-entry-dialog" aria-labelledby="persona-form-title">
-  <form id="persona-entry-form" class="dialog-body">
-    <div class="dialog-head">
-      <h2 id="persona-form-title">新建条目</h2>
-      <button id="persona-entry-dialog-close" class="dialog-x" type="button" aria-label="关闭条目">×</button>
-    </div>
-    <label>名称（英文 slug）
-      <input id="persona-name" type="text" maxlength="64" autocomplete="off" placeholder="writing-style">
-    </label>
-    <label>摘要
-      <textarea id="persona-description" rows="2" maxlength="1000" placeholder="简短说明这个条目何时适用"></textarea>
-    </label>
-    <div class="persona-summary-actions">
-      <button id="persona-summary-generate" class="persona-secondary" type="button">生成摘要建议</button>
-      <span id="persona-summary-status" class="small persona-status" aria-live="polite"></span>
-    </div>
-    <div id="persona-suggestion" class="persona-suggestion" hidden>
-      <div class="persona-suggestion-head">
-        <span>摘要建议（未保存）</span>
-        <span>
-          <button id="persona-adopt" class="persona-action" type="button">采用建议</button>
-          <button id="persona-discard" class="persona-action" type="button">丢弃</button>
-        </span>
-      </div>
-      <p id="persona-suggestion-text" class="persona-suggestion-text"></p>
-    </div>
-    <label>详细正文（可留空）
-      <textarea id="persona-body" rows="8" placeholder="这个条目要说明的经历、偏好或行为方式"></textarea>
-    </label>
-    <label class="persona-check">
-      <input id="persona-enabled" type="checkbox" checked>
-      <span>启用此条目</span>
-    </label>
-    <p id="persona-form-error" class="persona-error" role="alert" hidden></p>
-    <menu>
-      <button id="persona-entry-cancel" class="link" type="button">取消</button>
-      <button id="persona-entry-save" class="primary" type="submit">保存条目</button>
-    </menu>
-  </form>
-</dialog>
-
 <dialog id="skills-dialog" aria-labelledby="skills-title">
-  <div class="dialog-body persona-dialog-body">
+  <div class="dialog-body skills-dialog-body">
     <div class="dialog-head">
       <h2 id="skills-title">技能</h2>
       <button id="skills-close" class="dialog-x" type="button" aria-label="关闭技能">×</button>
     </div>
-    <p class="persona-intro">项目技能会覆盖同名的个人技能；内置技能只读。</p>
-    <div class="persona-section-head">
+    <p class="skills-intro">项目技能会覆盖同名的个人技能；内置技能只读。</p>
+    <div class="skills-section-head">
       <div>
-        <span id="skills-count" class="persona-count"></span>
-        <span id="skills-status" class="small persona-status" aria-live="polite"></span>
+        <span id="skills-count" class="skills-count-badge"></span>
+        <span id="skills-status" class="small skills-status" aria-live="polite"></span>
       </div>
       <span>
-        <button id="skills-refresh" class="persona-secondary" type="button">刷新</button>
-        <button id="skills-new" class="persona-action" type="button">＋ 新建技能</button>
+        <button id="skills-refresh" class="skills-secondary" type="button">刷新</button>
+        <button id="skills-new" class="skills-action" type="button">＋ 新建技能</button>
       </span>
     </div>
-    <div id="skills-list" class="persona-entries"></div>
+    <div id="skills-list" class="skills-entries"></div>
   </div>
 </dialog>
 
@@ -485,7 +308,7 @@
     <label>详细正文（可留空）
       <textarea id="skill-body" rows="9"></textarea>
     </label>
-    <p id="skill-error" class="persona-error" role="alert" hidden></p>
+    <p id="skill-error" class="skills-error" role="alert" hidden></p>
     <menu>
       <button id="skill-cancel" class="link" type="button">取消</button>
       <button id="skill-save" class="primary" type="submit">保存技能</button>
@@ -611,12 +434,16 @@
   </div>
 </dialog>
 
+<script src="/vendor/marked.js"></script>
+<script src="/vendor/purify.js"></script>
+<script src="/vendor/highlight.js"></script>
+<script src="/presentation.js"></script>
+<script src="/live.js"></script>
 <script src="/ling.js"></script>
 <script src="/app.js"></script>
 <script src="/tasks.js"></script>
 <script src="/navigation.js"></script>
 <script src="/mcp.js"></script>
-<script src="/persona.js"></script>
 <script src="/skills.js"></script>
 <script src="/plugins.js"></script>
 </body>

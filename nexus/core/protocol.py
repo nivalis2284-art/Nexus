@@ -266,6 +266,16 @@ def request_body(
     tools: list[dict[str, Any]],
     effort: str | None = None,
 ) -> dict[str, Any]:
+    if not profile.capabilities.images:
+        messages = [
+            {**message, "content": blocks_to_text(message["content"]) +
+             "\n[Image data omitted for this text-only model. Use a vision model if visual inspection is needed.]"}
+            if is_blocks(message.get("content")) and any(
+                block.get("type") == "image" for block in message["content"]
+                if isinstance(block, dict)
+            ) else message
+            for message in messages
+        ]
     family = profile.api_family
     max_tokens = profile.max_output_tokens or 8192
     tool_list = _tools(tools, family)

@@ -24,7 +24,8 @@ from ..tools.files import file_effect
 from ..tools.registry import Registry, TaskSuspension
 from .callbacks import TaskCallbacks
 from .connections import start_mcp
-from .controller import RunFnResult, TaskConflict
+from .controller import RunFnResult, TaskConflict, needs_project_write
+
 
 def _subagent_registry(registry: Registry) -> Registry:
     """Keep observation tools, but never the parent's lifecycle controls."""
@@ -47,6 +48,16 @@ class TaskAssembler:
     mcp_registry: Any = None
     plugins: Any = None
     request_history: Any = None
+    controller: Any = None
+    updates: Any = None
+
+    def _feed(self):
+        return self.updates
+
+    def _saved(self, task_id: str, *, clear: bool = False) -> None:
+        feed = self._feed()
+        if feed is not None:
+            feed.refresh("task", task_id, clear=clear)
 
     def _strict_settings(self, task: Task):
         raw = self.config.read_config()
@@ -86,7 +97,10 @@ class TaskAssembler:
         workspace = inspect(workspace_path)
         skill_set = skills.discover(skills.default_roots(workspace_path, self.config.home))
         context_skill_bodies = skill_set.bodies()
-        callbacks = TaskCallbacks(self.store, task.id, self.store.current_run(task.id), cancel=cancel)
+        callbacks = TaskCallbacks(
+            self.store, task.id, self.store.current_run(task.id), cancel=cancel,
+            on_saved=self._saved,
+        )
         task_jobs = self.active_jobs(task.id)
         if task_jobs is None or getattr(task_jobs, "closed", True):
             task_jobs = JobRegistry()
@@ -107,7 +121,7 @@ class TaskAssembler:
                 config={"webfetch_hosts": list(raw_settings.get("webfetch_hosts") or []),
                         "search_endpoint": str(raw_settings.get("search_endpoint") or "")},
                 mcp=mcp_registry, jobs=task_jobs, cancel_event=cancel,
-                task_callbacks=callbacks,
+                task_callbacks=callbacks, owner_home=self.config.home,
                 attachment_source=(AttachmentStore(self.config.home), "tasks", task.id),
                 attachment_ids={a["id"] for item in stored_messages for a in item.get("attachments", [])},
             )
@@ -117,9 +131,8 @@ class TaskAssembler:
                 stored_messages,
             )
             if self.plugins:
-                scope = {"kind": "task", "owner_id": task.id, "task_id": task.id}
-                self.plugins.publish('activity.finished', {**scope, 'state': self.store.get(task.id).state})
-                self.plugins.hook('activity_finished', scope, result={"state": self.store.get(task.id).state})
+                self.plugins.publish('work.finished', {"task_id": task.id, "state": self.store.get(task.id).state})
+            self._saved(task.id)
             return outcome
         finally:
             if shared_mcp is None and mcp_registry is not None:
@@ -140,6 +153,13 @@ class TaskAssembler:
         raw_settings = self.config.read_config()
         context.web_allowlist = list(raw_settings.get("webfetch_hosts") or [])
         context.search_endpoint = str(raw_settings.get("search_endpoint") or "")
+        from ..instructions import load_instructions
+        from ..ling import available_work_models, select_work_model
+        from ..tools.work import WORK_MODEL_TOOL, WORK_MODELS_TOOL
+        context.work_models = lambda: available_work_models({"store": self.config})
+        context.work_model = lambda **args: select_work_model({"store": self.config, "tasks": self.store}, task.id, **args).to_dict()
+        registry.add(WORK_MODEL_TOOL)
+        registry.add(WORK_MODELS_TOOL)
         policy = default_policy(permission, rules)
         system_task_state = callbacks.context_text()
 
@@ -184,14 +204,17 @@ class TaskAssembler:
             scoped_callbacks.add_evidence = scoped_callbacks.add_child_evidence
             child_context.task_callbacks = scoped_callbacks
             child = Agent(
-                profile=profile, credentials=RuntimeCredentials(key),
+                profile=agent.profile, credentials=agent.credentials,
                 registry=child_registry, context=child_context,
                 workspace=workspace, policy=policy, max_steps=budget,
                 context_limit=self.config.load().context_limit,
-                approve=approve, effort=task.effort,
+                approve=approve, effort=agent.effort, owner_context=load_instructions(self.config.home),
                 skills=skill_set.manifest(), cancel_event=cancel,
                 task_context="You are a subagent. You cannot finish the parent task.",
-                on_tool_intent=scoped_callbacks.prepare_dispatch,
+                on_tool_intent=lambda call_id, ready, tool_context: (
+                    self.controller.acquire_write(task.id, task.workspace, cancel) if self.controller and needs_project_write(ready.spec) else None,
+                    scoped_callbacks.prepare_dispatch(call_id, ready, tool_context),
+                ),
                 plugins=self.plugins,
                 plugin_scope={"kind": "subagent", "owner_id": task.id, "task_id": task.id},
                 request_history=self.request_history,
@@ -221,8 +244,14 @@ class TaskAssembler:
 
         def before_model(history: list[dict[str, Any]]) -> None:
             require_running()
+            current = self.store.get(task.id)
+            updated_profile, updated_key, _, _, _ = self._strict_settings(current)
+            agent.profile = updated_profile
+            agent.credentials = RuntimeCredentials(updated_key)
+            agent.effort = current.effort
+            agent.owner_context = load_instructions(self.config.home)
             callbacks.before_model(
-                history, agent=agent, include_images=profile.capabilities.images,
+                history, agent=agent, include_images=agent.profile.capabilities.images,
                 attachment_contexts=[context, child_context],
             )
 
@@ -232,6 +261,8 @@ class TaskAssembler:
 
         def prepare_task_tool(call_id, prepared, tool_context):
             require_running()
+            if self.controller and needs_project_write(prepared.spec):
+                self.controller.acquire_write(task.id, task.workspace, cancel)
             callbacks.prepare_dispatch(call_id, prepared, tool_context)
 
         agent = Agent(
@@ -290,8 +321,23 @@ class TaskAssembler:
                 final = None
                 errors: list[str] = []
                 async for event in agent.run(messages):
+                    feed = self._feed()
+                    if feed is not None:
+                        if event.type in ("delta", "thinking"):
+                            feed.publish("task", task.id, {
+                                "type": event.type, "text": event.text,
+                                "message_id": (event.data or {}).get("message_id"),
+                            })
+                        elif event.type in ("tool_start", "tool_result"):
+                            feed.publish("task", task.id, {"type": event.type, "tool": event.data})
+                        elif event.type == "context":
+                            feed.publish("task", task.id, {"type": "context", "data": event.data})
+                        elif event.type == "error":
+                            feed.publish("task", task.id, {"type": "error", "message": event.text})
                     if event.type == "done":
                         final = event.data
+                        if feed is not None:
+                            feed.publish("task", task.id, {"type": "done", "data": event.data})
                     elif event.type == "error":
                         errors.append(event.text or "model error")
                 if final is None and errors:
@@ -398,6 +444,7 @@ class TaskAssembler:
                 task_jobs.close_all()
                 if isinstance(self._jobs, dict) and self._jobs.get(task.id) is task_jobs:
                     self._jobs.pop(task.id, None)
+            self._saved(task.id)
         stopped = str((final or {}).get("stopped") or "")
         if stopped not in ("complete", "cancelled"):
             reason = stopped or "unknown"

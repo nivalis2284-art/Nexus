@@ -58,9 +58,6 @@ class PluginHost:
     def emit(self, payload: dict):
         return self._manager.receive(self.id, payload)
 
-    def complete_activity(self, reply="", summary=""):
-        return self.command("activity.finish", reply=reply, summary=summary)
-
     def connect_service(self, name: str, config: dict):
         return self._manager.connect_service(self.id, name, config)
 

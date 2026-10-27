@@ -42,14 +42,19 @@ def usage_from(raw: dict[str, Any], family: APIFamily) -> Usage:
         raw.get("completion_tokens_details" if chat else "output_tokens_details") or {}
     )
     input_details = obj(raw.get("prompt_tokens_details" if chat else "input_tokens_details") or {})
+    # DeepSeek's OpenAI-compatible cache counters are not part of the standard
+    # details object, so read them explicitly before falling back to it.
+    cached = token(raw.get("cache_read_input_tokens"))
+    if cached is None:
+        cached = token(raw.get("prompt_cache_hit_tokens"))
+    if cached is None:
+        cached = token(input_details.get("cached_tokens"))
     return Usage(
         input_tokens=token(raw.get("prompt_tokens" if chat else "input_tokens")),
         output_tokens=token(raw.get("completion_tokens" if chat else "output_tokens")),
         total_tokens=token(raw.get("total_tokens")),
         reasoning_tokens=token(output_details.get("reasoning_tokens")),
-        cached_input_tokens=token(
-            raw.get("cache_read_input_tokens", input_details.get("cached_tokens"))
-        ),
+        cached_input_tokens=cached,
         cache_creation_input_tokens=token(
             raw.get("cache_creation_input_tokens", input_details.get("cache_write_tokens"))
         ),

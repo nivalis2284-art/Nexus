@@ -153,9 +153,9 @@ class Task:
     provider_id: str = ""
     model_id: str = ""
     effort: str | None = None
+    read_only: bool = False
     progress_version: int = 1
     control_version: int = 1
-    schedule_version: int = 0
     steps: list[Step] = field(default_factory=list)
     decisions: list[dict[str, Any]] = field(default_factory=list)
     evidence: list[Evidence] = field(default_factory=list)
@@ -183,9 +183,9 @@ class Task:
             "provider_id": self.provider_id,
             "model_id": self.model_id,
             "effort": self.effort,
+            "read_only": self.read_only,
             "progress_version": self.progress_version,
             "control_version": self.control_version,
-            "schedule_version": self.schedule_version,
             "steps": [item.to_dict() for item in self.steps],
             "decisions": self.decisions,
             "evidence": [item.to_dict() for item in self.evidence],
@@ -216,8 +216,9 @@ def task_from_row(row: Any) -> Task:
         state=row["state"], wait_reason=row["wait_reason"],
         archived=bool(row["archived"]), workspace=row["workspace"],
         provider_id=row["provider_id"], model_id=row["model_id"],
-        effort=row["effort"], progress_version=row["progress_version"],
-        control_version=row["control_version"], schedule_version=row["schedule_version"],
+        effort=row["effort"], read_only=bool(row["read_only"]),
+        progress_version=row["progress_version"],
+        control_version=row["control_version"],
         steps=steps, decisions=decisions, evidence=evidence, blocked=row["blocked"],
         next_step=row["next_step"], work_summary=row["work_summary"],
         created_at=row["created_at"], updated_at=row["updated_at"],

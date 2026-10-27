@@ -42,7 +42,15 @@ def test_skill_editor_crud_and_project_selection(task_live, tmp_path):
     assert (project / ".nexus" / "skills" / "project-only" / "SKILL.md").is_file()
 
 
-def test_builtin_skills_are_visible_and_read_only(task_live):
+def test_builtin_skills_are_visible_and_read_only(task_live, tmp_path, monkeypatch):
+    from nexus.skill_management import SkillManager
+    from nexus.web import skills_api
+    builtin_root = tmp_path / "builtin"
+    skill = builtin_root / "example" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("---\nname: example\ndescription: builtin test\n---\nRead-only instructions", encoding="utf-8")
+    monkeypatch.setattr(skills_api, "manager", lambda state: SkillManager(
+        state["store"].home, state["store"].load().workspace, builtin_root))
     base, _, _ = task_live
     status, listing = request(base, "/api/skills")
     assert status == 200

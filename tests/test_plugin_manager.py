@@ -231,6 +231,8 @@ def test_plugin_context_messages_are_disposable(tmp_path):
         agent = SimpleNamespace(
             registry=registry,
             context=tool_context,
+            skills="",
+            profile=None,
             plugin_scope={"kind": "test", "owner": "owner-1"},
         )
 
@@ -292,14 +294,43 @@ def test_subscription_cursor_does_not_redeliver_an_acknowledged_event(tmp_path):
         manager.import_zip(plugin_zip("event-check"))
         item = load_sync(manager, "event-check")
         item.instance.host.subscribe(["demo.changed"])
+        manager.start("http://127.0.0.1:1")
         manager.publish("demo.changed", {"value": 1}, event_id="change-1")
         manager.publish("demo.other", {"value": 2}, event_id="change-2")
 
-        manager.poll()
-        manager.poll()
-
+        assert wait_until(lambda: manager.events.changes("event-check") == [])
         assert item.instance.seen_events == [1]
         assert [change["id"] for change in manager.events.changes("event-check")] == []
+    finally:
+        manager.close()
+
+
+def test_plugin_prompt_uses_owner_instructions(tmp_path, monkeypatch):
+    manager = make_manager(tmp_path)
+    try:
+        manager.import_zip(plugin_zip("prompt-check"))
+        load_sync(manager, "prompt-check")
+        from nexus.core import prompt
+        seen = {}
+        monkeypatch.setattr(prompt, "build_system_prompt",
+                            lambda *args, **kwargs: seen.update(kwargs) or "")
+        registry, tool_context = build(root=tmp_path / "workspace")
+        agent = SimpleNamespace(
+            registry=registry,
+            context=tool_context,
+            plugin_scope={"kind": "test"},
+            skills="",
+            profile=SimpleNamespace(context_window_tokens=8000, max_output_tokens=1000),
+            context_limit=8000,
+            workspace=None,
+            role="role",
+            owner_context="OWNER-INSTRUCTIONS",
+            task_context="",
+            interaction_context="",
+        )
+        manager.prepare_agent(agent, [{"role": "user", "content": "hi"}])
+        assert seen["owner_instructions"] == "OWNER-INSTRUCTIONS"
+        assert "persona" not in seen
     finally:
         manager.close()
 

@@ -1,15 +1,13 @@
 """Readable, display-only projections of persistent task facts.
 
 The task state machine remains authoritative.  This module only combines the
-existing state, reason, schedule, interaction, and progress records into the
-few labels shared by the task manager and Ling's work summaries.
+existing state, reason, interaction, and progress records into the few labels
+shared by the task manager and Ling's work summaries.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
-from zoneinfo import ZoneInfo
 
 
 STATE_LABELS = {
@@ -47,49 +45,14 @@ def _pending_label(interactions: list[dict[str, Any]]) -> str:
         return "等待你批准操作"
     if "question" in kinds:
         return "等待你回答问题"
-    if "start_confirmation" in kinds:
-        return "等待你确认开始"
     return "等待你处理"
 
 
-def _schedule_label(store: Any, task: Any, interactions: list[dict[str, Any]]) -> str:
-    schedule = store.schedule(_field(task, "id"))
-    if not schedule:
-        return "未安排定时。"
-
-    due_at = str(schedule.get("due_at") or "").strip()
-    timezone_name = str(schedule.get("timezone") or "UTC").strip() or "UTC"
-    mode = "到时自动继续" if schedule.get("mode") == "auto" else "到时等待确认"
-    try:
-        due = datetime.fromisoformat(due_at.replace("Z", "+00:00"))
-        if due.tzinfo is None:
-            due = due.replace(tzinfo=timezone.utc)
-        # due_at is stored as an absolute UTC instant.  set_schedule keeps the
-        # supplied offset for fixed-offset labels; IANA names resolve here.
-        fixed_offset = timezone_name.upper().startswith(
-            ("UTC+", "UTC-", "GMT+", "GMT-")
-        )
-        if not fixed_offset:
-            due = due.astimezone(ZoneInfo(timezone_name))
-        shown = due.strftime("%Y-%m-%d %H:%M")
-        overdue = due < datetime.now(timezone.utc)
-    except (TypeError, ValueError):
-        shown = due_at or "时间无效"
-        overdue = False
-
-    stamp = f"{shown}（{timezone_name}）"
-    status = str(schedule.get("status") or "pending")
-    if status == "consumed" and any(
-        item.get("kind") == "start_confirmation" for item in interactions
-    ):
-        return f"{stamp} · 等待确认"
-    if status == "claimed":
-        return f"{stamp} · 已触发，等待处理"
-    if status == "consumed":
-        return f"{stamp} · 已执行"
-    if overdue:
-        return f"{stamp} · 已到期，等待调度 · {mode}"
-    return f"{stamp} · {mode}"
+def _is_active(controller: Any, task_id: str) -> bool:
+    is_active = getattr(controller, "is_active", None)
+    if callable(is_active):
+        return bool(is_active(task_id))
+    return getattr(controller, "active_task", None) == task_id
 
 
 def _status_detail(store: Any, controller: Any, task: Any,
@@ -104,7 +67,7 @@ def _status_detail(store: Any, controller: Any, task: Any,
     if state == "waiting_user":
         parts[0] = _pending_label(interactions) if interactions else "等待你处理。"
 
-    active = getattr(controller, "active_task", None) == task_id
+    active = _is_active(controller, task_id)
     queued_ids = controller.queued_ids()
     if active and state == "running":
         parts.append("正在使用当前执行通道。")
@@ -157,7 +120,6 @@ def task_presentation(store: Any, controller: Any, task: Any) -> dict[str, str]:
     return {
         "state_label": state_label,
         "status_detail": _status_detail(store, controller, task, interactions),
-        "schedule_label": _schedule_label(store, task, interactions),
         "progress_text": _progress_text(task),
     }
 

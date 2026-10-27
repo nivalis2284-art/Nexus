@@ -120,7 +120,7 @@ def bash(context: Any, args: dict[str, Any]) -> dict[str, Any]:
         )
     limits = None
     if job_objects_available():
-        limits = ResourceLimits(pids_limit=64, memory_bytes=2 * 1024**3, cpu_seconds=args["timeout"])
+        limits = ResourceLimits(pids_limit=64, memory_bytes=2 * 1024**3)
     started = run_process(
         argv,
         timeout=args["timeout"],

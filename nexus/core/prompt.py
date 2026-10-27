@@ -73,12 +73,12 @@ def build_system_prompt(
     platform: str,
     date: str,
     role: str = ROLE,
-    persona: str = "",
+    owner_instructions: str = "",
     skills: str = "",
     task_context: str = "",
     interaction_context: str = "",
 ) -> str:
-    sections = [persona, role] if persona else [role]
+    sections = [owner_instructions, role] if owner_instructions else [role]
     env = ENVIRONMENT.format(
         platform=platform,
         date=date,

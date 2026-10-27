@@ -4,7 +4,6 @@ import importlib.util
 import io
 import json
 import shutil
-import sqlite3
 import sys
 import threading
 import uuid
@@ -47,14 +46,14 @@ class PluginManager:
         self.lock = threading.RLock()
         self.local = threading.local()
         self.base_url = ''
-        self.runtime = None
         self.error = ''
         self.closing = False
+        self._events_stop = threading.Event()
+        self._events_thread = None
         self.events = EventStore(self.home / 'plugin-events.sqlite3')
         self.registry_file = self.home / 'plugins.json'
         self.saved = json.loads(self.registry_file.read_text(encoding='utf-8')) if self.registry_file.exists() else {}
         self.scan()
-        self._restore_saved_holds()
 
     def data_dir(self, plugin_id):
         path = self.home / 'plugins' / plugin_id
@@ -114,56 +113,28 @@ class PluginManager:
                  'error': item.error, 'active_calls': item.active_calls,
                  'settings': deepcopy(item.settings), 'progress': item.progress} for item in self.entries.values()]}
 
-    def start(self, base_url, busy, inbox, run):
-        from .activity import ActivityRuntime
+    def start(self, base_url):
         self.base_url = base_url
-        self._migrate_events()
         tasks = self.state.get('tasks')
         if tasks:
             heads = tasks.change_heads()
             for key, column in (('task_cursor', 'notifications'), ('message_cursor', 'messages')):
                 if self.events.metadata(key) is None:
                     self.events.metadata(key, heads[column])
-        self.runtime = ActivityRuntime(self, busy, inbox, run)
-        # Only this explicit migration default continues the existing installation.
-        # Discovery/import of any other new plugin never enables it.
-        if 'autonomy' in self.entries and 'autonomy' not in self.saved:
-            self.entries['autonomy'].enabled = True
         for item in list(self.entries.values()):
             if item.enabled:
                 self.load(item.id)
-        self.runtime.start()
+        self._events_stop.clear()
+        self._events_thread = threading.Thread(
+            target=self._poll_events, name='plugin-events', daemon=True)
+        self._events_thread.start()
 
-    def _restore_saved_holds(self):
-        """Restore paused legacy responsibilities before task scheduling starts.
-
-        Plugin loading comes after the task scheduler starts. Reading the saved
-        pause guards here closes that startup window without preparing a plugin
-        runtime or touching an installed plugin's active instance.
-        """
-        if self.events.metadata('startup_holds_imported'):
-            return
-        current = self.home / 'plugins' / 'autonomy' / 'autonomy.sqlite3'
-        sources = (current if current.is_file() else self.home / 'tasks.sqlite3',)
-        for database in sources:
-            if not database.is_file():
-                continue
+    def _poll_events(self):
+        while not self._events_stop.wait(.5):
             try:
-                with sqlite3.connect(database, timeout=5) as db:
-                    tables = {row[0] for row in db.execute(
-                        "SELECT name FROM sqlite_master WHERE type='table'"
-                    )}
-                    if not {'responsibilities', 'work_metadata'} <= tables:
-                        continue
-                    rows = db.execute(
-                        "SELECT w.task_id FROM work_metadata w JOIN responsibilities r "
-                        "ON r.id=w.responsibility_id WHERE r.state='paused'"
-                    ).fetchall()
-            except (OSError, sqlite3.Error) as error:
-                raise ValueError(f'无法恢复既有任务暂停状态: {error}') from error
-            for (task_id,) in rows:
-                self.events.metadata(f'hold:autonomy:{task_id}', '1')
-            self.events.metadata('startup_holds_imported', '1')
+                self.poll()
+            except Exception as error:  # noqa: BLE001 -- keep the event worker alive.
+                self.error = str(error)
 
     def load(self, plugin_id):
         with self.lock:
@@ -229,9 +200,6 @@ class PluginManager:
                 self._cleanup(item)
         elif operation == 'stop':
             stopped = False
-            if self.runtime and self.runtime.active and self.runtime.active['plugin_id'] == plugin_id and self.runtime.agent:
-                self.runtime.agent.stop()
-                stopped = True
             callback = getattr(item.instance, 'stop', None)
             if callback:
                 callback()
@@ -374,10 +342,6 @@ class PluginManager:
                 registry._tools[spec.name] = replace(spec, handler=invoke)
         context.plugin_manager = self
         context.plugin_scope = scope
-        activity = scope.get('activity')
-        if activity and self.runtime:
-            from .activity import finish_tool
-            registry._tools['activity_finish'] = finish_tool(self.runtime, activity['plugin_id'])
 
     def prepare_agent(self, agent, messages):
         """Compose only a disposable view; never append recalls to saved history."""
@@ -415,7 +379,7 @@ class PluginManager:
             base_system = prompt.build_system_prompt(
                 agent.workspace, agent.registry.declarations(),
                 platform=sys.platform, date='YYYY-MM-DD',
-                role=agent.role, persona=agent.persona_context, skills=agent.skills,
+                role=agent.role, owner_instructions=agent.owner_context, skills=agent.skills,
                 task_context=agent.task_context, interaction_context=agent.interaction_context)
             newest = scope['messages'][-1:]
             scope['material_budget_tokens'] = max(0, budget.input_limit
@@ -437,10 +401,7 @@ class PluginManager:
     def context(self, scope):
         materials, reports = [], []
         ready = self.enabled_ids()
-        activity = scope.get('activity') or {}
         required_ids = set(scope.get('required_plugins', []))
-        if activity.get('plugin_id'):
-            required_ids.add(activity['plugin_id'])
         missing = required_ids.difference(ready)
         if missing:
             raise ValueError('本次必需的插件已停用或未就绪: ' + ', '.join(sorted(missing)))
@@ -546,7 +507,7 @@ class PluginManager:
     def query(self, plugin_id, topic, **args):
         tasks = self.state.get('tasks')
         if topic == 'state':
-            return {'plugins': self.snapshot(), 'activity': self.runtime.active if self.runtime else None}
+            return {'plugins': self.snapshot()}
         if topic == 'tasks.list':
             return [task.to_dict() for task in tasks.list()]
         if topic == 'tasks.get':
@@ -572,19 +533,10 @@ class PluginManager:
                 return {'session_id': runtime.session_id}
             from ..ling import ling_session_id
             return {'session_id': ling_session_id(tasks)}
-        if topic == 'activity.current':
-            return self.runtime.active if self.runtime else None
-        if topic == 'activity.runs':
-            return self.events.list(plugin_id, args.get('limit', 100))
         raise ValueError('未知宿主查询: ' + topic)
 
     def command(self, plugin_id, action, **args):
         current = getattr(self.local, 'call', None)
-        if action == 'activity.finish':
-            return self.runtime.finish(plugin_id, **args)
-        if action == 'task.hold':
-            self.events.metadata(f'hold:{plugin_id}:{args["id"]}', '1' if args.get('held', True) else '0')
-            return {'held': bool(args.get('held', True))}
         if action.startswith('work.'):
             context = current[1] if current else None
             service = getattr(context, 'work_service', None)
@@ -598,15 +550,8 @@ class PluginManager:
             getattr(controller, action.split('.')[1])(task_id,
                 request_id=args.get('request_id') or f'plugin-{plugin_id}-{uuid.uuid4().hex}',
                 expected_version=task.control_version)
-            self.events.metadata(f'hold:{plugin_id}:{task_id}', '1' if action == 'task.pause' else '0')
             return store.get(task_id).to_dict()
         raise ValueError('未知宿主操作: ' + action)
-
-    def can_schedule(self, task_id):
-        return not self.events.task_held(task_id)
-
-    def release_task(self, task_id):
-        self.events.task_held(task_id, release=True)
 
     def asset(self, plugin_id, relative):
         item = self.entries[plugin_id]
@@ -665,38 +610,11 @@ class PluginManager:
             if staging.exists():
                 self._remove_directory(staging)
 
-    def _migrate_events(self):
-        if self.events.metadata('legacy_events_imported'):
-            return
-        source = self.home / 'automation.sqlite3'
-        if source.exists():
-            backup = self.home / 'plugins-migration-backup' / 'automation.sqlite3'
-            backup.parent.mkdir(parents=True, exist_ok=True)
-            old = sqlite3.connect(source)
-            copy = sqlite3.connect(backup)
-            try:
-                old.backup(copy)
-                old.row_factory = sqlite3.Row
-                if old.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='runs'").fetchone():
-                    for raw in old.execute('SELECT * FROM runs'):
-                        value = dict(raw)
-                        value['reasons'] = json.loads(value['reasons'])
-                        event = self.events.add('autonomy', {'id': value['id'], 'type': value.get('kind', 'wake'),
-                            'text': value.get('prompt', ''), 'data': value,
-                            'reply_required': value.get('notify', False), 'created_at': value['created_at']})
-                        status = value.get('status', 'pending')
-                        self.events.update(event['id'], status='interrupted' if status == 'running' else status,
-                            result={'reply': value.get('reply', ''), 'summary': value.get('summary', '')},
-                            error=str(value.get('error') or ''))
-            finally:
-                old.close()
-                copy.close()
-        self.events.metadata('legacy_events_imported', '1')
-
     def close(self):
         self.closing = True
-        if self.runtime:
-            self.runtime.close()
+        self._events_stop.set()
+        if self._events_thread and self._events_thread is not threading.current_thread():
+            self._events_thread.join(timeout=5)
         for item in list(self.entries.values()):
             if item.instance or item.services:
                 self.operate(item.id, 'unload')

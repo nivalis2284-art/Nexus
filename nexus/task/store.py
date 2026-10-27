@@ -1,9 +1,8 @@
-"""SQLite authority for task state, evidence, schedules, and control events."""
+"""SQLite authority for task state, evidence, and control events."""
 
 from __future__ import annotations
 
 import json
-import hashlib
 import sqlite3
 import threading
 import uuid
@@ -12,13 +11,14 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from ..attachments import message_content
+from ..core.effort import LEVELS
 
 from .models import (
     ACTIVITY_STATES, Evidence, Step, Task, TaskConflict, TaskNotFound,
     TaskValidationError, now_iso, task_from_row,
 )
 
-TASK_SCHEMA_VERSION = 2
+TASK_SCHEMA_VERSION = 3
 
 NOTIFICATION_KINDS = frozenset({
     "completed", "blocked", "interaction", "cancelled",
@@ -30,6 +30,15 @@ NOTIFICATION_KINDS = frozenset({
 # requested again. Lifecycle transitions (suspend, archive, recovery) leave
 # these untouched and keep the decision valid.
 AUTHORIZATION_SCOPE_FIELDS = ("goal", "effective_goal", "workspace")
+
+
+def _required_text(value: Any, name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise TaskValidationError(f"{name} is required")
+    value = value.strip()
+    if len(value) > 200:
+        raise TaskValidationError(f"{name} is too long")
+    return value
 
 
 class TaskStore:
@@ -65,9 +74,9 @@ class TaskStore:
                       state TEXT NOT NULL, wait_reason TEXT NOT NULL DEFAULT '',
                       archived INTEGER NOT NULL DEFAULT 0, workspace TEXT NOT NULL,
                       provider_id TEXT NOT NULL DEFAULT '', model_id TEXT NOT NULL DEFAULT '',
-                      effort TEXT, progress_version INTEGER NOT NULL DEFAULT 1,
+                      effort TEXT, read_only INTEGER NOT NULL DEFAULT 0,
+                      progress_version INTEGER NOT NULL DEFAULT 1,
                       control_version INTEGER NOT NULL DEFAULT 1,
-                      schedule_version INTEGER NOT NULL DEFAULT 0,
                       steps_json TEXT NOT NULL DEFAULT '[]', decisions_json TEXT NOT NULL DEFAULT '[]',
                       evidence_json TEXT NOT NULL DEFAULT '[]', blocked TEXT NOT NULL DEFAULT '',
                       next_step TEXT NOT NULL DEFAULT '', work_summary TEXT NOT NULL DEFAULT '',
@@ -82,14 +91,6 @@ class TaskStore:
                     """,
                     """
                     CREATE INDEX events_task_seq ON events(task_id, seq);
-                    """,
-                    """
-                    CREATE TABLE schedules (
-                      task_id TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
-                      due_at TEXT NOT NULL, timezone TEXT NOT NULL, mode TEXT NOT NULL,
-                      version INTEGER NOT NULL, status TEXT NOT NULL, claimed_at TEXT,
-                      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-                    );
                     """,
                     """
                     CREATE TABLE commands (
@@ -152,7 +153,7 @@ class TaskStore:
                 )
                 for statement in statements:
                     connection.execute(statement)
-                connection.execute(f"PRAGMA user_version = {TASK_SCHEMA_VERSION}")
+                connection.execute("PRAGMA user_version = 2")
             if version < 2:
                 # Existing task databases gain additive tables only. Task rows
                 # and their model projection stay unchanged across this upgrade.
@@ -183,9 +184,16 @@ class TaskStore:
                     )
                     """
                 )
+                connection.execute("PRAGMA user_version = 2")
+            if version < 3:
+                # Existing task rows keep their records; only the writer flag
+                # is added. Historical schedules tables stay on disk unread.
+                columns = {row[1] for row in connection.execute("PRAGMA table_info(tasks)")}
+                if "read_only" not in columns:
+                    connection.execute(
+                        "ALTER TABLE tasks ADD COLUMN read_only INTEGER NOT NULL DEFAULT 0"
+                    )
                 connection.execute(f"PRAGMA user_version = {TASK_SCHEMA_VERSION}")
-            elif version > TASK_SCHEMA_VERSION:
-                raise TaskValidationError(f"unsupported task database version: {version}")
 
     @contextmanager
     def _transaction(self) -> Iterator[sqlite3.Connection]:
@@ -210,20 +218,6 @@ class TaskStore:
         )
         sequence = int(cursor.lastrowid)
         self._record_notification(connection, task_id, sequence, kind, data or {})
-        # Copy significant autonomous outcomes in the SAME transaction. These
-        # facts must survive deleting the task before the observer next polls.
-        if connection.execute("SELECT 1 FROM sqlite_master WHERE name='autonomy_records'").fetchone():
-            action = connection.execute("SELECT data FROM autonomy_records WHERE kind='action' AND json_extract(data,'$.task_id')=? LIMIT 1", (task_id,)).fetchone()
-            task = connection.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
-            if action and task and task["state"] in ("completed", "cancelled", "paused", "waiting_user"):
-                fact = {"task_id": task_id, "goal_id": json.loads(action[0])["goal_id"],
-                        "state": task["state"], "summary": task["work_summary"],
-                        "blocked": task["blocked"], "next_step": task["next_step"],
-                        "evidence": json.loads(task["evidence_json"]),
-                        "decisions": json.loads(task["decisions_json"])}
-                encoded = json.dumps(fact, ensure_ascii=False, sort_keys=True)
-                key = "work:"+hashlib.sha256(encoded.encode()).hexdigest()
-                connection.execute("INSERT OR IGNORE INTO autonomy_events(source_key,kind,data,at) VALUES(?,'work_result',?,?)", (key, encoded, now_iso()))
         return sequence
 
     def _record_notification(self, connection: sqlite3.Connection, task_id: str,
@@ -271,8 +265,7 @@ class TaskStore:
         elif kind == "interaction.pending":
             notice_kind = "interaction"
         elif kind == "start.held_after_restart":
-            notice_kind = "interaction"
-            interaction_id = str(data.get("interaction_id") or "") or None
+            notice_kind = "paused"
         elif kind == "run.interrupted":
             notice_kind = "interrupted"
         elif kind == "task.progress":
@@ -369,7 +362,7 @@ class TaskStore:
     def create(
         self, *, title: str, goal: str, constraints: str = "", workspace: str,
         provider_id: str = "", model_id: str = "", effort: str | None = None,
-        request_id: str | None = None,
+        request_id: str | None = None, read_only: bool = False,
     ) -> Task:
         title = title.strip()
         goal = goal.strip()
@@ -377,6 +370,8 @@ class TaskStore:
             raise TaskValidationError("title and goal are required")
         if len(title) > 160 or len(goal) > 20_000 or len(constraints) > 20_000:
             raise TaskValidationError("task text exceeds its length limit")
+        if type(read_only) is not bool:
+            raise TaskValidationError("read_only must be boolean")
         stamp = now_iso()
         task_id = "task_" + uuid.uuid4().hex[:16]
         with self._lock, self._transaction() as connection:
@@ -390,11 +385,13 @@ class TaskStore:
                     return task_from_row(self._row(connection, previous["task_id"]))
             connection.execute(
                 """INSERT INTO tasks(id,title,goal,constraints,effective_goal,state,workspace,
-                provider_id,model_id,effort,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                provider_id,model_id,effort,read_only,created_at,updated_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (task_id, title, goal, constraints, goal, "pending", workspace,
-                 provider_id, model_id, effort, stamp, stamp),
+                 provider_id, model_id, effort, int(bool(read_only)), stamp, stamp),
             )
-            self._event(connection, task_id, "task.created", {"goal": goal})
+            self._event(connection, task_id, "task.created",
+                        {"goal": goal, "read_only": bool(read_only)})
             if request_id:
                 self._remember_command(connection, request_id, task_id, "create", {"task_id": task_id})
             return task_from_row(self._row(connection, task_id))
@@ -521,10 +518,6 @@ class TaskStore:
             if row["control_version"] != expected_version:
                 raise TaskConflict("task configuration changed; reload before editing")
             if values:
-                touched_schedule = set(values) & {
-                    "goal", "constraints", "effective_goal", "workspace",
-                    "provider_id", "model_id", "effort",
-                }
                 # A different goal or workspace is different work, so decisions
                 # saved for the previous target must be requested again.
                 target_changed = any(
@@ -540,8 +533,6 @@ class TaskStore:
                     connection, task_id, previous_version=expected_version,
                     new_version=expected_version + 1, target_changed=target_changed,
                 )
-                if touched_schedule:
-                    connection.execute("DELETE FROM schedules WHERE task_id=?", (task_id,))
                 self._event(connection, task_id, "task.user_edit",
                             {"version": expected_version + 1})
             if serialized_steps is not None:
@@ -554,10 +545,56 @@ class TaskStore:
                             {"version": row["progress_version"] + 1})
             return task_from_row(self._row(connection, task_id))
 
+    def set_model(self, task_id: str, *, provider_id: str, model_id: str,
+                  effort: str | None = None,
+                  expected_version: int | None = None) -> Task:
+        """Change the model used at the next safe boundary.
+
+        The task keeps running. Only a changed target retires approvals, so a
+        binding change never invalidates pending decisions or history.
+        """
+        provider_id = _required_text(provider_id, "provider_id")
+        model_id = _required_text(model_id, "model_id")
+        if effort is not None:
+            if not isinstance(effort, str):
+                raise TaskValidationError("effort must be a string or null")
+            effort = effort.strip() or None
+            if effort is not None and effort not in LEVELS:
+                raise TaskValidationError(f"unknown effort level: {effort}")
+        with self._lock, self._transaction() as connection:
+            row = self._row(connection, task_id)
+            if expected_version is not None and row["control_version"] != expected_version:
+                raise TaskConflict("task changed; reload before changing its model")
+            version = row["control_version"] + 1
+            connection.execute(
+                "UPDATE tasks SET provider_id=?,model_id=?,effort=?,control_version=?,updated_at=? WHERE id=?",
+                (provider_id, model_id, effort, version, now_iso(), task_id),
+            )
+            self._advance_control_version(
+                connection, task_id, previous_version=row["control_version"],
+                new_version=version, target_changed=False,
+            )
+            self._event(connection, task_id, "task.model", {
+                "version": version, "provider_id": provider_id, "model_id": model_id,
+                "effort": effort, "applies": "next_model_request",
+            })
+            return task_from_row(self._row(connection, task_id))
+
+    def update_read_only(self, task_id: str, read_only: bool) -> Task:
+        """Mark whether this work may take the project writer slot."""
+        if type(read_only) is not bool:
+            raise TaskValidationError("read_only must be boolean")
+        with self._lock, self._transaction() as connection:
+            self._row(connection, task_id)
+            connection.execute("UPDATE tasks SET read_only=?,updated_at=? WHERE id=?",
+                               (int(read_only), now_iso(), task_id))
+            self._event(connection, task_id, "task.writer_mode", {"read_only": read_only})
+            return task_from_row(self._row(connection, task_id))
+
     def command(self, task_id: str, operation: str, *, request_id: str,
                 expected_version: int | None = None, reason: str = "",
                 source: str = "user") -> Task:
-        if operation not in ACTIVITY_STATES and operation not in ("reopen", "archive", "unarchive", "confirm_wait"):
+        if operation not in ACTIVITY_STATES and operation not in ("reopen", "archive", "unarchive"):
             raise TaskValidationError(f"unknown task operation: {operation}")
         source = str(source or "user")
         with self._lock, self._transaction() as connection:
@@ -583,21 +620,14 @@ class TaskStore:
                 target = operation
                 wait_reason = ""
             elif operation == "pausing":
-                if state != "running":
-                    raise TaskConflict("only a running task can be paused")
+                if state not in ("running", "waiting_user"):
+                    raise TaskConflict("only running or waiting work can be stopping")
                 target = "pausing"
             elif operation == "paused":
                 if state not in ("pending", "running", "pausing", "waiting_user", "queued"):
                     raise TaskConflict(f"cannot suspend a {state} task")
                 target = "paused"
-                wait_reason = reason or "已挂起；未完成的安排仍会显示"
-            elif operation == "confirm_wait":
-                if state in ("cancelled", "completed"):
-                    raise TaskConflict("inactive task cannot await a start confirmation")
-                if state == "running" and row["wait_reason"]:
-                    raise TaskConflict("task already has an active interaction")
-                target = "waiting_user"
-                wait_reason = "定时安排已到期，等待用户确认开始"
+                wait_reason = reason or "已挂起；需要时手动继续"
             elif operation == "waiting_user":
                 if state not in ("running", "pausing", "queued"):
                     raise TaskConflict("only an active task can wait for the user")
@@ -614,17 +644,23 @@ class TaskStore:
             elif operation == "cancelled":
                 target = "cancelled"
                 wait_reason = "已取消；重新启用后需手动开始"
-                connection.execute("DELETE FROM schedules WHERE task_id=?", (task_id,))
             elif operation == "reopen":
-                if state != "cancelled":
-                    raise TaskConflict("only a cancelled task can be re-enabled")
+                if state not in ("completed", "cancelled"):
+                    raise TaskConflict("only a completed or cancelled task can be re-enabled")
+                if state == "completed" and row["work_summary"]:
+                    # The task row keeps one current summary. Copy the finished
+                    # iteration's result before later work can replace it.
+                    connection.execute(
+                        "INSERT INTO task_messages(task_id,kind,text,data_json,created_at) "
+                        "VALUES(?,?,?,'{}',?)",
+                        (task_id, "notice", "上一轮已完成的说明：" + row["work_summary"], now_iso()),
+                    )
                 target = "paused"
-                wait_reason = "已重新启用；点击开始继续"
+                wait_reason = "已重新启用；点击开始继续同一项工作"
             elif operation == "archive":
                 if state in ("running", "pausing", "queued", "waiting_user"):
                     raise TaskConflict("finish or suspend the task before archiving")
                 archived = True
-                connection.execute("DELETE FROM schedules WHERE task_id=?", (task_id,))
             elif operation == "unarchive":
                 archived = False
             control_version = row["control_version"] + 1
@@ -667,7 +703,6 @@ class TaskStore:
             if target == "completed":
                 if self.pending_interactions(task_id) or self.unfinished_operations(task_id):
                     raise TaskConflict("resolve pending work and unknown operations first")
-                connection.execute("DELETE FROM schedules WHERE task_id=?", (task_id,))
             connection.execute(
                 "UPDATE tasks SET state=?,wait_reason=?,control_version=?,updated_at=? WHERE id=?",
                 (target, wait_reason,
@@ -834,7 +869,6 @@ class TaskStore:
             "messages": self.messages(task_id),
             "interactions": self.pending_interactions(task_id),
             "operations": self.unfinished_operations(task_id),
-            "schedule": self.schedule(task_id),
         }
 
     def recover_interrupted(self) -> list[str]:
@@ -887,35 +921,24 @@ class TaskStore:
         return interrupted
 
     def hold_queued_at_startup(self) -> list[str]:
-        """A queue entry from a previous process needs a fresh owner decision."""
+        """A queue entry from a previous process waits for an explicit resume."""
         held: list[str] = []
         with self._lock, self._transaction() as connection:
             rows = connection.execute("SELECT id FROM tasks WHERE state='queued'").fetchall()
             for row in rows:
                 task = self._row(connection, row["id"])
-                interaction_id = "int_" + uuid.uuid4().hex[:16]
-                stamp = now_iso()
+                reason = "重启前任务已排队但尚未开始；请明确继续"
                 connection.execute(
-                    """INSERT INTO interactions(id,task_id,run_id,operation_id,kind,payload_json,
-                    status,control_version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)""",
-                    (interaction_id, task["id"], None, None, "start_confirmation",
-                     json.dumps({"reason": "queued_before_restart"}, ensure_ascii=False),
-                     "pending", task["control_version"] + 1, stamp, stamp),
+                    "UPDATE tasks SET state='paused',wait_reason=?,control_version=control_version+1,updated_at=? WHERE id=?",
+                    (reason, now_iso(), task["id"]),
                 )
-                connection.execute(
-                    "UPDATE tasks SET state='waiting_user',wait_reason=?,control_version=control_version+1,updated_at=? WHERE id=?",
-                    ("重启前任务已排队但尚未开始，等待用户确认", stamp, task["id"]),
-                )
-                # Holding the queue entry is a status change. Any decision that
-                # was already pending must follow the new version rather than
-                # being stranded at a version that can never be answered.
+                # Existing approvals and questions follow the new version.
                 self._advance_control_version(
                     connection, task["id"], previous_version=task["control_version"],
                     new_version=task["control_version"] + 1, target_changed=False,
                 )
                 self._event(connection, task["id"], "start.held_after_restart",
-                            {"interaction_id": interaction_id,
-                             "wait_reason": "重启前任务已排队但尚未开始，等待用户确认"})
+                            {"wait_reason": reason})
                 held.append(task["id"])
         return held
 
@@ -942,40 +965,6 @@ class TaskStore:
                 "id": interaction_id, "kind": kind,
                 "wait_reason": str(payload.get("question") or payload.get("reason") or ""),
             })
-            return interaction_id
-
-    def request_confirmation(
-        self, task_id: str, *, request_id: str, payload: dict[str, Any],
-    ) -> str:
-        """Create the pending decision and its version in one transaction."""
-        with self._lock, self._transaction() as connection:
-            row = self._row(connection, task_id)
-            if row["state"] in ("cancelled", "completed") or row["archived"]:
-                raise TaskConflict("inactive task cannot await a start confirmation")
-            interaction_id = "int_" + uuid.uuid4().hex[:16]
-            stamp = now_iso()
-            connection.execute(
-                """INSERT INTO interactions(id,task_id,run_id,operation_id,kind,payload_json,
-                status,control_version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)""",
-                (interaction_id, task_id, None, None, "start_confirmation",
-                 json.dumps(payload, ensure_ascii=False), "pending",
-                 row["control_version"] + 1, stamp, stamp),
-            )
-            connection.execute(
-                "UPDATE tasks SET state='waiting_user',wait_reason=?,control_version=control_version+1,updated_at=? WHERE id=?",
-                ("定时安排已到期，等待用户确认开始", stamp, task_id),
-            )
-            # Earlier pending decisions belong to the state before this start
-            # request but still describe the same target, so they stay answerable.
-            self._advance_control_version(
-                connection, task_id, previous_version=row["control_version"],
-                new_version=row["control_version"] + 1, target_changed=False,
-            )
-            self._remember_command(connection, request_id, task_id, "confirm_wait",
-                                   {"interaction_id": interaction_id})
-            self._event(connection, task_id, "interaction.pending",
-                        {"id": interaction_id, "kind": "start_confirmation",
-                         "wait_reason": "定时安排已到期，等待用户确认开始"})
             return interaction_id
 
     def interaction_answer(self, interaction_id: str, *, answer: Any, expected_version: int | None = None) -> dict[str, Any]:
@@ -1294,7 +1283,7 @@ class TaskStore:
         return {"applied_through": applied, "pending_count": int(pending)}
 
     def add_message(self, task_id: str, *, kind: str, text: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
-        if kind not in ("user", "assistant", "tool", "notice", "autonomy"):
+        if kind not in ("user", "assistant", "tool", "notice"):
             raise TaskValidationError("invalid task message kind")
         with self._lock, self._transaction() as connection:
             self._row(connection, task_id)
@@ -1396,7 +1385,7 @@ class TaskStore:
                 if role not in ("user", "assistant", "tool", "notice"):
                     continue
                 data = {key: message[key] for key in
-                        ("tool_calls", "tool_call_id", "name", "arguments", "ok",
+                        ("message_id", "parent_message_id", "tool_calls", "tool_call_id", "name", "arguments", "ok",
                          "error", "thinking", "usage") if message.get(key) is not None}
                 connection.execute(
                     "INSERT INTO task_messages(task_id,kind,text,data_json,created_at) VALUES(?,?,?,?,?)",
@@ -1418,8 +1407,6 @@ class TaskStore:
                     user_answers[str(item["interaction_id"])] = item.get("text", "")
                 else:
                     out.append({"role": "user", "content": message_content(item.get("text", ""), item.get("attachments", []), include_images=include_images)})
-            elif kind == "autonomy":
-                out.append({"role": "user", "content": message_content("Internal work delegated by Ling within owner scope; not a new user instruction:\n" + item.get("text", ""), item.get("attachments", []), include_images=include_images)})
             elif kind == "assistant":
                 calls = item.get("tool_calls") or []
                 if item.get("text") or calls:
@@ -1476,119 +1463,3 @@ class TaskStore:
                     for row in rows]
         finally:
             connection.close()
-
-    def set_schedule(self, task_id: str, *, due_at: str, timezone: str, mode: str) -> dict[str, Any]:
-        if mode not in ("auto", "confirm"):
-            raise TaskValidationError("schedule mode must be auto or confirm")
-        try:
-            from datetime import datetime
-            from zoneinfo import ZoneInfo
-            parsed = datetime.fromisoformat(due_at.replace("Z", "+00:00"))
-            if parsed.tzinfo is None:
-                raise ValueError("timezone required")
-            # The ISO-8601 timestamp already carries the resolved UTC offset,
-            # so a display-only IANA label does not need a server tz database.
-            # The browser computes the instant and sends the zone it displayed.
-            if timezone.upper() not in ("UTC", "GMT") and not timezone.upper().startswith(
-                ("UTC+", "UTC-", "GMT+", "GMT-")
-            ):
-                # Validate the IANA key when timezone data is available. A
-                # Windows installation without tzdata can still use the explicit
-                # offset from due_at and keeps the display key intact.
-                try:
-                    zone = ZoneInfo(timezone)
-                except Exception as error:
-                    raise ValueError(f"IANA timezone data is unavailable for {timezone}") from error
-                if parsed.utcoffset() != parsed.astimezone(zone).utcoffset():
-                    raise ValueError("due_at offset does not match the selected timezone")
-        except Exception as error:
-            raise TaskValidationError(f"invalid schedule time or timezone: {error}") from error
-        with self._lock, self._transaction() as connection:
-            row = self._row(connection, task_id)
-            if row["state"] in ("cancelled", "completed"):
-                raise TaskConflict("cannot schedule an inactive task")
-            if row["archived"]:
-                raise TaskConflict("cannot schedule an archived task")
-            version = row["schedule_version"] + 1
-            stamp = now_iso()
-            connection.execute(
-                """INSERT INTO schedules(task_id,due_at,timezone,mode,version,status,claimed_at,created_at,updated_at)
-                VALUES(?,?,?,?,?,? ,?,?,?)
-                ON CONFLICT(task_id) DO UPDATE SET due_at=excluded.due_at,timezone=excluded.timezone,
-                mode=excluded.mode,version=excluded.version,status='pending',claimed_at=NULL,updated_at=excluded.updated_at""",
-                (task_id, due_at, timezone, mode, version, "pending", None, stamp, stamp),
-            )
-            connection.execute("UPDATE tasks SET schedule_version=?,updated_at=? WHERE id=?",
-                               (version, stamp, task_id))
-            self._event(connection, task_id, "schedule.set", {"version": version, "mode": mode})
-        return {"due_at": due_at, "timezone": timezone, "mode": mode, "version": version, "status": "pending"}
-
-    def schedule(self, task_id: str) -> dict[str, Any] | None:
-        connection = self._connect()
-        try:
-            self._row(connection, task_id)
-            row = connection.execute("SELECT * FROM schedules WHERE task_id=?", (task_id,)).fetchone()
-            if row is None:
-                return None
-            return {"due_at": row["due_at"], "timezone": row["timezone"], "mode": row["mode"],
-                    "version": row["version"], "status": row["status"]}
-        finally:
-            connection.close()
-
-    def clear_schedule(self, task_id: str) -> bool:
-        with self._lock, self._transaction() as connection:
-            self._row(connection, task_id)
-            cursor = connection.execute("DELETE FROM schedules WHERE task_id=?", (task_id,))
-            if cursor.rowcount:
-                self._event(connection, task_id, "schedule.cleared", {})
-            return bool(cursor.rowcount)
-
-    def due_schedules(self, now: str) -> list[dict[str, Any]]:
-        connection = self._connect()
-        try:
-            rows = connection.execute(
-                "SELECT s.*,t.created_at AS task_created FROM schedules s JOIN tasks t ON t.id=s.task_id "
-                "WHERE s.status='pending' AND s.due_at<=? AND t.state NOT IN ('cancelled','completed') "
-                "AND t.archived=0 ORDER BY s.due_at,t.created_at", (now,)
-            ).fetchall()
-            return [{key: row[key] for key in row.keys()} for row in rows]
-        finally:
-            connection.close()
-
-    def claim_schedule(self, task_id: str, *, request_id: str) -> dict[str, Any] | None:
-        """Atomically turn one due schedule into a start request."""
-        with self._lock, self._transaction() as connection:
-            row = connection.execute(
-                "SELECT s.*,t.state FROM schedules s JOIN tasks t ON t.id=s.task_id WHERE s.task_id=?",
-                (task_id,),
-            ).fetchone()
-            if row is None or row["status"] != "pending":
-                return None
-            if row["state"] in ("cancelled", "completed"):
-                return None
-            previous = connection.execute("SELECT * FROM commands WHERE request_id=?",
-                                          (request_id,)).fetchone()
-            start_operation = "queued" if row["mode"] == "auto" else "waiting_user"
-            if previous is not None and previous["task_id"] != task_id:
-                raise TaskConflict("request id was used for another schedule")
-            connection.execute("UPDATE schedules SET status='claimed',claimed_at=?,updated_at=? WHERE task_id=?",
-                               (now_iso(), now_iso(), task_id))
-            self._event(connection, task_id, "schedule.claimed", {"mode": row["mode"]})
-            result = {"task_id": task_id, "mode": row["mode"], "operation": start_operation}
-            if previous is None:
-                self._remember_command(connection, request_id, task_id, start_operation, result)
-            return result
-
-    def complete_schedule(self, task_id: str) -> None:
-        with self._lock, self._transaction() as connection:
-            connection.execute("UPDATE schedules SET status='consumed',updated_at=? WHERE task_id=?",
-                               (now_iso(), task_id))
-
-    def release_schedule(self, task_id: str) -> None:
-        """Return a failed reservation to the due set for a later retry."""
-        with self._lock, self._transaction() as connection:
-            connection.execute(
-                "UPDATE schedules SET status='pending',claimed_at=NULL,updated_at=? "
-                "WHERE task_id=? AND status='claimed'",
-                (now_iso(), task_id),
-            )

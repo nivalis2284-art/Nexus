@@ -16,7 +16,8 @@ class TaskCallbacks:
     """Tool and Agent bridge into the task authority."""
 
     def __init__(
-        self, store: TaskStore, task_id: str, run_id: str, *, cancel: threading.Event
+        self, store: TaskStore, task_id: str, run_id: str, *, cancel: threading.Event,
+        on_saved: Any = None,
     ) -> None:
         self.store = store
         self.task_id = task_id
@@ -29,6 +30,7 @@ class TaskCallbacks:
         self._finished = False
         self.waiting: dict[str, Any] | None = None
         self._saved_messages: dict[int, dict[str, Any]] = {}
+        self._on_saved = on_saved
 
     # --- task work -------------------------------------------------------
 
@@ -114,7 +116,7 @@ class TaskCallbacks:
         )
         completed = self.store.command(
             self.task_id, "completed", request_id=f"finish-{self.run_id}",
-            expected_version=updated.control_version,
+            expected_version=updated.control_version, source="agent",
         )
         self._finished = True
         return {"state": completed.state, "evidence_ids": sorted(evidence_ids),
@@ -233,6 +235,8 @@ class TaskCallbacks:
         # Holding the object prevents CPython from reusing its id in a later
         # Agent.run() while this callback still owns the run boundary.
         self._saved_messages[identity] = message
+        if self._on_saved is not None:
+            self._on_saved(self.task_id, clear=True)
 
     def save_run_messages(self, messages: list[dict[str, Any]], *,
                           incomplete: bool = False) -> None:
@@ -246,6 +250,8 @@ class TaskCallbacks:
             self.persistence_failure(error)
             raise
         self._saved_messages.update({id(message): message for message in messages})
+        if remaining and self._on_saved is not None:
+            self._on_saved(self.task_id, clear=True)
 
     def apply_new_inputs(self, history: list[dict[str, Any]], *,
                          include_images: bool = False, snapshot: bool = False,
@@ -327,6 +333,7 @@ class TaskCallbacks:
         """One isolated operation namespace on the same task authority."""
         child = TaskCallbacks(
             self.store, self.task_id, self.run_id, cancel=self.cancel,
+            on_saved=self._on_saved,
         )
         child._operation_scope = "child-" + uuid.uuid4().hex[:12]
         return child

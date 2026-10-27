@@ -249,28 +249,20 @@ def _parse(patch: str, target: Path, raw: str) -> list[_Hunk]:
     return hunks
 
 
-def _split(text: str) -> tuple[list[str], str, bool]:
-    """Split into lines, returning the file's newline style and final newline.
-
-    A unified diff cannot express line endings, so they are preserved from the
-    file: a CRLF file stays CRLF. A file with *mixed* endings is refused instead
-    of silently normalised -- rewriting every untouched line would be a far
-    larger change than the patch the caller asked for.
-    """
+def _split(text: str) -> tuple[list[str], list[str], str]:
+    """Keep each line's terminator so a patch never normalizes untouched lines."""
     if not text:
-        return [], "\n", False
-    crlf = text.count("\r\n")
-    lf = text.count("\n") - crlf
-    if crlf and lf:
-        raise ValueError(
-            f"The file mixes CRLF ({crlf}) and LF ({lf}) line endings, so applying "
-            "a diff would rewrite every line that has the other ending. Normalise "
-            "the file's line endings first."
-        )
-    newline = "\r\n" if crlf else "\n"
-    ends_with_newline = text.endswith(newline)
-    body = text[: -len(newline)] if ends_with_newline else text
-    return body.split(newline), newline, ends_with_newline
+        return [], [], "\n"
+    parts = text.split("\n")
+    lines, endings = [], []
+    for part in parts[:-1]:
+        ending = "\r\n" if part.endswith("\r") else "\n"
+        lines.append(part[:-1] if ending == "\r\n" else part)
+        endings.append(ending)
+    if parts[-1]:
+        lines.append(parts[-1])
+        endings.append("")
+    return lines, endings, next((ending for ending in endings if ending), "\n")
 
 
 def _final_newline(
@@ -298,13 +290,16 @@ def _final_newline(
     return current
 
 
-def _apply(hunks: list[_Hunk], lines: list[str]) -> tuple[list[str], int, int, bool]:
+def _apply(
+    hunks: list[_Hunk], lines: list[str], endings: list[str], newline: str,
+) -> tuple[list[str], list[str], int, int, bool]:
     """Return the patched lines. Raises before any caller writes anything.
 
     The last flag reports whether the original file's final line was removed or
     replaced, which ``_final_newline`` needs to judge the trailing newline.
     """
     result = list(lines)
+    endings = list(endings)
     offset = 0
     previous_end = 0
     added = removed = 0
@@ -340,6 +335,8 @@ def _apply(hunks: list[_Hunk], lines: list[str]) -> tuple[list[str], int, int, b
             )
 
         rebuilt = result[:start]
+        rebuilt_endings = endings[:start]
+        local_newline = next((e for e in endings[start:] if e), newline)
         cursor = start
         old_seen = 0
         for op, text in hunk.body:
@@ -363,18 +360,23 @@ def _apply(hunks: list[_Hunk], lines: list[str]) -> tuple[list[str], int, int, b
                 old_seen += 1
                 if op == " ":
                     rebuilt.append(text)
+                    rebuilt_endings.append(endings[cursor])
                 else:
                     removed += 1
+                local_newline = endings[cursor] or local_newline
                 cursor += 1
             else:
                 rebuilt.append(text)
+                rebuilt_endings.append(local_newline)
                 added += 1
         rebuilt.extend(result[cursor:])
+        rebuilt_endings.extend(endings[cursor:])
 
         offset += hunk.new_count - hunk.old_count
         previous_end = hunk.old_start + hunk.old_count - 1
         result = rebuilt
-    return result, added, removed, removed_tail
+        endings = rebuilt_endings
+    return result, endings, added, removed, removed_tail
 
 
 def _check_expected(path: Path, expected: str | None) -> None:
@@ -408,13 +410,18 @@ def apply_patch(context: Any, args: dict[str, Any]) -> dict[str, Any]:
             f"{path} is not valid UTF-8 ({error}). apply_patch only edits UTF-8 text."
         ) from error
 
-    lines, newline, ends_with_newline = _split(original)
+    lines, endings, newline = _split(original)
 
-    patched, added, removed, removed_tail = _apply(hunks, lines)
+    patched, patched_endings, added, removed, removed_tail = _apply(hunks, lines, endings, newline)
     ends_with_newline = _final_newline(
-        hunks, patched, ends_with_newline, len(lines), removed_tail
+        hunks, patched, bool(endings and endings[-1]), len(lines), removed_tail
     )
-    text = newline.join(patched) + (newline if patched and ends_with_newline else "")
+    if patched:
+        patched_endings[-1] = (patched_endings[-1] or newline) if ends_with_newline else ""
+    text = "".join(
+        line + (ending or (newline if index < len(patched) - 1 else ""))
+        for index, (line, ending) in enumerate(zip(patched, patched_endings))
+    )
     body = text.encode("utf-8")
 
     changed = body != raw

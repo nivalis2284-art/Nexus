@@ -65,6 +65,20 @@ class FakeNode {
     this.onclick = null;
   }
 
+  get childNodes() { return this.children; }
+
+  get textContent() { return (this._text || "") + this.children.map(node => node.textContent).join(""); }
+  set textContent(value) { this._text = String(value || ""); if (this.children) this.children = []; }
+
+  insertBefore(child, before) {
+    if (child.parent) child.remove();
+    child.parent = this;
+    const index = before ? this.children.indexOf(before) : this.children.length;
+    this.children.splice(index, 0, child); return child;
+  }
+
+  replaceChildren(...children) { this.children = []; this._text = ""; for (const child of children) this.appendChild(child); }
+
   set innerHTML(value) {
     this.children = [];
     this._innerHTML = String(value || "");
@@ -101,6 +115,7 @@ class FakeNode {
   }
 
   addEventListener(name, handler) {
+    (this.handlers ||= {})[name] = handler;
     if (name === "submit") this.__submitHandler = handler;
   }
   focus() {}
@@ -224,11 +239,17 @@ async function loadHarness(options = {}) {
 
   const context = vm.createContext({
     document,
-    window: { innerWidth: 1200 },
+    window: { innerWidth: 1200, addEventListener() {} },
     fetch,
     TextDecoder,
     TextEncoder,
     console,
+    renderContent(text) { const n = new FakeNode("div"); n.textContent = text; return n; },
+    toolNode(item) {
+      const n=new FakeNode("details"); n.className="step";
+      const summary=new FakeNode("summary"); summary.textContent=(item.name || "tool") + (item.live ? " 运行中" : " 完成"); n.appendChild(summary);
+      const body=new FakeNode("div"); body.textContent=item.text || ""; n.appendChild(body); return n;
+    },
     setTimeout: options.setTimeout || setTimeout,
     clearTimeout: options.clearTimeout || clearTimeout,
     confirm: () => true,
@@ -242,6 +263,7 @@ async function loadHarness(options = {}) {
   vm.runInContext(APP, context, { filename: "nexus/web/app.js" });
   await new Promise((resolve) => setImmediate(resolve));
   if (options.tasks) {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, "nexus", "web", "ling.js"), "utf8"), context);
     vm.runInContext(fs.readFileSync(path.join(ROOT, "nexus", "web", "tasks.js"), "utf8"), context,
       { filename: "nexus/web/tasks.js" });
     await new Promise((resolve) => setImmediate(resolve));
@@ -302,293 +324,193 @@ async function testNodeForHandlesAnImageOnlyMessage() {
   console.log("ok - nodeFor keeps an image-only message visible");
 }
 
-async function testSendFreezesTheAttachmentSnapshot() {
+async function testPickedFileBecomesAnImageAttachment() {
   const harness = await loadHarness();
-  harness.setChatEvents([]);
-  evaluate(
-    harness.context,
-    `
-      pendingImages = [{ mime: "image/png", data: ${JSON.stringify(PNG_A)} }];
-      state.sessionId = null;
-      refresh = async () => ({});
-      openSession = async () => {};
-      newSession = async () => {
-        state.sessionId = "s1";
-        pendingImages.push({ mime: "image/png", data: ${JSON.stringify(PNG_B)} });
-      };
-    `
-  );
-  await evaluate(harness.context, "send('查看图片')");
-  assert.equal(harness.calls.chatBodies.length, 1);
-  const body = harness.calls.chatBodies[0];
-  assert.equal(body.images.length, 1, "only attachments present at send time are sent");
-  assert.equal(body.images[0].mime, "image/png");
-  assert.equal(body.images[0].data, PNG_A);
-  const user = evaluate(harness.context, "state.items.find((item) => item.role === 'user')");
-  assert.equal(user.images[0].data, PNG_A, "the optimistic transcript needs display data");
-  assert.equal(evaluate(harness.context, "pendingImages.length"), 1);
-  assert.equal(evaluate(harness.context, "pendingImages[0].data"), PNG_B);
-  console.log("ok - send snapshots image data before awaiting a new session");
-}
-
-async function testComposerWaitsUntilImageReadsFinish() {
-  const harness = await loadHarness();
-  harness.setChatEvents([]);
-  evaluate(
-    harness.context,
-    `
-      pendingImages = [];
-      readingImages = 1;
-      state.sessionId = "s1";
-      $("input").value = "看图";
-      __submitted = 0;
-      __originalSend = send;
-      send = async () => { __submitted += 1; };
-      $("composer").requestSubmit = () => {};
-    `
-  );
-  const handler = evaluate(harness.context, "$('composer').__submitHandler");
-  assert.equal(typeof handler, "function", "the submit handler must be reachable");
-  handler({ preventDefault() {}, target: harness.ids.get("composer") });
-  assert.equal(evaluate(harness.context, "__submitted"), 0);
-  assert.match(harness.ids.get("status").textContent, /读取/);
-  console.log("ok - composer refuses to send while a picked image is still reading");
-}
-
-async function testPickedFileBecomesAnImageInTheRequest() {
-  const harness = await loadHarness();
-  harness.setChatEvents([]);
-  evaluate(
-    harness.context,
-    `
-      pendingImages = [];
-      readingImages = 0;
-      addImages([{ type: "image/png", size: 10, name: "a.png", data: ${JSON.stringify(PNG_A)} }]);
-      __sent = 0;
-      __originalSend = send;
-      send = async () => { __sent += 1; };
-    `
-  );
+  evaluate(harness.context, `
+    pendingImages = [];
+    readingImages = 0;
+    addImages([{ type: "image/png", size: 10, name: "a.png", data: ${JSON.stringify(PNG_A)} }]);
+  `);
   assert.equal(evaluate(harness.context, "pendingImages.length"), 1);
   assert.equal(evaluate(harness.context, "readingImages"), 0);
   const avatar = harness.ids.get("attachments").querySelectorAll("img");
   assert.equal(avatar.length, 1);
   assert.equal(avatar[0].src, "data:image/png;base64," + PNG_A);
-  harness.ids.get("input").value = "发送选中的图片";
-  const handler = harness.ids.get("composer").__submitHandler;
-  handler({ preventDefault() {} });
-  assert.equal(evaluate(harness.context, "__sent"), 1);
-  console.log("ok - a successfully read file is visible and sendable");
+  console.log("ok - a successfully read file is visible as an attachment");
 }
 
-async function runToolEventCase(resultArguments) {
+async function testToolRecordsStayVisibleInTheTranscript() {
   const harness = await loadHarness();
-  const resultTool = { name: "bash", content: "ran", ok: true };
-  if (resultArguments !== undefined) resultTool.arguments = resultArguments;
-  harness.setChatEvents([
-    { type: "tool_start", tool: { name: "bash", arguments: { command: "echo start" } } },
-    { type: "tool_result", tool: resultTool },
-    { type: "done", data: {} },
-  ]);
-  evaluate(
-    harness.context,
-    `
-      state.sessionId = "s1";
-      pendingImages = [];
-      refresh = async () => ({});
-      openSession = async () => {};
-      __calls = [];
-      __originalStepTool = stepTool;
-      stepTool = (item) => { __calls.push(item); return __originalStepTool(item); };
-    `
-  );
-  await evaluate(harness.context, "send('运行命令')");
-  const calls = evaluate(harness.context, "__calls");
-  assert.equal(calls.length, 2);
-  assert.deepEqual(JSON.parse(JSON.stringify(calls[1].arguments)),
-    resultArguments === undefined ? { command: "echo start" } : resultArguments);
+  evaluate(harness.context, `
+    state.items = [
+      {role: "user", text: "运行命令", at: "2026-10-20T01:00:00Z"},
+      {role: "tool", name: "bash", text: "ran", ok: true, arguments: {command: "echo hi"}},
+      {role: "assistant", text: "完成", at: "2026-10-20T01:01:00Z"},
+    ];
+    renderTranscript();
+  `);
+  const text = harness.ids.get("transcript").descendants().map((node) => node.textContent).join(" ");
+  assert.match(text, /bash/);
+  assert.match(text, /完成/);
+  console.log("ok - tool records remain available in the transcript");
 }
 
-async function testToolResultArgumentsReachTheStep() {
-  await runToolEventCase(undefined);
-  console.log("ok - tool_result without arguments keeps tool_start arguments");
-  await runToolEventCase({ command: "echo result" });
-  console.log("ok - tool_result arguments replace the earlier preview");
+async function testReasoningAndProseBothRemainInspectable() {
+  const harness = await loadHarness();
+  evaluate(harness.context, `
+    state.items = [
+      {role: "user", text: "解释一下", at: "2026-10-20T01:00:00Z"},
+      {role: "assistant", thinking: ["先检查已有代码。", "再决定改动范围。"].join(String.fromCharCode(10)),
+        text: "这里是最终回答。", elapsed: 3.5},
+    ];
+    renderTranscript();
+  `);
+  const transcript = harness.ids.get("transcript");
+  assert.equal(transcript.querySelectorAll(".phase").length, 1,
+    "reasoning is folded under one phase");
+  assert.equal(transcript.querySelectorAll(".step").length, 1,
+    "reasoning is inspectable as a step");
+  assert.match(transcript.querySelector(".step").descendants().map((node) => node.textContent).join(" "),
+    /先检查已有代码/,
+    "a settled thinking step shows its first line");
+  assert.equal(transcript.querySelectorAll(".answer")[0].textContent, "这里是最终回答。",
+    "reasoning plus prose still renders the answer");
+  assert.match(transcript.descendants().map((node) => node.textContent).join(" "), /本轮用时 3.5 秒/);
+  console.log("ok - reasoning, prose, and elapsed remain available in one fold");
 }
 
-async function testChatComposerWithTasksLoaded() {
-  const harness = await loadHarness({tasks: true});
+async function testLiveThoughtIsVisibleBeforeProse() {
+  const harness = await loadHarness();
   evaluate(harness.context, `
-    __sent = [];
-    send = async text => __sent.push(text);
-    $("input").value = "普通聊天";
+    state.items = [
+      {role: "user", text: "继续", at: "2026-10-20T01:00:00Z"},
+      {role: "assistant", thinking: "正在核对实际运行结果。", text: "", live: true},
+    ];
+    renderTranscript();
   `);
-  await harness.ids.get("composer").__submitHandler({preventDefault() {}});
-  assert.equal(evaluate(harness.context, "__sent[0]"), "普通聊天");
-  evaluate(harness.context, `
-    pendingImages = [{mime: "image/png", data: ${JSON.stringify(PNG_A)}}];
-    $("input").value = "";
-  `);
-  await harness.ids.get("composer").__submitHandler({preventDefault() {}});
-  assert.equal(evaluate(harness.context, "__sent.length"), 2, "image-only chat remains sendable");
-  assert.equal(evaluate(harness.context, "__sent[1]"), "");
-  console.log("ok - loading task controls preserves ordinary and image-only chat");
+  const transcript = harness.ids.get("transcript");
+  const phase = transcript.querySelector(".phase");
+  assert.equal(phase.classList.contains("live"), true, "live thinking opens its phase");
+  assert.match(phase.descendants().map((node) => node.textContent).join(" "), /正在核对实际运行结果/);
+  console.log("ok - thinking-only live items show the current thought before prose arrives");
+}
+async function testTaskSavedThinkingAppears() {
+  const h = await loadHarness({tasks:true});
+  evaluate(h.context, `lingView.active=true;
+    taskView.current={id:"t1",workspace:"C:/work"};
+    renderTaskMessages([{seq:1,kind:"assistant",text:"",thinking:"SAVED_BACKGROUND_THOUGHT"}],null);`);
+  assert.match(h.ids.get("task-messages").textContent,/SAVED_BACKGROUND_THOUGHT/);
+  console.log("ok - saved background thinking remains inspectable");
 }
 
-async function testTaskPollingSurvivesHiddenPageAndErrors() {
-  const timers = new Map();
-  let sequence = 0;
-  const harness = await loadHarness({tasks: true,
-    setTimeout: callback => { timers.set(++sequence, callback); return sequence; },
-    clearTimeout: id => timers.delete(id),
-  });
-  evaluate(harness.context, `
-    taskView.current = {id: "t1"};
-    document.hidden = true;
-    armTaskPolling();
-  `);
-  async function tick() {
-    const [id, callback] = timers.entries().next().value;
-    timers.delete(id);
-    await callback();
-  }
-  await tick();
-  assert.equal(timers.size, 1, "hidden page must keep a future refresh scheduled");
-  evaluate(harness.context, `
-    document.hidden = false;
-    openTask = async () => { throw new Error("temporary failure"); };
-  `);
-  await tick();
-  assert.equal(timers.size, 1, "temporary request failure must not stop polling");
-  evaluate(harness.context, "taskView.current = null");
-  await tick();
-  assert.equal(timers.size, 0, "leaving a task must end polling");
-  console.log("ok - task polling survives hidden tabs and transient request failures");
-}
-
-async function testStaleTaskResponseCannotReplaceSession() {
-  const harness = await loadHarness({tasks: true});
-  evaluate(harness.context, `
-    __originalApi = api;
-    api = path => path === "/api/tasks/t1"
-      ? new Promise(resolve => { __resolveTask = resolve; }) : __originalApi(path);
-    __openingTask = openTask("t1");
-  `);
-  await evaluate(harness.context, "openSession('s1')");
-  evaluate(harness.context, "__resolveTask({id: 't1', state: 'pending'})");
-  await evaluate(harness.context, "__openingTask");
-  assert.equal(evaluate(harness.context, "state.sessionId"), "s1");
-  assert.equal(evaluate(harness.context, "taskView.current"), null);
-  console.log("ok - a stale task response cannot overwrite a selected chat");
-}
-
-async function testTaskRefreshPreservesUnsubmittedInputs() {
+async function testTaskDetailHasNoSecondComposer() {
   const harness = await loadHarness({tasks: true, setTimeout: () => 1, clearTimeout: () => {}});
   evaluate(harness.context, `
-    __task = {id: "t1", state: "waiting_user", messages: [], schedule: null,
+    lingView.active = false;
+    openLing = async () => { lingView.active = false; };
+    __task = {id: "t1", title: "一项工作", state: "waiting_user",
+      control_version: 2, messages: [{kind: "user", text: "原始目标"}],
       pending_interactions: [{id: "i1", kind: "question", payload: {questions: [{question: "Which?"}]}}]};
     api = async path => path === "/api/tasks" ? {tasks: []} : {...__task};
   `);
   await evaluate(harness.context, "openTask('t1')");
-  const answer = harness.ids.get("task-interactions").querySelector("input");
-  answer.value = "正在输入";
-  harness.ids.get("task-due").value = "2030-01-01T12:30";
-  harness.ids.get("task-timezone").value = "Asia/Tokyo";
-  await evaluate(harness.context, "openTask('t1')");
-  assert.equal(harness.ids.get("task-interactions").querySelector("input"), answer);
-  assert.equal(answer.value, "正在输入");
-  assert.equal(harness.ids.get("task-due").value, "2030-01-01T12:30");
-  assert.equal(harness.ids.get("task-timezone").value, "Asia/Tokyo");
-  console.log("ok - polling preserves unsubmitted task answers and schedule edits");
+  const records = harness.ids.get("task-messages");
+  assert.ok(records.children.length, "the read-only work record is rendered");
+  assert.equal(harness.ids.get("task-interactions").querySelector("input"), null,
+    "work details have no second composer");
+  assert.equal(harness.ids.get("task-start"), undefined,
+    "work details have no manual lifecycle control");
+  console.log("ok - work detail is read-only and keeps its record stable");
 }
-
-async function testTruncatedAnswerKeepsItsVisibleStatus() {
-  const harness = await loadHarness();
-  harness.setChatEvents([{type: "delta", text: "partial"}, {type: "done", data: {stopped: "length"}}]);
-  evaluate(harness.context, `
-    state.sessionId = "s1";
-    refresh = async () => ({});
-    openSession = async () => {};
-  `);
-  await evaluate(harness.context, "send('answer fully')");
-  assert.match(harness.ids.get("status").textContent, /未完整结束.*length/);
-  console.log("ok - truncated model output keeps a visible incomplete status");
-}
-
-async function testGenericFilesUploadThenSendOnlyReferences() {
+async function testGenericFileUploadsPreserveOriginalData() {
   const harness = await loadHarness();
   evaluate(harness.context, `
-    state.sessionId = "s1";
-    refresh = async () => ({});
-    openSession = async () => {};
-    __baseFetch = fetch;
     __uploads = 0;
+    __uploadedBody = null;
+    __baseFetch = fetch;
     fetch = async (path, options) => {
       if (path.includes("/attachments?")) {
         __uploads += 1;
+        __uploadedPath = path;
         __uploadedBody = options.body;
         return {ok: true, json: async () => ({id: "a_test", name: "report.pdf", size: 10,
           status: "ready", note: "可读取文本", url: "/download"})};
       }
       return __baseFetch(path, options);
     };
-    addFiles([{name: "report.pdf", type: "application/pdf", size: 10}]);
   `);
-  assert.equal(evaluate(harness.context, "pendingFiles.length"), 1);
-  assert.equal(harness.ids.get("attachments").querySelectorAll(".file-chip").length, 1);
-  await evaluate(harness.context, "send('')");
+  const result = await evaluate(harness.context,
+    `uploadFiles("sessions", "s1", [{name: "report.pdf", type: "application/pdf", size: 10, file: {}}])`);
   assert.equal(evaluate(harness.context, "__uploads"), 1);
-  assert.equal(evaluate(harness.context, "__uploadedBody.name"), "report.pdf");
-  assert.deepEqual(harness.calls.chatBodies[0].attachments, ["a_test"]);
-  assert.equal(evaluate(harness.context, "pendingFiles.length"), 0);
-  assert.equal(evaluate(harness.context, "state.items[0].attachments[0].name"), "report.pdf");
-  console.log("ok - generic files upload as bytes and chat sends attachment references only");
+  assert.match(evaluate(harness.context, "__uploadedPath"), /name=report.pdf/);
+  assert.equal(result[0].id, "a_test");
+  console.log("ok - generic files upload their original bytes and return an attachment reference");
 }
 
-async function testFailedUploadKeepsTheFileAndMessage() {
+async function testFailedUploadReturnsAnError() {
   const harness = await loadHarness();
-  evaluate(harness.context, `
-    state.sessionId = "s1";
-    fetch = async () => ({ok: false, json: async () => ({error: "upload failed"})});
-    addFiles([{name: "notes.md", type: "text/plain", size: 10}]);
-  `);
-  await evaluate(harness.context, "send('keep this message')");
-  assert.equal(evaluate(harness.context, "pendingFiles.length"), 1);
-  assert.equal(harness.ids.get("input").value, "keep this message");
-  assert.equal(evaluate(harness.context, "state.preparing"), false);
-  console.log("ok - failed upload retains draft files and message");
+  evaluate(harness.context, `fetch = async () => ({ok: false, json: async () => ({error: "upload failed"})});`);
+  await assert.rejects(() => evaluate(harness.context,
+    `uploadFiles("sessions", "s1", [{name: "notes.md", type: "text/plain", size: 10, file: {}}])`),
+    /upload failed/);
+  console.log("ok - a failed upload stays an explicit error");
+}
+async function testOrderedProcessKeepsExpandedNodes() {
+  const h = await loadHarness();
+  evaluate(h.context, `state.items = [
+    {role:"user",text:"work"}, {role:"assistant",message_id:"m1",thinking:"FIRST"},
+    {role:"tool",parent_message_id:"m1",tool_call_id:"c0",name:"read_file",text:"read"},
+    {role:"assistant",message_id:"m2",thinking:"SECOND",live:true},
+    {role:"tool",parent_message_id:"m2",tool_call_id:"c0",name:"bash",text:"done"}]; renderTranscript();`);
+  const phase=h.ids.get("transcript").querySelector(".phase");
+  const steps=phase.querySelectorAll(".step");
+  assert.match(steps[0].textContent,/FIRST/); assert.match(steps[1].textContent,/read_file/);
+  assert.match(steps[2].textContent,/SECOND/); assert.match(steps[3].textContent,/bash/);
+  phase.open=true; steps[0].open=true;
+  evaluate(h.context, `state.items[3].thinking += " DELTA"; renderTranscript({preserveScroll:true});`);
+  assert.equal(h.ids.get("transcript").querySelector(".phase"),phase);
+  assert.equal(phase.querySelectorAll(".step").length,4,"reused provider tool IDs do not duplicate rows");
+  assert.equal(phase.querySelectorAll(".step")[0],steps[0]);
+  assert.equal(steps[0].open,true); assert.equal(phase.open,true);
+  console.log("ok - ordered process updates keep expanded nodes");
 }
 
-async function testTaskCanSendAnAttachmentWithoutText() {
-  const harness = await loadHarness({tasks: true});
-  evaluate(harness.context, `
-    taskView.current = {id: "t1"};
-    pendingFiles = [{name: "data.csv", size: 10, file: {type: "text/csv"}}];
-    uploadFiles = async () => [{id: "a_task"}];
-    api = async (path, options) => { __taskBody = JSON.parse(options.body); return {}; };
-    openTask = async () => {};
-  `);
-  assert.equal(await evaluate(harness.context, "sendTaskMessage('')"), true);
-  assert.equal(evaluate(harness.context, "__taskBody.attachments[0]"), "a_task");
-  assert.equal(evaluate(harness.context, "pendingFiles.length"), 0);
-  console.log("ok - task input accepts an attachment-only message");
+async function testComposerDoesNotSendImeComposition() {
+  const h=await loadHarness(); let sent=0;
+  h.ids.get("composer").requestSubmit=()=>sent++;
+  const keydown=h.ids.get("input").handlers.keydown;
+  keydown({key:"Enter",isComposing:true,preventDefault(){}});
+  assert.equal(sent,0);
+  keydown({key:"Enter",isComposing:false,preventDefault(){}});
+  assert.equal(sent,1);
+  console.log("ok - IME Enter commits text without sending");
+}
+
+async function testCurrentContextIsSeparateFromUsage() {
+  const h=await loadHarness();
+  evaluate(h.context, `state.contextWindow=1000; applyUsageSnapshot({
+    usage:{input:20,cached:80,created:0,output:5000,total_input:100,total:5100},
+    context:{system:100,tools:50,messages:100,window:1000}});`);
+  assert.equal(h.ids.get("stat-context").textContent,"上下文 ~25%");
+  assert.equal(h.ids.get("stat-tokens").textContent,"5,100 tok");
+  assert.match(h.ids.get("usage-panel").innerHTML,/80%/);
+  console.log("ok - current context and cached usage use different denominators");
 }
 
 async function main() {
+  await testOrderedProcessKeepsExpandedNodes();
+  await testComposerDoesNotSendImeComposition();
+  await testCurrentContextIsSeparateFromUsage();
   await testHistoricalUserImagesRender();
   await testNodeForHandlesAnImageOnlyMessage();
-  await testSendFreezesTheAttachmentSnapshot();
-  await testComposerWaitsUntilImageReadsFinish();
-  await testPickedFileBecomesAnImageInTheRequest();
-  await testToolResultArgumentsReachTheStep();
-  await testChatComposerWithTasksLoaded();
-  await testTaskPollingSurvivesHiddenPageAndErrors();
-  await testStaleTaskResponseCannotReplaceSession();
-  await testTaskRefreshPreservesUnsubmittedInputs();
-  await testTruncatedAnswerKeepsItsVisibleStatus();
-  await testGenericFilesUploadThenSendOnlyReferences();
-  await testFailedUploadKeepsTheFileAndMessage();
-  await testTaskCanSendAnAttachmentWithoutText();
+  await testPickedFileBecomesAnImageAttachment();
+  await testToolRecordsStayVisibleInTheTranscript();
+  await testReasoningAndProseBothRemainInspectable();
+  await testLiveThoughtIsVisibleBeforeProse();
+  await testTaskSavedThinkingAppears();
+  await testTaskDetailHasNoSecondComposer();
+  await testGenericFileUploadsPreserveOriginalData();
+  await testFailedUploadReturnsAnError();
   console.log("frontend behaviour: all checks passed");
 }
 

@@ -408,20 +408,3 @@ def test_plugin_prepare_failure_is_recorded_before_the_gateway(tmp_path, monkeyp
     assert history.get(records[0]["id"])["body"] is None
     assert history.get(records[0]["id"])["materials"] == []
     assert "test-key" not in json.dumps(history.get(records[0]["id"]), ensure_ascii=False)
-
-
-def test_legacy_persona_callback_is_still_called_at_the_wire(tmp_path, monkeypatch):
-    texts = []
-    monkeypatch.setattr(
-        "nexus.core.agent._client",
-        lambda: httpx.AsyncClient(transport=httpx.MockTransport(
-            lambda request: httpx.Response(200, headers={"content-type": SSE}, text=chat_reply())
-        )),
-    )
-    agent = make_agent(tmp_path, persona_context="PERSONA", on_model_request=texts.append)
-
-    async def run():
-        return [event async for event in agent.run([{"role": "user", "content": "go"}])]
-
-    asyncio.run(run())
-    assert texts == ["PERSONA"]

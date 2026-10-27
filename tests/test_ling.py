@@ -14,6 +14,8 @@ from nexus.core import agent as loop
 from nexus.ling import LingInbox, WorkService
 from nexus.model import APIFamily
 from nexus.runtime import TaskController
+from nexus.runtime.callbacks import TaskCallbacks
+from nexus.session import Message
 from nexus.task import TaskConflict, TaskStore
 from nexus.web import server as web
 
@@ -59,10 +61,9 @@ def live(tmp_path, monkeypatch):
     controller = TaskController(store, run=run)
     controller.start()
     state = {"store": config, "sessions": web.SessionStore(config.sessions_dir),
-             "tasks": store, "task_controller": controller, "skills": {}}
+             "tasks": store, "task_controller": controller, "skills": {},
+             "closing": False}
     monkeypatch.setattr(web, "STATE", state)
-    monkeypatch.setattr(web, "RUNNING", {"agent": None})
-    monkeypatch.setattr(web, "APPROVALS", web.Approvals())
     server = ThreadingHTTPServer(("127.0.0.1", 0), web.Handler)
     server.daemon_threads = True
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -70,10 +71,9 @@ def live(tmp_path, monkeypatch):
     client = httpx.Client(base_url=f"http://127.0.0.1:{server.server_address[1]}", timeout=10)
     yield client, state, task_started, release_task
     release_task.set()
-    agent = web.RUNNING.get("agent")
+    agent = state.get("ling") and state["ling"].agent
     if agent:
         agent.stop()
-    web.APPROVALS.cancel_all()
     if state.get("ling"):
         state["ling"].close()
     controller.close()
@@ -148,7 +148,7 @@ def test_inputs_are_durable_idempotent_and_do_not_abort_current_reply(live, monk
         retry = client.post("/api/ling/input", json={"text": "next", "request_id": "next"})
         assert retry.json()["input_id"] == second.json()["input_id"]
         assert client.post("/api/ling/input", json={"text": "different", "request_id": "next"}).status_code == 409
-        assert not web.RUNNING["agent"].stopped
+        assert not state["ling"].agent.stopped
     finally:
         release.set()
     until(lambda: len([item for item in client.get("/api/ling").json()["inputs"] if item["status"] == "done"]) == 2)
@@ -161,7 +161,7 @@ def test_delegated_attachments_get_independent_originals(live):
     session = state["sessions"].create("fake")
     attachment = AttachmentStore(state["store"].home).save(
         "sessions", session.id, "evidence.txt", "text/plain", io.BytesIO(b"evidence 7319"), 13)
-    state["sessions"].append(session, web.Message(kind="user", text="use file", data={"attachments": [attachment]}))
+    state["sessions"].append(session, Message(kind="user", text="use file", data={"attachments": [attachment]}))
     service = WorkService(state, session, state["store"].load(), 7)
     task = service.start(goal="read the file")
     retry = service.start(goal="read the file")
@@ -206,7 +206,7 @@ def test_amendment_does_not_resume_paused_work_or_duplicate_forwarded_files(live
     session = state["sessions"].create("fake")
     attachment = AttachmentStore(state["store"].home).save(
         "sessions", session.id, "note.txt", "text/plain", io.BytesIO(b"note"), 4)
-    state["sessions"].append(session, web.Message(kind="user", text="amend", data={"attachments": [attachment]}))
+    state["sessions"].append(session, Message(kind="user", text="amend", data={"attachments": [attachment]}))
     service = WorkService(state, session, state["store"].load(), 10)
     first = service.message(task.id, "preserve this change", [attachment["id"]])
     second = service.message(task.id, "preserve this change", [attachment["id"]])
@@ -263,6 +263,84 @@ def test_stopping_ling_interaction_does_not_cancel_independent_work(live, monkey
     assert state["tasks"].get(task.id).state == "running"
 
 
+@pytest.mark.parametrize("phrase", ["停一下", "先停一下", "暂停", "停止", "stop", "stop now"])
+def test_bare_stop_stops_main_only_without_a_model_call(live, monkeypatch, phrase):
+    client, state, started, _ = live
+    task = state["tasks"].create(
+        title="background", goal="background",
+        workspace=state["store"].load().workspace, read_only=True,
+    )
+    state["task_controller"].submit(task.id, request_id="bare-stop-work")
+    assert started.wait(3)
+    calls = []
+    mock_model(monkeypatch, lambda body: calls.append(body) or frames(text="unexpected model call"))
+
+    accepted = client.post("/api/ling/input", json={
+        "text": phrase, "request_id": "bare-stop-" + phrase,
+    })
+    assert accepted.status_code == 202
+    until(lambda: any(item["id"] == accepted.json()["input_id"] and item["status"] == "done"
+                      for item in client.get("/api/ling").json()["inputs"]))
+
+    assert calls == []
+    assert state["tasks"].get(task.id).state == "running"
+    assert state["task_controller"].is_active(task.id)
+    transcript = client.get("/api/ling").json()["items"]
+    assert any(item["role"] == "user" and item["text"] == phrase for item in transcript)
+    assert any(item["role"] == "notice" and "后台工作继续" in item["text"] for item in transcript)
+
+
+def test_task_targeted_stop_pauses_only_that_work(live, monkeypatch):
+    client, state, started, _ = live
+    workspace = state["store"].load().workspace
+    first = state["tasks"].create(title="first", goal="first", workspace=workspace, read_only=True)
+    second = state["tasks"].create(title="second", goal="second", workspace=workspace, read_only=True)
+    state["task_controller"].submit(first.id, request_id="target-first")
+    state["task_controller"].submit(second.id, request_id="target-second")
+    assert started.wait(3)
+    until(lambda: state["task_controller"].is_active(first.id)
+          and state["task_controller"].is_active(second.id))
+    calls = []
+    mock_model(monkeypatch, lambda body: calls.append(body) or frames(text="unexpected model call"))
+
+    accepted = client.post("/api/ling/input", json={
+        "text": "暂停", "task_id": second.id, "request_id": "target-stop-second",
+    })
+    assert accepted.status_code == 202
+    until(lambda: state["tasks"].get(second.id).state == "paused")
+    until(lambda: any(item["id"] == accepted.json()["input_id"] and item["status"] == "done"
+                      for item in client.get("/api/ling").json()["inputs"]))
+
+    assert calls == []
+    assert state["tasks"].get(first.id).state == "running"
+    assert state["task_controller"].is_active(first.id)
+    transcript = client.get("/api/ling").json()["items"]
+    assert any(item["role"] == "notice" and "所选工作" in item["text"] for item in transcript)
+
+
+@pytest.mark.parametrize("phrase", ["暂停全部工作", "暂停所有工作"])
+def test_bare_pause_all_never_calls_the_model(live, monkeypatch, phrase):
+    client, state, started, _ = live
+    workspace = state["store"].load().workspace
+    tasks = [state["tasks"].create(title=name, goal=name, workspace=workspace, read_only=True)
+             for name in ("one", "two")]
+    state["task_controller"].submit(tasks[0].id, request_id=phrase + "-one")
+    state["task_controller"].submit(tasks[1].id, request_id=phrase + "-two")
+    assert started.wait(3)
+    calls = []
+    mock_model(monkeypatch, lambda body: calls.append(body) or frames(text="unexpected model call"))
+
+    accepted = client.post("/api/ling/input", json={"text": phrase, "request_id": phrase})
+    assert accepted.status_code == 202
+    until(lambda: any(item["id"] == accepted.json()["input_id"] and item["status"] == "done"
+                      for item in client.get("/api/ling").json()["inputs"]))
+    until(lambda: all(state["tasks"].get(task.id).state in ("paused", "pausing") for task in tasks))
+
+    assert calls == []
+    transcript = client.get("/api/ling").json()["items"]
+    assert any(item["role"] == "notice" and "全部工作" in item["text"] for item in transcript)
+
+
 def test_explicit_start_cannot_supersede_a_pending_decision(live):
     _, state, _, _ = live
     store = state["tasks"]
@@ -276,3 +354,23 @@ def test_explicit_start_cannot_supersede_a_pending_decision(live):
         state["task_controller"].submit(task.id, request_id="wrong-start", expected_version=current.control_version)
     assert store.get(task.id).control_version == current.control_version
     store.interaction_answer(interaction, answer=True, expected_version=current.control_version)
+
+
+def test_agent_completion_delivers_a_ling_work_report(live):
+    _, state, _, _ = live
+    ling = web._ling()
+    store = state["tasks"]
+    task = store.create(title="report", goal="report", workspace=state["store"].load().workspace)
+    store.command(task.id, "running", request_id="report-running")
+    TaskCallbacks(store, task.id, "report-run", cancel=threading.Event()).finish(
+        {"summary": "verified result 7319"}
+    )
+    report = next(item for item in store.notifications(unread_only=True)
+                  if item["task_id"] == task.id and item["kind"] == "completed")
+    assert report["source"] == "agent"
+    ling.collect_reports()
+    with store._transaction() as connection:
+        row = connection.execute("SELECT * FROM ling_inbox WHERE request_id=?",
+                                 ("work-report-" + str(report["id"]),)).fetchone()
+    assert row is not None
+    assert "verified result 7319" in row["text"]

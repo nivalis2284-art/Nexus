@@ -128,12 +128,3 @@ class EventStore:
                 db.execute('INSERT OR REPLACE INTO metadata(key,value) VALUES(?,?)', (key, str(value)))
             row = db.execute('SELECT value FROM metadata WHERE key=?', (key,)).fetchone()
             return row['value'] if row else None
-
-    def task_held(self, task_id, *, release=False):
-        suffix = ':' + task_id
-        where = "substr(key,1,5)='hold:' AND substr(key,-?)=? AND value='1'"
-        with self.lock, self.db() as db:
-            if release:
-                db.execute('UPDATE metadata SET value=\'0\' WHERE ' + where, (len(suffix), suffix))
-            return db.execute('SELECT 1 FROM metadata WHERE ' + where + ' LIMIT 1',
-                              (len(suffix), suffix)).fetchone() is not None

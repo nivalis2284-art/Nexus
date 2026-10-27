@@ -15,59 +15,13 @@ def interactions(tmp_path):
     return api, store, owner, other
 
 
-@pytest.mark.parametrize("endpoint,kind", [
-    ("answer", "approval"), ("start_confirmation", "start_confirmation"),
-])
-def test_wrong_task_cannot_answer_interaction(interactions, endpoint, kind):
+def test_wrong_task_cannot_answer_interaction(interactions):
     api, store, owner, other = interactions
-    interaction = store.interaction_create(
-        task_id=owner.id, run_id=None, kind=kind, payload={},
-        control_version=owner.control_version,
-    )
+    interaction = store.interaction_create(task_id=owner.id, run_id=None, kind="approval",
+                                           payload={}, control_version=owner.control_version)
     with pytest.raises(TaskConflict):
-        getattr(api, endpoint)(None, other.id, interaction, {
-            "answer": True, "expected_version": owner.control_version,
-        })
+        api.answer(None, other.id, interaction, {"answer": True, "expected_version": owner.control_version})
     assert store.interaction(interaction)["status"] == "pending"
-    assert store.messages(owner.id) == []
-
-
-@pytest.mark.parametrize("endpoint,kind", [
-    ("answer", "start_confirmation"), ("start_confirmation", "approval"),
-])
-def test_wrong_endpoint_cannot_answer_interaction(interactions, endpoint, kind):
-    api, store, owner, _ = interactions
-    interaction = store.interaction_create(
-        task_id=owner.id, run_id=None, kind=kind, payload={},
-        control_version=owner.control_version,
-    )
-    with pytest.raises(TaskConflict):
-        getattr(api, endpoint)(None, owner.id, interaction, {
-            "answer": True, "expected_version": owner.control_version,
-        })
-    assert store.interaction(interaction)["status"] == "pending"
-    assert store.messages(owner.id) == []
-
-
-def test_short_control_can_select_task_by_its_unique_title(interactions):
-    api, store, owner, _ = interactions
-    calls = []
-
-    class Controller:
-        def resume(self, task_id, **kwargs):
-            calls.append(task_id)
-            return store.get(task_id)
-
-    api.state["task_controller"] = Controller()
-    api.task_control(None, {"text": f"继续{owner.title}", "request_id": "title-resume"})
-    assert calls == [owner.id]
-
-
-def test_short_control_rejects_ambiguous_titles(interactions):
-    api, store, owner, _ = interactions
-    store.create(title=owner.title, goal="duplicate", workspace=owner.workspace)
-    with pytest.raises(TaskConflict, match="exactly one task"):
-        api.task_control(None, {"text": f"继续{owner.title}", "request_id": "ambiguous"})
 
 
 @pytest.mark.parametrize("steps", [None, [{"content": "step", "status": "invalid"}]])

@@ -204,7 +204,7 @@ async function loadHarness() {
 }
 
 function cards(harness) {
-  return harness.ids.get("skills-list").querySelectorAll(".persona-entry");
+  return harness.ids.get("skills-list").querySelectorAll(".skills-entry");
 }
 
 async function testListingShowsSourcesAndOverrides() {
@@ -218,8 +218,8 @@ async function testListingShowsSourcesAndOverrides() {
   assert.match(textOf(list[0]), /当前生效/);
   assert.match(textOf(list[1]), /被更高优先级同名技能覆盖/);
   assert.match(textOf(list[2]), /内置/);
-  assert.equal(list[2].querySelector(".persona-action").textContent, "查看");
-  assert.equal(list[2].querySelector(".persona-delete"), null);
+  assert.equal(list[2].querySelector(".skills-action").textContent, "查看");
+  assert.equal(list[2].querySelector(".skills-delete"), null);
   console.log("ok - lists builtin, personal and effective project skills");
 }
 
@@ -227,7 +227,7 @@ async function testBuiltinViewShowsBodyReadOnly() {
   const harness = await loadHarness();
   await harness.open();
   const builtin = cards(harness)[2];
-  await builtin.querySelector(".persona-action").dispatch("click");
+  await builtin.querySelector(".skills-action").dispatch("click");
   assert.equal(harness.ids.get("skill-dialog").open, true);
   assert.equal(harness.ids.get("skill-dialog-title").textContent, "查看技能");
   assert.equal(harness.ids.get("skill-name").value, "ling-automation");
@@ -272,7 +272,7 @@ async function testEditKeepsSourceAndUsesPath() {
   const harness = await loadHarness();
   await harness.open();
   const personal = cards(harness)[1];
-  await personal.querySelector(".persona-action").dispatch("click");
+  await personal.querySelector(".skills-action").dispatch("click");
   assert.equal(harness.ids.get("skill-source").value, "personal");
   assert.equal(harness.ids.get("skill-source").disabled, true);
   harness.ids.get("skill-source").value = "project";
@@ -306,7 +306,7 @@ async function testValidationAndDelete() {
   assert.equal(harness.ids.get("skill-dialog").open, false);
 
   const personal = cards(harness)[1];
-  await personal.querySelector(".persona-delete").dispatch("click");
+  await personal.querySelector(".skills-delete").dispatch("click");
   const post = harness.calls.bodies.filter((body) => body && body.path && !body.name).pop();
   assert.equal(post.source, "personal");
   assert.equal(post.path, "skills/review/SKILL.md");
@@ -322,9 +322,9 @@ async function testUserContentRendersAsText() {
   harness.setCurrent(value);
   await harness.open();
   const first = cards(harness)[0];
-  assert.equal(first.querySelector(".persona-entry-name").textContent, "<img src=x onerror=bad()>");
-  assert.equal(first.querySelector(".persona-entry-name").children.length, 0);
-  assert.equal(first.querySelector(".persona-entry-summary").textContent, "<script>bad()</script>");
+  assert.equal(first.querySelector(".skills-entry-name").textContent, "<img src=x onerror=bad()>");
+  assert.equal(first.querySelector(".skills-entry-name").children.length, 0);
+  assert.equal(first.querySelector(".skills-entry-summary").textContent, "<script>bad()</script>");
   console.log("ok - skill names and descriptions render with textContent");
 }
 
@@ -332,7 +332,7 @@ async function testLateSaveCannotReplaceNewerEditor() {
   const harness = await loadHarness();
   await harness.open();
   const personal = cards(harness)[1];
-  await personal.querySelector(".persona-action").dispatch("click");
+  await personal.querySelector(".skills-action").dispatch("click");
   const pending = deferred();
   harness.queueOnce("/api/skills", pending.promise);
   harness.ids.get("skill-description").value = "Updated summary.";

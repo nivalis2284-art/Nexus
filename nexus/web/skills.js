@@ -35,7 +35,7 @@ function skillsText(value) {
 
 function skillsStatus(message, tone) {
   const node = skillsNode("skills-status");
-  node.className = "small persona-status" + (tone ? " persona-status-" + tone : "");
+  node.className = "small skills-status" + (tone ? " skills-status-" + tone : "");
   node.textContent = message || "";
 }
 
@@ -80,25 +80,25 @@ function skillsRender() {
   const skills = skillsView.skills;
   skillsNode("skills-count").textContent = skills.length ? skills.length + " 个技能" : "";
   if (!skills.length) {
-    list.appendChild(skillsEl("p", "persona-empty", "还没有技能。"));
+    list.appendChild(skillsEl("p", "skills-empty", "还没有技能。"));
     return;
   }
   for (const skill of skills) {
-    const card = skillsEl("article", "persona-entry" + (skill.effective ? "" : " is-disabled"));
-    const head = skillsEl("div", "persona-entry-head");
-    head.appendChild(skillsEl("h4", "persona-entry-name", skill.name || "未命名技能"));
+    const card = skillsEl("article", "skills-entry" + (skill.effective ? "" : " is-disabled"));
+    const head = skillsEl("div", "skills-entry-head");
+    head.appendChild(skillsEl("h4", "skills-entry-name", skill.name || "未命名技能"));
     head.appendChild(skillsEl("span", "skill-source", skillSourceLabel(skill.source)));
     card.appendChild(head);
-    card.appendChild(skillsEl("p", "persona-entry-summary", skill.description || "暂无摘要"));
+    card.appendChild(skillsEl("p", "skills-entry-summary", skill.description || "暂无摘要"));
     const meta = skillsEl("p", "skill-meta", skill.effective ? "当前生效" : "被更高优先级同名技能覆盖");
     card.appendChild(meta);
-    const actions = skillsEl("div", "persona-entry-actions");
-    const view = skillsEl("button", "persona-action", skill.read_only ? "查看" : "编辑");
+    const actions = skillsEl("div", "skills-entry-actions");
+    const view = skillsEl("button", "skills-action", skill.read_only ? "查看" : "编辑");
     view.type = "button";
     view.addEventListener("click", () => openSkillEditor(skill, skill.read_only));
     actions.appendChild(view);
     if (!skill.read_only) {
-      const remove = skillsEl("button", "persona-action persona-delete", "删除");
+      const remove = skillsEl("button", "skills-action skills-delete", "删除");
       remove.type = "button";
       remove.addEventListener("click", () => deleteSkill(skill));
       actions.appendChild(remove);

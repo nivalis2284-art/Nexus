@@ -1,125 +1,55 @@
-"""Regression: a pending human interaction must never hold the run lock.
+"""Regression: a pending owner decision is durable and never holds the run lock.
 
-Observed in real use: the browser was closed while a question was pending. The
-loop stayed parked inside ``Event.wait(600)``, the run lock stayed held, and
-every new message got 409 for ten minutes.
+The retired in-memory waiter parked every new message behind a pending dialog.
+Main decisions now persist the request and release the turn; answers are
+applied on a later model boundary and retries are idempotent.
 """
 
 from __future__ import annotations
 
-import threading
-import time
+import pytest
 
-from nexus.web.server import APPROVAL_TIMEOUT, Approvals
-
-
-def test_a_pending_wait_can_be_cancelled():
-    approvals = Approvals()
-    token = approvals.create()
-    result: dict = {}
-
-    def waiter():
-        mark = time.monotonic()
-        result["value"] = approvals.wait(token)
-        result["elapsed"] = time.monotonic() - mark
-
-    thread = threading.Thread(target=waiter)
-    thread.start()
-    time.sleep(0.1)
-    woken = approvals.cancel_all()
-    thread.join(timeout=5)
-
-    assert woken == 1
-    assert result["value"] is False, "a cancelled approval must not be granted"
-    assert result["elapsed"] < 2, f"waited {result['elapsed']:.1f}s instead of returning"
+from nexus.runtime.decisions import MainDecisions
+from nexus.task import TaskConflict, TaskStore
 
 
-def test_a_pending_question_is_cancelled_too():
-    approvals = Approvals()
-    token = approvals.create()
-    result: dict = {}
-
-    def waiter():
-        result["value"] = approvals.wait_answer(token)
-
-    thread = threading.Thread(target=waiter)
-    thread.start()
-    time.sleep(0.1)
-    approvals.cancel_all()
-    thread.join(timeout=5)
-
-    # None means "no usable answer", which the tool turns into a refusal.
-    assert result["value"] is None
+def decisions(tmp_path):
+    return MainDecisions(TaskStore(tmp_path / "tasks.sqlite3"), "main")
 
 
-def test_approval_and_question_are_cancelled_differently():
-    """The two shapes must stay distinguishable after a cancel."""
-    approvals = Approvals()
-    approve_token = approvals.create()
-    ask_token = approvals.create()
-
-    results: dict = {}
-
-    threads = [
-        threading.Thread(
-            target=lambda: results.update(approval=approvals.wait(approve_token))
-        ),
-        threading.Thread(
-            target=lambda: results.update(answer=approvals.wait_answer(ask_token))
-        ),
-    ]
-    for thread in threads:
-        thread.start()
-    time.sleep(0.1)
-    approvals.cancel_all()
-    for thread in threads:
-        thread.join(timeout=5)
-
-    assert results["approval"] is False
-    assert results["answer"] is None
+def test_an_unanswered_request_survives_and_does_not_block_new_input(tmp_path):
+    first = decisions(tmp_path)
+    token = first.create("approval", {
+        "tool": "bash", "arguments": {"command": "true"}, "workspace": "workspace"
+    })
+    reopened = decisions(tmp_path)
+    assert reopened.pending()[0]["id"] == token["id"]
+    assert reopened.create("question", {"questions": [{"question": "next?"}]})["status"] == "pending"
 
 
-def test_cancel_wakes_every_waiter():
-    approvals = Approvals()
-    tokens = [approvals.create() for _ in range(3)]
-    done = []
-
-    threads = [
-        threading.Thread(target=lambda t=token: (approvals.wait(t), done.append(t)))
-        for token in tokens
-    ]
-    for thread in threads:
-        thread.start()
-    time.sleep(0.1)
-    assert approvals.cancel_all() == 3
-    for thread in threads:
-        thread.join(timeout=5)
-    assert len(done) == 3
+def test_no_pending_requests_is_harmless(tmp_path):
+    assert decisions(tmp_path).pending() == []
 
 
-def test_cancel_with_nothing_pending_is_harmless():
-    approvals = Approvals()
-    assert approvals.cancel_all() == 0
+def test_a_resolved_request_does_not_affect_the_next_one(tmp_path):
+    store = decisions(tmp_path)
+    first = store.create("question", {"questions": [{"question": "first?"}]})
+    store.answer(first["id"], "done")
+    second = store.create("question", {"questions": [{"question": "second?"}]})
+    assert second["status"] == "pending"
+    assert store.consume_question([{"question": "second?"}]) is None
 
 
-def test_cancel_flag_does_not_leak_to_a_later_regular_answer():
-    """A cancelled turn must not permanently break the next one."""
-    approvals = Approvals()
-    approvals.cancel_all()  # nothing pending
-
-    token = approvals.create()
-    assert approvals.resolve(token, True) is True
-    assert approvals.wait(token, timeout=1) is True
-
-
-def test_resolve_after_cancel_still_works():
-    approvals = Approvals()
-    token = approvals.create()
-    approvals.cancel_all()
-    # A late click on a stale dialog must not raise or hang.
-    assert approvals.resolve(token, True) in (True, False)
+def test_a_late_answer_to_a_finished_question_is_harmless(tmp_path):
+    store = decisions(tmp_path)
+    token = store.create("question", {"questions": [{"question": "q?"}]})
+    store.answer(token["id"], "done")
+    store.consume_question([{"question": "q?"}])
+    with pytest.raises(TaskConflict, match="already resolved"):
+        store.answer(token["id"], "late")
 
 
-def test_the_default_timeout_is_still_bounded():
-    # The long timeout stays as a backstop; cancellation is what makes it safe.
-    assert APPROVAL_TIMEOUT <= 600
+def test_the_latest_unanswered_question_is_still_visible(tmp_path):
+    store = decisions(tmp_path)
+    request = store.create("question", {"questions": [{"question": "still waiting?"}]})
+    assert store.pending() == [request]

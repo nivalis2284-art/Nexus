@@ -13,6 +13,7 @@ const ROOT = path.resolve(__dirname, "..");
 const LING = fs.readFileSync(path.join(ROOT, "nexus", "web", "ling.js"), "utf8");
 const APP = fs.readFileSync(path.join(ROOT, "nexus", "web", "app.js"), "utf8");
 const TASKS = fs.readFileSync(path.join(ROOT, "nexus", "web", "tasks.js"), "utf8");
+const LIVE = fs.readFileSync(path.join(ROOT, "nexus", "web", "live.js"), "utf8");
 
 class ClassList {
   constructor(node) { this.node = node; }
@@ -41,7 +42,9 @@ class Node {
     this.dataset = {};
     this.style = {};
     this.attributes = {};
-    this.textContent = "";
+    this._text = "";
+    this.selectionStart = 0;
+    this.selectionEnd = 0;
     this.value = "";
     this.hidden = false;
     this.disabled = false;
@@ -49,7 +52,25 @@ class Node {
   }
   set innerHTML(value) { this.children = []; this._innerHTML = String(value || ""); }
   get innerHTML() { return this._innerHTML || ""; }
+  get textContent() {
+    if (this.children.length) return this.children.map((child) => child.textContent).join("");
+    return this._text;
+  }
+  set textContent(value) { this.children = []; this._text = String(value ?? ""); }
+  get childNodes() { return this.children; }
   appendChild(child) { child.parent = this; this.children.push(child); return child; }
+  insertBefore(child, before) {
+    if (child.parent) child.parent.children = child.parent.children.filter((item) => item !== child);
+    const index = before ? this.children.indexOf(before) : -1;
+    child.parent = this;
+    if (index < 0) this.children.push(child); else this.children.splice(index, 0, child);
+    return child;
+  }
+  replaceChildren(...values) {
+    for (const child of this.children) child.parent = null;
+    this.children = [];
+    for (const child of values) this.appendChild(child);
+  }
   replaceWith(other) {
     if (!this.parent) return;
     const index = this.parent.children.indexOf(this);
@@ -67,7 +88,8 @@ class Node {
   setAttribute(name, value) { this.attributes[name] = String(value); }
   addEventListener(name, handler) { (this.handlers ||= {})[name] = handler; }
   focus(options) { this.focusOptions = options; }
-  select() {}
+  select() { this.selected = true; }
+  setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; }
   showModal() {}
   close() {}
   requestSubmit() { if (this.handlers?.submit) return this.handlers.submit({ preventDefault() {}, target: this }); }
@@ -112,6 +134,10 @@ async function harness() {
     tasks: [],
     notifications: [],
     unread_count: 0,
+    usage: { input: 0, cached: 0, created: 0, output: 0, total: 0 },
+    context: null,
+    live: null,
+    live_revision: 0,
   };
   const notifications = [
     { id: 3, task_id: "t1", title: "完成", text: "工作已完成", read_at: null, created_at: "2026-10-20T01:00:00Z" },
@@ -119,7 +145,12 @@ async function harness() {
   let taskDetail = {
     id: "t1", control_version: 8, pending_interactions: [],
   };
+  let fetchHandler = null;
   const fetch = async (requestPath, options) => {
+    if (fetchHandler) {
+      const result = await fetchHandler(requestPath, options);
+      if (result) return result;
+    }
     calls.paths.push(requestPath);
     if (options?.body) calls.bodies.push({ path: requestPath, body: JSON.parse(options.body) });
     if (requestPath === "/api/state") {
@@ -134,16 +165,21 @@ async function harness() {
     if (requestPath === "/api/ling/input") return response({ queued: true, input_id: "in1", session_id: "ling-stable" });
     if (requestPath === "/api/ling/stop") return response({ stopped: true });
     if (requestPath === "/api/tasks") return response({ tasks: [] });
-    if (requestPath === "/api/tasks/t1") return response(structuredClone(taskDetail));
+    if (requestPath.startsWith("/api/tasks/")) return response(structuredClone(taskDetail));
     if (requestPath.startsWith("/api/sessions/")) return response({ id: "legacy", title: "旧会话", items: [] });
     return response({});
   };
   const context = vm.createContext({
-    document, window: { innerWidth: 1200 }, fetch, TextDecoder, TextEncoder, console,
+    document, window: { innerWidth: 1200, addEventListener() {} }, fetch, TextDecoder, TextEncoder, console,
+    renderContent(text) { const node = document.createElement("div"); node.textContent = text; return node; },
+    toolNode(item) { const node = document.createElement("details"); node.className="step"; node.textContent=(item.name||"tool")+(item.text||""); return node; },
+    EventSource: class { constructor(url) { this.url = url; this.closed = false; } close() { this.closed = true; } },
     setTimeout() { return 1; }, clearTimeout() {}, confirm: () => true,
   });
   const load = (source, name) => vm.runInContext(source, context, { filename: name });
+  load(`function renderContent(text) { const node = el("div", "markdown"); node.textContent = text; return node; }\nfunction toolNode(item) { const node = el("div", "step tool"); node.textContent = item.name || ""; return node; }`, "presentation-stub.js");
   load(APP, "nexus/web/app.js");
+  load(LIVE, "nexus/web/live.js");
   load(LING, "nexus/web/ling.js");
   load(TASKS, "nexus/web/tasks.js");
   await new Promise((resolve) => setImmediate(resolve));
@@ -152,6 +188,7 @@ async function harness() {
     evaluate(code) { return vm.runInContext(code, context); },
     snapshot() { return lingState; },
     setTaskDetail(value) { taskDetail = value; },
+    setFetch(handler) { fetchHandler = handler; },
   };
 }
 
@@ -160,6 +197,7 @@ async function testDefaultEntryUsesStableLingSession() {
   const first = h.snapshot();
   first.items = [{ role: "assistant", text: "在。", at: "2026-10-20T01:00:00Z" }];
   await h.evaluate("openLing()");
+  await h.evaluate("pollLing()");
   assert.equal(h.evaluate("lingView.active"), true, "the default page enters Ling");
   assert.equal(h.evaluate("lingView.sessionId"), "ling-stable");
   assert.equal(h.evaluate("state.items[0].text"), "在。");
@@ -181,12 +219,35 @@ async function testSendQueuesWithoutStopping() {
   const input = bodies.find((call) => call.path === "/api/ling/input");
   assert.equal(input.body.text, "另外问一个问题");
   assert.equal(input.body.request_id.startsWith("input-"), true);
-  assert.equal(h.evaluate("state.running"), false, "Ling never opens a second chat stream");
+  assert.equal(h.evaluate("lingView.running"), true, "Ling reflects the server's active turn");
+  assert.equal(h.calls.paths.includes("/api/chat"), false, "Ling never opens a second chat stream");
   assert.equal(h.ids.get("send").classList.contains("stop"), false);
   assert.equal(h.ids.get("send").attributes["aria-label"], "发送");
   assert.equal(h.ids.get("ling-stop").hidden, false, "stop stays available as a separate button");
   assert.match(h.ids.get("input").value, /^$/, "queued input clears only after acceptance");
   console.log("ok - Ling enqueue is separate from an explicit stop");
+}
+
+async function testSlowSendKeepsTextTypedMeanwhile() {
+  const h = await harness();
+  await h.evaluate("openLing()");
+  h.evaluate(`__sendGate = new Promise((resolve) => { __releaseSend = resolve; });`);
+  h.setFetch(async (path) => {
+    if (path === "/api/ling/input") {
+      await __sendGate;
+      return response({queued: true, input_id: "slow", session_id: "ling-stable"});
+    }
+    return null;
+  });
+  h.ids.get("input").value = "first message";
+  const sending = h.ids.get("composer").handlers.submit({preventDefault() {}});
+  await new Promise((resolve) => setImmediate(resolve));
+  h.ids.get("input").value = "typed while sending";
+  h.evaluate("__releaseSend()");
+  await sending;
+  assert.equal(h.ids.get("input").value, "typed while sending",
+    "a slow send does not erase text typed after submitting");
+  console.log("ok - a slow Ling send preserves newer composer text");
 }
 
 async function testLegacyRunningNeverCapturesLingSend() {
@@ -252,8 +313,8 @@ async function testInputStatusesMatchQueueContract() {
 async function testEmptyLingChromeStaysHidden() {
   const h = await harness();
   await h.evaluate("openLing()");
-  assert.equal(h.ids.get("ling-interaction").hidden, true,
-    "an empty active interaction must not leave a visible box");
+  assert.equal(h.ids.get("ling-requests").hidden, true,
+    "an empty request area must not leave a visible box");
   h.evaluate(`lingView.inputs = [
     {id: "d", status: "done", text: "finished", error: ""},
     {id: "c", status: "cancelled", text: "cancelled", error: ""}
@@ -305,6 +366,20 @@ async function testPollingKeepsDraftAndAttachment() {
   console.log("ok - Ling polling preserves drafts and attachments");
 }
 
+async function testUnchangedSnapshotKeepsFocusAndCaret() {
+  const h = await harness();
+  await h.evaluate("openLing()");
+  const input = h.ids.get("input");
+  input.value = "编辑中的草稿";
+  input.selectionStart = 3;
+  input.selectionEnd = 3;
+  await h.evaluate("pollLing()");
+  assert.equal(input.value, "编辑中的草稿");
+  assert.equal(input.selectionStart, 3);
+  assert.equal(input.selectionEnd, 3);
+  console.log("ok - an unchanged snapshot keeps the draft caret");
+}
+
 async function testScrollRestoresBottomAcrossHiddenPanel() {
   const h = await harness();
   await h.evaluate("openLing()");
@@ -323,369 +398,118 @@ async function testScrollRestoresBottomAcrossHiddenPanel() {
   console.log("ok - Ling scroll restores bottom after a hidden panel and new messages");
 }
 
-async function testNotificationLoadDoesNotOverrideReadingPosition() {
-  const h = await harness();
-  await h.evaluate("openLing()");
-  const scroller = h.ids.get("scroller");
-  scroller.scrollHeight = 300;
-  scroller.clientHeight = 100;
-  scroller.scrollTop = 40;
-  h.evaluate(`
-    rememberCurrentScroll();
-    __notificationGate = new Promise((resolve) => { __releaseNotification = resolve; });
-    __notificationWaiting = false;
-    pollNotifications = async () => {
-      __notificationWaiting = true;
-      await __notificationGate;
-    };
-    __openingLing = openLing();
-  `);
-  while (!h.evaluate("__notificationWaiting")) {
-    await new Promise((resolve) => setImmediate(resolve));
-  }
-  scroller.scrollTop = 90;
-  h.evaluate("__releaseNotification()");
-  await h.evaluate("__openingLing");
-  assert.equal(scroller.scrollTop, 90,
-    "a slow notification request does not pull a reader back to a saved position");
-  console.log("ok - slow notification loading preserves the reader's position");
-}
-
-async function testInteractionDraftSurvivesPolling() {
+async function testMainRequestPanelDedupesByToken() {
   const h = await harness();
   const data = h.snapshot();
-  data.interaction = { type: "approval", token: "tok", tool: "bash", arguments: { command: "ls" } };
+  data.main_requests = [
+    {id: "m1", kind: "approval", status: "pending", payload: {tool: "write_file", arguments: {path: "x"}}},
+    {id: "m1", kind: "approval", status: "pending", payload: {tool: "write_file", arguments: {path: "x"}}},
+  ];
   await h.evaluate("openLing()");
-  const box = h.ids.get("ling-interaction");
-  const choices = box.querySelector(".ling-approval-choices");
-  assert.ok(choices, "an approval renders explicit allow and deny buttons");
-  assert.equal(box.querySelector(".ling-approval-answer"), null,
-    "an approval is no longer a free-text field");
+  assert.equal(h.ids.get("ling-requests").querySelectorAll(".ling-request").length, 1,
+    "main requests dedupe by their durable token");
+  const panel = h.ids.get("ling-requests").querySelector(".ling-request");
+  h.ids.get("input").value = "保留中的草稿";
   await h.evaluate("pollLing()");
-  assert.equal(h.ids.get("ling-interaction").querySelector(".ling-approval-choices"), choices,
-    "polling keeps the live approval panel instead of rebuilding it");
-  console.log("ok - Ling approval buttons survive a matching poll");
+  assert.equal(h.ids.get("input").value, "保留中的草稿");
+  panel.querySelector(".ling-approval-allow").handlers.click();
+  await new Promise((resolve) => setImmediate(resolve));
+  const answer = h.calls.bodies.find((call) => call.path === "/api/approval");
+  assert.equal(answer.body.token, "m1");
+  assert.equal(answer.body.allowed, true);
+  console.log("ok - main approvals keep one card and answer their own token");
 }
 
-async function testLingApprovalButtonsSendBooleans() {
+async function testMainQuestionDraftsArePerRequest() {
   const h = await harness();
   const data = h.snapshot();
-  data.interaction = { type: "approval", token: "tok-yes", tool: "bash", arguments: { command: "ls" } };
+  data.main_requests = [
+    {id: "qa", kind: "question", status: "pending", payload: {questions: [{question: "怎么继续？"}]}},
+    {id: "qb", kind: "question", status: "pending", payload: {questions: [{question: "另一个问题"}]}},
+  ];
   await h.evaluate("openLing()");
-  h.ids.get("ling-interaction").querySelector(".ling-approval-allow").handlers.click();
+  const panels = h.ids.get("ling-requests").querySelectorAll(".ling-request");
+  const first = panels[0].querySelector(".ling-question-free");
+  first.value = "保留回答";
+  first.handlers.input();
+  await h.evaluate("pollLing()");
+  const again = h.ids.get("ling-requests").querySelectorAll(".ling-request")[0]
+    .querySelector(".ling-question-free");
+  assert.equal(again.value, "保留回答");
+  panels[1].querySelector(".ling-question-free").value = "另一个回答";
+  panels[1].querySelector(".ling-question-free").handlers.input();
+  panels[1].querySelector(".ling-request-submit").handlers.click();
   await new Promise((resolve) => setImmediate(resolve));
-  const allowed = h.calls.bodies.find((call) => call.path === "/api/approval");
-  assert.equal(allowed.body.allowed, true, "允许 submits allowed=true");
-  assert.equal(allowed.body.token, "tok-yes");
-
-  const denied = await harness();
-  denied.snapshot().interaction = { type: "approval", token: "tok-no", tool: "bash", arguments: { command: "ls" } };
-  await denied.evaluate("openLing()");
-  denied.ids.get("ling-interaction").querySelector(".ling-approval-deny").handlers.click();
-  await new Promise((resolve) => setImmediate(resolve));
-  const refused = denied.calls.bodies.find((call) => call.path === "/api/approval");
-  assert.equal(refused.body.allowed, false, "拒绝 submits allowed=false");
-  console.log("ok - Ling approval buttons submit explicit booleans");
+  const answer = h.calls.bodies.find((call) => call.path === "/api/answer");
+  assert.equal(answer.body.token, "qb");
+  assert.deepEqual(answer.body.answers, ["另一个回答"]);
+  console.log("ok - main question drafts and tokens stay with their own request");
 }
 
-async function testInteractionClearsOnceWithoutEchoingHandledText() {
+async function testUnknownMainApprovalIsReadOnly() {
   const h = await harness();
   const data = h.snapshot();
-  data.interaction = { type: "question", token: "q", questions: [{ question: "继续吗？" }] };
+  data.main_requests = [{id: "u1", kind: "approval", status: "unknown",
+    payload: {tool: "write_file", arguments: {path: "maybe.txt"}}}];
   await h.evaluate("openLing()");
-  const input = h.ids.get("ling-interaction").querySelector(".ling-question-free");
-  input.value = "继续";
+  const panel = h.ids.get("ling-requests").querySelector(".ling-request");
+  assert.equal(panel.querySelector(".ling-approval-allow"), null);
+  assert.equal(panel.querySelector(".ling-approval-deny"), null);
+  assert.match(panel.descendants().map((node) => node.textContent).join(" "), /不会自动重放/);
+  panel.querySelector(".ling-request-reviewed").handlers.click();
+  await new Promise((resolve) => setImmediate(resolve));
+  const body = h.calls.bodies.find((call) => call.path === "/api/approval");
+  assert.equal(body.body.token, "u1");
+  assert.equal(body.body.reviewed_unknown, true);
+  assert.equal(Object.hasOwn(body.body, "allowed"), false);
+  console.log("ok - unknown approvals dismiss without granting or replaying");
+}
+
+async function testWorkRequestUsesTaskEndpoint() {
+  const h = await harness();
+  const data = h.snapshot();
+  data.main_requests = [];
+  data.tasks = [{id: "t1", title: "写入报告", state: "waiting_user", control_version: 9,
+    pending_interactions: [{id: "w1", kind: "question", control_version: 9,
+      payload: {questions: [{question: "用哪种格式？"}]}}]}];
+  await h.evaluate("openLing()");
+  const section = h.ids.get("ling-requests").querySelector(".ling-request.work");
+  assert.ok(section);
+  const input = section.querySelector(".ling-question-free");
+  input.value = "Markdown";
   input.handlers.input();
-  data.interaction = null;
   await h.evaluate("pollLing()");
-  assert.equal(h.ids.get("ling-interaction").querySelector(".ling-question-free"), null);
-  const handled = h.ids.get("ling-interaction").querySelector(".ling-interaction-expired");
-  h.evaluate(`lingView.interactionHandled = true; lingView.interactionDraft = {key: "", value: {answers: {0: "继续"}, approval: ""}};`);
-  await h.evaluate("pollLing()");
-  assert.equal(h.ids.get("ling-interaction").querySelector(".ling-question-free"), null,
-    "a handled interaction cannot come back from a stale local draft");
-  console.log("ok - completed interaction clears once and does not echo answered input");
+  const again = h.ids.get("ling-requests").querySelector(".ling-request.work");
+  assert.equal(again.querySelector(".ling-question-free").value, "Markdown");
+  again.querySelector(".ling-request-submit").handlers.click();
+  await new Promise((resolve) => setImmediate(resolve));
+  const answer = h.calls.bodies.find((call) => call.path.endsWith("/tasks/t1/interactions/w1/answer"));
+  assert.equal(answer.body.answer, "Markdown");
+  assert.equal(answer.body.expected_version, 9);
+  console.log("ok - work requests answer their own task interaction");
 }
 
-async function testNotificationsDedupeAndAnswerThroughTaskApi() {
-  const h = await harness();
-  await h.evaluate("openLing()");
-  await h.evaluate("pollNotifications()");
-  const counts = h.calls.paths.filter((value) => value.includes("unread=0")).length;
-  assert.ok(counts >= 1, "startup requests unread notifications for backfill");
-  assert.equal(h.evaluate("lingView.notifications.length"), 1);
-  assert.equal(typeof h.ids.get("notifications-toggle").handlers.click, "function",
-    "broken script loading must not leave the notification button inert");
-  const data = h.snapshot();
-  data.notifications = [{
-    id: 6, task_id: "t1", kind: "interaction", title: "需要处理", text: "",
-    interaction_id: "i6", read_at: null, created_at: "2026-10-20T01:00:00Z",
-  }];
-  await h.evaluate("pollLing()");
-  assert.equal(h.evaluate("lingView.notifications.some((item) => item.id === 6)"), true,
-    "/api/ling notifications enter the rendered feed");
-  assert.ok(h.ids.get("notification-list").querySelector(".notification-handle"),
-    "Ling polling alone can surface a notification action");
-  await h.evaluate("pollNotifications({startup: true})");
-  assert.equal(h.evaluate("lingView.notifications.length"), 2, "startup backfill is deduplicated by id");
-  const interaction = { kind: "approval", task_id: "t1", interaction_id: "i1", control_version: 7 };
-  h.evaluate(`lingView.interaction = ${JSON.stringify(interaction)}`);
-  await h.evaluate("answerLingInteraction(true)");
-  const answer = h.calls.bodies.find((call) => call.path.endsWith("/interactions/i1/answer"));
-  assert.equal(answer.body.answer, true);
-  assert.equal(answer.body.expected_version, 7);
-  assert.equal(answer.body.resume, true);
-  console.log("ok - notification backfill dedupes and task approval reuses task detail API");
-}
-
-async function testNotificationHandlesRequestInline() {
+async function testComposerTargetAndPauseAll() {
   const h = await harness();
   const data = h.snapshot();
-  data.notifications = [{
-    id: 4, task_id: "t1", kind: "interaction", title: "需要授权", text: "批准写入",
-    interaction_id: "i-live", current_state: "waiting_user", control_version: 4,
-    read_at: null, created_at: "2026-10-20T01:00:00Z",
-  }];
-  h.setTaskDetail({
-    id: "t1", control_version: 9, pending_interactions: [{
-      id: "i-live", kind: "approval", control_version: 9,
-      payload: { tool: "write_file", arguments: { path: "x" } },
-    }],
-  });
+  data.tasks = [
+    {id: "t1", title: "第一项", state: "running", pending_interactions: []},
+    {id: "t2", title: "第二项", state: "completed", pending_interactions: []},
+  ];
   await h.evaluate("openLing()");
-  assert.equal(h.evaluate("lingView.sessionId"), "ling-stable");
-  const notification = h.ids.get("notification-list").querySelector(".notification-handle");
-  assert.ok(notification, "interaction notifications offer an inline handler");
-  h.evaluate("$('notification-region').hidden = false");
-  h.ids.get("input").value = "不能丢的草稿";
-  notification.handlers.click();
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(h.evaluate("lingView.active"), true, "handling does not navigate away from Ling");
-  assert.equal(h.ids.get("input").value, "不能丢的草稿");
-  assert.match(h.ids.get("notification-list").querySelector(".notification-action-tool").textContent,
-    /write_file/);
-  await h.evaluate("submitNotificationAction(true)");
-  const answer = h.calls.bodies.find((call) => call.path.endsWith("/interactions/i-live/answer"));
-  assert.equal(answer.body.answer, true);
-  assert.equal(answer.body.expected_version, 9, "approval uses fresh task detail version");
-  assert.equal(h.evaluate("lingView.active"), true);
-  console.log("ok - notification approval answers inline against fresh task detail");
+  assert.equal(h.ids.get("composer-task").children.length, 3);
+  h.ids.get("composer-task").value = "t1";
+  h.ids.get("input").value = "保留原格式";
+  await h.ids.get("composer").handlers.submit({preventDefault() {}});
+  const input = h.calls.bodies.find((call) => call.path === "/api/ling/input");
+  assert.equal(input.body.task_id, "t1");
+  assert.equal(h.ids.get("composer-task").value, "");
+  assert.equal(h.ids.get("ling-pause-all").hidden, false);
+  await h.evaluate("pauseAllWorks()");
+  assert.equal(h.calls.bodies.filter((call) => call.path === "/api/ling/pause-all").length, 1);
+  assert.equal(h.calls.bodies.some((call) => call.path === "/api/ling/stop"), false);
+  console.log("ok - composed work targeting and pause-all use separate routes");
 }
-
-async function testStaleNotificationShowsHandledState() {
-  const h = await harness();
-  const data = h.snapshot();
-  data.notifications = [{
-    id: 5, task_id: "t1", kind: "interaction", title: "已经处理的请求", text: "",
-    interaction_id: "i-old", current_state: "waiting_user", control_version: 3, read_at: null,
-    created_at: "2026-10-20T01:00:00Z",
-  }];
-  h.setTaskDetail({ id: "t1", control_version: 10, pending_interactions: [] });
-  await h.evaluate("openLing()");
-  const handle = h.ids.get("notification-list").querySelector(".notification-handle");
-  handle.handlers.click();
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.match(h.ids.get("notification-list").querySelector(".notification-action-message").textContent,
-    /已处理或已过期/);
-  assert.equal(h.calls.bodies.filter((call) => call.path.includes("/interactions/")).length, 0,
-    "a stale notification cannot send an approval");
-  console.log("ok - stale notification answers are rejected from fresh task detail");
-}
-
-async function testNotificationFeedKeepsOpenDraftAcrossPoll() {
-  const h = await harness();
-  const data = h.snapshot();
-  data.notifications = [{
-    id: 7, task_id: "t1", kind: "interaction", title: "待处理", text: "",
-    interaction_id: "i7", read_at: null, created_at: "2026-10-20T01:00:00Z",
-  }];
-  h.setTaskDetail({
-    id: "t1", control_version: 12, pending_interactions: [{
-      id: "i7", kind: "question", control_version: 12,
-      payload: { questions: [{ question: "具体怎样继续？" }] },
-    }],
-  });
-  await h.evaluate("openLing()");
-  h.evaluate("$('notification-region').hidden = false");
-  h.ids.get("notification-list").querySelector(".notification-handle").handlers.click();
-  await new Promise((resolve) => setImmediate(resolve));
-  const input = h.ids.get("notification-list").querySelector(".notification-action-input");
-  assert.ok(input, "questions use the pending interaction payload");
-  input.value = "尚未提交的回答";
-  input.handlers.input();
-  await h.evaluate("renderNotifications()");
-  const again = h.ids.get("notification-list").querySelector(".notification-action-input");
-  assert.equal(again.value, "尚未提交的回答", "an open notification question survives feed rerender");
-  assert.equal(h.evaluate("lingView.active"), true);
-  console.log("ok - notification interaction drafts survive feed updates");
-}
-
-async function testTwoOpenNotificationPanelsKeepTheirOwnApproval() {
-  const h = await harness();
-  const data = h.snapshot();
-  data.notifications = [{
-    id: 11, task_id: "t1", kind: "interaction", title: "审批 A", text: "",
-    interaction_id: "i-a", read_at: null, created_at: "2026-10-20T01:00:00Z",
-  }, {
-    id: 12, task_id: "t1", kind: "interaction", title: "审批 B", text: "",
-    interaction_id: "i-b", read_at: null, created_at: "2026-10-20T01:01:00Z",
-  }];
-  h.setTaskDetail({
-    id: "t1", control_version: 5, pending_interactions: [{
-      id: "i-a", kind: "approval", control_version: 5,
-      payload: { tool: "write_file", arguments: { path: "a" } },
-    }, {
-      id: "i-b", kind: "approval", control_version: 5,
-      payload: { tool: "write_file", arguments: { path: "b" } },
-    }],
-  });
-  await h.evaluate("openLing()");
-  h.evaluate("$('notification-region').hidden = false");
-  const rows = () => h.ids.get("notification-list").querySelectorAll(".notification-item");
-  const rowFor = (id) => rows().find((row) => row.dataset.notificationId === String(id));
-  assert.ok(rowFor(11) && rowFor(12), "both pending notifications are listed");
-
-  rowFor(11).querySelector(".notification-handle").handlers.click();
-  await new Promise((resolve) => setImmediate(resolve));
-  rowFor(12).querySelector(".notification-handle").handlers.click();
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.ok(rowFor(11).querySelector(".notification-action-panel"),
-    "opening the second panel does not discard the first");
-  assert.ok(rowFor(12).querySelector(".notification-action-panel"));
-  assert.match(rowFor(11).querySelector(".notification-action-tool").textContent, /write_file/);
-
-  // A poll redraws the feed; both panels must keep their own binding.
-  await h.evaluate("renderNotifications()");
-  const first = rows().find((row) => row.dataset.notificationId === "11");
-  assert.ok(first.querySelector(".notification-action-panel"),
-    "the first panel survives a feed redraw");
-  first.querySelector(".notification-allow").handlers.click();
-  await new Promise((resolve) => setImmediate(resolve));
-
-  const answers = h.calls.bodies.filter((call) => call.path.includes("/interactions/"));
-  assert.equal(answers.length, 1, "exactly one interaction is answered");
-  assert.match(answers[0].path, /\/interactions\/i-a\/answer$/,
-    "the first panel approves its own notification, not the newest one");
-  assert.equal(answers[0].body.answer, true);
-
-  // The other panel is neither answered nor closed by the first submission.
-  const second = rows().find((row) => row.dataset.notificationId === "12");
-  assert.ok(second.querySelector(".notification-action-panel"),
-    "the second panel stays open after the first is approved");
-  assert.doesNotMatch(second.querySelector(".notification-action-message")?.textContent || "",
-    /已处理/, "the second notification is still awaiting its own answer");
-
-  // Marking read is not an approval and must not answer anything.
-  h.evaluate("markNotificationRead(lingView.notifications.find((item) => item.id === 12))");
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(h.calls.bodies.filter((call) => call.path.includes("/interactions/")).length, 1,
-    "标为已读 never submits an approval");
-  console.log("ok - two open notification panels each approve their own interaction");
-}
-
-async function testNotificationSubmitStaysBoundDuringPolling() {
-  const h = await harness();
-  const data = h.snapshot();
-  data.notifications = [{
-    id: 8, task_id: "t1", kind: "interaction", title: "审批", text: "",
-    interaction_id: "i8", read_at: null, created_at: "2026-10-20T01:00:00Z",
-  }];
-  h.setTaskDetail({
-    id: "t1", control_version: 3, pending_interactions: [{
-      id: "i8", kind: "approval", control_version: 3,
-      payload: { tool: "write_file", arguments: { path: "x" } },
-    }],
-  });
-  await h.evaluate("openLing()");
-  h.evaluate("$('notification-region').hidden = false");
-  h.ids.get("notification-list").querySelector(".notification-handle").handlers.click();
-  await new Promise((resolve) => setImmediate(resolve));
-  h.evaluate(`
-    __notificationGate = new Promise((resolve) => { __releaseNotification = resolve; });
-    __originalSubmitNotification = submitNotificationAction;
-    submitNotificationAction = async (approval, target) => {
-      await __notificationGate;
-      return __originalSubmitNotification(approval, target);
-    };
-    __sendGate = new Promise((resolve) => { __releaseSend = resolve; });
-    __originalAnswerWithGate = answerLingInteraction;
-    answerLingInteraction = async (value) => {
-      await __sendGate;
-      return __originalAnswerWithGate(value);
-    };
-  `);
-  const submitting = h.evaluate("submitNotificationAction(true)");
-  await new Promise((resolve) => setImmediate(resolve));
-  await h.evaluate("pollLing()");
-  h.evaluate("__releaseNotification()");
-  h.evaluate("__releaseSend()");
-  await submitting;
-  const answer = h.calls.bodies.find((call) => call.path.endsWith("/interactions/i8/answer"));
-  assert.equal(answer.body.answer, true, "polling cannot sever the in-flight approval state");
-  console.log("ok - notification approval submission keeps a stable interaction state");
-}
-
-async function testNotificationAutoOpensOnlyForFreshUnread() {
-  const h = await harness();
-  const data = h.snapshot();
-  data.notifications = [];
-  await h.evaluate("openLing()");
-  h.evaluate("setNotificationsOpen(false)");
-  data.unread_count = 1;
-  data.notifications = [{
-    id: 9, task_id: "t1", kind: "completed", title: "工作完成", text: "结果已保存",
-    read_at: null, created_at: "2026-10-20T01:00:00Z",
-  }];
-  h.ids.get("input").value = "继续写的草稿";
-  await h.evaluate("pollLing()");
-  assert.equal(h.evaluate("lingView.notificationsOpen"), true,
-    "a fresh unread notification opens the passive in-page feed");
-  assert.equal(h.ids.get("input").value, "继续写的草稿");
-  h.evaluate("setNotificationsOpen(false)");
-  await h.evaluate("pollLing()");
-  assert.equal(h.evaluate("lingView.notificationsOpen"), false,
-    "polling a notification the user dismissed does not reopen it");
-  assert.equal(h.evaluate("lingView.active"), true);
-  console.log("ok - fresh unread notifications auto-open once without stealing the draft");
-}
-
-async function testLegacyEntryRemains() {
-  const h = await harness();
-  await h.evaluate("openLing()");
-  await h.evaluate("openSession('legacy')");
-  assert.equal(h.evaluate("lingView.active"), false);
-  assert.equal(h.ids.get("ling-bar").hidden, true);
-  assert.equal(h.evaluate("state.sessionId"), "legacy");
-  console.log("ok - legacy chat remains reachable and hides Ling chrome");
-}
-
-async function testLegacyCompletionCannotStealLingView() {
-  const h = await harness();
-  await h.evaluate("openLing()");
-  let refreshed = 0;
-  h.evaluate(`
-    state.sessionId = "legacy-finished";
-    refresh = async () => ({});
-    openSession = async () => { __legacyRefreshes += 1; };
-    __legacyRefreshes = 0;
-    __originalFetch = fetch;
-    fetch = async (path, options) => {
-      if (path === "/api/chat") return {ok: true, status: 200, statusText: "OK",
-        body: {getReader: () => {let sent = false; return {read: async () => {
-          if (sent) return {done: true};
-          sent = true;
-          return {done: false, value: new TextEncoder().encode(
-            JSON.stringify({type: "done", data: {}}) + "\\n")};
-        }};}}};
-      return __originalFetch(path, options);
-    };
-  `);
-  await h.evaluate("send('旧会话请求')");
-  assert.equal(h.evaluate("lingView.active"), true, "Ling remains the current view");
-  assert.equal(h.evaluate("__legacyRefreshes"), 0, "finishing the old stream does not call openSession");
-  console.log("ok - legacy stream completion respects the current Ling view");
-}
-
 async function testResumeOnlyAppliesToHeldInput() {
   const h = await harness();
   await h.evaluate("openLing()");
@@ -705,9 +529,9 @@ async function testTaskRefreshPreservesOpenPanelAndControls() {
   assert.equal(h.ids.get("task-panel").hidden, false);
   assert.equal(h.evaluate("state.viewVersion"), version);
   assert.equal(h.ids.get("task-steps").children[0], controls);
-  h.evaluate('renderTaskActions({state: "paused", pending_interactions: [{kind: "approval"}]})');
-  assert.equal(h.ids.get("task-start").hidden, true);
-  console.log("ok - task refresh preserves panels and unchanged controls");
+  assert.equal(h.evaluate('typeof renderTaskActions + " " + typeof taskCommand'),
+    "undefined undefined", "work details expose facts without manual controls");
+  console.log("ok - task refresh preserves read-only panels");
 }
 
 async function testLingSendCannotOverwriteAnotherView() {
@@ -782,17 +606,97 @@ async function testLingSendFailureAfterReturningKeepsNewerDraft() {
 
 async function testTaskControlErrorPreservesComposerDraft() {
   const h = await harness();
-  h.evaluate('clearLingView(); taskView.current = null; state.running = false; api = async () => { throw new Error("HTTP 500"); }');
+  await h.evaluate("openLing()");
+  h.evaluate('api = async () => { throw new Error("HTTP 500"); }');
   h.ids.get("input").value = "keep my message";
   await h.ids.get("composer").handlers.submit({preventDefault() {}});
   assert.equal(h.ids.get("input").value, "keep my message");
   assert.equal(h.calls.bodies.some(call => call.path === "/api/chat"), false);
-  h.evaluate('api = async () => { throw new Error("unambiguous command"); }');
-  assert.equal(await h.evaluate('naturalTaskControl("ordinary chat")'), false);
-  console.log("ok - task control errors preserve draft and ordinary chat falls through");
+  console.log("ok - Ling send errors preserve the draft");
+}
+
+async function testNewWorkAppearsInSidebarAndCompletedCanBeTargeted() {
+  const h = await harness();
+  await h.evaluate("openLing()");
+  h.snapshot().tasks = [{id:"finished",title:"saved result",state:"completed",pending_interactions:[]}];
+  await h.evaluate("pollLing()");
+  assert.equal(h.ids.get("tasks").children.length, 1, "main snapshots update the work sidebar");
+  assert.ok(h.ids.get("composer-task").children.some(item => item.value === "finished"), "completed work remains targetable for a new iteration");
+  h.snapshot().tasks = [];
+  await h.evaluate("openLing()");
+  assert.match(h.ids.get("transcript").descendants().map((node) => node.textContent).join(" "), /灵/,
+    "an empty main entry still shows the Ling welcome");
+  console.log("ok - new work reaches the sidebar and completed results stay targetable");
+}
+
+async function testDeferredSnapshotCannotEraseNewerLiveEvent() {
+  const h = await harness();
+  await h.evaluate("openLing()");
+  let release;
+  h.evaluate(`__snapshotGate = new Promise((resolve) => { __releaseSnapshot = resolve; });`);
+  h.setFetch(async (path) => {
+    if (path === "/api/ling") await __snapshotGate;
+    return null;
+  });
+  const stale = h.snapshot();
+  stale.live = null;
+  stale.live_revision = 1;
+  const polling = h.evaluate("pollLing()");
+  await new Promise((resolve) => setImmediate(resolve));
+  h.evaluate(`receiveRuntimeEvent({scope: "ling", owner_id: "ling-stable", type: "delta", revision: 2,
+    live: {revision: 2, message_id: "m1", text: "new", thinking: ""}})`);
+  h.evaluate("__releaseSnapshot()");
+  await polling;
+  assert.equal(h.evaluate("state.items.some((item) => item.text === 'new')"), true,
+    "a snapshot that started before a live event cannot erase its text");
+  assert.equal(h.evaluate("lingView.liveRevision"), 2);
+  console.log("ok - a deferred Ling snapshot cannot erase newer live text");
+}
+
+async function testSavedTaskThinkingIsRendered() {
+  const h = await harness();
+  h.setTaskDetail({
+    id: "t1", state: "paused", pending_interactions: [], live_revision: 0,
+    messages: [{seq: 1, kind: "assistant", text: "", thinking: "saved reasoning", created_at: "2026-10-20T01:00:00Z"}],
+  });
+  await h.evaluate('openTask("t1")');
+  const text = h.ids.get("task-messages").descendants().map((node) => node.textContent).join(" ");
+  assert.match(text, /saved reasoning/, "saved thinking-only task records remain visible");
+  console.log("ok - task records render saved thinking");
+}
+
+async function testTaskLiveUsesSameOrderedIdentityAsSavedRecords() {
+  const h = await harness();
+  h.setTaskDetail({id:"t1", state:"running", live_revision:1,
+    messages:[{seq:1,kind:"assistant",message_id:"m1",text:"",thinking:"saved thought"}],
+    live:{revision:1,message_id:"m1",thinking:"live thought",
+      tool:{id:"c0",parent_message_id:"m1",name:"bash",arguments:{command:"true"},content:"ok",ok:true}}});
+  await h.evaluate("openTask('t1')");
+  const text=h.ids.get("task-messages").descendants().map(n=>n.textContent).join(" ");
+  assert.match(text,/live thought/); assert.match(text,/bash/);
+  console.log("ok - task live records keep stable identity and ordered process");
+}
+
+async function testTaskSwitchDoesNotCarryPreviousLiveState() {
+  const h = await harness();
+  h.setTaskDetail({id: "t1", state: "running", live_revision: 5,
+    live: {revision: 5, text: "first task", message_id: "m1"},
+    pending_interactions: [], messages: []});
+  await h.evaluate('openTask("t1")');
+  h.setTaskDetail({id: "t2", state: "running", live_revision: 1,
+    live: {revision: 1, text: "second task", message_id: "m2"},
+    pending_interactions: [], messages: []});
+  await h.evaluate('openTask("t2")');
+  assert.equal(h.evaluate("taskView.current.live.text"), "second task");
+  assert.equal(h.evaluate("taskView.liveRevision"), 1);
+  const text = h.ids.get("task-messages").descendants().map((node) => node.textContent).join(" ");
+  assert.match(text, /second task/);
+  assert.doesNotMatch(text, /first task/);
+  console.log("ok - task switches do not carry the previous live state");
 }
 
 async function main() {
+  await testNewWorkAppearsInSidebarAndCompletedCanBeTargeted();
   await testTaskRefreshPreservesOpenPanelAndControls();
   await testLingSendCannotOverwriteAnotherView();
   await testLingSendFailureAfterReturningRollsBackCurrentView();
@@ -800,6 +704,7 @@ async function main() {
   await testTaskControlErrorPreservesComposerDraft();
   await testDefaultEntryUsesStableLingSession();
   await testSendQueuesWithoutStopping();
+  await testSlowSendKeepsTextTypedMeanwhile();
   await testLegacyRunningNeverCapturesLingSend();
   await testTextIsVisibleBeforeLowLatencyPollReturns();
   await testInputStatusesMatchQueueContract();
@@ -807,21 +712,18 @@ async function main() {
   await testTaskPendingCountHandlesArray();
   await testPollingDoesNotRedrawStableMessages();
   await testPollingKeepsDraftAndAttachment();
+  await testUnchangedSnapshotKeepsFocusAndCaret();
   await testScrollRestoresBottomAcrossHiddenPanel();
-  await testNotificationLoadDoesNotOverrideReadingPosition();
-  await testInteractionDraftSurvivesPolling();
-  await testLingApprovalButtonsSendBooleans();
-  await testInteractionClearsOnceWithoutEchoingHandledText();
-  await testNotificationsDedupeAndAnswerThroughTaskApi();
-  await testNotificationHandlesRequestInline();
-  await testStaleNotificationShowsHandledState();
-  await testNotificationFeedKeepsOpenDraftAcrossPoll();
-  await testTwoOpenNotificationPanelsKeepTheirOwnApproval();
-  await testNotificationSubmitStaysBoundDuringPolling();
-  await testNotificationAutoOpensOnlyForFreshUnread();
-  await testLegacyEntryRemains();
-  await testLegacyCompletionCannotStealLingView();
+  await testMainRequestPanelDedupesByToken();
+  await testMainQuestionDraftsArePerRequest();
+  await testUnknownMainApprovalIsReadOnly();
+  await testWorkRequestUsesTaskEndpoint();
+  await testComposerTargetAndPauseAll();
   await testResumeOnlyAppliesToHeldInput();
+  await testDeferredSnapshotCannotEraseNewerLiveEvent();
+  await testSavedTaskThinkingIsRendered();
+  await testTaskLiveUsesSameOrderedIdentityAsSavedRecords();
+  await testTaskSwitchDoesNotCarryPreviousLiveState();
   console.log("frontend continuity: all checks passed");
 }
 

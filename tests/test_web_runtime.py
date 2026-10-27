@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 import threading
+import time
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -14,6 +15,11 @@ import pytest
 from nexus.core import agent as loop
 from nexus.core import compaction
 from nexus.model import APIFamily
+from nexus.runtime import TaskController
+from nexus.session import Message
+from nexus.task import TaskStore
+from nexus.tools import build
+from nexus.tools.registry import ToolResult
 from nexus.web import server as web
 
 
@@ -30,6 +36,16 @@ def stream(*, text=None, calls=None):
     return frame(delta) + frame({}, "stop" if text is not None else "tool_calls") + "data: [DONE]\n\n"
 
 
+def until(predicate, timeout=8):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        value = predicate()
+        if value:
+            return value
+        time.sleep(0.02)
+    raise AssertionError("condition did not become true")
+
+
 @pytest.fixture
 def runtime(tmp_path, monkeypatch):
     store = web.ConfigStore(tmp_path / "home")
@@ -43,13 +59,20 @@ def runtime(tmp_path, monkeypatch):
     store.select(provider.id, "fake", "off")
     store.write_credential(provider.id, "fake-key")
     store.save_preferences(workspace=str(tmp_path), permission="yolo")
-    monkeypatch.setattr(web, "STATE", {"store": store, "sessions": web.SessionStore(store.sessions_dir)})
-    monkeypatch.setattr(web, "APPROVALS", web.Approvals())
-    monkeypatch.setattr(web, "RUNNING", {"agent": None})
+    tasks = TaskStore(store.home / "tasks.sqlite3")
+    controller = TaskController(tasks)
+    monkeypatch.setattr(web, "STATE", {
+        "store": store, "sessions": web.SessionStore(store.sessions_dir),
+        "tasks": tasks, "task_controller": controller, "jobs": {},
+        "closing": False,
+    })
     handler = object.__new__(web.Handler)
-    session = web.STATE["sessions"].create("fake")
-    web.STATE["sessions"].append(session, web.Message(kind="user", text="task"))
-    yield handler, session, store
+    ling = web._ling()
+    session = web.STATE["sessions"].load(ling.session_id)
+    web.STATE["sessions"].append(session, Message(kind="user", text="task"))
+    yield handler, session, store, ling
+    ling.close()
+    controller.close()
     for jobs in web.STATE.get("jobs", {}).values():
         jobs.close_all()
     if web.STATE.get("mcp"):
@@ -67,9 +90,9 @@ def model(monkeypatch, responses):
 
 
 def test_compaction_keeps_full_transcript_and_new_answer(runtime, monkeypatch):
-    handler, session, store = runtime
+    handler, session, store, _ling = runtime
     for i in range(10):
-        web.STATE["sessions"].append(session, web.Message(kind="user", text="old-" + str(i) + "x" * 1500))
+        web.STATE["sessions"].append(session, Message(kind="user", text="old-" + str(i) + "x" * 1500))
     settings = store.load()
     settings.context_limit = 2000
     async def fold(self, original, trimmed, window):
@@ -86,7 +109,7 @@ def test_compaction_keeps_full_transcript_and_new_answer(runtime, monkeypatch):
 
 
 def test_mcp_start_schema_call_failure_and_reload(runtime, monkeypatch):
-    handler, session, store = runtime
+    handler, session, store, _ling = runtime
     raw = store.read_config()
     raw["mcp"] = {"servers": [{"name": "stub", "command": sys.executable,
                                "args": [str(Path(__file__).with_name("mcp_server_stub.py"))]}]}
@@ -107,49 +130,56 @@ def test_mcp_start_schema_call_failure_and_reload(runtime, monkeypatch):
 
 
 def test_subagent_shares_approval_channel(runtime, monkeypatch):
-    handler, session, store = runtime
+    handler, session, store, ling = runtime
     store.save_preferences(permission="ask")
     seen = model(monkeypatch, [stream(calls=[("subagent", {"task": "write child.txt"})]),
                               stream(calls=[("write_file", {"path": "child.txt", "content": "child"})]),
                               stream(text="child finished"), stream(text="parent finished")])
-    approvals = []
-    def emit(event):
-        if event["type"] == "approval":
-            approvals.append(event)
-            assert web.APPROVALS.resolve(event["token"], True)
-    handler._run_turn(session, store.load(), emit)
+    tools, context = build(root=Path(store.load().workspace))
+    prepared = tools.prepare("write_file", {"path": "child.txt", "content": "child"}, context)
+    assert not isinstance(prepared, ToolResult)
+    request = ling.decisions.create("approval", {
+        "tool": "write_file", "arguments": prepared.arguments,
+        "value": "child.txt",
+        "workspace": str(Path(store.load().workspace).resolve()),
+    })
+    ling.decisions.answer(request["id"], True)
+    events = []
+    handler._run_turn(session, store.load(), events.append)
     assert (Path(store.load().workspace) / "child.txt").read_text() == "child"
-    assert [e["tool"] for e in approvals] == ["write_file"]
     assert len(seen) == 4
+    assert ling.decisions.pending() == []
+    assert not [event for event in events if event["type"] == "approval"]
+    assert not ling.decisions.granted("write_file", prepared.arguments, store.load().workspace)
 
 
 def test_background_task_survives_turn_but_is_session_scoped(runtime, monkeypatch):
-    handler, session, store = runtime
+    handler, session, store, _ling = runtime
     command = f'"{sys.executable}" -c "print(123)"'
     model(monkeypatch, [stream(calls=[("bash_background", {"command": command})]), stream(text="started"),
                         stream(calls=[("job_list", {})]), stream(text="listed"),
                         stream(calls=[("job_list", {})]), stream(text="empty")])
     handler._run_turn(session, store.load(), lambda e: None)
-    web.STATE["sessions"].append(session, web.Message(kind="user", text="list"))
+    web.STATE["sessions"].append(session, Message(kind="user", text="list"))
     events = []
     handler._run_turn(session, store.load(), events.append)
     assert any(e["type"] == "tool_result" and "job_001" in e["tool"]["content"] for e in events)
     other = web.STATE["sessions"].create("fake")
-    web.STATE["sessions"].append(other, web.Message(kind="user", text="list"))
+    web.STATE["sessions"].append(other, Message(kind="user", text="list"))
     events = []
     handler._run_turn(other, store.load(), events.append)
     assert any(e["type"] == "tool_result" and "(no background jobs)" in e["tool"]["content"] for e in events)
 
 
 def test_cancelled_multiple_calls_remain_paired(runtime, monkeypatch):
-    handler, session, store = runtime
+    handler, session, store, ling = runtime
     model(monkeypatch, [stream(calls=[("write_file", {"path": "one", "content": "1"}),
                                      ("write_file", {"path": "two", "content": "2"})])])
     events = []
     def emit(event):
         events.append(event)
         if event["type"] == "tool_result":
-            web.RUNNING["agent"].stop()
+            ling.agent.stop()
     handler._run_turn(session, store.load(), emit)
     messages = web._internal(web.STATE["sessions"].load(session.id))
     compaction.assert_paired(messages)
@@ -159,44 +189,46 @@ def test_cancelled_multiple_calls_remain_paired(runtime, monkeypatch):
 
 
 def test_child_stop_wakes_question_and_prevents_later_write(runtime, monkeypatch):
-    handler, session, store = runtime
+    handler, session, store, ling = runtime
     model(monkeypatch, [stream(calls=[("subagent", {"task": "ask"})]),
                         stream(calls=[("ask_user", {"questions": [{"question": "continue?"}]}),
                                       ("write_file", {"path": "should-not-exist", "content": "x"})])])
     def emit(event):
         if event["type"] == "question":
-            web.RUNNING["agent"].stop()
-            web.APPROVALS.cancel_all()
+            # The stop arrives while the run is still active; the durable
+            # question remains visible to the owner and nothing later runs.
+            ling.cancel_event.set()
     handler._run_turn(session, store.load(), emit)
     assert not (Path(store.load().workspace) / "should-not-exist").exists()
-    assert not web.APPROVALS._pending
+    assert ling.decisions.pending()
+    assert ling.decisions.pending()[0]["kind"] == "question"
 
 
 def test_images_survive_session_reload(runtime):
-    _, session, _ = runtime
+    _, session, _, _ = runtime
     images = [{"mime": "image/png", "data": "AA=="}]
-    web.STATE["sessions"].append(session, web.Message(kind="user", text="", data={"images": images}))
+    web.STATE["sessions"].append(session, Message(kind="user", text="", data={"images": images}))
     loaded = web.STATE["sessions"].load(session.id)
     assert web._transcript(loaded)[-1]["images"] == images
     assert web._internal(loaded)[-1]["content"] == [{"type": "image", **images[0]}]
 
 
-def test_disconnect_before_tool_execution_keeps_replay_paired(runtime, monkeypatch):
-    handler, session, store = runtime
+def test_stop_before_tool_execution_keeps_replay_paired(runtime, monkeypatch):
+    handler, session, store, ling = runtime
     model(monkeypatch, [stream(calls=[("write_file", {"path": "never", "content": "x"})])])
     def emit(event):
         if event["type"] == "tool_start":
-            raise BrokenPipeError("browser disconnected")
+            ling.cancel_event.set()
     handler._run_turn(session, store.load(), emit)
     messages = web._internal(web.STATE["sessions"].load(session.id))
     compaction.assert_paired(messages)
     assert not (Path(store.load().workspace) / "never").exists()
     saved = web._transcript(web.STATE["sessions"].load(session.id))
-    assert saved[-1]["error"] == "interrupted"
+    assert saved[-1]["error"] == "cancelled"
 
 
 def test_project_skills_follow_actual_workspace(runtime, monkeypatch):
-    handler, session, store = runtime
+    handler, session, store, _ling = runtime
     workspace = Path(store.load().workspace)
     for directory, name in [(workspace, "first"), (workspace / "other", "second")]:
         target = directory / ".nexus" / "skills" / name / "SKILL.md"
@@ -212,7 +244,7 @@ def test_project_skills_follow_actual_workspace(runtime, monkeypatch):
 
 
 def test_image_only_chat_over_http_and_next_turn(runtime, monkeypatch):
-    _, session, store = runtime
+    _, session, _store, _ling = runtime
     seen = model(monkeypatch, [stream(text="image received"), stream(text="next turn")])
     image = {"mime": "image/png", "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aPe4AAAAASUVORK5CYII="}
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), web.Handler)
@@ -221,14 +253,17 @@ def test_image_only_chat_over_http_and_next_turn(runtime, monkeypatch):
     thread.start()
     try:
         with httpx.Client(base_url=f"http://127.0.0.1:{httpd.server_port}") as client:
-            first = client.post("/api/chat", json={"session_id": session.id, "images": [image]})
-            assert first.status_code == 200
-            assert "image received" in first.text
+            first = client.post("/api/ling/input", json={"images": [image], "request_id": "image-only"})
+            assert first.status_code == 202
+            until(lambda: any(item["id"] == first.json()["input_id"] and item["status"] == "done"
+                              for item in client.get("/api/ling").json()["inputs"]))
             reloaded = client.get(f"/api/sessions/{session.id}").json()["items"]
-            assert reloaded[-2]["images"] == [image]
-            second = client.post("/api/chat", json={"session_id": session.id, "text": "continue"})
-            assert second.status_code == 200
-            assert "next turn" in second.text
+            assert any(item["images"] == [image] for item in reloaded)
+            second = client.post("/api/ling/input", json={"text": "continue", "request_id": "after-image"})
+            assert second.status_code == 202
+            until(lambda: any(item["id"] == second.json()["input_id"] and item["status"] == "done"
+                              for item in client.get("/api/ling").json()["inputs"]))
+            assert "next turn" in client.get("/api/ling").json()["items"][-1]["text"]
         images = seen[0]["messages"][-1]["content"]
         assert images[0]["image_url"]["url"] == "data:image/png;base64," + image["data"]
         assert any(isinstance(m["content"], list) for m in seen[1]["messages"])
@@ -239,7 +274,7 @@ def test_image_only_chat_over_http_and_next_turn(runtime, monkeypatch):
 
 
 def test_partial_model_error_is_saved(runtime, monkeypatch):
-    handler, session, store = runtime
+    handler, session, store, _ling = runtime
     malformed = 'data: {"choices":[{"index":0,"delta":{"content":"partial"},"finish_reason":null}]}\n\n'
     model(monkeypatch, [malformed])
     handler._run_turn(session, store.load(), lambda e: None)
@@ -272,30 +307,28 @@ def test_server_shutdown_closes_session_background_tasks(tmp_path, monkeypatch):
             pass
     monkeypatch.setattr(web, "ThreadingHTTPServer", Server)
     monkeypatch.setattr(web, "STATE", {})
-    cancellation = threading.Event()
-    monkeypatch.setattr(web, "RUNNING", {"agent": None, "cancel_event": cancellation})
     web.serve(home=tmp_path / "home", port=0, workspace=tmp_path)
     assert started[0].wait_closed(3)
     assert not started[0].running
-    assert cancellation.is_set()
 
 
 def test_shutdown_refuses_late_run_resource_registration(runtime):
-    handler, session, store = runtime
+    handler, session, store, _ling = runtime
     web.STATE["closing"] = True
     events = []
-    handler._run_turn(session, store.load(), events.append)
-    assert events[0]["type"] == "error"
-    assert "jobs" not in web.STATE
-    assert "cancel_event" not in web.RUNNING
+    with pytest.raises(web.TaskConflict, match="关闭"):
+        handler._run_turn(session, store.load(), events.append)
+    assert events == []
+    assert web.STATE["jobs"] == {}
+    assert web.STATE["ling"].cancel_event is None
 
 
 def test_stop_at_tool_start_prevents_the_write(runtime, monkeypatch):
-    handler, session, store = runtime
+    handler, session, store, ling = runtime
     model(monkeypatch, [stream(calls=[("write_file", {"path": "cancelled", "content": "x"})])])
     def emit(event):
         if event["type"] == "tool_start":
-            web.RUNNING["agent"].stop()
+            ling.agent.stop()
     handler._run_turn(session, store.load(), emit)
     assert not (Path(store.load().workspace) / "cancelled").exists()
     assert web._transcript(web.STATE["sessions"].load(session.id))[-1]["error"] == "cancelled"

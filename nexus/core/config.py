@@ -66,6 +66,24 @@ def _normalize_model_window(model: dict[str, Any]) -> dict[str, Any]:
     return entry
 
 
+def _model_rows(value: dict[str, Any], *, existing: list[dict[str, Any]] | None = None):
+    """Validate a provider's model rows, keeping a non-empty list."""
+    if "models" not in value and existing is not None:
+        return existing
+    raw = value.get("models")
+    if raw is None:
+        fallback = str(value.get("model") or "").strip()
+        if not fallback:
+            raise ValueError("at least one model is required")
+        return [_normalize_model_window({"id": fallback})]
+    if not isinstance(raw, list):
+        raise ValueError("models must be a list")
+    models = [_normalize_model_window(item) for item in raw if isinstance(item, dict)]
+    if not models:
+        raise ValueError("at least one model is required")
+    return models
+
+
 @dataclass
 class Provider:
     id: str
@@ -372,22 +390,14 @@ class ConfigStore:
             raise ValueError(f"unknown api family: {family}")
         if not base_url.startswith(("http://", "https://")):
             raise ValueError("base_url must start with http:// or https://")
-        models = value.get("models") or []
-        if not isinstance(models, list):
-            raise ValueError("models must be a list")
+        models = _model_rows(value)
         provider = Provider(
             id=_new_id("prov"),
             name=str(value.get("name") or "未命名").strip()[:60],
             family=family,
             base_url=base_url.rstrip("/"),
-            models=[
-                _normalize_model_window(m)
-                for m in models
-                if isinstance(m, dict)
-            ],
+            models=models,
         )
-        if not provider.models:
-            provider.models = [{"id": str(value.get("model") or "default")}]
         providers.append(provider)
         self.save_providers(providers)
         api_key = value.get("api_key")
@@ -412,9 +422,7 @@ class ConfigStore:
                 raise ValueError("base_url must start with http:// or https://")
             target.base_url = base_url.rstrip("/")
         if isinstance(value.get("models"), list):
-            target.models = [
-                _normalize_model_window(m) for m in value["models"] if isinstance(m, dict)
-            ]
+            target.models = _model_rows(value, existing=target.models)
         self.save_providers(providers)
         api_key = value.get("api_key")
         if isinstance(api_key, str):
