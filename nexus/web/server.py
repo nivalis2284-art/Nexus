@@ -307,8 +307,8 @@ class Handler(BaseHTTPRequestHandler):
         if attachment_route(self, STATE, _json, "GET"):
             return
         path = urlparse(self.path).path
-        if path in ("/context.js", "/context.css", "/editing.js"):
-            return self._file(path[1:], "text/css; charset=utf-8" if path.endswith(".css") else "text/javascript; charset=utf-8")
+        if path.startswith(("/css/", "/js/", "/assets/")):
+            return self._static(path.lstrip("/"))
         if path == "/api/context":
             try:
                 return _json(self, 200, _application().context_snapshot())
@@ -318,20 +318,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._stream()
         if path == "/api/workspace-file":
             return self._workspace_file(parse_qs(urlparse(self.path).query))
-        if path in ("/presentation.js", "/live.js", "/presentation.css"):
-            return self._file(path[1:], "text/css; charset=utf-8" if path.endswith(".css") else "text/javascript; charset=utf-8")
         if path in ("/vendor/marked.js", "/vendor/purify.js", "/vendor/highlight.js", "/vendor/highlight.css"):
             return self._file(path[1:], "text/css; charset=utf-8" if path.endswith(".css") else "text/javascript; charset=utf-8")
         if path in ("/", "/index.html"):
             return self._file("index.html", "text/html; charset=utf-8")
-        if path == "/app.js":
-            return self._file("app.js", "text/javascript; charset=utf-8")
-        if path == "/tasks.js":
-            return self._file("tasks.js", "text/javascript; charset=utf-8")
-        if path == "/navigation.js":
-            return self._file("navigation.js", "text/javascript; charset=utf-8")
-        if path == "/skills.js":
-            return self._file("skills.js", "text/javascript; charset=utf-8")
         if path == "/api/skills":
             try:
                 return _json(self, 200, skills_api.manager(STATE).list())
@@ -342,14 +332,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/instructions":
             status, result = instructions_api.route("GET", path, None, STATE)
             return _json(self, status, result)
-        if path == "/ling.js":
-            return self._file("ling.js", "text/javascript; charset=utf-8")
-        if path == "/mcp.js":
-            return self._file("mcp.js", "text/javascript; charset=utf-8")
         if path == "/api/mcp":
             return _json(self, 200, mcp_api.snapshot(STATE))
-        if path == "/app.css":
-            return self._file("app.css", "text/css; charset=utf-8")
         if path == "/api/state":
             try:
                 return _json(self, 200, self._state())
@@ -567,6 +551,25 @@ class Handler(BaseHTTPRequestHandler):
             return _json(self, 404, {"error": "asset missing"})
         self.send_response(200)
         self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _static(self, name: str) -> None:
+        """Serve the redesigned frontend's own css/js/assets tree.
+
+        Only these three prefixes are exposed; paths are resolved and must stay
+        inside the web directory, so a crafted URL cannot read another file.
+        """
+        import mimetypes
+        base = Path(__file__).resolve().parent
+        target = (base / name).resolve()
+        if not target.is_relative_to(base) or not target.is_file():
+            return _json(self, 404, {"error": "asset missing"})
+        body = target.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", mimetypes.guess_type(target.name)[0] or "application/octet-stream")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
