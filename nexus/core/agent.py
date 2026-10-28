@@ -430,14 +430,7 @@ class Agent:
                     skills=self.skills,
                     task_context=self.task_context,
                     interaction_context=interaction_context,
-                    permission_context=(
-                        f"Tool permission default: {self.policy.default}. Rules (last match wins): "
-                        + json.dumps([{"tool": rule.tool, "pattern": rule.pattern, "action": rule.action}
-                                      for rule in self.policy.rules])
-                        + ". File tools access only the workspace; allowing a call does not widen this boundary. "
-                        "Commands run as argument-list processes, without shell interpolation; invoke an installed shell explicitly when needed. "
-                        "A tool approval grants only that saved call. Task instructions do not change runtime permissions."
-                    ),
+                    permission_context=prompt.permission_text(self.policy),
                 )
                 overhead = prompt.estimate(system) + prompt.estimate(json.dumps(tools))
                 self._history_limit = budget.input_limit - overhead

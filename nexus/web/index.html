@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/plugins.css">
 <link rel="stylesheet" href="/vendor/highlight.css">
 <link rel="stylesheet" href="/presentation.css">
+<link rel="stylesheet" href="/context.css">
 </head>
 <body>
 <div id="app">
@@ -19,7 +20,8 @@
       <span class="brand-tag" id="brand-tag">continuous</span>
       <button id="sidebar-close" class="sidebar-toggle" type="button" aria-label="收起导航菜单">收起</button>
     </div>
-    <button id="ling-home" class="side-new side-ling" type="button">✦ 灵</button>
+    <button id="ling-home" class="side-new side-ling" type="button">✦ 主交流 · 灵</button>
+    <button id="context-open" class="side-new" type="button">▱ 上下文管理</button>
     <button id="work-reopen" class="side-new" type="button" hidden>返回工作详情</button>
     <button id="skills-open" class="side-new" type="button">技能</button>
     <button id="plugins-open" class="side-new" type="button">插件管理</button>
@@ -61,8 +63,10 @@
     <div id="ling-inputs" class="ling-inputs" hidden aria-label="灵的工作队列"></div>
 
     <div id="scroller">
+      <div id="history-undo" class="history-undo" hidden><span>已修改交流记录</span><button id="history-undo-button" type="button">撤销操作</button></div>
       <div id="transcript" aria-live="polite"></div>
     </div>
+    <section id="context-view" hidden aria-label="上下文管理"></section>
 
     <section id="task-panel" hidden>
       <div class="task-head">
@@ -132,6 +136,15 @@
 </div>
 
 <div id="menu" class="menu" role="listbox" hidden></div>
+<dialog id="edit-dialog" aria-labelledby="edit-title" aria-describedby="edit-description">
+  <form id="edit-form" class="dialog-body">
+    <div class="dialog-head"><h2 id="edit-title"></h2><button id="edit-close" class="dialog-x" type="button" aria-label="关闭弹窗">×</button></div>
+    <p id="edit-description" class="small"></p>
+    <label id="edit-label">内容<textarea id="edit-input" rows="10" required></textarea></label>
+    <p id="edit-error" class="error small" role="alert"></p>
+    <menu><button id="edit-cancel" class="link" type="button">取消</button><button id="edit-submit" class="primary" type="submit">保存修改</button></menu>
+  </form>
+</dialog>
 
 <dialog id="settings-dialog">
   <div class="dialog-body">
@@ -442,6 +455,8 @@
 <script src="/live.js"></script>
 <script src="/ling.js"></script>
 <script src="/app.js"></script>
+<script src="/editing.js"></script>
+<script src="/context.js"></script>
 <script src="/tasks.js"></script>
 <script src="/navigation.js"></script>
 <script src="/mcp.js"></script>

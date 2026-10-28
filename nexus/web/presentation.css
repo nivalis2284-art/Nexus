@@ -43,7 +43,7 @@
 .markdown blockquote {
   margin: .65em 0;
   padding: .1em 0 .1em .9em;
-  border-left: 3px solid var(--line);
+  border-left: 3px solid #ded5f3;
   color: var(--ink-2);
 }
 
@@ -54,7 +54,7 @@
 }
 
 .markdown a {
-  color: var(--accent);
+  color: var(--accent-deep);
   text-decoration: none;
 }
 
@@ -104,6 +104,7 @@
   border-radius: 8px;
   overflow: hidden;
   background: #fff;
+  box-shadow: 0 1px 2px #352e5008;
 }
 
 .code-head {
@@ -134,7 +135,7 @@
 }
 
 .code-copy:hover,
-.tool-copy:hover { background: var(--panel); }
+.tool-copy:hover { background: var(--accent-soft); color: var(--accent-deep); }
 
 .code-copy.copied,
 .tool-copy.copied { color: var(--ok); border-color: #b7d8b9; }
@@ -176,7 +177,7 @@
 
 .step .sstate.running { color: var(--accent); }
 
-.tool-step.running { border-color: #dce3ff; }
+.tool-step.running { border-color: #ddd3f2; }
 .tool-step.error { border-color: #f0d3d0; }
 
 .tool-step .sbody {
@@ -328,7 +329,7 @@ dialog.file-preview {
   border-radius: 3px;
 }
 
-.file-line.target { background: #fff3c4; }
+.file-line.target { background: #f3eefe; }
 
 .file-preview-image {
   display: block;
@@ -350,4 +351,10 @@ dialog.file-preview {
 @media (max-width: 720px) {
   .tool-step .sargs { max-width: 46%; }
   .tool-step .spreview { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phase > summary .tw,
+  .step > summary .tw { transition: none; }
+  .streaming-caret::after { animation: none; }
 }

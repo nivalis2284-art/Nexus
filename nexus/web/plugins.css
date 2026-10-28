@@ -72,9 +72,9 @@ dialog#plugins-dialog {
 .plugins-global-status {
   margin: 0;
   padding: 6px 9px;
-  border: 1px solid #e2e5f2;
+  border: 1px solid #e8e2f3;
   border-radius: 8px;
-  background: #f7f8fe;
+  background: #faf8fe;
   color: var(--ink-2);
   font-size: 12px;
   line-height: 1.5;
@@ -163,8 +163,8 @@ dialog#plugins-dialog {
   text-align: left;
   cursor: pointer;
 }
-.plugin-list-item:hover { border-color: #d3d6e2; }
-.plugin-list-item.is-selected { border-color: #cbd3f5; background: #f6f8ff; }
+.plugin-list-item:hover { border-color: #d9d0ed; }
+.plugin-list-item.is-selected { border-color: #cfc3e8; background: #faf8fe; }
 
 .plugin-list-title-row {
   display: flex;
@@ -246,7 +246,7 @@ dialog#plugins-dialog {
 .plugin-detail-title { margin: 0; font-size: 16px; font-weight: 650; overflow-wrap: anywhere; }
 .plugin-detail-version { color: var(--muted); font-family: var(--mono); font-size: 10.5px; overflow-wrap: anywhere; }
 .plugin-detail-description { margin: 2px 0 0; color: var(--ink-2); font-size: 12.5px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
-.plugin-detail-progress { margin: 0; padding: 6px 8px; border: 1px solid #e7e9f4; border-radius: 7px; background: #f8f9fe; color: #53639d; font-size: 11.5px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.plugin-detail-progress { margin: 0; padding: 6px 8px; border: 1px solid #e8e1f4; border-radius: 7px; background: #faf8fe; color: #6d5ba8; font-size: 11.5px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .plugin-detail-meta { display: flex; flex-wrap: wrap; gap: 5px; }
 .plugin-meta-item {
@@ -271,9 +271,10 @@ dialog#plugins-dialog {
   font-size: 12px;
   cursor: pointer;
 }
-.plugin-action:hover, .plugin-secondary:hover { border-color: #cbd0dc; color: var(--ink); }
+.plugin-action:hover, .plugin-secondary:hover { border-color: #d8cfed; color: var(--accent-deep); }
 .plugin-action:disabled, .plugin-secondary:disabled, .plugins-toolbar button:disabled { opacity: .55; cursor: default; }
-.plugin-action-primary { border-color: #c9d2f3; background: #f4f6ff; color: #4057a8; font-weight: 550; }
+.plugin-action-primary { border-color: #d8cdef; background: #f7f3fe; color: var(--accent-deep); font-weight: 550; }
+.plugin-action-primary:hover { border-color: #c6b7e6; background: var(--accent-soft); }
 .plugin-action-danger { border-color: #efd9d7; color: var(--danger); }
 .plugin-action-danger:hover { border-color: #dfaaa6; color: #b9362d; }
 .plugin-action-note { color: var(--muted); font-size: 11.5px; }
@@ -305,10 +306,10 @@ dialog#plugins-dialog {
 .plugins-tag {
   max-width: 100%;
   padding: 2px 7px;
-  border: 1px solid #e5e7f2;
+  border: 1px solid #e9e3f3;
   border-radius: 6px;
-  background: #f8f9fe;
-  color: #53639d;
+  background: #faf8fe;
+  color: #6d5ba8;
   font-size: 10.5px;
   overflow-wrap: anywhere;
 }
@@ -437,8 +438,8 @@ dialog#plugins-dialog {
   text-align: left;
   cursor: pointer;
 }
-.plugin-request-row:hover { border-color: #d3d6e2; }
-.plugin-request-row.is-selected { border-color: #cbd3f5; background: #f6f8ff; }
+.plugin-request-row:hover { border-color: #d9d0ed; }
+.plugin-request-row.is-selected { border-color: #cfc3e8; background: #faf8fe; }
 .plugin-request-time { color: var(--ink-2); font-size: 10.5px; white-space: nowrap; }
 .plugin-request-meta { display: flex; gap: 6px; min-width: 0; color: var(--muted); font-size: 10.5px; }
 .plugin-request-meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

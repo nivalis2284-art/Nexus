@@ -1,0 +1,10 @@
+{
+  "id": "mobile-bridge",
+  "name": "Nexus 手机接入",
+  "version": "0.2.0",
+  "api_version": 1,
+  "description": "局域网安卓聊天入口，与电脑上的灵共享交流记录。",
+  "entry": "backend.py:create_plugin",
+  "capabilities": ["page"],
+  "pages": [{"id": "connect", "title": "手机连接与配对", "path": "web/index.html"}]
+}

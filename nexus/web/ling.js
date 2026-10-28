@@ -238,6 +238,7 @@ function setLingLive(event) {
 
 function renderLingSnapshot(value) {
   if (!lingView.active) return;
+  lingView.historyVersion = value.history_version;
   if (lingView.sessionId && value.session_id && value.session_id !== lingView.sessionId) return;
   if (!lingView.sessionId && value.session_id) lingView.sessionId = value.session_id;
   lingView.queueCount = Number(value.queue_count || 0);
@@ -310,6 +311,9 @@ async function pollLing() {
 }
 
 async function openLing(options) {
+  if ($("context-view")) $("context-view").hidden = true;
+  if ($("context-open")) $("context-open").classList.remove("active");
+  $("ling-home").classList.add("active");
   const settings = options || {};
   lingView.active = true;
   lingView.live = null;

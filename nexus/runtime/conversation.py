@@ -13,9 +13,9 @@ from ..attachments import AttachmentStore, message_content
 from ..core.agent import Agent, AgentSuspended
 from ..core.config import build_profile
 from ..core.permission import default_policy
-from ..core.prompt import ROLE_RULES
 from ..core.workspace import inspect
 from ..instructions import load_instructions
+from ..role_instructions import load_role
 from ..model import RuntimeCredentials
 from ..session import Message
 from ..task import TaskConflict
@@ -114,7 +114,7 @@ def history_for_model(session) -> list[dict[str, Any]]:
 
 
 def run_turn(state, session, settings, emit, *, ling, history):
-    from ..ling import LING_INSTRUCTIONS, WorkService
+    from ..ling import WorkService
 
     workspace = inspect(Path(settings.workspace))
     skill_set = skills.discover(
@@ -246,6 +246,7 @@ def run_turn(state, session, settings, emit, *, ling, history):
         agent.credentials = RuntimeCredentials(selected.api_key)
         agent.effort = selected.effort
         agent.owner_context = load_instructions(state["store"].home)
+        agent.role = load_role(state["store"].home, "main")
         agent.interaction_context = work.context_text()
 
     agent = Agent(
@@ -269,7 +270,7 @@ def run_turn(state, session, settings, emit, *, ling, history):
         plugin_scope=scope,
         request_history=state.get("request_history"),
         request_scope={"kind": "ling", "owner_id": session.id},
-        role=LING_INSTRUCTIONS + "\n\n" + ROLE_RULES,
+        role=load_role(state["store"].home, "main"),
     )
     ling.agent = agent
 

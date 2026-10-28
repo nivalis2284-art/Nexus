@@ -128,9 +128,86 @@ class Application:
         # live read. Only acknowledge events preceding the snapshot operation,
         # so subscribe-first clients still process that completion and refresh.
         watermark = runtime_updates(self.state).live("ling", inbox.session_id).get("revision", 0)
-        snapshot = deepcopy(inbox.projection(transcript))
+        from .runtime.history import effective_checkpoint, history_version
+        with inbox._condition, inbox.store._lock, self.state["sessions"]._lock:
+            snapshot = deepcopy(inbox.projection(transcript))
+            session = self.state["sessions"].load(inbox.session_id)
+            snapshot["history_version"] = history_version(session)
+            checkpoint = effective_checkpoint(session)
+            through = int(checkpoint[1].data["through"]) if checkpoint else -1
+            for item in snapshot["items"]:
+                item["compressed"] = item.get("index", through + 1) <= through
         snapshot["live_revision"] = watermark
         return snapshot
+
+    def context_snapshot(self):
+        from .runtime.context_management import snapshot
+
+        inbox = self.inbox()
+        with inbox._condition, inbox.store._lock, self.state["sessions"]._lock:
+            session = self.state["sessions"].load(inbox.session_id)
+            value = snapshot(self.state, session)
+        value["running"] = inbox.running
+        return value
+
+    def change_history(self, body):
+        from .runtime.history import check_version, edit_history, history_version
+        from .runtime.stream import runtime_updates
+
+        inbox = self.inbox()
+        if not self.busy.acquire(blocking=False):
+            raise TaskConflict("主交流正在处理输入，请先停止或等待完成后再修改历史。")
+        try:
+            with inbox._condition, inbox.store._lock, self.state["sessions"]._lock:
+                with inbox.store._transaction() as connection:
+                    pending = connection.execute("SELECT 1 FROM ling_inbox WHERE status IN ('pending','running','held') LIMIT 1").fetchone()
+                if pending:
+                    raise TaskConflict("还有待处理的交流输入，请先处理完再修改历史。")
+                session = self.state["sessions"].load(inbox.session_id)
+                check_version(session, body.get("version"))
+                original = deepcopy(session)
+                if body.get("operation") == "undo":
+                    saved = getattr(self, "_history_undo", None)
+                    with inbox.store._transaction() as connection:
+                        newest = connection.execute("SELECT MAX(id) FROM ling_inbox").fetchone()[0]
+                    if not saved or (saved[0] != history_version(session) and (saved[2] is None or saved[2] != newest)):
+                        raise TaskConflict("会话已继续，无法撤销旧的历史修改。")
+                    session = deepcopy(saved[1])
+                    resend = None
+                else:
+                    resend = edit_history(session, body)
+                if resend:
+                    attachments = self._prepare_input(resend)
+                    with inbox.store._transaction() as connection:
+                        duplicate = connection.execute("SELECT 1 FROM ling_inbox WHERE request_id=?", (resend["request_id"],)).fetchone()
+                    if duplicate:
+                        raise TaskConflict("这次重新发送已接收，请刷新交流记录。")
+                self.state["sessions"].rewrite(session)
+                try:
+                    accepted = inbox.enqueue(resend["text"], resend["images"], attachments,
+                        resend["request_id"], resend.get("task_id")) if resend else None
+                except Exception:
+                    self.state["sessions"].rewrite(original)
+                    raise
+                self._history_undo = None if body.get("operation") == "undo" else (
+                    history_version(session), original, accepted["input_id"] if accepted else None)
+        finally:
+            self.busy.release()
+        runtime_updates(self.state).refresh("ling", inbox.session_id, clear=True)
+        return {"accepted": accepted, "context": self.context_snapshot()}
+
+    def save_context(self, section, body):
+        from .runtime.context_management import save_owner_items, save_role
+
+        if section == "owners":
+            save_owner_items(self.state["store"].home, body.get("items"))
+        elif section == "roles":
+            save_role(self.state["store"].home, body.get("id"), body.get("text"))
+        elif section == "summary":
+            return self.change_history({**body, "operation": "summary"})["context"]
+        else:
+            raise TaskValidationError("未知上下文操作。")
+        return self.context_snapshot()
 
     def submit_input(self, body):
         inbox = self.inbox()
@@ -159,6 +236,17 @@ class Application:
             if not accepted.get("duplicate"):
                 self.state["task_controller"].pause_all()
             return accepted
+        attachments = self._prepare_input(body)
+        return inbox.enqueue(text, images, attachments, request_id, target)
+
+    def _prepare_input(self, body):
+        request_id = body.get("request_id")
+        if not isinstance(request_id, str) or not request_id or len(request_id) > 200:
+            raise TaskValidationError("request_id is required (at most 200 characters)")
+        inbox = self.inbox()
+        images = read_images(body.get("images"))
+        if body.get("task_id"):
+            self.state["tasks"].get(body["task_id"])
         settings = self.state["store"].load()
         if not settings.api_key or not settings.provider.base_url:
             raise TaskValidationError("请先配置模型的 Base URL 和 API Key")
@@ -169,7 +257,7 @@ class Application:
             "sessions", inbox.session_id, body.get("attachments", []))
         if len(images) + len(attachments) > 8:
             raise TaskValidationError("每次最多 8 个附件")
-        return inbox.enqueue(text, images, attachments, request_id, target)
+        return attachments
 
     def save_settings(self, value):
         from .runtime.settings import save_settings

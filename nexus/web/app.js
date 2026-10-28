@@ -199,6 +199,11 @@ function reconcileTranscript(box, items, workspace) {
         node.replaceChildren(...fresh.childNodes);
       }
       node._signature = signature;
+      if (typeof messageOperations === "function" && ["user", "assistant"].includes(entry.item.role)) {
+        const previousActions = node.querySelector(".message-operations");
+        if (previousActions) previousActions.remove();
+        node.appendChild(messageOperations(entry.item));
+      }
     });
 }
 

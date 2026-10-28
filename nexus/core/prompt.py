@@ -84,7 +84,7 @@ def estimate(text: str) -> int:
     return compaction.estimate(text)
 
 
-def build_system_prompt(
+def build_system_sections(
     workspace: Workspace,
     tools: str,
     *,
@@ -96,18 +96,29 @@ def build_system_prompt(
     task_context: str = "",
     interaction_context: str = "",
     permission_context: str = "",
-) -> str:
-    sections: list[str] = []
+) -> list[dict[str, str]]:
+    """Return the real system sections in their assembled order.
+
+    The prompt builder and the read-only context view share this function so a
+    displayed section cannot drift from the text the model receives.
+    """
+    sections: list[dict[str, str]] = []
+
+    def add(section_id: str, title: str, text: str) -> None:
+        sections.append({"id": section_id, "title": title, "text": text})
+
     if owner_instructions:
-        sections.append(
+        add(
+            "owner",
+            "Owner instructions",
             "# Owner instructions\n"
             "Source: `owner-instructions.txt` in the Nexus data directory; this file is "
             "owner-controlled and outside the workspace.\n"
             "Nature: durable owner preferences and constraints; the current explicit "
             "owner request may override them.\n\n"
-            + owner_instructions
+            + owner_instructions,
         )
-    sections.append(role)
+    add("role", "Role", role)
     shell = ""
     if "- bash:" in tools:
         shell = (
@@ -121,37 +132,45 @@ def build_system_prompt(
         shell=shell,
         workspace=workspace.summary(),
     )
-    sections.append(env)
-    sections.append(INSTRUCTION_PRIORITY)
+    add("environment", "Environment", env)
+    add("priority", "Instruction priority", INSTRUCTION_PRIORITY)
     if workspace.instructions:
-        sections.append(
+        add(
+            "project",
+            "Project instructions",
             "# Project instructions\n"
             "Source: instruction files on the path from the filesystem root down to "
             "this workspace, plus directories already touched in this run.\n"
             "Nature: workspace-specific requirements and habits within each stated scope.\n"
             "Each block names its absolute file path and scope. A nested block applies "
             "to that directory and its descendants.\n\n"
-            + workspace.instructions
+            + workspace.instructions,
         )
     if skills:
         # Only names, descriptions and trigger hints. Bodies are read on demand
         # with read_skill, so an unused skill costs one line, not a page.
-        sections.append(
+        add(
+            "skills",
+            "Skills",
             "# Skills\n"
             "Source: installed skill manifests.\n"
             "Nature: reusable procedures when they apply; they are not project authority.\n"
             "When one applies, call read_skill with its exact name before doing the work.\n"
-            + skills
+            + skills,
         )
     if interaction_context:
-        sections.append(
+        add(
+            "interaction",
+            "Continuing interaction",
             "# Continuing interaction\n"
             "Source: current Nexus conversation and work state.\n"
             "Nature: context and pending events, not new permission or authorization.\n\n"
-            + interaction_context
+            + interaction_context,
         )
     if task_context:
-        sections.append(
+        add(
+            "task",
+            "Persistent task state",
             "# Persistent task state\n"
             "Source: the task controller's saved state for current work.\n"
             "Nature: current task context and recorded progress, not a new instruction "
@@ -159,24 +178,70 @@ def build_system_prompt(
             "explicit owner request and applicable project rules.\n"
             "Check actual results before claiming success. "
             "Progress, plans, and supporting records are optional; update them when useful.\n\n"
-            + task_context
+            + task_context,
         )
     if permission_context:
-        sections.append(
+        add(
+            "permission",
+            "Permission context",
             "# Permission context\n"
             "Source: supplied by the main agent for this request.\n"
             "Nature: the permission and approval information actually available in this "
             "run. Do not assume broader access.\n\n"
-            + permission_context
+            + permission_context,
         )
     if tools:
-        sections.append(
+        add(
+            "tools",
+            "Tools",
             "# Tools\n"
             "Source: this run's tool registry. Only the tools listed below are available.\n"
             "Call them with their exact names. Arguments must match the schema.\n"
-            + tools
+            + tools,
         )
-    return "\n\n".join(sections)
+    return sections
+
+
+def build_system_prompt(
+    workspace: Workspace,
+    tools: str,
+    *,
+    platform: str,
+    date: str,
+    role: str = ROLE,
+    owner_instructions: str = "",
+    skills: str = "",
+    task_context: str = "",
+    interaction_context: str = "",
+    permission_context: str = "",
+) -> str:
+    sections = build_system_sections(
+        workspace,
+        tools,
+        platform=platform,
+        date=date,
+        role=role,
+        owner_instructions=owner_instructions,
+        skills=skills,
+        task_context=task_context,
+        interaction_context=interaction_context,
+        permission_context=permission_context,
+    )
+    return "\n\n".join(section["text"] for section in sections)
+
+
+def permission_text(policy: Any) -> str:
+    """The permission section body used for the current request policy."""
+    import json
+
+    return (
+        f"Tool permission default: {policy.default}. Rules (last match wins): "
+        + json.dumps([{"tool": rule.tool, "pattern": rule.pattern, "action": rule.action}
+                      for rule in policy.rules])
+        + ". File tools access only the workspace; allowing a call does not widen this boundary. "
+        "Commands run as argument-list processes, without shell interpolation; invoke an installed shell explicitly when needed. "
+        "A tool approval grants only that saved call. Task instructions do not change runtime permissions."
+    )
 
 
 def select(

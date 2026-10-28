@@ -154,6 +154,7 @@ class TaskAssembler:
         context.search_endpoint = str(raw_settings.get("search_endpoint") or "")
         from ..instructions import load_instructions
         from ..ling import available_work_models, select_work_model
+        from ..role_instructions import load_role
         from ..tools.work import WORK_MODEL_TOOL, WORK_MODELS_TOOL
         context.work_models = lambda: available_work_models({"store": self.config})
         context.work_model = lambda **args: select_work_model({"store": self.config, "tasks": self.store}, task.id, **args).to_dict()
@@ -182,6 +183,7 @@ class TaskAssembler:
             return True
 
         agent: Agent
+        role_id = "subagent" if self.store.child_relation(task.id) else "work"
 
         def require_running() -> None:
             current = self.store.get(task.id)
@@ -196,6 +198,7 @@ class TaskAssembler:
             agent.credentials = RuntimeCredentials(updated_key)
             agent.effort = current.effort
             agent.owner_context = load_instructions(self.config.home)
+            agent.role = load_role(self.config.home, role_id)
             from .subagents import collect_children
             collect_children(self.store, self.controller, task.id) if self.controller else None
             callbacks.before_model(
@@ -229,6 +232,7 @@ class TaskAssembler:
             plugin_scope={"kind": "task", "owner_id": task.id, "task_id": task.id},
             request_history=self.request_history,
             request_scope={"kind": "task", "owner_id": task.id},
+            role=load_role(self.config.home, role_id),
         )
 
 

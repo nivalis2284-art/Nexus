@@ -307,6 +307,13 @@ class Handler(BaseHTTPRequestHandler):
         if attachment_route(self, STATE, _json, "GET"):
             return
         path = urlparse(self.path).path
+        if path in ("/context.js", "/context.css", "/editing.js"):
+            return self._file(path[1:], "text/css; charset=utf-8" if path.endswith(".css") else "text/javascript; charset=utf-8")
+        if path == "/api/context":
+            try:
+                return _json(self, 200, _application().context_snapshot())
+            except (OSError, ValueError) as error:
+                return _task_error(self, error)
         if path == "/api/stream":
             return self._stream()
         if path == "/api/workspace-file":
@@ -405,6 +412,11 @@ class Handler(BaseHTTPRequestHandler):
             return
         path = urlparse(self.path).path
         body = _read_json(self)
+        if path.startswith("/api/context/"):
+            try:
+                return _json(self, 200, _application().save_context(path.rsplit("/", 1)[-1], body))
+            except (ValueError, OSError) as error:
+                return _task_error(self, error)
         if path == "/api/instructions":
             try:
                 status, result = instructions_api.route("PUT", path, body, STATE)
@@ -434,6 +446,8 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         body = _read_json(self)
         try:
+            if path == "/api/ling/history":
+                return _json(self, 200, _application().change_history(body))
             if path == "/api/skills":
                 return _json(self, 200, skills_api.manager(STATE).save(body))
             if path == "/api/skills/delete":

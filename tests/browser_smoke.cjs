@@ -166,4 +166,5 @@ async function main() {
     fs.rmSync(resolved,{recursive:true,force:true,maxRetries:3,retryDelay:100});
   }
 }
-main().catch(error=>{console.error(error.stack);process.exitCode=1});
+module.exports = {until, connect, killOwned};
+if (require.main === module) main().catch(error=>{console.error(error.stack);process.exitCode=1});
