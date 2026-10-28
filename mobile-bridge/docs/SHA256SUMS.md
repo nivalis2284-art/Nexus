@@ -1,6 +1,6 @@
 # 下载校验
 
-下载后可用 SHA-256 核对文件完整性。手机接入、临时记忆与临时人设是独立插件，旧版本交付包保留。
+下载后可用 SHA-256 核对文件完整性。各插件独立安装，旧版本交付包保留。
 
 | 文件 | SHA-256 |
 | --- | --- |
@@ -11,3 +11,4 @@
 | `nexus-plugin-sdk-0.2.0.zip` | `61ff5b02949cc0737d0a390591c0356c0df570d7cc8cce3e9213e1008bb1893e` |
 | `nexus-temp-memory-0.1.0.zip` | `1ce1020f719a9544769d0151816d875b814dc48bd74c89340ccd7204918ae9ee` |
 | `nexus-temp-persona-0.1.0.zip` | `f953382f2de296cc16bf11a51f7b28675f734db5079775780d2c0b800e68a6e9` |
+| `nexus-web-browser-0.1.0.zip` | `2783ec13667f27ef0051debf999b1da34ba61b21ee97ded5128bd0f9a70e13dd` |
