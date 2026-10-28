@@ -26,3 +26,6 @@ dist/
 # Local agent working memory: workspace-private, never pushed.
 .workbuddy-ai/
 
+
+# Local media artifacts (videos, generated frames, caches): workspace-private.
+media/
