@@ -21,9 +21,8 @@
   N.setMotion?.(state.motion || 'normal', true);
   N.refreshScene?.();
 
-  /* 首屏先给出空态，避免白屏等待 */
+  /* 快照到达前只上静态骨架；记录区等真实数据一次画出，避免空态闪一下 */
   N.renderIsland();
-  N.renderChat();
   N.renderRequests();
   N.renderQueue();
   N.updateStats();
@@ -59,6 +58,7 @@
       if (tabs) N.moveInk($('.tab-ink', tabs), $('button.active', tabs), 'x', true);
       const perm = document.querySelector('.perm');
       if (perm) N.moveInk($('.tab-ink', perm), $('button.active', perm), 'x', true);
+      if (state.view === 'chat') N.scrollEnd?.(false);
     });
   }
 
@@ -85,8 +85,6 @@
     N.syncTargets(true);
     const tabs = document.querySelector('.tabs');
     if (tabs) N.moveInk($('.tab-ink', tabs), $('button.active', tabs), 'x', true);
-    const conv = $('#conversation');
-    if (conv) conv.scrollTop = conv.scrollHeight;
   });
   document.fonts?.ready.then(() => {
     N.syncDock(true);

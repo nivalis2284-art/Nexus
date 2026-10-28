@@ -129,8 +129,11 @@
     if (N.REDUCED) return;
     const big = $('.ctx-big strong', view);
     if (big) {
-      big.textContent = '0';
-      setTimeout(() => N.countUp?.(big, pct, 760 * N.motionScale()), 140 * N.motionScale());
+      if (pct === null) big.textContent = '—';
+      else {
+        big.textContent = '0';
+        setTimeout(() => N.countUp?.(big, pct, 760 * N.motionScale()), 140 * N.motionScale());
+      }
     }
     const wrap = $('.ctx-big', view);
     if (wrap) N.anim(wrap, [{ opacity: 0, transform: 'scale(.92)' }, { opacity: 1, transform: 'none' }],
@@ -147,7 +150,8 @@
     const keep = view.scrollTop;
     const c = state.context;
     const used = (c.system || 0) + (c.tools || 0) + (c.messages || 0);
-    const pct = c.window ? Math.min(100, Math.round(used / c.window * 100)) : 0;
+    const known = used > 0;
+    const pct = known && c.window ? Math.min(100, Math.round(used / c.window * 100)) : null;
     const denom = used || 1;
     const d = state.contextData;
     view.innerHTML = `<div class="page ctx-page">
@@ -158,7 +162,7 @@
 
       <section class="card ctx-overview" data-s>
         <div class="ctx-ov-top">
-          <div class="ctx-big"><strong>${pct}</strong><small>%</small></div>
+          <div class="ctx-big"><strong${pct === null ? ' class="unknown"' : ''}>${pct === null ? '—' : pct}</strong>${pct === null ? '' : '<small>%</small>'}</div>
           <div class="ctx-ov-main"><p>当前请求已用上下文<br>按本轮运行条件自动组装</p>
             <span class="ctx-state ${locked() ? 'locked' : ''}"><i></i>${locked() ? '灵正在处理，历史修改需先停止' : '灵当前空闲，可调整后续请求参考的上下文'}</span></div>
           <span class="ctx-window">模型窗口 ${N.fmtNum(c.window)} tok</span>

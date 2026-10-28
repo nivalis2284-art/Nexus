@@ -341,7 +341,7 @@
       if (start > 0 && entry.type === 'msg' && entry.item.role === 'assistant') animateBlocks(node);
       if (!N.REDUCED) {
         const isUser = entry.type === 'msg' && entry.item.role === 'user';
-        const delay = wasEmpty && entries.length > 1 ? i * 55 : 0;
+        const delay = wasEmpty && entries.length > 1 ? Math.min(i, 8) * 55 : 0;
         anim(node, [{ opacity: 0, transform: `translateY(${isUser ? 14 : 9}px) scale(${isUser ? .96 : .995})` }, { opacity: 1, transform: 'none' }],
           { duration: isUser ? 380 : 300, delay, easing: isUser ? SP.bouncy.e : EASE_OUT });
       }
@@ -671,8 +671,10 @@
     const used = state.context ? (state.context.system || 0) + (state.context.tools || 0) + (state.context.messages || 0) : 0;
     const win = state.context?.window || 0;
     const pct = win ? Math.min(100, Math.round(used / win * 100)) : 0;
-    $('#stat-context').textContent = win ? '上下文 ~' + pct + '%' : '上下文 —';
-    $('#ctx-pct').textContent = pct + '%';
+    /* 服务端只在请求过程中给出上下文分解；没有测量值时不要显示成 0%。 */
+    const known = used > 0;
+    $('#stat-context').textContent = win && known ? '上下文 ~' + pct + '%' : '上下文 —';
+    $('#ctx-pct').textContent = known ? pct + '%' : '—';
     $('#ctx-gauge').setAttribute('aria-label', `上下文已用 ${pct}%，打开上下文管理`);
     $('#ctx-gauge .arc').style.setProperty('--p', pct);
     renderUsage();
