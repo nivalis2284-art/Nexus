@@ -1,0 +1,1 @@
+{"id":"sdk-example","name":"SDK 示例","version":"0.2.0","api_version":1,"entry":"backend.py:create_plugin","pages":[{"id":"main","title":"示例","path":"web/index.html"}]}

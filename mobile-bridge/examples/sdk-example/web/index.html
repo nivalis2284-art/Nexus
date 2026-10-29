@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nexus 插件 UI 示例</title>
+<link rel="stylesheet" href="/css/plugin-ui.css">
+<script src="/js/plugin-ui.js"></script>
+</head>
+<body data-nexus-plugin><main class="plugin-page">
+<header class="header"><div><h1>插件 UI 示例</h1><p class="intro">沿用宿主的配色、字体与动效，只读查询主交流状态。</p></div><span class="badge">SDK 示例</span></header>
+<div id="notice" class="message" role="status" aria-live="polite"></div>
+<section class="card">
+<div class="section-head"><h2>主交流状态</h2><button id="read" type="button" class="btn solid">查询状态</button></div>
+<label class="field">会话标识<input id="session" readonly placeholder="点击查询状态"></label>
+<p id="status" class="help">尚未查询。</p>
+</section>
+</main>
+<script>
+'use strict';
+const read = document.getElementById('read');
+read.onclick = async () => {
+  const notice = document.getElementById('notice');
+  read.disabled = true; notice.className = 'message';
+  try {
+    const response = await fetch('/api/plugins/sdk-example/call', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: 'snapshot', values: {}}),
+    });
+    const data = await response.json();
+    if (!response.ok) throw Error(data.error || '查询失败');
+    document.getElementById('session').value = data.session_id;
+    document.getElementById('status').textContent = data.running ? '正在处理输入。' : '当前空闲。';
+  } catch (error) {notice.textContent = error.message; notice.className = 'message error show';}
+  finally {read.disabled = false;}
+};
+</script></body></html>

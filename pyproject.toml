@@ -26,7 +26,7 @@ where = ["."]
 include = ["nexus*"]
 
 [tool.setuptools.package-data]
-nexus = ["web/*.html", "web/*.css", "web/*.js", "web/vendor/*", "builtin_skills/*/SKILL.md"]
+nexus = ["web/*.html", "web/*.css", "web/*.js", "web/css/*.css", "web/js/*.js", "web/assets/*", "web/vendor/*", "builtin_skills/*/SKILL.md"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
