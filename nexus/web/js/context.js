@@ -181,6 +181,7 @@
       ${ctx.tab === 'system' ? systemPanel() : historyPanel()}
     </div>`;
     view.scrollTop = keep;
+    maybeSync();
     if (entering) {
       N.stagger(view, 24);
       growMeter(view, pct);
@@ -194,6 +195,24 @@
         if (tabs) N.moveInk($('.tab-ink', tabs), $('button.active', tabs), 'x', true);
       });
     }
+  }
+
+  /* 页面只在进入时读一次内存快照，聊完回来还是旧数字；这里补一次自动刷新。 */
+  let syncing = false;
+  let lastSync = 0;
+  function maybeSync() {
+    if (syncing || Date.now() - lastSync < 1500) return;
+    syncing = true;
+    Promise.resolve()
+      .then(() => N.sync.contextOnly())
+      .then(() => N.sync.chatOnly())
+      .then(() => {
+        lastSync = Date.now();
+        N.composeItems?.();
+        renderContext();
+      })
+      .catch(() => {})
+      .finally(() => { syncing = false; });
   }
 
   /* ---------------------------------------------------------------- 操作 */
@@ -339,6 +358,7 @@
     try {
       await N.sync.contextOnly();
       await N.sync.chatOnly();
+      lastSync = Date.now();
       N.composeItems?.();
       renderContext();
       N.notify('上下文已刷新', 'jade');
