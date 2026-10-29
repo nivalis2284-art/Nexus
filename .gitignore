@@ -29,3 +29,7 @@ dist/
 
 # Local media artifacts (videos, generated frames, caches): workspace-private.
 media/
+
+# Local archive: superseded frontends, one-off scripts and build caches.
+# Kept on disk for reference only, never pushed.
+_archive/

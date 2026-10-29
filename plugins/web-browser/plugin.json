@@ -1,0 +1,1 @@
+{"id":"web-browser","name":"网页搜索与浏览器","version":"0.1.0","api_version":1,"entry":"backend.py:create_plugin","capabilities":["tools","page"],"pages":[{"id":"main","title":"搜索与浏览器控制","path":"web/index.html"}],"description":"Bing、Brave、SearXNG 搜索，以及独立 Chrome／Edge 浏览器的阅读、表单操作、标签页和截图。"}
