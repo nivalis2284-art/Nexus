@@ -22,6 +22,50 @@
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   }
 
+  /* 插件加载在后端是异步的：命令返回时状态仍是 loading，要轮询到它落定。 */
+  const BUSY = ['loading', 'draining', 'closing'];
+  let watchTimer = 0;
+  let watchId = '';
+  let watchGaveUp = '';
+  function stopWatch() {
+    if (watchTimer) clearTimeout(watchTimer);
+    watchTimer = 0;
+    watchId = '';
+  }
+  function watchPlugin(id) {
+    if (watchId === id || watchGaveUp === id) return;
+    stopWatch();
+    watchId = id;
+    let tries = 0;
+    let last = '';
+    const tick = async () => {
+      watchTimer = 0;
+      const current = (state.plugins || []).find(x => x.id === id);
+      if (!current) { watchId = ''; return; }
+      if (!BUSY.includes(current.status)) {
+        watchId = '';
+        renderPlugins();
+        if (current.error) N.notify(current.error, 'cinnabar', 4200);
+        else if (current.status === 'ready') N.notify(`已加载 ${current.name || ''}`, 'jade');
+        else if (current.status === 'unloaded') N.notify(`已停用 ${current.name || ''}`, 'jade');
+        return;
+      }
+      if (++tries > 120) {
+        watchId = '';
+        watchGaveUp = id;
+        renderPlugins();
+        N.notify('插件仍在加载，稍后刷新查看', 'cinnabar', 4200);
+        return;
+      }
+      try { await N.sync.pluginsOnly(); } catch (_) {}
+      const next = (state.plugins || []).find(x => x.id === id);
+      const sig = next ? `${next.status}|${next.enabled}|${next.progress}|${next.error}` : '';
+      if (sig !== last) { last = sig; renderPlugins(); }
+      watchTimer = setTimeout(tick, 500);
+    };
+    watchTimer = setTimeout(tick, 400);
+  }
+
   function renderPlugins() {
     if (!pv.selected || !state.plugins.some(p => p.id === pv.selected)) pv.selected = state.plugins[0]?.id || null;
     const view = $('#view-plugins');
@@ -44,6 +88,8 @@
     });
     view.scrollTop = keep;
     if (N.takeEnter?.('plugins')) N.stagger?.(view);
+    const pending = (state.plugins || []).find(x => BUSY.includes(x.status));
+    if (pending) watchPlugin(pending.id);
   }
 
   /* ---------------------------------------------------------------- 插件栏 */
@@ -226,6 +272,7 @@
   async function op(id, action) {
     const p = state.plugins.find(x => x.id === id);
     if (!p || pv.busy) return;
+    watchGaveUp = '';
     pv.busy = true;
     pv.notice = null;
     renderPlugins();
@@ -234,8 +281,9 @@
       await N.sync.pluginsOnly();
       pv.busy = false;
       renderPlugins();
-      const label = { load: '已加载', restart: '已重载', unload: '已停用', stop: '已停止在途调用' }[action] || '操作完成';
-      N.notify(`${label} ${p.name}`, 'jade');
+      const after = (state.plugins || []).find(x => x.id === id);
+      if (after && BUSY.includes(after.status)) watchPlugin(id);
+      else N.notify({ load: `已加载 ${p.name}`, restart: `已重载 ${p.name}`, unload: `已停用 ${p.name}`, stop: '已停止在途调用' }[action] || '操作完成', 'jade');
     } catch (error) {
       pv.busy = false;
       await N.sync.pluginsOnly().catch(() => {});
@@ -265,6 +313,8 @@
       pv.selected = state.plugins[0]?.id || null;
       pv.frame = null;
       renderPlugins(); N.notify('插件已卸载', 'jade');
+      const after = (state.plugins || []).find(x => x.id === id);
+      if (after && BUSY.includes(after.status)) watchPlugin(id);
     } catch (error) {
       pv.busy = false;
       renderPlugins();

@@ -1,0 +1,1 @@
+{"id":"temp-persona","name":"临时人设与演化","version":"0.1.0","api_version":1,"entry":"backend.py:create_plugin","capabilities":["context","page"],"pages":[{"id":"main","title":"人设与定时反思","path":"web/index.html"}],"description":"主对话身份材料、每日独立反思、原文备份与可回退修订。"}
