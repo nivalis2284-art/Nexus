@@ -166,7 +166,6 @@
     </div>`;
     requestAnimationFrame(() => N.syncSettingsUi?.(true));
     view.scrollTop = keep;
-    if (N.takeEnter?.('settings')) N.stagger?.(view);
   }
 
   /* ---------------------------------------------------------------- 提供商 */

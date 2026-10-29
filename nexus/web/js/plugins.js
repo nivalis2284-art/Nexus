@@ -71,7 +71,12 @@
     const view = $('#view-plugins');
     const keep = view.scrollTop;
     const p = plugin();
-    view.innerHTML = `<div class="page plugins-page">
+    const frame = $('#plugin-frame');
+    const preserve = pv.tab === 'plugins' && frame && pv.frame &&
+      pv.frame.pluginId === p?.id && frame.dataset.pluginId === p.id &&
+      frame.dataset.pluginPath === pv.frame.path;
+    const next = document.createElement('div');
+    next.innerHTML = `<div class="page plugins-page">
       <header class="page-head" data-s>
         <div><h1>插件管理</h1><p>查看插件、配置与请求记录。导入或替换版本后，新插件默认不启用。</p></div>
         <span class="pill mono" title="${esc(state.pluginRoot || '')}">${esc(N.shortPath(state.pluginRoot || '插件目录'))}</span>
@@ -81,13 +86,31 @@
       </div>
       <div class="plug-pane">${pv.tab === 'plugins' ? pluginsPane(p) : requestsPane()}</div>
     </div>`;
+    if (preserve) {
+      // Moving an iframe reloads its document; update only its ancestors' siblings.
+      let current = view, fresh = next;
+      for (const selector of ['.page', '.plug-pane', '.plug-layout', '.plug-detail']) {
+        const retained = current.querySelector(selector), placeholder = fresh.querySelector(selector);
+        for (const child of [...current.childNodes]) if (child !== retained) child.remove();
+        let after = false;
+        for (const child of [...fresh.childNodes]) {
+          if (child === placeholder) after = true;
+          else current.insertBefore(child, after ? null : retained);
+        }
+        current = retained;
+        fresh = placeholder;
+      }
+    } else view.replaceChildren(...next.childNodes);
     requestAnimationFrame(() => {
       const tabs = $('.tabs', view);
       if (tabs) N.moveInk($('.tab-ink', tabs), $('button.active', tabs), 'x', true);
       if (pv.frame) mountFrame();
     });
     view.scrollTop = keep;
-    if (N.takeEnter?.('plugins')) N.stagger?.(view);
+    if (pv.animate) {
+      pv.animate = false;
+      N.cascade?.($('.plug-pane', view), 24, 320);
+    }
     const pending = (state.plugins || []).find(x => BUSY.includes(x.status));
     if (pending) watchPlugin(pending.id);
   }
@@ -204,7 +227,10 @@
     const frame = $('#plugin-frame');
     if (!frame || !pv.frame) return;
     const path = String(pv.frame.path || '').replace(/^\/+/, '');
-    frame.src = `/plugins/${encodeURIComponent(pv.frame.pluginId)}/${path}`;
+    const url = `/plugins/${encodeURIComponent(pv.frame.pluginId)}/${path}`;
+    if (frame.getAttribute('src') !== url) frame.src = url;
+    frame.dataset.pluginId = pv.frame.pluginId;
+    frame.dataset.pluginPath = pv.frame.path;
   }
 
   /* ---------------------------------------------------------------- 请求记录 */
@@ -275,11 +301,13 @@
     watchGaveUp = '';
     pv.busy = true;
     pv.notice = null;
+    if (pv.frame?.pluginId === id && ['load', 'restart', 'unload'].includes(action)) pv.frame = null;
     renderPlugins();
     try {
       await N.api.pluginCommand(id, action);
       await N.sync.pluginsOnly();
       pv.busy = false;
+      pv.animate = true;
       renderPlugins();
       const after = (state.plugins || []).find(x => x.id === id);
       if (after && BUSY.includes(after.status)) watchPlugin(id);
@@ -312,6 +340,7 @@
       pv.busy = false;
       pv.selected = state.plugins[0]?.id || null;
       pv.frame = null;
+      pv.animate = true;
       renderPlugins(); N.notify('插件已卸载', 'jade');
       const after = (state.plugins || []).find(x => x.id === id);
       if (after && BUSY.includes(after.status)) watchPlugin(id);
@@ -328,6 +357,7 @@
       await N.sync.pluginsOnly();
       pv.busy = false;
       pv.notice = { text: state.plugins.length ? `已扫描插件目录，当前登记 ${state.plugins.length} 个插件。` : '插件目录中没有可用插件。' };
+      pv.animate = true;
       renderPlugins();
       N.notify('已扫描插件目录', 'jade');
     } catch (error) {
@@ -433,7 +463,7 @@
     if (act === 'plug-refresh') {
       pv.busy = true; renderPlugins();
       N.sync.pluginsOnly().then(() => {
-        pv.busy = false; pv.notice = null; renderPlugins(); N.notify('插件列表已刷新', 'jade');
+        pv.busy = false; pv.animate = true; pv.notice = null; renderPlugins(); N.notify('插件列表已刷新', 'jade');
       }).catch(error => {
         pv.busy = false; renderPlugins();
         N.notify(error?.message || '刷新失败', 'cinnabar', 4200);

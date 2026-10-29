@@ -90,6 +90,37 @@ def _main_sections(state, workspace, role_text: str, owner_text: str) -> list[di
     ) if section["id"] not in ("owner", "role")]
 
 
+def _turns(session, covered: int) -> list[dict[str, Any]]:
+    """Group records into exchanges: one owner question plus the reply it got.
+
+    The context page shows a turn as a single row, so every index that belongs
+    to it travels with it — that is what makes deleting a row remove the whole
+    exchange instead of leaving orphaned tool results behind.
+    """
+    turns: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    for index, item in enumerate(session.items):
+        if index <= covered:
+            continue
+        if item.kind == "user":
+            current = {"indices": [index], "user": item.text, "reply": "",
+                       "at": item.at, "tools": 0, "hidden": False}
+            turns.append(current)
+            continue
+        if current is None:
+            continue
+        if item.data.get("hidden"):
+            # Archived events are neither shown nor deleted with the turn; they
+            # come back on their own when the work is restored.
+            continue
+        current["indices"].append(index)
+        if item.kind == "tool":
+            current["tools"] += 1
+        elif item.kind == "assistant" and item.text:
+            current["reply"] = item.text
+    return turns
+
+
 def snapshot(state, session) -> dict[str, Any]:
     """The main conversation's current assembled sources and effective history."""
     home = state["store"].home
@@ -121,5 +152,6 @@ def snapshot(state, session) -> dict[str, Any]:
         "sections": sections,
         "summary": summary,
         "messages": messages,
+        "turns": _turns(session, covered),
         "version": history_version(session),
     }

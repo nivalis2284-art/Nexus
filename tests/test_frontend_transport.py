@@ -35,7 +35,7 @@ def test_workspace_reference_reads_file_and_preserves_scope(live, tmp_path):
 
 def test_runtime_includes_browser_assets(live):
     base, _, _, _, _ = live
-    for path in ("/presentation.js", "/presentation.css", "/live.js", "/vendor/marked.js", "/vendor/purify.js", "/vendor/highlight.js", "/vendor/highlight.css"):
+    for path in ("/vendor/marked.js", "/vendor/purify.js", "/vendor/highlight.js", "/vendor/highlight.css"):
         response = httpx.get(base + path)
         assert response.status_code == 200, path
         assert response.content

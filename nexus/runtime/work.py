@@ -120,6 +120,8 @@ class WorkOperations:
         else:
             raise TaskValidationError(f"unknown task operation: {operation}")
         self._forget_user_task_pause(task_id)
+        if operation in ("archive", "unarchive"):
+            self._sync_reports(task_id, "hide" if operation == "archive" else "show")
         return item.to_dict()
 
     def lifecycle(self, task_id: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -164,11 +166,51 @@ class WorkOperations:
         if self.controller.is_active(task_id) or task_id in self.controller.queued_ids():
             raise TaskConflict("task still owns execution resources")
         self.store.delete(task_id, expected_version=expected)
+        self._sync_reports(task_id, "drop")
         AttachmentStore(self.state["store"].home).delete_owner("tasks", task_id)
         if self.state.get("request_history"):
             self.state["request_history"].delete_owner(task_id)
         runtime_updates(self.state).publish("task", task_id, {"type": "refresh", "deleted": True})
         return {"deleted": True}
+
+    def _main_session(self):
+        """The conversation the owner talks in; task events are recorded there."""
+        interaction = self.state.get("ling")
+        sessions = self.state.get("sessions")
+        session_id = getattr(interaction, "session_id", None)
+        if not sessions or not session_id:
+            return None
+        return sessions.load(session_id)
+
+    def _sync_reports(self, task_id: str, action: str) -> int:
+        """Carry a task's session events along with the task itself.
+
+        hide/show only flip a flag, so the events keep their place in the
+        conversation and come back untouched when the work is restored; drop
+        removes them for a permanent deletion.
+        """
+        session = self._main_session()
+        if session is None:
+            return 0
+        changed = 0
+        kept = []
+        for item in session.items:
+            if item.kind == "work_report" and (item.data.get("report") or {}).get("task_id") == task_id:
+                if action == "drop":
+                    changed += 1
+                    continue
+                want = action == "hide"
+                if bool(item.data.get("hidden")) != want:
+                    if want:
+                        item.data["hidden"] = True
+                    else:
+                        item.data.pop("hidden", None)
+                    changed += 1
+            kept.append(item)
+        if changed:
+            session.items = kept
+            self.state["sessions"].rewrite(session)
+        return changed
 
     def _forget_user_task_pause(self, task_id: str) -> None:
         """Publish owner controls for interested plugins."""

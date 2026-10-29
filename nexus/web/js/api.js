@@ -79,10 +79,8 @@
   function clock(iso) {
     if (!iso) return N.nowHM();
     const value = String(iso);
-    const direct = /T(\d{2}):(\d{2})/.exec(value);
-    if (direct) return direct[1] + ':' + direct[2];
-    const space = /\s(\d{2}):(\d{2})/.exec(value);
-    if (space) return space[1] + ':' + space[2];
+    const short = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(value);
+    if (short) return pad(short[1]) + ':' + short[2];
     const d = new Date(value);
     return Number.isNaN(d.getTime()) ? '' : pad(d.getHours()) + ':' + pad(d.getMinutes());
   }
@@ -338,6 +336,7 @@
         sections: value.sections || [],
         summary: value.summary || null,
         messages: value.messages || [],
+        turns: value.turns || [],
         version: value.version || '',
         running: !!value.running,
       };

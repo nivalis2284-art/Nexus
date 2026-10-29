@@ -316,10 +316,36 @@ class LingInbox:
                 state["sessions"].rename(session.id, "灵")
                 connection.execute("INSERT OR REPLACE INTO ling_identity VALUES(1,?)", (session.id,))
             self.session_id = session.id
+        self._prune_orphan_reports(session)
         from .runtime.decisions import MainDecisions
         self.decisions = MainDecisions(self.store, self.session_id)
         self._thread = threading.Thread(target=self._work, name="nexus-ling", daemon=True)
         self._thread.start()
+
+    def _prune_orphan_reports(self, session) -> int:
+        """Drop events whose task no longer exists.
+
+        Deleting a task already removes its events, but records written before
+        that link existed would otherwise be read by the model forever. An
+        archived task still counts as present: its events are hidden, not gone.
+        """
+        try:
+            known = {task.id for task in self.store.list(include_archived=True)}
+        except Exception:
+            return 0
+        kept = []
+        dropped = 0
+        for item in session.items:
+            if item.kind == "work_report":
+                task_id = (item.data.get("report") or {}).get("task_id")
+                if task_id and task_id not in known:
+                    dropped += 1
+                    continue
+            kept.append(item)
+        if dropped:
+            session.items = kept
+            self.state["sessions"].rewrite(session)
+        return dropped
 
     def enqueue(self, text: str, images: list, attachments: list, request_id: str, task_id: str | None = None, *, report=None, control=None) -> dict:
         if not request_id or len(request_id) > 200:

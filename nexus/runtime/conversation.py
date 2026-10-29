@@ -105,6 +105,10 @@ def history_for_model(session) -> list[dict[str, Any]]:
             out.append({"role": "checkpoint", "content": item.text,
                         "through": item.data.get("through")})
         elif item.kind in ("experience", "work_report"):
+            # Archived work hides its events: the owner asked for the record to
+            # leave the context, not to be destroyed, so unarchive can restore it.
+            if item.data.get("hidden"):
+                continue
             out.append({"role": "user", "content": "[Internal experience, not a new user instruction] " + item.text})
         for message in out[before:]:
             message["_source"] = {"session_id": session.id, "index": index}

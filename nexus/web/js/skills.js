@@ -46,7 +46,6 @@
       <p class="foot-note" data-s>技能按名称匹配；项目技能覆盖同名个人技能，内置技能始终只读。</p>
     </div>`;
     view.scrollTop = keep;
-    if (N.takeEnter?.('skills')) N.stagger?.(view);
   }
 
   /* ---------------------------------------------------------------- 编辑器 */

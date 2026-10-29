@@ -5,7 +5,7 @@
 
 (function (N) {
   const { $, $$, esc, icon, state } = N;
-  const ctx = { tab: 'system', selected: new Set(), undo: null, canUndo: false, busy: false };
+  const ctx = { tab: 'system', selected: new Set(), undo: null, canUndo: false, busy: false, enteredAt: 0 };
 
   const ROLE_CAPTION = { main: '持续交流与工作监督', work: '围绕目标持续执行', subagent: '聚焦独立的委派范围' };
   const MSG_LABEL = { user: '所有者', assistant: '灵', tool: '工具', notice: '记录' };
@@ -19,7 +19,7 @@
 
   function tabsHTML() {
     const d = state.contextData;
-    const counts = { system: (d.owner_instructions || []).length + (d.roles || []).length + (d.sections || []).length, history: (d.messages || []).length };
+    const counts = { system: (d.owner_instructions || []).length + (d.roles || []).length + (d.sections || []).length, history: (d.turns || []).length };
     return `<div class="tabs" data-s role="tablist"><span class="tab-ink" aria-hidden="true"></span>
       ${[['system', '系统指令'], ['history', '历史上下文']].map(([k, l]) => `<button role="tab" aria-selected="${ctx.tab === k}" class="${ctx.tab === k ? 'active' : ''}" data-act="ctx-tab" data-k="${k}">${l}<span class="tab-count">${counts[k]} ${k === 'system' ? '项' : '条'}</span></button>`).join('')}
     </div>`;
@@ -63,11 +63,18 @@
     </div>`;
   }
 
+  function turnClock(at) {
+    const text = String(at || '');
+    const hit = /T(\d{2}):(\d{2})/.exec(text);
+    return hit ? hit[1] + ':' + hit[2] : '';
+  }
+
+  /* 一轮对话一条记录：只显示提问与回复正文，思考与工具调用收在里面。 */
   function historyPanel() {
     const d = state.contextData;
-    const msgs = d.messages || [];
+    const turns = d.turns || [];
     const sum = d.summary;
-    const sel = [...ctx.selected].filter(i => msgs.some(m => m.index === i));
+    const sel = [...ctx.selected].filter(i => turns[i]);
     return `<div class="ctx-panel" data-panel="history">
       ${ctx.canUndo ? `<div class="ctx-undo" data-s>已修改交流记录<button data-act="ctx-undo" ${locked() ? 'disabled' : ''}>撤销最近一次修改</button></div>` : ''}
       ${locked() ? '<div class="ctx-lock" data-s>灵正在处理当前输入，请先停止后再编辑或删除历史。</div>' : ''}
@@ -78,50 +85,50 @@
       </section>
 
       <section class="card ctx-card" data-s>
-        <div class="ctx-card-head"><div><h2>未压缩上下文</h2><p>保留的会话消息，可选择删除。</p></div><span class="pill">${msgs.length} 条</span></div>
+        <div class="ctx-card-head"><div><h2>未压缩上下文</h2><p>一轮对话算一条；只显示提问与回复正文。</p></div><span class="pill">${turns.length} 轮</span></div>
         <div class="ctx-toolbar">
-          <label class="ctx-check"><input type="checkbox" data-act="ctx-all" ${sel.length === msgs.length && msgs.length ? 'checked' : ''} ${locked() || !msgs.length ? 'disabled' : ''}>全选消息<span class="sel">${sel.length ? '· 已选 ' + sel.length + ' 条' : ''}</span></label>
+          <label class="ctx-check"><input type="checkbox" data-act="ctx-all" ${sel.length === turns.length && turns.length ? 'checked' : ''} ${locked() || !turns.length ? 'disabled' : ''}>全选<span class="sel">${sel.length ? '· 已选 ' + sel.length + ' 轮' : ''}</span></label>
           <button class="btn ghost sm danger" data-act="ctx-del" ${locked() || !sel.length ? 'disabled' : ''}>删除所选${sel.length ? ` (${sel.length})` : ''}</button>
         </div>
         <div class="ctx-msgs">
-          ${msgs.length ? msgs.map(m => {
-            const on = ctx.selected.has(m.index);
-            const label = MSG_LABEL[m.role] || m.role;
-            const avatar = m.role === 'user' ? '我' : m.role === 'assistant' ? '灵' : m.role === 'tool' ? '具' : '记';
-            return `<article class="ctx-msg${on ? ' is-selected' : ''}">
-              <input type="checkbox" data-act="ctx-pick" data-i="${m.index}" ${on ? 'checked' : ''} ${locked() ? 'disabled' : ''} aria-label="选择第 ${m.index + 1} 条${label}消息">
-              <span class="ctx-avatar role-${esc(m.role)}">${avatar}</span>
-              <div><div class="ctx-msg-meta"><strong>${label}</strong>${m.at ? `<span>${esc(String(m.at).slice(11, 16))}</span>` : ''}${m.name ? `<span>${esc(m.name)}</span>` : ''}</div>
-              <div class="ctx-msg-text">${esc(m.text || (m.name ? '调用 ' + m.name : ''))}</div></div>
+          ${turns.length ? turns.map((t, i) => {
+            const on = ctx.selected.has(i);
+            const meta = [turnClock(t.at), t.tools ? `${t.tools} 次工具调用` : '', t.indices.length > 2 ? `${t.indices.length} 条记录` : ''].filter(Boolean).join(' · ');
+            return `<article class="ctx-msg ctx-turn${on ? ' is-selected' : ''}" data-turn="${i}">
+              <input type="checkbox" data-act="ctx-pick" data-i="${i}" ${on ? 'checked' : ''} ${locked() ? 'disabled' : ''} aria-label="选择第 ${i + 1} 轮对话">
+              <div class="ctx-turn-body">
+                <div class="ctx-turn-q">${esc(t.user || '（无提问）')}</div>
+                <div class="ctx-turn-a">${esc(t.reply || '（本轮没有回复正文）')}</div>
+                ${meta ? `<div class="ctx-turn-meta">${esc(meta)}</div>` : ''}
+              </div>
             </article>`;
           }).join('') : '<p class="ctx-hint">没有未压缩的会话消息。</p>'}
         </div>
-        <p class="ctx-hint">删除前会再次确认；会话尚未继续时，可撤销最近一次历史修改。</p>
+        <p class="ctx-hint">删除一轮会连同这一轮的思考与工具记录一起移除；会话尚未继续时，可撤销最近一次历史修改。</p>
       </section>
     </div>`;
   }
 
   function syncSelection() {
-    const msgs = state.contextData.messages || [];
-    const sel = ctx.selected;
-    $$('#view-context .ctx-msg').forEach(row => {
+    const turns = state.contextData.turns || [];
+    $$('#view-context .ctx-turn').forEach(row => {
+      const i = +row.dataset.turn;
       const cb = row.querySelector('input[data-act="ctx-pick"]');
-      if (!cb) return;
-      const on = sel.has(+cb.dataset.i);
-      cb.checked = on;
+      const on = ctx.selected.has(i);
+      if (cb) cb.checked = on;
       row.classList.toggle('is-selected', on);
     });
     const all = $('#view-context [data-act="ctx-all"]');
     if (all) {
-      all.checked = msgs.length > 0 && sel.size === msgs.length;
-      all.indeterminate = sel.size > 0 && sel.size < msgs.length;
+      all.checked = turns.length > 0 && ctx.selected.size === turns.length;
+      all.indeterminate = ctx.selected.size > 0 && ctx.selected.size < turns.length;
     }
     const label = $('#view-context .ctx-check .sel');
-    if (label) label.textContent = sel.size ? `· 已选 ${sel.size} 条` : '';
+    if (label) label.textContent = ctx.selected.size ? `· 已选 ${ctx.selected.size} 轮` : '';
     const del = $('#view-context [data-act="ctx-del"]');
     if (del) {
-      del.disabled = locked() || !sel.size;
-      del.textContent = sel.size ? `删除所选 (${sel.size})` : '删除所选';
+      del.disabled = locked() || !ctx.selected.size;
+      del.textContent = ctx.selected.size ? `删除所选 (${ctx.selected.size})` : '删除所选';
     }
   }
 
@@ -148,6 +155,7 @@
     const view = $('#view-context');
     const entering = N.takeEnter?.('context');
     const keep = view.scrollTop;
+    const openSecs = $$('.ctx-sec', view).map(d => d.open);
     const c = state.context;
     const used = (c.system || 0) + (c.tools || 0) + (c.messages || 0);
     const known = used > 0;
@@ -172,7 +180,7 @@
         <div class="ctx-metrics">
           <div><span>所有者指令</span><strong>${(d.owner_instructions || []).length} 条</strong></div>
           <div><span>角色</span><strong>${(d.roles || []).length} 个</strong></div>
-          <div><span>未压缩消息</span><strong>${(d.messages || []).length} 条</strong></div>
+          <div><span>未压缩对话</span><strong>${(d.turns || []).length} 轮</strong></div>
           <div><span>压缩摘要</span><strong>${d.summary ? '覆盖 ' + (Number(d.summary.through) + 1) + ' 条' : '暂无'}</strong></div>
         </div>
       </section>
@@ -180,10 +188,13 @@
       ${tabsHTML()}
       ${ctx.tab === 'system' ? systemPanel() : historyPanel()}
     </div>`;
+    $$('.ctx-sec', view).forEach((d, i) => {
+      if (openSecs[i] !== undefined) d.open = openSecs[i];
+    });
     view.scrollTop = keep;
     maybeSync();
     if (entering) {
-      N.stagger(view, 24);
+      ctx.enteredAt = Date.now();
       growMeter(view, pct);
       setTimeout(() => {
         const tabs = $('.tabs', view);
@@ -202,6 +213,9 @@
   let lastSync = 0;
   function maybeSync() {
     if (syncing || Date.now() - lastSync < 1500) return;
+    /* 入场动画还没播完就整页重绘，会把逐段登场打断；等它落定再拉。 */
+    const wait = (ctx.enteredAt || 0) + 700 - Date.now();
+    if (wait > 0) { setTimeout(maybeSync, wait); return; }
     syncing = true;
     Promise.resolve()
       .then(() => N.sync.contextOnly())
@@ -305,20 +319,19 @@
     }
   }
 
-  async function delMessages() {
-    const msgs = state.contextData.messages || [];
-    const indices = [...ctx.selected].filter(i => msgs.some(m => m.index === i)).sort((a, b) => a - b);
-    if (!indices.length) return;
+  async function delTurns() {
+    const turns = state.contextData.turns || [];
+    const picked = [...ctx.selected].filter(i => turns[i]).sort((a, b) => a - b);
+    if (!picked.length) return;
     if (locked()) { N.notify('请先停止灵的当前输入再删除历史', 'cinnabar'); return; }
+    const indices = [...new Set(picked.flatMap(i => turns[i].indices))].sort((a, b) => a - b);
     const ok = await N.confirmEdit({
-      title: `删除 ${indices.length} 条消息？`,
-      description: '删除后可在会话继续前撤销最近一次修改；已执行的工具与后台工作不会回滚。',
-      submitLabel: '删除消息',
+      title: `删除 ${picked.length} 轮对话？`,
+      description: '会连同这一轮的思考、工具调用与任务事件一起移除；已执行的工具与后台工作不会回滚。',
+      submitLabel: '删除对话',
     });
     if (!ok) return;
-    const rows = indices
-      .map(index => $(`#view-context .ctx-msg input[data-i="${index}"]`)?.closest('.ctx-msg'))
-      .filter(Boolean);
+    const rows = picked.map(i => $(`#view-context .ctx-turn[data-turn="${i}"]`)).filter(Boolean);
     if (rows.length && !N.REDUCED) {
       await Promise.all(rows.map((row, k) => N.anim(row,
         [{ opacity: 1, height: row.offsetHeight + 'px' }, { opacity: 0, height: '0px', transform: 'scale(.97)' }],
@@ -330,9 +343,11 @@
       await N.sync.chatOnly();
       N.composeItems?.(); N.renderChat?.();
       ctx.selected.clear(); ctx.canUndo = true;
-      renderContext(); N.notify('已删除所选消息', 'jade');
+      renderContext(); N.notify('已删除所选对话', 'jade');
     } catch (error) {
-      N.notify(error?.message || '删除消息失败', 'cinnabar', 4200);
+      N.notify(error?.message || '删除对话失败', 'cinnabar', 4200);
+      await N.sync.contextOnly().catch(() => {});
+      renderContext();
     }
   }
 
@@ -394,8 +409,8 @@
     if (act === 'edit-role') return editRole(t.dataset.id);
     if (act === 'edit-summary') return editSummary();
     if (act === 'ctx-all') {
-      const msgs = state.contextData.messages || [];
-      ctx.selected = t.checked ? new Set(msgs.map(m => m.index)) : new Set();
+      const turns = state.contextData.turns || [];
+      ctx.selected = t.checked ? new Set(turns.map((_, i) => i)) : new Set();
       syncSelection(); return;
     }
     if (act === 'ctx-pick') {
@@ -403,7 +418,7 @@
       if (t.checked) ctx.selected.add(i); else ctx.selected.delete(i);
       syncSelection(); return;
     }
-    if (act === 'ctx-del') return delMessages();
+    if (act === 'ctx-del') return delTurns();
     if (act === 'ctx-undo') return undo();
     if (act === 'ctx-refresh') return refresh();
     if (act === 'back-chat') return N.go('chat');

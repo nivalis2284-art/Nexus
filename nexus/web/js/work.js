@@ -106,7 +106,6 @@
       <p class="foot-note" data-s>工作记录只读。开始、挂起、恢复或取消通过主交流交代；归档与删除只整理这里的列表。</p>
     </div>`;
     view.scrollTop = keep;
-    if (entering) N.stagger?.(view);
   }
 
   function toggleGroup(id, btn) {
@@ -136,6 +135,21 @@
     };
   }
 
+  /* 后端的冲突文案是英文的，这里换成能直接照做的说法。 */
+  function workError(error) {
+    const text = String(error?.message || '');
+    if (/changed before deletion|expected_version|control_version/i.test(text)) {
+      return '这项工作刚被改动过，列表已刷新，请再试一次';
+    }
+    if (/active task|still owns execution/i.test(text)) {
+      return '这项还在运行，先停止它再操作';
+    }
+    if (/child work records/i.test(text)) {
+      return '先删掉它下面的子工作，再删这一项';
+    }
+    return text || '操作失败';
+  }
+
   async function archiveWork(id, restore) {
     const w = (state.works || []).find(x => x.id === id);
     if (!w) return;
@@ -163,7 +177,7 @@
       N.syncDock?.(true);
     } catch (error) {
       node?.getAnimations().forEach(a => a.cancel());
-      N.notify(error?.message || '操作失败', 'cinnabar', 4200);
+      N.notify(workError(error), 'cinnabar', 4200);
       await N.sync.worksOnly().catch(() => {});
       view._sig = '';
       renderWork();
@@ -196,7 +210,7 @@
       N.notify('工作已删除', 'jade');
       N.syncDock?.(true);
     } catch (error) {
-      N.notify(error?.message || '删除失败', 'cinnabar', 4200);
+      N.notify(workError(error), 'cinnabar', 4200);
       await N.sync.worksOnly().catch(() => {});
       view._sig = '';
       renderWork();

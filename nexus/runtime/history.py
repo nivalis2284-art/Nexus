@@ -47,7 +47,8 @@ def edit_history(session, body):
     through = int(checkpoint[1].data["through"]) if checkpoint else -1
     if min(indices) <= through:
         raise TaskValidationError("这条消息已压缩，请在上下文管理中修改历史摘要。")
-    if any(session.items[index].kind not in ("user", "assistant", "tool", "notice") for index in indices):
+    if any(session.items[index].kind not in ("user", "assistant", "tool", "notice",
+                                             "work_report", "experience") for index in indices):
         raise TaskValidationError("该记录不能作为会话消息修改。")
     resend = None
     if operation == "resend":

@@ -139,7 +139,7 @@ def test_context_and_history_http_routes(app, monkeypatch):
             result = client.post("/api/ling/history", json={"operation": "delete", "indices": [1], "version": context["version"]})
             assert result.status_code == 200, result.text
             assert result.json()["context"]["messages"][0]["text"] == "question"
-            for asset in ("context.js", "context.css", "editing.js"):
+            for asset in ("js/context.js", "css/app.css", "css/ling.css"):
                 assert client.get("/" + asset).status_code == 200
     finally:
         server.shutdown()
