@@ -25,15 +25,16 @@
       b.classList.toggle('active', on);
       b.setAttribute('aria-checked', String(on));
     });
-    $$('.motion-seg button', view).forEach(b => {
+    const range = $('#motion-range', view);
+    if (range) range.value = String(Math.max(0, N.MOTION_LEVELS.indexOf(state.motion)));
+    $$('.motion-ticks button', view).forEach(b => {
       const on = b.dataset.v === state.motion;
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-checked', String(on));
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
     });
     const modeInk = $('.mode-seg .seg-ink', view);
     if (modeInk) N.moveInk(modeInk, $('.mode-seg button.active', view), 'x', instant);
-    const motionInk = $('.motion-seg .seg-ink', view);
-    if (motionInk) N.moveInk(motionInk, $('.motion-seg button.active', view), 'x', instant);
+
     $$('.theme-card', view).forEach(card => {
       const t = N.THEMES.find(x => x.id === card.dataset.id);
       const on = card.dataset.id === state.palette;
@@ -56,7 +57,7 @@
     dots.forEach((d, i) => {
       d.getAnimations().forEach(a => a.cancel());
       N.anim(d, [{ opacity: .15, transform: 'translateX(-12px) scale(.6)' }, { opacity: 1, transform: 'none' }],
-        { duration: 420, delay: i * 90, easing: N.SP.bouncy.e });
+        { duration: N.DUR.enter, delay: i * 90, easing: N.SP.bouncy.e });
     });
   }
 
@@ -78,8 +79,11 @@
         <div class="ui-row" data-s>
           <div><b>动效速度</b><small>统一影响页面切换、消息入场、灵岛形变与流式节奏。</small></div>
           <div class="ui-controls">
-            <div class="seg ui-seg motion-seg" role="radiogroup" aria-label="动效速度"><span class="seg-ink"></span>
-              ${[['fast', '快'], ['normal', '适中'], ['slow', '慢']].map(([k, l]) => `<button role="radio" aria-checked="${state.motion === k}" class="${state.motion === k ? 'active' : ''}" data-act="motion" data-v="${k}">${l}</button>`).join('')}
+            <div class="motion-slider">
+              <input type="range" id="motion-range" min="0" max="4" step="1" value="${Math.max(0, N.MOTION_LEVELS.indexOf(state.motion))}" aria-label="动效速度">
+              <div class="motion-ticks" role="group" aria-label="动效速度档位">
+                ${N.MOTION_LEVELS.map(k => `<button type="button" data-act="motion" data-v="${k}" aria-pressed="${state.motion === k}" class="${state.motion === k ? 'on' : ''}">${k === '1' ? '1.0x' : k + 'x'}</button>`).join('')}
+              </div>
             </div>
             <div class="motion-demo" id="motion-demo" aria-hidden="true" title="切换速度时演示"><i></i><i></i><i></i></div>
             <button class="btn ghost sm motion-play" type="button" data-act="motion-demo">预览</button>
@@ -287,7 +291,7 @@
       show.hidden = false;
       if (!N.REDUCED) {
         N.anim(show, [{ opacity: 0, transform: 'translateY(-5px)' }, { opacity: 1, transform: 'none' }],
-          { duration: 240, easing: N.SP.settle.e });
+          { duration: N.DUR.base, easing: N.SP.settle.e });
       }
     }
   }
@@ -481,6 +485,11 @@
     if (act === 'reset-settings') return reloadSettings();
   });
   document.addEventListener('input', e => {
+    if (e.target.id === 'motion-range') {
+      const level = N.MOTION_LEVELS[Number(e.target.value)];
+      if (level) N.setMotion(level);
+      return;
+    }
     if (e.target.id === 'p-model-new' || e.target.dataset.modelName !== undefined) { /* 编辑即生效 */ }
     if (e.target.dataset.modelName !== undefined) {
       const i = +e.target.dataset.modelName;

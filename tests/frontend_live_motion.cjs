@@ -127,6 +127,42 @@ async function main() {
     })()`);
     note('menu closes with motion', JSON.parse(menuClose).hidden === false && JSON.parse(menuClose).anims > 0, menuClose);
 
+    // 7. 速度档位：五档，且 CSS 过渡跟着一起缩放
+    await ev('document.querySelector(".dock-btn[data-view=\\"settings\\"]").click()');
+    await wait(900);
+    const readMotion = () => ev(`(() => {
+      const root = getComputedStyle(document.documentElement);
+      const btn = document.querySelector('#view-settings .btn');
+      return JSON.stringify({
+        motion: root.getPropertyValue('--motion').trim(),
+        d3: root.getPropertyValue('--d-3').trim(),
+        dur: btn ? getComputedStyle(btn).transitionDuration : '',
+        ticks: document.querySelectorAll('#view-settings .motion-ticks button').length,
+        on: document.querySelector('#view-settings .motion-ticks button.on')?.dataset.v || '',
+      });
+    })()`);
+
+    const base = JSON.parse(await readMotion());
+    note('motion has five levels', base.ticks === 5, String(base.ticks));
+    note('motion defaults to 1.0x', base.motion === '1.35', base.motion);
+
+    await ev('document.querySelector(\'#view-settings .motion-ticks button[data-v="0.5"]\').click()');
+    await wait(300);
+    const fast = JSON.parse(await readMotion());
+    note('0.5x scales motion down', fast.motion === '0.675' && fast.on === '0.5', JSON.stringify(fast));
+
+    await ev('document.querySelector(\'#view-settings .motion-ticks button[data-v="1.5"]\').click()');
+    await wait(300);
+    const slow = JSON.parse(await readMotion());
+    note('1.5x scales motion up', slow.motion === '2.025' && slow.on === '1.5', JSON.stringify(slow));
+
+    const fastDur = parseFloat(fast.dur) || 0;
+    const slowDur = parseFloat(slow.dur) || 0;
+    note('transitions follow the level', fastDur > 0 && slowDur > fastDur * 2, `${fast.dur} -> ${slow.dur}`);
+
+    await ev('document.querySelector(\'#view-settings .motion-ticks button[data-v="1"]\').click()');
+    await wait(300);
+
     if (page.errors.length) problems.push('exceptions: ' + JSON.stringify(page.errors).slice(0, 600));
   } finally {
     try { page?.close?.(); } catch (_) {}

@@ -15,7 +15,7 @@
     menuAnchor = null;
     if (instant || N.REDUCED) { menu.hidden = true; return; }
     menu.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(6px) scale(.96)' }],
-      { duration: 130 * N.motionScale(), easing: 'ease-in' }).onfinish = () => { if (!menuAnchor) menu.hidden = true; };
+      { duration: N.DUR.fast * N.motionScale(), easing: 'ease-in' }).onfinish = () => { if (!menuAnchor) menu.hidden = true; };
   }
   function openMenu(anchor, items, opts = {}) {
     if (menuAnchor === anchor) { closeMenu(); return; }
@@ -44,7 +44,7 @@
     anim(menu, [{ opacity: 0, transform: 'translateY(9px) scale(.9)' }, { opacity: 1, transform: 'none' }],
       { duration: SP.settle.d, easing: SP.settle.e });
     $$('button', menu).forEach((b, i) => anim(b, [{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'none' }],
-      { duration: 260, delay: 20 + i * 24, easing: EASE_OUT, fill: 'backwards' }));
+      { duration: N.DUR.base, delay: 20 + i * 24, easing: EASE_OUT, fill: 'backwards' }));
     menu.onclick = e => {
       const b = e.target.closest('button[data-i]');
       if (!b) return;
@@ -184,7 +184,7 @@
     d._closing = true;
     d.classList.add('is-closing');
     d.getAnimations().forEach(a => { try { a.cancel(); } catch (_) {} });
-    const ms = Math.round(180 * N.motionScale());
+    const ms = Math.round(N.DUR.base * N.motionScale());
     const ease = 'cubic-bezier(.4,0,.75,.2)';
     /* 入场是 WAAPI，退场用 transition：两者同时挂在 opacity 上会互相抢占。 */
     d.style.transition = `opacity ${ms}ms ${ease}, transform ${ms}ms ${ease}`;

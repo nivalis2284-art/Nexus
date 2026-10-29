@@ -105,7 +105,7 @@ body[data-mood="waiting"],
 .theme-card {
   position: relative; text-align: left; padding: 12px; border-radius: 16px;
   background: var(--raised); box-shadow: inset 0 0 0 1px var(--line);
-  transition: transform .2s var(--ease-out), box-shadow .25s, background .25s;
+  transition: transform var(--d-2) var(--ease-out), box-shadow var(--d-2), background var(--d-2);
 }
 .theme-card:hover { transform: translateY(-2px); background: var(--card); box-shadow: var(--sh-1), inset 0 0 0 1px var(--line); }
 .theme-card.is-active { background: var(--card); box-shadow: inset 0 0 0 1.5px var(--jade), var(--sh-1); }
@@ -116,17 +116,11 @@ body[data-mood="waiting"],
 .theme-check {
   position: absolute; right: 9px; bottom: 9px; width: 18px; height: 18px; border-radius: 50%;
   display: grid; place-items: center; background: var(--jade);
-  opacity: 0; transform: scale(.6); transition: opacity .2s, transform .25s var(--sp-bouncy);
+  opacity: 0; transform: scale(.6); transition: opacity var(--d-2), transform var(--d-2) var(--sp-bouncy);
 }
 .theme-card.is-active .theme-check { opacity: 1; transform: none; }
 
 /* 动效速度也作用于 CSS 关键帧 */
-.req-card { animation-duration: calc(.42s * var(--motion)); }
-.usage-pop { animation-duration: calc(.3s * var(--motion)); }
-.qrow { animation-duration: calc(.4s * var(--motion)); }
-.tok-stream { animation-duration: calc(.2s * var(--motion)); }
-.req-card .req-seal { animation-duration: calc(.5s * var(--motion)); }
-.dock-btn.active .i { animation-duration: calc(.38s * var(--motion)); }
 
 @media (max-width: 760px) {
   .ui-row { flex-direction: column; align-items: flex-start; gap: 10px; }
@@ -140,9 +134,9 @@ EOF
 .orb-hero { animation: orb-float 7s ease-in-out infinite; }
 @keyframes orb-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 
-.msg-ling .ling-head { transition: transform .22s var(--ease-out); }
+.msg-ling .ling-head { transition: transform var(--d-2) var(--ease-out); }
 .msg-ling:hover .ling-head { transform: translateX(2px); }
-.msg-user .bubble { transition: transform .22s var(--ease-out), box-shadow .3s var(--ease-out); }
+.msg-user .bubble { transition: transform var(--d-2) var(--ease-out), box-shadow var(--d-3) var(--ease-out); }
 .msg-user:hover .bubble { transform: translateY(-1px); box-shadow: 0 14px 30px -14px rgba(0, 0, 0, .6); }
 
 .send-ripple {
@@ -168,7 +162,7 @@ EOF
 .msg.is-new { position: relative; }
 .msg.is-new::before {
   content: ""; position: absolute; left: -12px; top: 4px; bottom: 4px; width: 2px; border-radius: 2px;
-  background: var(--jade); animation: new-rule 1.8s var(--ease-out) forwards;
+  background: var(--jade); animation: new-rule calc(1.8s * var(--motion)) var(--ease-out) forwards;
 }
 @keyframes new-rule {
   0% { opacity: 0; transform: scaleY(.2); }
@@ -191,13 +185,13 @@ EOF
 .model-dot { background: conic-gradient(var(--jade), var(--cinnabar), var(--jade)); }
 
 /* 发送键进入可发送状态时轻轻弹一下 */
-.send.ready { animation: send-ready .38s var(--sp-bouncy); }
+.send.ready { animation: send-ready calc(.38s * var(--motion)) var(--sp-bouncy); }
 @keyframes send-ready {
   0% { transform: scale(.9); }
   60% { transform: scale(1.06); }
   100% { transform: scale(1); }
 }
-.ret-chip button { animation: chip-in .3s var(--sp-bouncy) both; }
+.ret-chip button { animation: chip-in calc(.3s * var(--motion)) var(--sp-bouncy) both; }
 @keyframes chip-in {
   from { opacity: 0; transform: translateY(6px) scale(.92); }
   to { opacity: 1; transform: none; }

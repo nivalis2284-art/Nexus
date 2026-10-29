@@ -18,7 +18,7 @@
   if (state.palette === 'blue') state.palette = 'cool';
   else if (!['jade', 'cool'].includes(state.palette)) state.palette = 'jade';
   document.documentElement.dataset.palette = state.palette;
-  N.setMotion?.(state.motion || 'normal', true);
+  N.setMotion?.(N.MOTION_ALIAS?.[state.motion] || state.motion || '1', true);
   N.refreshScene?.();
 
   /* 快照到达前只上静态骨架；记录区等真实数据一次画出，避免空态闪一下 */

@@ -21,9 +21,15 @@ window.N = window.N || {};
   const EASE_OUT = 'cubic-bezier(.22,1,.36,1)';
   const rmq = matchMedia('(prefers-reduced-motion: reduce)');
   let REDUCED = rmq.matches;
-  const MOTION_SCALES = { fast: .72, normal: 1, slow: 1.35 };
-  let motionId = 'normal';
-  const motionScale = () => MOTION_SCALES[motionId] || 1;
+  /* 五档速度：1.0x 是基准，0.5x 最快，1.5x 最慢。 */
+  const MOTION_LEVELS = ['0.5', '0.75', '1', '1.25', '1.5'];
+  const MOTION_SCALES = { '0.5': .675, '0.75': 1.0125, '1': 1.35, '1.25': 1.6875, '1.5': 2.025 };
+  const MOTION_ALIAS = { fast: '0.5', normal: '0.75', slow: '1' };
+  const motionKey = id => (MOTION_ALIAS[id] || (MOTION_SCALES[id] ? id : '1'));
+  let motionId = '1';
+  const motionScale = () => MOTION_SCALES[motionId] || 1.35;
+  /* 统一时长阶梯：微交互 / 小元素 / 卡片与折叠 / 页面与弹窗 */
+  const DUR = { fast: 96, micro: 160, base: 220, move: 320, enter: 480 };
   rmq.addEventListener?.('change', e => { REDUCED = e.matches; buildSprings(); });
 
   /* ---------------------------------------------------------------- 弹簧 */
@@ -65,8 +71,10 @@ window.N = window.N || {};
   }
   buildSprings();
   function setMotionScale(id) {
-    if (!MOTION_SCALES[id]) return;
-    motionId = id;
+    const key = motionKey(id);
+    if (!MOTION_SCALES[key]) return;
+    motionId = key;
+    document.documentElement.style.setProperty('--motion', String(MOTION_SCALES[key]));
     buildSprings();
   }
   const anim = (el, kf, o = {}) => {
@@ -331,7 +339,7 @@ async function openTask(id) {
       view: 'chat',
       theme: 'day',
       palette: 'jade',
-      motion: 'normal',
+      motion: '1',
       scene: 'conversation',
       target: null,
       files: [],
@@ -400,6 +408,7 @@ async function openTask(id) {
   N.clone = clone; N.clamp = clamp; N.EASE_OUT = EASE_OUT;
   N.SP = SP; N.anim = anim; N.moveInk = moveInk;
   N.motionScale = motionScale; N.setMotionScale = setMotionScale; N.MOTION_SCALES = MOTION_SCALES;
+  N.MOTION_LEVELS = MOTION_LEVELS; N.MOTION_ALIAS = MOTION_ALIAS; N.DUR = DUR;
   N.THEMES = THEMES;
   Object.defineProperty(N, 'REDUCED', { get: () => REDUCED });
   N.nowHM = nowHM; N.fmtSize = fmtSize; N.fmtNum = fmtNum; N.shortPath = shortPath;

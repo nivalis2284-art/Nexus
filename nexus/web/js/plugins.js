@@ -304,7 +304,7 @@
     const item = $(`.plug-item[data-id="${CSS.escape(id)}"]`);
     if (item && !N.REDUCED) {
       N.anim(item, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateX(-6px)' }],
-        { duration: 200, easing: 'ease-in', fill: 'forwards' });
+        { duration: N.DUR.base, easing: 'ease-in', fill: 'forwards' });
     }
     try {
       await N.api.pluginCommand(id, 'uninstall');

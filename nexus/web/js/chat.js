@@ -94,7 +94,7 @@
       const dy = from - conv.offsetTop;
       if (Math.abs(dy) < 1) return;
       conv.getAnimations().forEach(a => a.cancel());
-      anim(conv, [{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 340, easing: SP.soft.e });
+      anim(conv, [{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: N.DUR.move, easing: SP.soft.e });
     });
   }
   conv.addEventListener('wheel', () => { followEnabled = false; stopFollow(); }, { passive: true });
@@ -107,7 +107,7 @@
     if (N.REDUCED) return;
     const blocks = $$('.md > *, .ling-body > .spine, .ling-body > .dispatch, .ling-body > .result', node);
     blocks.forEach((b, i) => anim(b, [{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'none' }],
-      { duration: 300, delay: 40 + i * 32, easing: EASE_OUT, fill: 'backwards' }));
+      { duration: N.DUR.move, delay: 40 + i * 32, easing: EASE_OUT, fill: 'backwards' }));
   }
 
   function buildMsg(item) {
@@ -146,7 +146,7 @@
         ol.innerHTML = item.spine.map(([t, d], i) => `<li><span class="n">${String(i + 1).padStart(2, '0')}</span><div><strong>${esc(t)}</strong><p>${esc(d)}</p></div></li>`).join('');
         wrap.appendChild(ol);
         if (!N.REDUCED) $$('li', ol).forEach((li, i) => anim(li, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }],
-          { duration: 360, delay: 90 + i * 80, easing: EASE_OUT, fill: 'backwards' }));
+          { duration: N.DUR.move, delay: 90 + i * 80, easing: EASE_OUT, fill: 'backwards' }));
       }
       const w = item.workId && byId(item.workId);
       if (w && item.card === 'result') wrap.insertAdjacentHTML('beforeend', resultCard(w));
@@ -285,7 +285,7 @@
         body.replaceChild(el, old);
       } else {
         body.appendChild(el);
-        if (!N.REDUCED) anim(el, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 240, easing: EASE_OUT });
+        if (!N.REDUCED) anim(el, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: N.DUR.base, easing: EASE_OUT });
       }
       existing.delete(step.key);
     });
@@ -301,7 +301,7 @@
       bar.className = 'history-undo';
       bar.innerHTML = '<span>已修改交流记录</span><button type="button" data-act="undo-history">撤销操作</button>';
       thread.prepend(bar);
-      if (!N.REDUCED) anim(bar, [{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }], { duration: 280, easing: EASE_OUT });
+      if (!N.REDUCED) anim(bar, [{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }], { duration: N.DUR.move, easing: EASE_OUT });
     } else if (!state.historyUndo && bar) bar.remove();
   }
 
@@ -321,7 +321,7 @@
       const today = new Date();
       day.innerHTML = `<span>今天 · ${today.getMonth() + 1} 月 ${today.getDate()} 日</span>`;
       thread.prepend(day);
-      if (!N.REDUCED) anim(day, [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: 320, easing: EASE_OUT });
+      if (!N.REDUCED) anim(day, [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: N.DUR.move, easing: EASE_OUT });
     }
     const entries = groupItems(state.items);
     const keys = entries.map(e => e.key);
@@ -390,11 +390,11 @@
     const swap = () => {
       if (!old.isConnected) return;
       old.replaceWith(fresh);
-      if (!N.REDUCED) anim(fresh, [{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: EASE_OUT });
+      if (!N.REDUCED) anim(fresh, [{ opacity: 0 }, { opacity: 1 }], { duration: N.DUR.base, easing: EASE_OUT });
       animateBlocks(fresh);
     };
     if (N.REDUCED) { swap(); return; }
-    anim(old, [{ opacity: 1 }, { opacity: 0 }], { duration: 110, easing: 'ease-in' }).onfinish = swap;
+    anim(old, [{ opacity: 1 }, { opacity: 0 }], { duration: N.DUR.fast, easing: 'ease-in' }).onfinish = swap;
   }
 
   const heroHTML = () => `<div class="hero">
@@ -727,7 +727,7 @@
       const done = () => { panel.hidden = true; panel.getAnimations().forEach(a => a.cancel()); };
       if (N.REDUCED) done();
       else N.anim(panel, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(6px) scale(.97)' }],
-        { duration: 150, easing: 'ease-in', fill: 'forwards' }).onfinish = done;
+        { duration: N.DUR.fast, easing: 'ease-in', fill: 'forwards' }).onfinish = done;
     }
     $$('#stat-tokens,#stat-context').forEach(b => b.setAttribute('aria-expanded', String(!panel.hidden && b === anchor)));
   }
@@ -739,14 +739,14 @@
       el.hidden = false;
       if (!N.REDUCED) {
         N.anim(el, [{ opacity: 0, transform: 'translateX(-50%) translateY(8px)' }, { opacity: 1, transform: 'translateX(-50%)' }],
-          { duration: 300, easing: N.SP.settle.e });
+          { duration: N.DUR.move, easing: N.SP.settle.e });
       }
       return;
     }
     const done = () => { el.hidden = true; el.getAnimations().forEach(a => a.cancel()); };
     if (N.REDUCED) done();
     else N.anim(el, [{ opacity: 1, transform: 'translateX(-50%)' }, { opacity: 0, transform: 'translateX(-50%) translateY(6px)' }],
-      { duration: 160, easing: 'ease-in', fill: 'forwards' }).onfinish = done;
+      { duration: N.DUR.micro, easing: 'ease-in', fill: 'forwards' }).onfinish = done;
   }
 
   function setStopVisible(on) {
@@ -756,14 +756,14 @@
       btn.hidden = false;
       if (!N.REDUCED) {
         N.anim(btn, [{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }],
-          { duration: 280, easing: N.SP.settle.e });
+          { duration: N.DUR.move, easing: N.SP.settle.e });
       }
       return;
     }
     const done = () => { btn.hidden = true; btn.getAnimations().forEach(a => a.cancel()); };
     if (N.REDUCED) done();
     else N.anim(btn, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.86)' }],
-      { duration: 140, easing: 'ease-in', fill: 'forwards' }).onfinish = done;
+      { duration: N.DUR.fast, easing: 'ease-in', fill: 'forwards' }).onfinish = done;
   }
 
   /* ---------------------------------------------------------------- 输入舱 */
@@ -897,7 +897,7 @@
     if (!text && !files.length) return;
     sendRipple();
     anim(composer, [{ transform: 'translateY(-2px) scale(1)' }, { transform: 'translateY(-2px) scale(.994)' }, { transform: 'translateY(-2px) scale(1)' }],
-      { duration: 280, easing: EASE_OUT });
+      { duration: N.DUR.move, easing: EASE_OUT });
     if ($('#view-chat').classList.contains('is-empty')) leaveEmpty();
     const target = state.target;
     input.value = ''; state.files = []; renderFiles(); autosize(); updateSend();
@@ -972,7 +972,7 @@
     i.style.top = (r.top + r.height / 2) + 'px';
     document.body.appendChild(i);
     anim(i, [{ opacity: .75, transform: 'scale(.55)' }, { opacity: 0, transform: 'scale(2.2)' }],
-      { duration: 520, easing: EASE_OUT }).onfinish = () => i.remove();
+      { duration: N.DUR.enter, easing: EASE_OUT }).onfinish = () => i.remove();
   }
 
   function send() {
@@ -981,7 +981,7 @@
     if (!text && !files.length) return;
     sendRipple();
     anim(composer, [{ transform: 'translateY(-2px) scale(1)' }, { transform: 'translateY(-2px) scale(.994)' }, { transform: 'translateY(-2px) scale(1)' }],
-      { duration: 280, easing: EASE_OUT });
+      { duration: N.DUR.move, easing: EASE_OUT });
     if (state.replying) {
       state.queue.push({ id: N.uid('q'), text: text || '附件', status: 'queued', target: state.target });
       renderQueue();
@@ -1007,7 +1007,7 @@
       $$('[id]', ghost).forEach(n => n.removeAttribute('id'));
       document.body.appendChild(ghost);
       anim(ghost, [{ opacity: 1, transform: 'none', filter: 'blur(0px)' }, { opacity: 0, transform: 'translateY(-26px) scale(.94)', filter: 'blur(8px)' }],
-        { duration: 420, easing: EASE_OUT }).onfinish = () => ghost.remove();
+        { duration: N.DUR.enter, easing: EASE_OUT }).onfinish = () => ghost.remove();
     }
     view.classList.remove('is-empty');
     thread.innerHTML = '';
@@ -1133,7 +1133,7 @@
     const h = node.offsetHeight;
     node.style.overflow = 'hidden';
     N.anim(node, [{ opacity: 1, height: h + 'px' }, { opacity: 0, height: '0px', transform: 'scale(.97)' }],
-      { duration: 300, easing: N.EASE_OUT }).onfinish = () => renderChat();
+      { duration: N.DUR.move, easing: N.EASE_OUT }).onfinish = () => renderChat();
   }
 
   async function deleteItem(key) {
@@ -1202,7 +1202,7 @@
       const i = +t.dataset.i;
       const chip = t.closest('.file');
       const done = () => { state.files.splice(i, 1); renderFiles(); updateSend(); N.save(); };
-      if (chip && !N.REDUCED) N.anim(chip, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.6)' }], { duration: 160, easing: 'ease-in' }).onfinish = done;
+      if (chip && !N.REDUCED) N.anim(chip, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.6)' }], { duration: N.DUR.micro, easing: 'ease-in' }).onfinish = done;
       else done();
       return;
     }

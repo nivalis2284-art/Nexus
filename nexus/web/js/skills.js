@@ -127,7 +127,7 @@
     const card = $$('#view-skills .skill')[i];
     if (card && !N.REDUCED) {
       await N.anim(card, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.94) translateY(-4px)' }],
-        { duration: 220, easing: 'ease-in', fill: 'forwards' }).finished;
+        { duration: N.DUR.base, easing: 'ease-in', fill: 'forwards' }).finished;
     }
     try {
       await N.api.deleteSkill({ source: s.source, path: s.path });

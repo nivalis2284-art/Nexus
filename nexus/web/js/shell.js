@@ -134,13 +134,13 @@
     islandAnim = island.animate([{ width: from.width + 'px', height: from.height + 'px' }, { width: to.width + 'px', height: to.height + 'px' }],
       { duration: SP.island.d * N.motionScale(), easing: SP.island.e });
     ghost.animate([{ opacity: 1, filter: 'blur(0px)', transform: 'translateX(-50%)' }, { opacity: 0, filter: 'blur(6px)', transform: 'translateX(-50%) scale(.92)' }],
-      { duration: 170 * N.motionScale(), easing: 'ease-in', fill: 'forwards' });
+      { duration: N.DUR.micro * N.motionScale(), easing: 'ease-in', fill: 'forwards' });
     islandInner.animate([{ opacity: 0, filter: 'blur(8px)', transform: 'scale(.93)' }, { opacity: 1, filter: 'blur(0px)', transform: 'none' }],
-      { duration: 440 * N.motionScale(), delay: (prev === mode ? 0 : 70) * N.motionScale(), easing: N.EASE_OUT, fill: 'backwards' });
+      { duration: N.DUR.enter * N.motionScale(), delay: (prev === mode ? 0 : 70) * N.motionScale(), easing: N.EASE_OUT, fill: 'backwards' });
     if (mode === 'detail' || mode === 'overview') {
       $$('.det-scroll > *, .wrow, .drow, .isl-sec, .kv-row, .isl-steps li', islandInner).forEach((n, i) => {
         n.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }],
-          { duration: 380, delay: 60 + Math.min(i, 10) * 18, easing: N.EASE_OUT, fill: 'backwards' });
+          { duration: N.DUR.move, delay: 60 + Math.min(i, 10) * 18, easing: N.EASE_OUT, fill: 'backwards' });
       });
     }
     const clean = () => {
@@ -257,7 +257,7 @@
       renderView(name);
       if (name === 'chat') N.syncTargets(true);
       anim(next, [{ opacity: 0, transform: 'translateY(16px)', filter: 'blur(5px)' }, { opacity: 1, transform: 'none', filter: 'blur(0px)' }],
-        { duration: 540, easing: SP.settle.e });
+        { duration: N.DUR.enter, easing: SP.settle.e });
       N.stagger(next);
     };
     if (N.REDUCED || !cur) {
@@ -269,7 +269,7 @@
     cur.style.zIndex = '1';
     next.style.zIndex = '2';
     const out = anim(cur, [{ opacity: 1, transform: 'none', filter: 'blur(0px)' }, { opacity: 0, transform: 'translateY(-8px) scale(.992)', filter: 'blur(4px)' }],
-      { duration: 160, easing: 'ease-in', fill: 'forwards' });
+      { duration: N.DUR.micro, easing: 'ease-in', fill: 'forwards' });
     out.onfinish = () => {
       cur.hidden = true;
       cur.style.zIndex = ''; next.style.zIndex = '';
@@ -345,7 +345,7 @@
     vt.ready.then(() => {
       document.documentElement.animate(
         { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${rad}px at ${x}px ${y}px)`] },
-        { duration: 660 * N.motionScale(), easing: N.EASE_OUT, pseudoElement: '::view-transition-new(root)' },
+        { duration: N.DUR.enter * N.motionScale(), easing: N.EASE_OUT, pseudoElement: '::view-transition-new(root)' },
       );
     });
   }
@@ -373,15 +373,15 @@
     reveal(() => applyPalette(id), anchor);
   }
   function setMotion(id, silent = false) {
-    if (!N.MOTION_SCALES[id]) return;
-    N.setMotionScale(id);
-    document.documentElement.dataset.motion = id;
-    document.documentElement.style.setProperty('--motion', N.MOTION_SCALES[id]);
-    state.motion = id;
+    const key = N.MOTION_ALIAS?.[id] || id;
+    if (!N.MOTION_SCALES[key]) return;
+    N.setMotionScale(key);
+    document.documentElement.dataset.motion = key;
+    state.motion = key;
     if (!silent) {
       N.save();
       N.syncSettingsUi?.(false);
-      N.notify('动效速度：' + ({ fast: '快', normal: '适中', slow: '慢' }[id] || id), 'jade');
+      N.notify('动效速度：' + key + 'x', 'jade');
       N.playMotionDemo?.();
     }
   }

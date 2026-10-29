@@ -137,11 +137,11 @@
     }
     const wrap = $('.ctx-big', view);
     if (wrap) N.anim(wrap, [{ opacity: 0, transform: 'scale(.92)' }, { opacity: 1, transform: 'none' }],
-      { duration: 560, delay: 120, easing: N.SP.soft.e });
+      { duration: N.DUR.enter, delay: 120, easing: N.SP.soft.e });
     $$('.ctx-meter i', view).forEach((n, i) => N.anim(n, [{ transform: 'scaleX(0)' }, { transform: 'none' }],
-      { duration: 640, delay: 200 + i * 70, easing: N.SP.soft.e, fill: 'backwards' }));
+      { duration: N.DUR.enter, delay: 200 + i * 70, easing: N.SP.soft.e, fill: 'backwards' }));
     $$('.ctx-legend span', view).forEach((n, i) => N.anim(n, [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }],
-      { duration: 380, delay: 430 + i * 60, easing: N.EASE_OUT, fill: 'backwards' }));
+      { duration: N.DUR.move, delay: 430 + i * 60, easing: N.EASE_OUT, fill: 'backwards' }));
   }
 
   function renderContext() {
@@ -239,7 +239,7 @@
     const row = $(`.ctx-owner-row[data-i="${i}"]`);
     if (row && !N.REDUCED) {
       await N.anim(row, [{ opacity: 1, height: row.offsetHeight + 'px' }, { opacity: 0, height: '0px', transform: 'scale(.98)' }],
-        { duration: 240, easing: 'ease-in', fill: 'forwards' }).finished;
+        { duration: N.DUR.base, easing: 'ease-in', fill: 'forwards' }).finished;
     }
     const items = list.slice();
     items.splice(i, 1);
@@ -303,7 +303,7 @@
     if (rows.length && !N.REDUCED) {
       await Promise.all(rows.map((row, k) => N.anim(row,
         [{ opacity: 1, height: row.offsetHeight + 'px' }, { opacity: 0, height: '0px', transform: 'scale(.97)' }],
-        { duration: 220, delay: k * 18, easing: 'ease-in', fill: 'forwards' }).finished));
+        { duration: N.DUR.base, delay: k * 18, easing: 'ease-in', fill: 'forwards' }).finished));
     }
     try {
       await N.api.history({ operation: 'delete', version: state.contextData.version, indices });
@@ -364,7 +364,7 @@
         if (panel) N.stagger(panel, 24);
       };
       if (oldPanel && !N.REDUCED) {
-        N.anim(oldPanel, [{ opacity: 1 }, { opacity: 0, transform: 'translateY(-4px)' }], { duration: 100, easing: 'ease-in' }).onfinish = swap;
+        N.anim(oldPanel, [{ opacity: 1 }, { opacity: 0, transform: 'translateY(-4px)' }], { duration: N.DUR.fast, easing: 'ease-in' }).onfinish = swap;
       } else swap();
       return;
     }
