@@ -637,6 +637,8 @@
     skills: () => get('/api/skills'),
     mcp: () => get('/api/mcp'),
     plugins: () => get('/api/plugins'),
+    hooks: () => get('/api/hooks'),
+    hookSettings: body => post('/api/hooks/settings', body),
     modelRequests: query => get('/api/model-requests' + (query ? '?' + query : '')),
     modelRequest: id => get('/api/model-requests/' + encodeURIComponent(id)),
     instructions: () => get('/api/instructions'),

@@ -19,6 +19,7 @@ from ..runtime.stream import runtime_updates
 from .api import PluginHost
 from .chat import ChatSubscription
 from .events import EventStore
+from .hooks import HookRegistry
 
 
 @dataclass
@@ -49,6 +50,7 @@ class PluginManager:
         self.entries: dict[str, Entry] = {}
         self.lock = threading.RLock()
         self.local = threading.local()
+        self.hooks = HookRegistry(self)
         self.base_url = ''
         self.error = ''
         self.closing = False
@@ -176,6 +178,13 @@ class PluginManager:
                 self.events.subscribe(item.id, item.manifest['subscriptions'])
             with self.lock:
                 if item.enabled and not self.closing and item.status == 'loading':
+                    for hook_name in ('before_tool', 'after_tool'):
+                        callback = getattr(item.instance, hook_name, None)
+                        if callback:
+                            self.hooks.subscribe(item.id, 'host.' + hook_name,
+                                lambda payload, scope, callback=callback: callback(scope=scope, **payload),
+                                'legacy', required=hook_name == 'before_tool'
+                                and item.manifest.get('tool_hook_required', False))
                     item.status = 'ready'
                     item.progress = ''
                     self.events.pause(item.id, False)
@@ -221,6 +230,7 @@ class PluginManager:
             item.pending_operation = operation
             was_loading = item.status == 'loading'
             item.status = 'draining'
+            self.hooks.remove_plugin(item.id)
             self._close_chat_subscriptions(item)
             self.events.pause(item.id, True)
             self._save()
@@ -231,6 +241,7 @@ class PluginManager:
             if item.instance and hasattr(item.instance, 'close'):
                 item.instance.close()
         finally:
+            self.hooks.remove_plugin(item.id)
             item.instance = None
             for name in list(item.services.values()):
                 self.state['mcp'].remove(name)
@@ -495,17 +506,7 @@ class PluginManager:
         return ordered
 
     def hook(self, hook_name, scope, **values):
-        for plugin_id in self.enabled_ids():
-            item = self.entries[plugin_id]
-            callback = getattr(item.instance, hook_name, None)
-            if callback:
-                try:
-                    with self.lease(plugin_id, scope=scope):
-                        callback(scope=deepcopy(scope), **values)
-                except Exception as error:
-                    item.error = f'{hook_name}: {error}'
-                    if hook_name == 'before_tool' and item.manifest.get('tool_hook_required', False):
-                        raise ValueError(f'必需的工具前置处理失败: {plugin_id}: {error}') from error
+        self.hooks.emit('host.' + hook_name, values, scope)
 
     def publish(self, event_type, data, event_id=None):
         self.events.publish(event_type, data, event_id)

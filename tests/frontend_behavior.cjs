@@ -5,7 +5,7 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 // Only the DOM methods touched by these actions; requests run through the real API code.
-function page() {
+function page({ hooks = [] } = {}) {
   const nodes = new Map(), listeners = new Map(), timers = new Map(), requests = [];
   let timerId = 0, uid = 0;
   const element = () => ({
@@ -15,6 +15,7 @@ function page() {
     addEventListener() {}, setAttribute() {}, insertAdjacentHTML() {},
     querySelector: () => null, querySelectorAll: () => [], getAnimations: () => [],
     replaceChildren() {}, prepend() {}, appendChild() {}, remove() {}, scrollTo() {},
+    showModal() { this.open = true; },
   });
   const $ = selector => {
     if (!nodes.has(selector)) nodes.set(selector, element());
@@ -23,12 +24,13 @@ function page() {
   const N = {
     state: { sessionId: 's1', works: [], files: [], items: [], queue: [], requests: [],
       plugins: [], modelRequests: [], pending: [], replying: false },
-    $, $$: () => [], esc: String, icon: () => '', REDUCED: true, DUR: {}, SP: {},
+    $, $$: () => [], esc: String, icon: () => '', REDUCED: true, DUR: {}, SP: { settle: {} },
     uid: () => 'request-' + ++uid, nowHM: () => '12:00', fmtSize: String,
     shortPath: String, fmtNum: String, anim() {}, save() {}, notify() {},
     moveInk() {}, refreshIsland() {}, renderStatus() {}, composeItems() {},
   };
   const document = {
+    documentElement: { dataset: {} },
     createElement: element, querySelector: () => null,
     addEventListener(type, callback) {
       if (!listeners.has(type)) listeners.set(type, []);
@@ -49,7 +51,14 @@ function page() {
     },
     async fetch(url, init = {}) {
       requests.push({ url, ...init });
+      if (url === '/api/hooks/settings') {
+        const change = JSON.parse(init.body);
+        const hook = hooks.find(h => h.name === change.name);
+        const target = change.plugin_id ? hook.subscribers.find(s => s.plugin_id === change.plugin_id && s.key === change.key) : hook;
+        target.enabled = change.enabled;
+      }
       const body = url.includes('/attachments?') ? { id: 'attachment-1' }
+        : url === '/api/hooks' || url === '/api/hooks/settings' ? { hooks }
         : url === '/api/ling' ? { session_id: 's1', live_revision: N.state.liveRevision || 0 }
         : url === '/api/tasks?archived=1' ? { tasks: [] }
         : url === '/api/model-requests/1' ? { id: 1, body: { model: 'actual-model' }, plugins: [], materials: [] }
@@ -66,9 +75,9 @@ function page() {
       timers.clear();
       for (const callback of pending) await callback();
     },
-    async click(act, id) {
+    async click(act, id, data = {}) {
       for (const callback of listeners.get('click') || []) {
-        await callback({ target: { closest: () => ({ dataset: { act, id } }) } });
+        await callback({ target: { closest: () => ({ dataset: { act, id, ...data } }) } });
       }
     },
   };
@@ -145,4 +154,37 @@ test('request details and earlier pages come from their server endpoints', async
   await p.click('req-more');
   assert.ok(p.requests.some(r => r.url.includes('before=1')));
   assert.equal(p.N.state.modelRequests.length, 2);
+});
+
+test('settings hook management loads, toggles and preserves errors without discarding settings edits', async () => {
+  const p = page({ hooks: [{ name: 'host.after_tool', owner: 'host', description: '工具执行后',
+    available: true, enabled: true, subscribers: [{ plugin_id: 'memory', key: 'capture',
+      enabled: true, available: true, error: 'capture failed' }] }] });
+  Object.assign(p.N.state, { providers: [], current: {}, mcp: [], motion: '1', plugins: [{ id: 'memory', name: '记忆' }] });
+  Object.assign(p.N, { providerOf: () => null, currentModel: () => null, MOTION_LEVELS: ['1'], THEMES: [] });
+  p.load('settings.js');
+  p.N.renderSettings();
+  assert.match(p.$('#view-settings').innerHTML, /data-act="manage-hooks"/);
+  p.$('#instructions').value = 'unsaved preference';
+  await p.click('manage-hooks');
+  assert.equal(p.$('#hooks-dialog').open, true);
+  assert.match(p.$('#hooks-list').innerHTML, /host.after_tool/);
+  assert.match(p.$('#hooks-list').innerHTML, /记忆/);
+  assert.match(p.$('#hooks-list').innerHTML, /capture failed/);
+  await p.click('toggle-hook', undefined, { i: '0' });
+  assert.deepEqual(JSON.parse(p.requests.at(-1).body), { name: 'host.after_tool', enabled: false });
+  assert.match(p.$('#hooks-list').innerHTML, /启用钩子/);
+  await p.click('toggle-hook-sub', undefined, { i: '0', j: '0' });
+  assert.deepEqual(JSON.parse(p.requests.at(-1).body), {
+    name: 'host.after_tool', enabled: false, plugin_id: 'memory', key: 'capture',
+  });
+  assert.match(p.$('#hooks-list').innerHTML, /启用订阅/);
+  assert.equal(p.$('#instructions').value, 'unsaved preference');
+  p.N.api.hookSettings = async () => { throw new Error('save failed'); };
+  await p.click('toggle-hook', undefined, { i: '0' });
+  assert.equal(p.$('#hooks-error').textContent, 'save failed');
+  assert.match(p.$('#hooks-list').innerHTML, /启用钩子/);
+  p.N.api.hooks = async () => { throw new Error('load failed'); };
+  await p.click('refresh-hooks');
+  assert.equal(p.$('#hooks-error').textContent, 'load failed');
 });

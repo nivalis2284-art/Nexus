@@ -57,6 +57,11 @@ def test_import_load_configure_page_events_requests_uninstall_over_http(tmp_path
     thread.start()
     base = f'http://127.0.0.1:{http.server_port}'
     try:
+        status, hooks = request(base, '/api/hooks')
+        assert status == 200 and {h['name'] for h in hooks['hooks']} == {'host.before_tool', 'host.after_tool'}
+        status, hooks = request(base, '/api/hooks/settings', 'POST', {'name': 'host.before_tool', 'enabled': False})
+        assert status == 200 and not next(h for h in hooks['hooks'] if h['name'] == 'host.before_tool')['enabled']
+        assert request(base, '/api/hooks/settings', 'POST', {'name': 'host.before_tool', 'enabled': 'false'})[0] == 400
         status, snapshot = request(base, '/api/plugins/import', 'POST', bundle(), raw=True)
         assert status == 200 and not snapshot['plugins'][0]['enabled']
         assert request(base, '/api/plugins/import', 'POST', bundle(), raw=True)[0] == 409

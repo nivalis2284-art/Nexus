@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 def route(handler, state, respond, method):
     parsed = urlparse(handler.path)
     path = unquote(parsed.path)
-    if not (path.startswith(('/api/plugins', '/plugins/', '/api/plugin-events',
+    if not (path.startswith(('/api/plugins', '/api/hooks', '/plugins/', '/api/plugin-events',
                              '/api/plugin-host', '/api/model-requests'))):
         return False
     try:
@@ -18,7 +18,9 @@ def route(handler, state, respond, method):
             respond(handler, 503, {'error': '插件服务尚未初始化'})
             return True
         query = parse_qs(parsed.query)
-        if method == 'GET' and path == '/api/plugins':
+        if method == 'GET' and path == '/api/hooks':
+            respond(handler, 200, manager.hooks.snapshot())
+        elif method == 'GET' and path == '/api/plugins':
             respond(handler, 200, manager.snapshot())
         elif method == 'GET' and path.startswith('/plugins/'):
             parts = path.split('/', 3)
@@ -53,7 +55,10 @@ def route(handler, state, respond, method):
                 respond(handler, 409 if result.get('conflict') else 200, result)
                 return True
             body = json.loads(content or b'{}')
-            if path == '/api/plugins/scan':
+            if path == '/api/hooks/settings':
+                result = manager.hooks.configure(body['name'], body['enabled'],
+                    body.get('plugin_id'), body.get('key'))
+            elif path == '/api/plugins/scan':
                 result = manager.scan()
             elif path.startswith('/api/plugins/'):
                 parts = path.split('/')

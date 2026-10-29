@@ -85,6 +85,7 @@ tasks.sqlite3            工作、父子归属、历史与检查点、操作、�
 attachments/             按交流和工作归属保存的原件与提取文本
 model-requests.sqlite3   实际模型请求记录（按现有保留策略）
 plugins.json             普通插件状态与设置
+hooks.json               钩子及订阅的启停偏好
 plugin-events.sqlite3    普通插件事件与订阅
 plugins/<id>/            普通插件运行资料
 archive/convergence-*/   本轮迁出的研究业务资料与读取说明

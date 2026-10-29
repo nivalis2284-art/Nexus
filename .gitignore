@@ -11,7 +11,7 @@ attachments/
 .codex-remote-attachments/
 nexus-wakeup-staged-*/
 # 插件是运行时安装目录：本地保留，不入库、不推送。
-plugins/
+/plugins/
 docs/evidence/plugin-acceptance/_tmp/
 pip-install-*/
 pip-ephem-wheel-cache-*/

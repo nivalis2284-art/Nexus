@@ -8,6 +8,8 @@
   let editingProvider = null;
   let editingModels = [];
   let editingMcp = null;
+  let hookSnapshot = [];
+  let hooksBusy = false;
 
   const familyLabel = f => ({ anthropic_messages: 'Anthropic', openai_chat_completions: 'Chat', openai_responses: 'Responses' }[f] || f);
   const FAMILY_FULL = {
@@ -70,7 +72,7 @@
     const budget = m?.context_window_tokens || state.context?.window;
     view.innerHTML = `<div class="page set-page">
       <header class="page-head" data-s>
-        <div><h1>设置</h1><p>配置界面、模型、MCP、权限与工作目录。</p></div>
+        <div><h1>设置</h1><p>配置界面、模型、MCP、钩子、权限与工作目录。</p></div>
         <span class="pill">改动保存在本机</span>
       </header>
 
@@ -152,6 +154,11 @@
       </section>
 
       <section class="card set-sec" data-s>
+        <h3>钩子</h3><p>管理宿主与插件提供的扩展时机，以及参与其中的插件。</p>
+        <div class="set-row" data-s><div><b>钩子管理</b><small>查看来源、订阅状态与最近错误，按需启用或停用。</small></div><button class="btn ghost sm" type="button" data-act="manage-hooks">管理钩子</button></div>
+      </section>
+
+      <section class="card set-sec" data-s>
         <h3>其他</h3><p>权限与工作目录对所有工作生效。</p>
         <div class="perm" role="radiogroup"><span class="tab-ink" aria-hidden="true"></span>
           ${[['ask', '写前询问', '写文件和运行命令前询问'], ['yolo', '全部放行', '不再逐项确认']].map(([v, b, s]) => `<button role="radio" aria-checked="${state.permission === v}" class="${state.permission === v ? 'active' : ''}" data-act="perm" data-v="${v}"><b>${b}</b><small>${s}</small></button>`).join('')}
@@ -166,6 +173,70 @@
     </div>`;
     requestAnimationFrame(() => N.syncSettingsUi?.(true));
     view.scrollTop = keep;
+  }
+
+  /* ---------------------------------------------------------------- 钩子 */
+  function renderHooks() {
+    const pluginName = id => state.plugins.find(p => p.id === id)?.name || id;
+    $('#hooks-list').innerHTML = hookSnapshot.length ? hookSnapshot.map((h, i) => `<section class="mcp-row hook-row" data-s>
+      <div class="mcp-main">
+        <div class="mcp-title"><span class="mcp-dot${h.enabled && h.available ? ' on' : ''}"></span><span class="mcp-name">${esc(h.description || h.name)}</span></div>
+        <div class="mcp-meta hook-meta"><span>${esc(h.name)}</span><span>来源：${esc(h.owner === 'host' ? '宿主' : h.owner ? pluginName(h.owner) : '尚未加载')}</span><span>${!h.available ? '等待来源就绪' : h.enabled ? '已启用' : '已停用'}</span></div>
+        <div class="hook-subscribers">${h.subscribers.length ? h.subscribers.map((s, j) => `<div class="hook-subscriber">
+          <div><b>${esc(pluginName(s.plugin_id))}</b><small>${esc(s.key)} · ${!s.available ? '插件未就绪' : s.enabled ? '订阅已启用' : '订阅已停用'}${!h.enabled ? ' · 钩子已停用' : ''}${s.required ? ' · 失败将阻止工具执行' : ''}</small>${s.error ? `<p class="mcp-recent has-error">最近错误：${esc(s.error)}</p>` : ''}</div>
+          <button class="btn ghost sm" type="button" data-act="toggle-hook-sub" data-i="${i}" data-j="${j}" aria-pressed="${s.enabled}"${hooksBusy ? ' disabled' : ''}>${s.enabled ? '停用订阅' : '启用订阅'}</button>
+        </div>`).join('') : '<p class="mcp-empty">暂无插件订阅。</p>'}</div>
+      </div>
+      <div class="mcp-actions"><button type="button" data-act="toggle-hook" data-i="${i}" aria-pressed="${h.enabled}"${hooksBusy ? ' disabled' : ''}>${h.enabled ? '停用钩子' : '启用钩子'}</button></div>
+    </section>`).join('') : '<p class="mcp-empty">暂无已注册的钩子。</p>';
+  }
+
+  async function refreshHooks() {
+    if (hooksBusy) return;
+    hooksBusy = true;
+    $('#hooks-error').textContent = '';
+    try {
+      hookSnapshot = (await N.api.hooks()).hooks || [];
+    } catch (failure) {
+      $('#hooks-error').textContent = failure?.message || '读取钩子失败';
+    } finally {
+      hooksBusy = false;
+      renderHooks();
+    }
+  }
+
+  async function openHooks() {
+    const dlg = $('#hooks-dialog');
+    hookSnapshot = [];
+    $('#hooks-list').innerHTML = '<p class="mcp-empty">正在读取钩子…</p>';
+    $('#hooks-error').textContent = '';
+    dlg.showModal();
+    N.anim(dlg, [{ opacity: 0, transform: 'translateY(24px) scale(.92)' }, { opacity: 1, transform: 'none' }],
+      { duration: N.SP.settle.d, easing: N.SP.settle.e });
+    await refreshHooks();
+    N.stagger?.($('#hooks-list'));
+  }
+
+  async function toggleHook(t, subscriber = false) {
+    if (hooksBusy) return;
+    const hook = hookSnapshot[Number(t.dataset.i)];
+    if (!hook) return;
+    const sub = subscriber ? hook.subscribers[Number(t.dataset.j)] : null;
+    if (subscriber && !sub) return;
+    const body = { name: hook.name, enabled: !(sub || hook).enabled };
+    if (sub) Object.assign(body, { plugin_id: sub.plugin_id, key: sub.key });
+    hooksBusy = true;
+    $('#hooks-error').textContent = '';
+    renderHooks();
+    try {
+      hookSnapshot = (await N.api.hookSettings(body)).hooks || [];
+      N.notify(body.enabled ? '已启用' : '已停用', 'jade');
+    } catch (failure) {
+      $('#hooks-error').textContent = failure?.message || '保存钩子设置失败';
+    } finally {
+      hooksBusy = false;
+      renderHooks();
+    }
   }
 
   /* ---------------------------------------------------------------- 提供商 */
@@ -462,6 +533,10 @@
     if (act === 'mcp-toggle') return toggleMcp(+t.dataset.i);
     if (act === 'mcp-del') return deleteMcp(+t.dataset.i);
     if (act === 'mcp-reconnect') return reconnect(+t.dataset.i);
+    if (act === 'manage-hooks') return openHooks();
+    if (act === 'refresh-hooks') return refreshHooks();
+    if (act === 'toggle-hook') return toggleHook(t);
+    if (act === 'toggle-hook-sub') return toggleHook(t, true);
     if (act === 'perm') {
       const previous = state.permission;
       state.permission = t.dataset.v;

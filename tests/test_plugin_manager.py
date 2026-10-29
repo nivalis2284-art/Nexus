@@ -366,3 +366,139 @@ def test_stop_without_active_work_is_reported(tmp_path):
             manager.operate("stop-check", "stop")
     finally:
         manager.close()
+
+
+def test_custom_hooks_capture_independent_payloads_and_cleanup(tmp_path):
+    manager = make_manager(tmp_path)
+    try:
+        for plugin_id in ('source', 'listener'):
+            manager.import_zip(plugin_zip(plugin_id))
+        listener = load_sync(manager, 'listener')
+        seen = []
+        listener.instance.host.on_hook('plugin.source.records.created',
+            lambda payload, scope: seen.append((payload, scope)))
+        pending = next(h for h in manager.hooks.snapshot()['hooks'] if h['name'].startswith('plugin.'))
+        assert pending['available'] is False
+        backend = manager.entries['source'].path / 'backend.py'
+        backend.write_text('''
+class Plugin:
+    def __init__(self, host): self.host = host
+    def start(self): self.name = self.host.define_hook('records.created', '记录已创建')
+def create_plugin(host): return Plugin(host)
+''', encoding='utf-8')
+        source = load_sync(manager, 'source')
+        name = source.instance.name
+        original = {'ids': ['one']}
+        with manager.lease('source', scope={'task_id': 't1'}):
+            reports = source.instance.host.emit_hook(name, original)
+        assert reports == [{'plugin_id': 'listener', 'key': 'default', 'ok': True}]
+        assert seen == [(original, {'task_id': 't1'})]
+        seen[0][0]['ids'].append('changed')
+        assert original == {'ids': ['one']}
+        with pytest.raises(ValueError, match='自己声明'):
+            listener.instance.host.emit_hook(name, original)
+        listener.instance.host.off_hook(name)
+        assert source.instance.host.emit_hook(name, original) == []
+        listener.instance.host.on_hook(name, lambda payload, scope: None)
+        manager.operate('source', 'unload')
+        pending = next(h for h in manager.hooks.snapshot()['hooks'] if h['name'] == name)
+        assert pending['available'] is False
+        manager.operate('listener', 'unload')
+        assert all(h['name'] != name for h in manager.hooks.snapshot()['hooks'])
+    finally:
+        manager.close()
+
+
+def test_hook_preferences_survive_restart_and_errors_do_not_block_observers(tmp_path):
+    manager = make_manager(tmp_path)
+    try:
+        manager.import_zip(plugin_zip())
+        item = load_sync(manager, 'demo-plugin')
+        calls = []
+
+        def broken(payload, scope):
+            raise RuntimeError('capture failed')
+
+        item.instance.host.on_hook('host.after_tool', broken, key='a')
+        item.instance.host.on_hook('host.after_tool', lambda payload, scope: calls.append(payload), key='b')
+        manager.hook('after_tool', {'kind': 'test'}, name='read', args={}, result={})
+        hook = next(h for h in manager.hooks.snapshot()['hooks'] if h['name'] == 'host.after_tool')
+        assert 'capture failed' in hook['subscribers'][0]['error']
+        assert len(calls) == 1
+        manager.hooks.configure('host.after_tool', False, 'demo-plugin', 'a')
+        manager.hooks.configure('host.after_tool', False)
+        manager.hook('after_tool', {}, name='read')
+        assert len(calls) == 1
+        state, root = manager.state, manager.root
+        manager.close()
+        manager = PluginManager(state, root=root)
+        item = load_sync(manager, 'demo-plugin')
+        item.instance.host.on_hook('host.after_tool', broken, key='a')
+        item.instance.host.on_hook('host.after_tool', lambda payload, scope: calls.append(payload), key='b')
+        hook = next(h for h in manager.hooks.snapshot()['hooks'] if h['name'] == 'host.after_tool')
+        assert not hook['enabled'] and not hook['subscribers'][0]['enabled']
+        manager.hooks.configure('host.after_tool', True)
+        manager.hook('after_tool', {}, name='read')
+        assert len(calls) == 2
+        assert not next(h for h in manager.hooks.snapshot()['hooks']
+                        if h['name'] == 'host.after_tool')['subscribers'][0]['error']
+    finally:
+        manager.close()
+
+
+def test_tool_hooks_include_legacy_callbacks_and_preserve_required_failure(tmp_path):
+    manager = make_manager(tmp_path)
+    try:
+        manager.import_zip(plugin_zip())
+        item = manager.entries['demo-plugin']
+        item.manifest['tool_hook_required'] = True
+        backend = BACKEND.replace('    def close(self):', '''    def before_tool(self, scope, **values):
+        raise RuntimeError('required capture failed')
+
+    def close(self):''')
+        (item.path / 'backend.py').write_text(backend, encoding='utf-8')
+        load_sync(manager, 'demo-plugin')
+        registry, context = build(root=tmp_path / 'workspace')
+        manager.decorate(registry, context, {'kind': 'test'})
+        result = registry.execute('demo_hello', {}, context)
+        assert not result.ok and 'required capture failed' in result.content
+        assert not (manager.data_dir(item.id) / 'tool-used.txt').exists()
+        manager.hooks.configure('host.before_tool', False, item.id, 'legacy')
+        seen = []
+        item.instance.host.on_hook('host.after_tool', lambda payload, scope: seen.append(payload))
+        result = registry.execute('demo_hello', {}, context)
+        assert result.ok and seen[0]['name'] == 'demo_hello'
+        assert seen[0]['result']['plugin_id'] == item.id
+    finally:
+        manager.close()
+
+
+def test_unload_waits_for_active_hook_and_removes_new_deliveries(tmp_path):
+    import threading
+
+    manager = make_manager(tmp_path)
+    entered, release = threading.Event(), threading.Event()
+    worker = None
+    try:
+        manager.import_zip(plugin_zip())
+        item = load_sync(manager, 'demo-plugin')
+
+        def capture(payload, scope):
+            entered.set()
+            assert release.wait(3)
+
+        item.instance.host.on_hook('host.before_tool', capture)
+        worker = threading.Thread(target=lambda: manager.hook('before_tool', {}, name='read'))
+        worker.start()
+        assert entered.wait(3)
+        manager.operate(item.id, 'unload')
+        assert item.status == 'draining' and item.instance is not None
+        assert manager.hooks.emit('host.before_tool', {}) == []
+        release.set()
+        worker.join(3)
+        assert not worker.is_alive() and item.status == 'unloaded'
+    finally:
+        release.set()
+        if worker:
+            worker.join(3)
+        manager.close()

@@ -182,6 +182,15 @@ try {
  </form>
 </dialog>
 
+<dialog class="sheet tall" id="hooks-dialog" aria-labelledby="hooks-title">
+ <div class="sheet-body">
+  <header class="sheet-head"><div><h2 id="hooks-title">钩子管理</h2><p class="sheet-note">查看扩展时机与订阅插件；启停即时生效并保存在本机。</p></div><button class="ic-btn" type="button" data-close="hooks-dialog" aria-label="关闭"><svg class="i"><use href="#i-close"/></svg></button></header>
+  <div id="hooks-list" class="mcp-list" aria-live="polite"></div>
+  <p id="hooks-error" class="sheet-error" role="alert"></p>
+  <footer class="sheet-foot"><button class="btn ghost sm" type="button" data-act="refresh-hooks">刷新</button><span class="spacer"></span><button class="btn solid" type="button" data-close="hooks-dialog">完成</button></footer>
+ </div>
+</dialog>
+
 <dialog class="sheet tall" id="provider-dialog" aria-labelledby="provider-title">
  <div class="sheet-body">
   <header class="sheet-head"><div><h2 id="provider-title">添加提供商</h2><p class="sheet-note">接口协议决定请求体格式；模型可分别设置上下文窗口。</p></div><button class="ic-btn" type="button" data-close="provider-dialog" aria-label="关闭"><svg class="i"><use href="#i-close"/></svg></button></header>

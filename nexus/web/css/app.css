@@ -628,6 +628,15 @@ button:disabled:hover { transform: none; }
 .provider-row .pedit { margin-left: auto; height: 28px; padding: 0 11px; border-radius: 9px; font-size: 12px; color: var(--ink-3); flex: none; }
 .provider-row .pedit:hover { background: var(--card); color: var(--ink); }
 .mcp-list { display: grid; gap: 8px; }
+.mcp-row.hook-row { align-items: start; }
+.hook-row .mcp-main, .hook-subscriber > div { min-width: 0; }
+.hook-row .hook-meta { flex-wrap: wrap; }
+.hook-meta span { overflow-wrap: anywhere; }
+.hook-subscribers { margin-top: 10px; display: grid; gap: 8px; }
+.hook-subscriber { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+.hook-subscriber b { font-size: 13px; font-weight: 500; }
+.hook-subscriber small { display: block; color: var(--ink-3); font-size: 11px; overflow-wrap: anywhere; }
+.hook-subscriber .btn { flex: none; }
 .mcp-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 16px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); }
 .mcp-main { min-width: 0; }
 .mcp-title { display: flex; align-items: center; gap: 8px; }

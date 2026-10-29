@@ -17,6 +17,7 @@ class PluginHost:
     """A scoped facade. A plugin never needs the web server's mutable STATE."""
 
     chat_api_version = 1
+    hooks_api_version = 1
 
     def __init__(self, manager, plugin_id: str):
         self._manager, self.id = manager, plugin_id
@@ -68,6 +69,30 @@ class PluginHost:
 
     def subscribe(self, event_names: list[str]):
         self._manager.events.subscribe(self.id, event_names)
+
+    def define_hook(self, name: str, description: str = ''):
+        """Declare plugin.<id>.<name>; returns the full hook name."""
+        with self._manager.lock, self._manager.lease(self.id, allow_loading=True):
+            return self._manager.hooks.define(self.id, name, description)
+
+    def on_hook(self, name: str, callback, key: str = 'default'):
+        """Register callback(payload, scope), identified by a stable local key."""
+        with self._manager.lock, self._manager.lease(self.id, allow_loading=True):
+            self._manager.hooks.subscribe(self.id, name, callback, key)
+
+    def off_hook(self, name: str, key: str = 'default'):
+        self._manager.hooks.unsubscribe(self.id, name, key)
+
+    def emit_hook(self, name: str, payload: dict):
+        """Notify subscribers of an owned hook; return delivery reports."""
+        current = getattr(self._manager.local, 'call', None)
+        context, scope = (current[1], current[2]) if current else (None, {})
+        with self._manager.lease(self.id, context=context, scope=scope):
+            with self._manager.lock:
+                definition = self._manager.hooks.definitions.get(name)
+                if not definition or definition['owner'] != self.id:
+                    raise ValueError('插件只能触发自己声明的钩子')
+            return self._manager.hooks.emit(name, payload, scope)
 
     def chat_snapshot(self):
         """Return the current application chat state."""
