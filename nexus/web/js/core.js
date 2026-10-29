@@ -52,11 +52,13 @@ window.N = window.N || {};
       soft: spring({ stiffness: 170, damping: 24 }),
       island: spring({ stiffness: 340, damping: 27 }),
       pop: spring({ stiffness: 520, damping: 30 }),
+      /* 轻微过冲后一次落定：阻尼比约 0.62，回弹幅度不到 9%，不来回震荡。 */
+      settle: spring({ stiffness: 460, damping: 26 }),
     };
     for (const k in base) SP[k] = { e: base[k].e, d: base[k].d };
     if (REDUCED) for (const k in SP) SP[k] = { e: 'ease', d: 1 };
     const root = document.documentElement.style;
-    for (const k of ['bouncy', 'snappy', 'soft']) {
+    for (const k of ['bouncy', 'snappy', 'soft', 'settle']) {
       root.setProperty(`--sp-${k}`, SP[k].e);
       root.setProperty(`--sp-${k}-d`, Math.round(SP[k].d * motionScale()) + 'ms');
     }

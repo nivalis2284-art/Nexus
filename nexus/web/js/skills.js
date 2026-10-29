@@ -4,7 +4,7 @@
 'use strict';
 
 (function (N) {
-  const { $, esc, icon, state } = N;
+  const { $, $$, esc, icon, state } = N;
   const SOURCE = { personal: '个人', project: '项目', builtin: '内置' };
   const COLOR = { personal: 'var(--jade)', project: '#4d8dff', builtin: '#8b8d94' };
   let editing = null;
@@ -69,13 +69,13 @@
     $('#skill-save').textContent = '保存技能';
     $('#skill-save').disabled = false;
     dlg.showModal();
-    N.anim(dlg, [{ opacity: 0, transform: 'translateY(20px) scale(.94)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.SP.pop.d, easing: N.SP.pop.e });
+    N.anim(dlg, [{ opacity: 0, transform: 'translateY(24px) scale(.92)' }, { opacity: 1, transform: 'none' }],
+      { duration: N.SP.settle.d, easing: N.SP.settle.e });
     if (!readonly) $('#skill-name').focus();
   }
   function closeEditor() {
     if (saving) return;
-    if (dlg.open) dlg.close();
+    if (dlg.open) N.closeDialog(dlg);
     editing = null;
   }
   function error(text) {
@@ -104,7 +104,7 @@
       });
       await N.sync.skillsOnly();
       saving = false;
-      dlg.close();
+      N.closeDialog(dlg);
       editing = null;
       renderSkills();
       N.notify('技能已保存', 'jade');
@@ -124,6 +124,11 @@
       submitLabel: '删除技能',
     });
     if (!ok) return;
+    const card = $$('#view-skills .skill')[i];
+    if (card && !N.REDUCED) {
+      await N.anim(card, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.94) translateY(-4px)' }],
+        { duration: 220, easing: 'ease-in', fill: 'forwards' }).finished;
+    }
     try {
       await N.api.deleteSkill({ source: s.source, path: s.path });
       await N.sync.skillsOnly();

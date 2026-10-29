@@ -18,10 +18,10 @@
     followEnabled = true;
     stopFollow();
     conv.scrollTo({ top: conv.scrollHeight, behavior: smooth && !N.REDUCED ? 'smooth' : 'auto' });
-    $('#jump-latest').hidden = true;
+    setJumpLatest(false);
   }
   conv.addEventListener('scroll', () => {
-    if (nearBottom()) { followEnabled = true; $('#jump-latest').hidden = true; }
+    if (nearBottom()) { followEnabled = true; setJumpLatest(false); }
   }, { passive: true });
 
   /* ---------------------------------------------------------------- 处理过程 */
@@ -378,7 +378,7 @@
       md._len = prev + chunk.length;
     }
     if (followEnabled) followScroll();
-    else $('#jump-latest').hidden = false;
+    else setJumpLatest(true);
   }
 
   /* 收束：把纯文本换成完整 Markdown，交叉淡入 */
@@ -715,13 +715,55 @@
 
   function toggleUsage(anchor) {
     const panel = $('#usage-panel');
-    panel.hidden = !panel.hidden;
-    panel._anchor = anchor;
-    if (!panel.hidden) {
-      panel.style.animation = 'none'; void panel.offsetWidth; panel.style.animation = '';
+    if (panel.hidden) {
+      panel._anchor = anchor;
+      panel.hidden = false;
       renderUsage();
+      if (!N.REDUCED) {
+        N.anim(panel, [{ opacity: 0, transform: 'translateY(9px) scale(.93)' }, { opacity: 1, transform: 'none' }],
+          { duration: N.SP.settle.d, easing: N.SP.settle.e });
+      }
+    } else {
+      const done = () => { panel.hidden = true; panel.getAnimations().forEach(a => a.cancel()); };
+      if (N.REDUCED) done();
+      else N.anim(panel, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(6px) scale(.97)' }],
+        { duration: 150, easing: 'ease-in', fill: 'forwards' }).onfinish = done;
     }
     $$('#stat-tokens,#stat-context').forEach(b => b.setAttribute('aria-expanded', String(!panel.hidden && b === anchor)));
+  }
+
+  function setJumpLatest(on) {
+    const el = $('#jump-latest');
+    if (!el || on === !el.hidden) return;
+    if (on) {
+      el.hidden = false;
+      if (!N.REDUCED) {
+        N.anim(el, [{ opacity: 0, transform: 'translateX(-50%) translateY(8px)' }, { opacity: 1, transform: 'translateX(-50%)' }],
+          { duration: 300, easing: N.SP.settle.e });
+      }
+      return;
+    }
+    const done = () => { el.hidden = true; el.getAnimations().forEach(a => a.cancel()); };
+    if (N.REDUCED) done();
+    else N.anim(el, [{ opacity: 1, transform: 'translateX(-50%)' }, { opacity: 0, transform: 'translateX(-50%) translateY(6px)' }],
+      { duration: 160, easing: 'ease-in', fill: 'forwards' }).onfinish = done;
+  }
+
+  function setStopVisible(on) {
+    const btn = $('#stop-reply');
+    if (!btn || on === !btn.hidden) return;
+    if (on) {
+      btn.hidden = false;
+      if (!N.REDUCED) {
+        N.anim(btn, [{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }],
+          { duration: 280, easing: N.SP.settle.e });
+      }
+      return;
+    }
+    const done = () => { btn.hidden = true; btn.getAnimations().forEach(a => a.cancel()); };
+    if (N.REDUCED) done();
+    else N.anim(btn, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.86)' }],
+      { duration: 140, easing: 'ease-in', fill: 'forwards' }).onfinish = done;
   }
 
   /* ---------------------------------------------------------------- 输入舱 */
@@ -761,7 +803,7 @@
     b.classList.toggle('ready', !state.replying && !!has);
     b.classList.toggle('idle', !state.replying && !has);
     b.setAttribute('aria-label', state.replying ? '加入队列' : '发送');
-    $('#stop-reply').hidden = !state.replying;
+    setStopVisible(!!state.replying);
   }
   function autosize() {
     const prev = input.offsetHeight;

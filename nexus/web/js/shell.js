@@ -257,7 +257,7 @@
       renderView(name);
       if (name === 'chat') N.syncTargets(true);
       anim(next, [{ opacity: 0, transform: 'translateY(16px)', filter: 'blur(5px)' }, { opacity: 1, transform: 'none', filter: 'blur(0px)' }],
-        { duration: 600, easing: SP.soft.e });
+        { duration: 540, easing: SP.settle.e });
       N.stagger(next);
     };
     if (N.REDUCED || !cur) {

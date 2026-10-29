@@ -195,8 +195,8 @@
     const dlg = $('#provider-dialog');
     dlg.showModal();
     setTimeout(() => $('#p-name').focus(), 40);
-    N.anim(dlg, [{ opacity: 0, transform: 'translateY(22px) scale(.94)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.SP.pop.d, easing: N.SP.pop.e });
+    N.anim(dlg, [{ opacity: 0, transform: 'translateY(24px) scale(.92)' }, { opacity: 1, transform: 'none' }],
+      { duration: N.SP.settle.d, easing: N.SP.settle.e });
   }
   function addModel() {
     const id = $('#p-model-new').value.trim();
@@ -249,7 +249,7 @@
         }
       }
       N.renderModelLabel(); N.renderEffortLabel();
-      $('#provider-dialog').close();
+      N.closeDialog($('#provider-dialog'));
       renderSettings(); N.notify('提供商已保存', 'jade');
     } catch (failure) {
       err.textContent = failure?.message || '保存提供商失败';
@@ -270,7 +270,7 @@
       await N.api.deleteProvider(editingProvider.id);
       await N.sync.settingsOnly();
       N.renderModelLabel(); N.renderEffortLabel();
-      $('#provider-dialog').close();
+      N.closeDialog($('#provider-dialog'));
       renderSettings(); N.notify('提供商已删除', 'jade');
     } catch (failure) {
       $('#provider-error').textContent = failure?.message || '删除提供商失败';
@@ -280,8 +280,16 @@
   /* ---------------------------------------------------------------- MCP */
   function syncTransport() {
     const http = $('#mcp-transport').value === 'http';
-    $('#mcp-stdio-fields').hidden = http;
-    $('#mcp-http-fields').hidden = !http;
+    const show = http ? $('#mcp-http-fields') : $('#mcp-stdio-fields');
+    const hide = http ? $('#mcp-stdio-fields') : $('#mcp-http-fields');
+    hide.hidden = true;
+    if (show.hidden) {
+      show.hidden = false;
+      if (!N.REDUCED) {
+        N.anim(show, [{ opacity: 0, transform: 'translateY(-5px)' }, { opacity: 1, transform: 'none' }],
+          { duration: 240, easing: N.SP.settle.e });
+      }
+    }
   }
   function syncTokenClear() {
     const clear = $('#mcp-clear-token').checked;
@@ -308,8 +316,8 @@
     syncTransport(); syncTokenClear();
     const dlg = $('#mcp-dialog');
     dlg.showModal();
-    N.anim(dlg, [{ opacity: 0, transform: 'translateY(22px) scale(.94)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.SP.pop.d, easing: N.SP.pop.e });
+    N.anim(dlg, [{ opacity: 0, transform: 'translateY(24px) scale(.92)' }, { opacity: 1, transform: 'none' }],
+      { duration: N.SP.settle.d, easing: N.SP.settle.e });
   }
   async function saveMcp() {
     const err = $('#mcp-error');
@@ -350,7 +358,7 @@
     try {
       await N.api.saveMcp(payload);
       await N.sync.mcpOnly();
-      $('#mcp-dialog').close();
+      N.closeDialog($('#mcp-dialog'));
       renderSettings(); N.notify('MCP 服务已保存', 'jade');
     } catch (failure) {
       err.textContent = failure?.message || '保存 MCP 服务失败';
@@ -498,7 +506,7 @@
     if (!editingMcp) return;
     const i = state.mcp.indexOf(editingMcp);
     await deleteMcp(i);
-    $('#mcp-dialog').close();
+    N.closeDialog($('#mcp-dialog'));
   });
 
   N.renderSettings = renderSettings;

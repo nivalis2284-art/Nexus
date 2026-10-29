@@ -41,8 +41,8 @@
     menu.style.top = top + 'px';
     menu.style.setProperty('--ox', (r.left + r.width / 2 - left) + 'px');
     menu.style.setProperty('--oy', (top > r.top ? '0%' : '100%') );
-    anim(menu, [{ opacity: 0, transform: 'translateY(8px) scale(.92)' }, { opacity: 1, transform: 'none' }],
-      { duration: SP.pop.d, easing: SP.pop.e });
+    anim(menu, [{ opacity: 0, transform: 'translateY(9px) scale(.9)' }, { opacity: 1, transform: 'none' }],
+      { duration: SP.settle.d, easing: SP.settle.e });
     $$('button', menu).forEach((b, i) => anim(b, [{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'none' }],
       { duration: 260, delay: 20 + i * 24, easing: EASE_OUT, fill: 'backwards' }));
     menu.onclick = e => {
@@ -71,8 +71,8 @@
     $('#editor-error').textContent = '';
     $('#editor-save').textContent = submitLabel;
     dlg.showModal();
-    anim(dlg, [{ opacity: 0, transform: 'translateY(18px) scale(.95)' }, { opacity: 1, transform: 'none' }],
-      { duration: SP.pop.d, easing: SP.pop.e });
+    anim(dlg, [{ opacity: 0, transform: 'translateY(22px) scale(.92)' }, { opacity: 1, transform: 'none' }],
+      { duration: SP.settle.d, easing: SP.settle.e });
     (confirm ? $('.btn.ghost', dlg) : area).focus();
     return new Promise(resolve => {
       resolveEdit = resolve;
@@ -100,10 +100,7 @@
     const r = resolveEdit;
     resolveEdit = null;
     edit._save = null;
-    const close = () => dlg.close();
-    if (N.REDUCED) close();
-    else dlg.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(10px) scale(.96)' }],
-      { duration: 140, easing: 'ease-in', fill: 'forwards' }).onfinish = close;
+    closeDialog(dlg);
     r?.(value);
   }
   $('#editor-form').addEventListener('click', e => {
@@ -133,8 +130,8 @@
     loading.textContent = '正在读取…';
     fpBody.appendChild(loading);
     if (!fp.open) fp.showModal();
-    anim(fp, [{ opacity: 0, transform: 'translateY(16px) scale(.96)' }, { opacity: 1, transform: 'none' }],
-      { duration: SP.pop.d, easing: SP.pop.e });
+    anim(fp, [{ opacity: 0, transform: 'translateY(20px) scale(.93)' }, { opacity: 1, transform: 'none' }],
+      { duration: SP.settle.d, easing: SP.settle.e });
 
     let text = '';
     try {
@@ -176,20 +173,36 @@
     img.alt = name;
     fpBody.appendChild(img);
     if (!fp.open) fp.showModal();
-    anim(fp, [{ opacity: 0, transform: 'translateY(16px) scale(.96)' }, { opacity: 1, transform: 'none' }],
-      { duration: SP.pop.d, easing: SP.pop.e });
+    anim(fp, [{ opacity: 0, transform: 'translateY(20px) scale(.93)' }, { opacity: 1, transform: 'none' }],
+      { duration: SP.settle.d, easing: SP.settle.e });
   }
 
   /* ---------------------------------------------------------------- 关闭委托 */
   function closeDialog(d) {
-    if (!d || !d.open) return;
+    if (!d || !d.open || d._closing) return;
     if (N.REDUCED) { d.close(); return; }
-    N.anim(d, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(10px) scale(.975)' }],
-      { duration: 150, easing: 'ease-in', fill: 'forwards' }).onfinish = () => {
-        d.close();
-        d.getAnimations().forEach(a => a.cancel());
-      };
+    d._closing = true;
+    d.classList.add('is-closing');
+    d.getAnimations().forEach(a => { try { a.cancel(); } catch (_) {} });
+    const ms = Math.round(180 * N.motionScale());
+    const ease = 'cubic-bezier(.4,0,.75,.2)';
+    /* 入场是 WAAPI，退场用 transition：两者同时挂在 opacity 上会互相抢占。 */
+    d.style.transition = `opacity ${ms}ms ${ease}, transform ${ms}ms ${ease}`;
+    void d.offsetWidth;
+    d.style.opacity = '0';
+    d.style.transform = 'translateY(9px) scale(.972)';
+    const done = () => {
+      d._closing = false;
+      d.classList.remove('is-closing');
+      d.style.transition = '';
+      d.style.opacity = '';
+      d.style.transform = '';
+      d.close();
+      d.getAnimations().forEach(a => { try { a.cancel(); } catch (_) {} });
+    };
+    setTimeout(done, ms + 20);
   }
+
   document.addEventListener('click', e => {
     const t = e.target.closest('[data-close]');
     if (!t) return;

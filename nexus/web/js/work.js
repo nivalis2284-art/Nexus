@@ -154,6 +154,11 @@
       await N.sync.worksOnly();
       view._sig = '';
       renderWork();
+      const head = $(`#view-work [data-g="${restore ? 'ended' : 'archived'}"] .work-group-h`);
+      if (head && !N.REDUCED) {
+        N.anim(head, [{ opacity: .45, transform: 'translateX(-4px)' }, { opacity: 1, transform: 'none' }],
+          { duration: 360, easing: N.SP.settle.e });
+      }
       N.notify(restore ? `已恢复「${w.title}」` : `已归档「${w.title}」`, 'jade');
       N.syncDock?.(true);
     } catch (error) {
@@ -175,6 +180,11 @@
     });
     if (!ok) return;
     const view = $('#view-work');
+    const node = view && $(`.work-item[data-work-open="${CSS.escape(id)}"]`, view);
+    if (node && !N.REDUCED) {
+      N.anim(node, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-4px) scale(.98)' }],
+        { duration: 200, easing: 'ease-in', fill: 'forwards' });
+    }
     try {
       await N.api.del('/api/tasks/' + encodeURIComponent(id), {
         expected_version: w.control_version,

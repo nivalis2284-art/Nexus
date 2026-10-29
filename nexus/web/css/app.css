@@ -111,7 +111,7 @@ button:disabled:hover { transform: none; }
 .req-tool { display: inline-flex; align-items: center; gap: 6px; margin-top: 9px; padding: 4px 10px; border-radius: 10px; background: var(--cinnabar-soft); color: var(--cinnabar-deep); font: 500 12.5px var(--mono); }
 .req-args { margin: 8px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); font: 12px/1.65 var(--mono); color: var(--ink-2); max-height: 132px; overflow: auto; white-space: pre; }
 .req-opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.req-opt { height: 30px; padding: 0 12px; border-radius: 15px; font-size: 12.5px; background: var(--paper-2); color: var(--ink-2); transition: background .2s, color .2s, transform var(--sp-bouncy-d) var(--sp-bouncy); }
+.req-opt { height: 30px; padding: 0 12px; border-radius: 15px; font-size: 12.5px; background: var(--paper-2); color: var(--ink-2); transition: background .2s, color .2s, transform .34s var(--sp-settle); }
 .req-opt:hover { background: var(--cinnabar-soft); color: var(--cinnabar-deep); }
 .req-opt:active { transform: scale(.94); }
 .req-free { width: 100%; height: 38px; margin-top: 8px; padding: 0 13px; border: 0; outline: 0; border-radius: 13px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); font-size: 13.5px; transition: box-shadow .2s, background .2s; }
@@ -213,12 +213,12 @@ button:disabled:hover { transform: none; }
   display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px;
   border-radius: 10px; background: var(--card); box-shadow: inset 0 0 0 1px var(--line);
   font-size: 12px; color: var(--ink-2); text-decoration: none; max-width: 260px;
-  transition: background .2s, color .2s, transform var(--sp-bouncy-d) var(--sp-bouncy);
+  transition: background .2s, color .2s, transform .34s var(--sp-settle);
 }
 .file-link:hover { color: var(--jade-ink); transform: translateY(-1px); }
 .file-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg-images { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; justify-content: flex-end; }
-.msg-images img { width: 132px; height: 92px; object-fit: cover; border-radius: 12px; box-shadow: var(--sh-1), inset 0 0 0 1px var(--line); transition: transform var(--sp-bouncy-d) var(--sp-bouncy); }
+.msg-images img { width: 132px; height: 92px; object-fit: cover; border-radius: 12px; box-shadow: var(--sh-1), inset 0 0 0 1px var(--line); transition: transform .34s var(--sp-settle); }
 .msg-images img:hover { transform: scale(1.04); }
 .msg-meta { margin-top: 6px; font-size: 12px; color: var(--ink-4); }
 .msg.notice { padding: 10px 14px; border-radius: 14px; background: var(--cinnabar-soft); color: var(--cinnabar-deep); font-size: 13px; }
@@ -259,7 +259,7 @@ button:disabled:hover { transform: none; }
   position: fixed; z-index: 78; width: min(340px, calc(100vw - 24px));
   padding: 16px; border-radius: 22px; background: var(--card);
   box-shadow: var(--sh-3), inset 0 0 0 1px var(--line);
-  transform-origin: bottom left; animation: pop-in .4s var(--sp-bouncy) both;
+  transform-origin: bottom left;
 }
 @keyframes pop-in { from { opacity: 0; transform: translateY(8px) scale(.94); } }
 .usage-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--ink-2); }
@@ -308,7 +308,7 @@ button:disabled:hover { transform: none; }
   width: 100%; text-align: left; display: grid; grid-template-columns: 40px 1fr auto; gap: 14px; align-items: center;
   padding: 15px 18px 15px 14px; border-radius: 22px; margin-bottom: 8px;
   background: var(--card); box-shadow: var(--sh-1), inset 0 0 0 1px var(--line);
-  transition: transform var(--sp-bouncy-d) var(--sp-bouncy), box-shadow .3s, background .25s;
+  transition: transform .34s var(--sp-settle), box-shadow .3s, background .25s;
   font: inherit; cursor: pointer;
 }
 .work-item .wacts { display: flex; align-items: center; gap: 6px; flex: none; }
@@ -516,7 +516,7 @@ button:disabled:hover { transform: none; }
 .plug-notice .btn { margin-left: auto; }
 .plug-layout { display: grid; grid-template-columns: 296px minmax(0, 1fr); gap: 14px; align-items: start; }
 .plug-list { display: grid; gap: 6px; }
-.plug-item { width: 100%; text-align: left; padding: 12px 14px; border-radius: 18px; background: var(--card); box-shadow: var(--sh-1), inset 0 0 0 1px var(--line); transition: transform var(--sp-bouncy-d) var(--sp-bouncy), box-shadow .25s, background .25s; }
+.plug-item { width: 100%; text-align: left; padding: 12px 14px; border-radius: 18px; background: var(--card); box-shadow: var(--sh-1), inset 0 0 0 1px var(--line); transition: transform .34s var(--sp-settle), box-shadow .25s, background .25s; }
 .plug-item:hover { transform: translateY(-1px); box-shadow: var(--sh-2), inset 0 0 0 1px var(--line); }
 .plug-item.is-selected { background: var(--raised); box-shadow: inset 0 0 0 1.5px var(--jade); }
 .plug-item-top { display: flex; align-items: center; gap: 8px; }
@@ -846,6 +846,9 @@ button:disabled:hover { transform: none; }
 .model-row { grid-template-columns: minmax(0, 1fr) 128px 28px; }
 .model-row input[type="text"], .model-row input[type="number"] { width: 100%; min-width: 0; }
 .model-add input { min-width: 0; }
+dialog::backdrop { transition: opacity .22s ease, backdrop-filter .22s ease, -webkit-backdrop-filter .22s ease; }
+@starting-style { dialog[open]::backdrop { opacity: 0; backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); } }
+dialog.is-closing::backdrop { opacity: 0; backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); }
 dialog:focus-visible { outline: none; }
 dialog .sheet-body { outline: none; }
 
@@ -862,6 +865,14 @@ dialog .sheet-body { outline: none; }
 }
 .island-scrim.show { opacity: 1; }
 [data-theme="night"] .island-scrim { background: rgba(0, 0, 0, .5); }
+
+/* 按下即时响应，松开交给弹簧落定 */
+.btn:active, .ic-btn:active, .chip:active, .send:active, .c-btn:active, .c-pill:active,
+.lift:active, .work-item:active, .plug-item:active, .req-opt:active, .opt:active,
+.dock-btn:active, .isl-ibtn:active, .slot:active, .wrow:active, .ibtn-solid:active,
+.ibtn-soft:active, .msg-tools button:active, .user-meta button:active, .switch:active {
+  transition-duration: .09s;
+}
 
 /* 上下文尚未测量时用短横线占位，不假装是 0% */
 .ctx-big strong.unknown { font-size: 30px; color: var(--ink-3); letter-spacing: 0; }

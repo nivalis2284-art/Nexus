@@ -37,7 +37,7 @@
           <div class="ctx-card-acts"><span class="pill jade">可编辑</span><button class="btn ghost sm" data-act="add-rule" ${locked() ? 'disabled' : ''}>${icon('plus', 'i xs')}添加指令</button></div>
         </div>
         <div class="card ctx-owner">
-          ${owners.length ? owners.map((r, i) => `<div class="ctx-owner-row" data-s><span class="ctx-idx">${String(i + 1).padStart(2, '0')}</span><p>${esc(r)}</p><div class="ctx-owner-acts"><button data-act="edit-rule" data-i="${i}" ${locked() ? 'disabled' : ''}>编辑</button><button class="del" data-act="del-rule" data-i="${i}" ${locked() ? 'disabled' : ''}>删除</button></div></div>`).join('') : '<p class="ctx-hint">还没有所有者指令。</p>'}
+          ${owners.length ? owners.map((r, i) => `<div class="ctx-owner-row" data-s data-i="${i}"><span class="ctx-idx">${String(i + 1).padStart(2, '0')}</span><p>${esc(r)}</p><div class="ctx-owner-acts"><button data-act="edit-rule" data-i="${i}" ${locked() ? 'disabled' : ''}>编辑</button><button class="del" data-act="del-rule" data-i="${i}" ${locked() ? 'disabled' : ''}>删除</button></div></div>`).join('') : '<p class="ctx-hint">还没有所有者指令。</p>'}
         </div>
         <p class="ctx-hint">当前明确要求优先于一般偏好；这里的内容不代替实际权限设置。</p>
       </section>
@@ -236,6 +236,11 @@
       title: '删除这条所有者指令？', description: list[i], submitLabel: '删除指令',
     });
     if (!ok) return;
+    const row = $(`.ctx-owner-row[data-i="${i}"]`);
+    if (row && !N.REDUCED) {
+      await N.anim(row, [{ opacity: 1, height: row.offsetHeight + 'px' }, { opacity: 0, height: '0px', transform: 'scale(.98)' }],
+        { duration: 240, easing: 'ease-in', fill: 'forwards' }).finished;
+    }
     const items = list.slice();
     items.splice(i, 1);
     await saveOwners(items, '已删除指令');
@@ -292,6 +297,14 @@
       submitLabel: '删除消息',
     });
     if (!ok) return;
+    const rows = indices
+      .map(index => $(`#view-context .ctx-msg input[data-i="${index}"]`)?.closest('.ctx-msg'))
+      .filter(Boolean);
+    if (rows.length && !N.REDUCED) {
+      await Promise.all(rows.map((row, k) => N.anim(row,
+        [{ opacity: 1, height: row.offsetHeight + 'px' }, { opacity: 0, height: '0px', transform: 'scale(.97)' }],
+        { duration: 220, delay: k * 18, easing: 'ease-in', fill: 'forwards' }).finished));
+    }
     try {
       await N.api.history({ operation: 'delete', version: state.contextData.version, indices });
       await N.sync.contextOnly();
