@@ -265,8 +265,26 @@
       body.appendChild(el);
     });
     phaseSummary(details, entry);
-    details.open = entry.live;
+    details.open = false;
+    /* 展开处理过程时，里面的思考直接展开，不用再点一层。 */
+    details.addEventListener('toggle', () => {
+      if (!details.open) return;
+      details.querySelectorAll('.step[data-key^="t:"]').forEach(step => { step.open = true; });
+    });
     return details;
+  }
+
+  /* 流式时思考文本每来一段就变，重建节点会让高度来回跳，所以只改文字。 */
+  function updateThought(el, step) {
+    const title = $('.stitle', el);
+    const preview = $('.spreview', el);
+    const body = $('.thought-text', el);
+    if (!title || !body) return false;
+    const first = String(step.thinking || '').split('\n').find(line => line.trim()) || '思考中…';
+    title.textContent = N.truncate(first.trim(), 120);
+    if (preview) preview.textContent = (step.thinking || '').length + ' 字';
+    body.textContent = step.thinking || '';
+    return true;
   }
 
   function updatePhase(node, entry) {
@@ -277,6 +295,11 @@
       const sig = JSON.stringify(step);
       const old = existing.get(step.key);
       if (old && old._sig === sig) { existing.delete(step.key); return; }
+      if (old && step.role === 'thinking' && updateThought(old, step)) {
+        old._sig = sig;
+        existing.delete(step.key);
+        return;
+      }
       const el = step.role === 'thinking' ? buildThought(step) : toolNode(step);
       el.dataset.key = step.key;
       el._sig = sig;
@@ -290,10 +313,10 @@
       existing.delete(step.key);
     });
     existing.forEach(n => n.remove());
-    if (entry.live) node.open = true;
   }
 
   let renderedKeys = [];
+  let renderedEntries = [];
   function syncUndoBar() {
     let bar = thread.querySelector('.history-undo');
     if (state.historyUndo && !bar) {
@@ -305,12 +328,25 @@
     } else if (!state.historyUndo && bar) bar.remove();
   }
 
+  function sameEntry(a, b) {
+    if (!a || !b || a.type !== b.type) return false;
+    if (a.type === 'phase') {
+      const left = a.steps || [];
+      const right = b.steps || [];
+      return left.length === right.length && left.every((s, i) => s.key === right[i].key);
+    }
+    const x = a.item || {};
+    const y = b.item || {};
+    return x.role === y.role && (x.text || '').trim() === (y.text || '').trim();
+  }
+
   /* 增量渲染：只在末尾追加新条目，已有阶段就地更新，避免整段重排 */
   function renderChat(force = false) {
     const empty = !state.items.length;
     $('#view-chat').classList.toggle('is-empty', empty);
     if (empty) {
       renderedKeys = [];
+      renderedEntries = [];
       if (!thread.querySelector('.hero')) thread.innerHTML = heroHTML();
       return;
     }
@@ -327,9 +363,26 @@
     const keys = entries.map(e => e.key);
     const extend = !force && renderedKeys.length <= keys.length && renderedKeys.every((k, i) => k === keys[i]);
     const wasEmpty = renderedKeys.length === 0;
-    if (!extend) {
+    /* 乐观消息换成服务端记录时 key 会变，但内容没变，这时只换 key 不重画。 */
+    const reuse = !force && !extend && entries.length <= renderedEntries.length
+      && entries.length > 0
+      && entries.every((e, i) => sameEntry(e, renderedEntries[i]));
+    if (!extend && !reuse) {
       thread.replaceChildren();
       renderedKeys = [];
+      renderedEntries = [];
+    }
+    if (reuse) {
+      const nodes = [...thread.children].filter(n => n.dataset.key);
+      entries.forEach((e, i) => {
+        const node = nodes[i];
+        if (node && node.dataset.key !== e.key) node.dataset.key = e.key;
+      });
+      nodes.slice(entries.length).forEach(n => n.remove());
+      renderedKeys = keys;
+      renderedEntries = entries;
+      if (followEnabled) followScroll();
+      return;
     }
     syncUndoBar();
     const start = renderedKeys.length;
@@ -353,6 +406,7 @@
       if (node) updatePhase(node, entry);
     }
     renderedKeys = keys;
+    renderedEntries = entries;
     if (followEnabled) followScroll();
   }
 

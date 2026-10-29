@@ -91,21 +91,28 @@ async function main() {
     // 4. 工作分组折叠
     await ev('document.querySelector(".dock-btn[data-view=\\"work\\"]").click()');
     await wait(900);
-    const hasEnded = await ev('Boolean(document.querySelector(\'[data-g="ended"] [data-act="group-toggle"]\'))');
-    if (hasEnded) {
-      await ev('document.querySelector(\'[data-g="ended"] [data-act="group-toggle"]\').click()');
+    /* 任选一个可折叠的分组：已结束优先，其次已归档、已挂起 */
+    const groupId = await ev(`(() => {
+      for (const id of ['ended', 'archived', 'paused']) {
+        if (document.querySelector('[data-g="' + id + '"] [data-act="group-toggle"]')) return id;
+      }
+      return '';
+    })()`);
+    if (groupId) {
+      const sel = `[data-g="${groupId}"]`;
+      await ev(`document.querySelector('${sel} [data-act="group-toggle"]').click()`);
       await wait(60);
       const fold = await ev(`JSON.stringify({
-        anims: document.querySelector('[data-g="ended"] .work-group-body').getAnimations().length,
-        expanded: document.querySelector('[data-g="ended"] .work-group-h').getAttribute('aria-expanded'),
+        anims: document.querySelector('${sel} .work-group-body').getAnimations().length,
+        expanded: document.querySelector('${sel} .work-group-h').getAttribute('aria-expanded'),
       })`);
       const f = JSON.parse(fold);
       note('work group folds with motion', f.anims > 0 && f.expanded === 'false', fold);
       await wait(400);
-      await ev('document.querySelector(\'[data-g="ended"] [data-act="group-toggle"]\').click()');
+      await ev(`document.querySelector('${sel} [data-act="group-toggle"]').click()`);
       await wait(500);
     } else {
-      note('work group present', false, 'no ended group');
+      console.log('skip work group fold · no collapsible group in this workspace');
     }
 
     // 5. 停止按钮与最新按钮的入场由真实回合触发，这里只验证存在性
