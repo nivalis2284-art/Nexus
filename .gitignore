@@ -10,8 +10,8 @@ pytest-of-*/
 attachments/
 .codex-remote-attachments/
 nexus-wakeup-staged-*/
-plugins/*/scheduler.sqlite3
-plugins/*/pip-*/
+# 插件是运行时安装目录：本地保留，不入库、不推送。
+plugins/
 docs/evidence/plugin-acceptance/_tmp/
 pip-install-*/
 pip-ephem-wheel-cache-*/

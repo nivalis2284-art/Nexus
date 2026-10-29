@@ -1,1 +1,0 @@
-{"id":"temp-memory","name":"临时长期记忆","version":"0.1.0","api_version":1,"entry":"backend.py:create_plugin","capabilities":["context","tools","page"],"pages":[{"id":"main","title":"记忆与原文备份","path":"web/index.html"}],"description":"原文归档、可维护记忆、中文检索与可选嵌入混合召回。"}
