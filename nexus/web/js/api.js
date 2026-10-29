@@ -209,6 +209,7 @@
       records: Array.isArray(raw.messages) ? raw.messages.map(recordView).filter(Boolean)
         : Array.isArray(raw.records) ? raw.records : [],
       parent_id: raw.parent_id || '', parent_kind: raw.parent_kind || '',
+      archived: !!raw.archived,
       active: !!raw.active, queued: !!raw.queued, input_status: raw.input_status || null,
       control_version: raw.control_version ?? null,
       progress_version: raw.progress_version ?? null,
@@ -305,12 +306,16 @@
       state.requests = requests;
 
       if (Array.isArray(value.tasks)) {
+        /* /api/ling 只带未归档的任务；已归档的保留在列表里，由工作页单独维护。 */
+        const kept = (state.works || []).filter(w => w && w.archived);
         const seen = new Set();
-        state.works = value.tasks.map(mapTask).filter(t => {
+        const next = value.tasks.map(mapTask).filter(t => {
           if (!t || seen.has(t.id)) return false;
           seen.add(t.id);
           return true;
         });
+        for (const item of kept) if (!seen.has(item.id)) next.push(item);
+        state.works = next;
       }
       if (value.usage) state.usage = value.usage;
       if (value.context) state.context = value.context;
@@ -379,6 +384,21 @@
       }));
     },
 
+    /* /api/tasks?archived=1 */
+    works(value) {
+      const list = Array.isArray(value) ? value : (value?.tasks || []);
+      const keep = new Map((state.works || []).map(w => [w.id, w]));
+      state.works = list.map(raw => {
+        const mapped = mapTask(raw);
+        if (!mapped) return null;
+        const old = keep.get(mapped.id);
+        if (old?._detail && !mapped._detail) {
+          return { ...mapped, steps: old.steps, evidence: old.evidence, records: old.records, _detail: true };
+        }
+        return mapped;
+      }).filter(Boolean);
+    },
+
     /* /api/model-requests */
     modelRequests(value) {
       const list = Array.isArray(value) ? value : (value?.requests || []);
@@ -398,8 +418,9 @@
         get('/api/state'), get('/api/ling'), get('/api/context'),
         get('/api/skills'), get('/api/mcp'), get('/api/plugins'),
         get('/api/model-requests'), get('/api/instructions'),
+        get('/api/tasks?archived=1'),
       ]);
-      const [settings, ling, context, skills, mcp, plugins, requests, instructions] = results;
+      const [settings, ling, context, skills, mcp, plugins, requests, instructions, works] = results;
       if (settings.status === 'fulfilled') sync.settings(settings.value);
       if (ling.status === 'fulfilled') sync.chat(ling.value);
       if (context.status === 'fulfilled') sync.context(context.value);
@@ -408,6 +429,7 @@
       if (plugins.status === 'fulfilled') sync.plugins(plugins.value);
       if (requests.status === 'fulfilled') sync.modelRequests(requests.value);
       if (instructions.status === 'fulfilled') state.instructions = instructions.value?.text || '';
+      if (works.status === 'fulfilled') sync.works(works.value);
       const failed = results.find(r => r.status === 'rejected');
       if (failed) state.connectionError = failed.reason?.message || '部分数据未能加载';
       return results;
@@ -429,17 +451,8 @@
       return value;
     },
     async worksOnly() {
-      const value = await get('/api/tasks');
-      const list = Array.isArray(value) ? value : (value?.tasks || []);
-      const keep = new Map((state.works || []).map(w => [w.id, w]));
-      state.works = list.map(raw => {
-        const mapped = mapTask(raw);
-        const old = keep.get(mapped.id);
-        if (old?._detail && !mapped._detail) {
-          return { ...mapped, steps: old.steps, evidence: old.evidence, records: old.records, _detail: true };
-        }
-        return mapped;
-      });
+      const value = await get('/api/tasks?archived=1');
+      sync.works(value);
       return value;
     },
     async skillsOnly() {

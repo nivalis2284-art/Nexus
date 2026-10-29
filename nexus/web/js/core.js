@@ -360,6 +360,7 @@ async function openTask(id) {
       mcp: [], skills: [], plugins: [], modelRequests: [],
       pluginRoot: '', pluginError: '',
       contextData: { owner_instructions: [], roles: [], sections: [], summary: null, messages: [], version: '', running: false },
+      workGroups: { paused: true, ended: true, archived: false },
       canUndo: false, undo: null, historyUndo: false, lastWork: null, logs: [],
     };
   }
@@ -367,7 +368,7 @@ async function openTask(id) {
   /* ---------------------------------------------------------------- 偏好持久化 */
   /* 只保存界面偏好。交流、工作、配置都以服务端为准，刷新即重新读取。 */
   const KEY = 'nexus-ui-prefs-v1';
-  const PREFS = ['view', 'theme', 'palette', 'motion', 'scene', 'target'];
+  const PREFS = ['view', 'theme', 'palette', 'motion', 'scene', 'target', 'workGroups'];
   let saveTimer = null;
   function save() {
     clearTimeout(saveTimer);
