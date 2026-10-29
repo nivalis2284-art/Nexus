@@ -1,11 +1,10 @@
-"""Tests for compaction, subagents, and skills."""
+"""Tests for compaction and skills."""
 
 from __future__ import annotations
 
 import pytest
 
 from nexus.core import compaction as c
-from nexus.core import subagent
 from nexus import skills
 
 
@@ -173,61 +172,6 @@ def test_compact_without_summariser_only_prunes():
     out, report = c.compact(messages, window_tokens=1000)
     assert not report.summarised
     assert c.PRUNE_MARKER in out[0]["content"]
-
-
-# ---------------------------------------------------------------- subagent
-
-
-def test_depth_limit_rejects_recursion():
-    with pytest.raises(subagent.DepthExceeded):
-        subagent.assert_depth(3, limit=2)
-    subagent.assert_depth(1, limit=2)
-    subagent.assert_depth(2, limit=2)
-
-
-def test_depth_must_be_positive():
-    with pytest.raises(subagent.SubagentError):
-        subagent.assert_depth(0, limit=2)
-
-
-def test_subagent_reduces_events_to_final_text():
-    import asyncio
-
-    class Event:
-        def __init__(self, type_, text="", data=None):
-            self.type = type_
-            self.text = text
-            self.data = data or {}
-
-    async def factory(prompt, budget):
-        assert "scoped task" in prompt
-        yield Event("delta", "partial ")
-        yield Event("delta", "report")
-        yield Event("done", data={"steps": 3, "stopped": "complete"})
-
-    result = asyncio.run(
-        subagent.run_subagent(
-            subagent.SubagentRequest(task="do it", max_steps=5),
-            make_runner=factory,
-        )
-    )
-    assert result.text == "partial report"
-    assert result.steps == 3
-    assert result.depth == 1
-
-
-def test_subagent_reports_empty_output_clearly():
-    import asyncio
-
-    async def factory(prompt, budget):
-        yield type("E", (), {"type": "done", "text": "", "data": {}})()
-
-    result = asyncio.run(
-        subagent.run_subagent(
-            subagent.SubagentRequest(task="t"), make_runner=factory
-        )
-    )
-    assert "nothing" in result.text
 
 
 # ---------------------------------------------------------------- skills

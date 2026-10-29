@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from typing import Any
 
 from ..attachments import AttachmentStore
@@ -42,7 +43,7 @@ class WorkOperations:
             value = task.to_dict()
             value["active"] = self.controller.is_active(task.id)
             value["queued"] = task.id in queued
-            value["pending_interactions"] = len(self.store.pending_interactions(task.id))
+            value["pending_interactions"] = self.store.pending_interactions(task.id)
             value.update(task_presentation(self.store, self.controller, task))
             items.append(value)
         return items
@@ -113,15 +114,14 @@ class WorkOperations:
             item = self.controller.cancel(task_id, request_id=request_id, expected_version=expected)
         elif operation == "reopen":
             item = self.controller.reopen(task_id, request_id=request_id, expected_version=expected)
-        elif operation == "archive":
-            item = self.controller.archive(task_id, request_id=request_id, expected_version=expected)
-        elif operation == "unarchive":
-            item = self.controller.unarchive(task_id, request_id=request_id, expected_version=expected)
+        elif operation in ("archive", "unarchive"):
+            with self._report_edit():
+                item = getattr(self.controller, operation)(
+                    task_id, request_id=request_id, expected_version=expected)
+                self._sync_reports(task_id, "hide" if operation == "archive" else "show")
         else:
             raise TaskValidationError(f"unknown task operation: {operation}")
         self._forget_user_task_pause(task_id)
-        if operation in ("archive", "unarchive"):
-            self._sync_reports(task_id, "hide" if operation == "archive" else "show")
         return item.to_dict()
 
     def lifecycle(self, task_id: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -165,13 +165,25 @@ class WorkOperations:
             raise TaskValidationError("permanent deletion requires expected_version and confirm=true")
         if self.controller.is_active(task_id) or task_id in self.controller.queued_ids():
             raise TaskConflict("task still owns execution resources")
-        self.store.delete(task_id, expected_version=expected)
-        self._sync_reports(task_id, "drop")
+        with self._report_edit():
+            self.store.delete(task_id, expected_version=expected)
+            self._sync_reports(task_id, "drop")
         AttachmentStore(self.state["store"].home).delete_owner("tasks", task_id)
         if self.state.get("request_history"):
             self.state["request_history"].delete_owner(task_id)
         runtime_updates(self.state).publish("task", task_id, {"type": "refresh", "deleted": True})
         return {"deleted": True}
+
+    @contextmanager
+    def _report_edit(self):
+        busy = getattr(self.state.get("ling"), "busy", None)
+        if busy is not None and not busy.acquire(blocking=False):
+            raise TaskConflict("主交流正在处理输入，请等待结束后再整理工作记录。")
+        try:
+            yield
+        finally:
+            if busy is not None:
+                busy.release()
 
     def _main_session(self):
         """The conversation the owner talks in; task events are recorded there."""
@@ -189,27 +201,33 @@ class WorkOperations:
         conversation and come back untouched when the work is restored; drop
         removes them for a permanent deletion.
         """
-        session = self._main_session()
-        if session is None:
+        sessions = self.state.get("sessions")
+        if sessions is None:
             return 0
-        changed = 0
-        kept = []
-        for item in session.items:
-            if item.kind == "work_report" and (item.data.get("report") or {}).get("task_id") == task_id:
-                if action == "drop":
-                    changed += 1
-                    continue
-                want = action == "hide"
-                if bool(item.data.get("hidden")) != want:
-                    if want:
-                        item.data["hidden"] = True
-                    else:
-                        item.data.pop("hidden", None)
-                    changed += 1
-            kept.append(item)
+        with sessions._lock:
+            session = self._main_session()
+            if session is None:
+                return 0
+            changed = 0
+            removed = set()
+            for index, item in enumerate(session.items):
+                if item.kind == "work_report" and (item.data.get("report") or {}).get("task_id") == task_id:
+                    if action == "drop":
+                        changed += 1
+                        removed.add(index)
+                        continue
+                    want = action == "hide"
+                    if bool(item.data.get("hidden")) != want:
+                        if want:
+                            item.data["hidden"] = True
+                        else:
+                            item.data.pop("hidden", None)
+                        changed += 1
+            if changed:
+                session.remove_items(removed)
+                sessions.rewrite(session)
         if changed:
-            session.items = kept
-            self.state["sessions"].rewrite(session)
+            runtime_updates(self.state).refresh("ling", session.id)
         return changed
 
     def _forget_user_task_pause(self, task_id: str) -> None:

@@ -34,17 +34,6 @@ from .task_api import TaskHTTP
 # of those is already a large request, which is why the count is capped too.
 MAX_REQUEST_BYTES = MAX_IMAGES_PER_TURN * ((MAX_IMAGE_BYTES + 2) // 3 * 4) + 4_000_000
 
-def _content_blocks(text: str, images: list[dict[str, str]]) -> Any:
-    """Build the internal content value: plain string when there are no images."""
-    if not images:
-        return text
-    blocks: list[dict[str, Any]] = []
-    if text:
-        blocks.append({"type": "text", "text": text})
-    for image in images:
-        blocks.append({"type": "image", "mime": image["mime"], "data": image["data"]})
-    return blocks
-
 
 STATE: dict[str, Any] = {}
 

@@ -13,7 +13,6 @@ import httpx
 import pytest
 
 from nexus.attachments import AttachmentStore
-from nexus.core import subagent
 from nexus.core.config import ConfigStore
 from nexus.mcp import MCPRegistry, ServerConfig
 from nexus.model import APIFamily
@@ -22,6 +21,18 @@ from nexus.runtime.callbacks import TaskCallbacks
 from nexus.runtime.connections import start_mcp
 from nexus.task import TaskStore
 from nexus.tools import build
+from nexus.tools.files import file_effect
+
+
+def test_file_effect_records_the_actual_workspace(tmp_path):
+    (tmp_path / "before.txt").write_text("before", encoding="utf-8")
+    registry, context = build(root=tmp_path)
+    context.file_effect = file_effect
+    prepared = registry.prepare("write_file", {"path": "before.txt", "content": "after"}, context)
+    callbacks = TaskCallbacks(None, "task", "run", cancel=threading.Event())
+    effect = callbacks.effect_for(prepared, context)
+    assert effect["path"] == str(tmp_path / "before.txt")
+    assert effect["before_sha256"] and effect["expected_changed"]
 
 STUB = Path(__file__).resolve().parent / "mcp_server_stub.py"
 
@@ -148,22 +159,6 @@ def test_child_uses_a_distinct_operation_scope_for_reused_call_id(tmp_path):
     assert not store.unfinished_operations(task.id)
 
 
-def test_child_registry_cannot_finish_or_rewrite_parent_steps(tmp_path):
-    _config, tasks, task = started_task(tmp_path)
-    callbacks = TaskCallbacks(tasks, task.id, tasks.current_run(task.id), cancel=threading.Event())
-    registry, _ = build(root=tmp_path, task_callbacks=callbacks)
-    child = TaskAssembler._subagent_registry(registry) if hasattr(TaskAssembler, "_subagent_registry") else None
-    if child is None:
-        from nexus.runtime.assembly import _subagent_registry
-        child = _subagent_registry(registry)
-    assert child.get("task_finish") is None
-    assert child.get("task_pause") is None
-    assert child.get("task_update") is None
-    assert child.get("task_attempt") is None
-    assert child.get("task_resolve_operation") is None
-    assert child.get("task_read") is not None
-
-
 def test_child_does_not_consume_parent_input_cursor(tmp_path):
     _config, tasks, task = started_task(tmp_path)
     callbacks = TaskCallbacks(
@@ -183,28 +178,6 @@ def test_child_does_not_consume_parent_input_cursor(tmp_path):
     assert history[-1]["content"] == "parent only"
     assert history[-1]["_source_id"]
     assert tasks.input_status(task.id)["pending_count"] == 0
-
-
-def test_subagent_trace_retains_arguments_and_bounded_content(tmp_path):
-    class Event:
-        def __init__(self, type_, data=None):
-            self.type = type_
-            self.data = data or {}
-
-    async def factory(prompt, budget):
-        yield Event("tool_start", {"id": "c0", "name": "read_file",
-                                    "arguments": {"path": "long.txt"}})
-        yield Event("tool_result", {"id": "c0", "name": "read_file", "ok": True,
-                                    "content": "x" * 20000,
-                                    "details": {"truncated": True}})
-        yield Event("done", {"steps": 2, "stopped": "complete"})
-
-    result = asyncio.run(subagent.run_subagent(
-        subagent.SubagentRequest(task="inspect"), make_runner=factory,
-    ))
-    assert result.trace[0]["arguments"] == {"path": "long.txt"}
-    assert result.trace[1]["content"] == "x" * 20000
-    assert result.trace[1]["truncated"] is True
 
 
 def test_completion_can_preserve_optional_verification_references(tmp_path):

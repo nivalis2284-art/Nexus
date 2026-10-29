@@ -10,14 +10,10 @@ def route(handler, state, respond, method):
     parsed = urlparse(handler.path)
     path = unquote(parsed.path)
     if not (path.startswith(('/api/plugins', '/plugins/', '/api/plugin-events',
-                             '/api/plugin-host', '/api/model-requests'))
-            or path in ('/plugins.js', '/plugins.css')):
+                             '/api/plugin-host', '/api/model-requests'))):
         return False
     try:
         manager = state.get('plugins')
-        if path in ('/plugins.js', '/plugins.css') and method == 'GET':
-            handler._file(path[1:], 'text/javascript; charset=utf-8' if path.endswith('.js') else 'text/css; charset=utf-8')
-            return True
         if manager is None:
             respond(handler, 503, {'error': '插件服务尚未初始化'})
             return True

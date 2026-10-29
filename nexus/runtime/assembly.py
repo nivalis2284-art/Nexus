@@ -20,20 +20,10 @@ from ..task import Task, TaskStore, TaskValidationError
 from ..tools import build
 from ..tools._jobs import JobRegistry
 from ..tools.files import file_effect
-from ..tools.registry import Registry, TaskSuspension
+from ..tools.registry import TaskSuspension
 from .callbacks import TaskCallbacks
 from .connections import start_mcp
 from .controller import RunFnResult, TaskConflict, needs_project_write
-
-
-def _subagent_registry(registry: Registry) -> Registry:
-    """Keep observation tools, but never the parent's lifecycle controls."""
-    child = Registry()
-    excluded = {"task_finish", "task_pause", "task_update", "task_attempt", "task_resolve_operation"}
-    for spec in registry.specs():
-        if spec.name not in excluded:
-            child.add(spec)
-    return child
 
 
 @dataclass

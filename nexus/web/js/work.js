@@ -318,12 +318,10 @@
   }
 
   async function openWork(id) {
-    if (!state.works.some(w => w.id === id)) return;
     N.go('chat', { silent: true });
-    N.morphIsland('detail', { id });
     try {
       await N.sync.taskDetail(id);
-      N.renderIsland?.();
+      N.morphIsland('detail', { id });
       N.refreshRefs?.(id);
     } catch (error) {
       N.notify(error?.message || '读取工作详情失败', 'cinnabar', 4000);

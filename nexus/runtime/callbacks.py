@@ -158,7 +158,7 @@ class TaskCallbacks:
         context._pending_tool_name = prepared.spec.name
         callback = getattr(context, "file_effect", None)
         if callback is not None:
-            effect = callback(prepared.arguments, context)
+            effect = callback(context, prepared.arguments)
             if effect is not None:
                 return effect
         return None

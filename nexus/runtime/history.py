@@ -78,16 +78,5 @@ def edit_history(session, body):
                        if item.kind == "tool" and item.data.get("tool_call_id") in call_ids)
     else:
         raise TaskValidationError("未知消息操作。")
-    remap = {old: new for new, old in enumerate(index for index in range(len(session.items)) if index not in removed)}
-    items = []
-    for index, item in enumerate(session.items):
-        if index in removed:
-            continue
-        if item.kind == "checkpoint":
-            boundary = int(item.data["through"])
-            if boundary not in remap:
-                continue
-            item.data["through"] = str(remap[boundary])
-        items.append(item)
-    session.items = items
+    session.remove_items(removed)
     return resend

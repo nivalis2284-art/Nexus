@@ -232,8 +232,10 @@ def test_undecodable_skill_reports_error_without_overwriting(tmp_path):
     source = b"---\nname: broken\ndescription: Broken\n---\nvalid ascii\xff"
     path.write_bytes(source)
 
-    with pytest.raises(skills.SkillEncodingError, match="UTF-8.*GBK"):
-        manager.list()
+    row = manager.list()["skills"][0]
+    assert "UTF-8" in row["error"] and "GBK" in row["error"]
+    assert row["effective"] is False
+    assert skills.discover([path.parent.parent]).get("broken") is None
     with pytest.raises(skills.SkillEncodingError, match="UTF-8.*GBK"):
         skills.write_skill_file(path, name="broken", description="Changed", body="body")
     assert path.read_bytes() == source

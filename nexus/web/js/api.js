@@ -187,6 +187,7 @@
 
   function mapTask(raw) {
     if (!raw || typeof raw !== 'object') return null;
+    const old = (state.works || []).find(w => w.id === raw.id);
     const stateValue = raw.state || 'pending';
     return {
       id: raw.id, title: raw.title || '未命名工作', state: stateValue,
@@ -201,17 +202,17 @@
       state_label: raw.state_label || '', status_detail: raw.status_detail || '',
       steps: Array.isArray(raw.steps) ? raw.steps : [],
       evidence: Array.isArray(raw.evidence) ? raw.evidence : [],
-      children: Array.isArray(raw.children) ? raw.children : [],
+      children: Array.isArray(raw.children) ? raw.children : (old?.children || []),
       pending_interactions: Array.isArray(raw.pending_interactions) ? raw.pending_interactions : [],
-      unfinished_operations: Array.isArray(raw.unfinished_operations) ? raw.unfinished_operations : [],
+      unfinished_operations: Array.isArray(raw.unfinished_operations) ? raw.unfinished_operations : (old?.unfinished_operations || []),
       records: Array.isArray(raw.messages) ? raw.messages.map(recordView).filter(Boolean)
-        : Array.isArray(raw.records) ? raw.records : [],
-      parent_id: raw.parent_id || '', parent_kind: raw.parent_kind || '',
+        : Array.isArray(raw.records) ? raw.records : (old?.records || []),
+      parent_id: raw.parent_id || old?.parent_id || '', parent_kind: raw.parent_kind || old?.parent_kind || '',
       archived: !!raw.archived,
       active: !!raw.active, queued: !!raw.queued, input_status: raw.input_status || null,
       control_version: raw.control_version ?? null,
       progress_version: raw.progress_version ?? null,
-      _detail: !!(raw.steps || raw.messages),
+      _detail: Array.isArray(raw.messages) || !!old?._detail,
     };
   }
 
@@ -287,6 +288,10 @@
     /* /api/ling */
     chat(value) {
       if (!value) return;
+      if (Number(value.live_revision || 0) < Number(state.liveRevision || 0)) {
+        scheduleLing();
+        return;
+      }
       if (value.session_id) state.sessionId = value.session_id;
       state.baseItems = mapItems(value.items);
       state.liveItems = liveItems(value.live);
@@ -352,6 +357,7 @@
         name: s.name, source: s.source || 'personal',
         description: s.description || '', body: s.body || '',
         effective: s.effective !== false, read_only: !!s.read_only,
+        error: s.error || '',
         path: s.path || '', overrides: s.overrides || '',
       }));
     },
@@ -386,28 +392,23 @@
     /* /api/tasks?archived=1 */
     works(value) {
       const list = Array.isArray(value) ? value : (value?.tasks || []);
-      const keep = new Map((state.works || []).map(w => [w.id, w]));
-      state.works = list.map(raw => {
-        const mapped = mapTask(raw);
-        if (!mapped) return null;
-        const old = keep.get(mapped.id);
-        if (old?._detail && !mapped._detail) {
-          return { ...mapped, steps: old.steps, evidence: old.evidence, records: old.records, _detail: true };
-        }
-        return mapped;
-      }).filter(Boolean);
+      const children = (state.works || []).filter(w => w.parent_id);
+      const next = list.map(mapTask).filter(Boolean);
+      state.works = [...next, ...children.filter(w => !next.some(t => t.id === w.id) &&
+        (w.parent_kind === 'session' || next.some(t => t.id === w.parent_id)))];
     },
 
     /* /api/model-requests */
     modelRequests(value) {
       const list = Array.isArray(value) ? value : (value?.requests || []);
+      state.modelRequestsNext = value?.next ?? null;
       state.modelRequests = list.map(r => ({
         ...r,
         id: r.id, created_at: r.created_at || '',
         kind: r.kind || 'ling', owner_id: r.owner_id || '',
         model: r.model || '', status: r.status || 'ok',
-        protocol: r.protocol || '', plugins: r.plugins || [],
-        materials: r.materials || {}, body: r.body || {},
+        protocol: r.protocol || '', plugins: r.plugins || r.scope?.request_plugins || [],
+        materials: r.materials || r.scope?.request_materials || [], body: r.body,
       }));
     },
 
@@ -452,6 +453,8 @@
     async worksOnly() {
       const value = await get('/api/tasks?archived=1');
       sync.works(value);
+      const detail = document.querySelector('#island[data-mode="detail"]')?.data?.id;
+      if (detail) await sync.taskDetail(detail);
       return value;
     },
     async skillsOnly() {
@@ -526,6 +529,7 @@
     taskTimer = setTimeout(async () => {
       try {
         await sync.worksOnly();
+        N.renderRequests?.();
         N.renderWork?.();
         N.syncTargets?.();
         N.refreshIsland?.();
@@ -558,6 +562,8 @@
     const scope = event.scope;
     if (scope === 'ling') {
       if (state.sessionId && event.owner_id && event.owner_id !== state.sessionId) return;
+      if (event.revision <= (state.liveRevision || 0)) return;
+      state.liveRevision = event.revision;
       const type = event.type;
       if (type === 'delta' || type === 'thinking' || type === 'tool_start' || type === 'tool_result') {
         state.running = true;
@@ -603,6 +609,8 @@
     source.onopen = () => {
       state.connected = true;
       N.setConnection?.(true);
+      scheduleLing(0);
+      scheduleWorks(0);
     };
     source.onmessage = e => {
       if (!e.data) return;
@@ -630,6 +638,7 @@
     mcp: () => get('/api/mcp'),
     plugins: () => get('/api/plugins'),
     modelRequests: query => get('/api/model-requests' + (query ? '?' + query : '')),
+    modelRequest: id => get('/api/model-requests/' + encodeURIComponent(id)),
     instructions: () => get('/api/instructions'),
 
     input: (text, options = {}) => post('/api/ling/input', {
@@ -666,7 +675,7 @@
 
     pluginScan: () => post('/api/plugins/scan'),
     pluginCommand: (id, operation) => post(`/api/plugins/${encodeURIComponent(id)}/commands`, { operation }),
-    pluginSettings: (id, settings) => post(`/api/plugins/${encodeURIComponent(id)}/settings`, { settings }),
+    pluginSettings: (id, settings) => post(`/api/plugins/${encodeURIComponent(id)}/settings`, settings),
     pluginCall: (id, body) => post(`/api/plugins/${encodeURIComponent(id)}/call`, body),
     importPlugin: (blob, replace) => fetch(`/api/plugins/import${replace ? '?replace=1' : ''}`, {
       method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: blob,

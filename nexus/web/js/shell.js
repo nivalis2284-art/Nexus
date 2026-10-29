@@ -430,7 +430,7 @@
     const act = t.dataset.isl;
     if (act === 'overview') morphIsland('overview');
     else if (act === 'compact') morphIsland('compact');
-    else if (act === 'detail') morphIsland('detail', { id: t.dataset.id });
+    else if (act === 'detail') N.openWork(t.dataset.id);
     else if (act === 'supplement') {
       const id = t.dataset.id;
       morphIsland('compact');

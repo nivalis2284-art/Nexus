@@ -2,11 +2,11 @@
 name = "nexus"
 version = "0.1.0"
 description = "A minimal coding agent"
+license = {file = "LICENSE"}
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "httpx>=0.28,<1",
     "pydantic>=2.8,<3",
-    "tzdata>=2025.2",
     "pypdf>=6,<7",
     "python-docx>=1.2,<2",
     "openpyxl>=3.1,<4",

@@ -66,6 +66,8 @@ Nexus 是由所有者掌握的个人 Agent 底座。当前版本收敛到一个�
 
 保留 Anthropic Messages、OpenAI Chat Completions、OpenAI Responses 三类模型协议、流式交流、文件和命令、后台进程、附件原件及分页读取、Skill、MCP 与普通插件接入，以及权限规则、上下文裁剪和摘要压缩。
 
+插件独立发布，不属于 Nexus 本体的交付内容。Nexus 提供插件宿主接口、管理页面和公共 UI 资源；插件程序、SDK 示例、手机端 APK 及其构建验收由各自的发布维护。仓库中 `mobile-bridge/` 的既有资料不构成 Nexus 本体的安装或测试前提。
+
 定时与重复安排、网页监听、长期交代、自由唤醒、每日回顾、静默经历、专门人设管理及静态记忆原型已退出日常业务。普通独立会话和手动新建任务退出入口；工作由主交流承接。不再运行自主活动模型执行器，也不提供独立通知中心。相关研究资料按计划独立归档，旧代码可通过 Git 历史查看。
 
 本轮不以模型调用费用或配额限制行为。上下文窗口与协议要求仍按实际模型能力处理；这些限制不代表费用预算。
@@ -102,21 +104,27 @@ archive/convergence-*/   本轮迁出的研究业务资料与读取说明
 .venv\Scripts\python.exe -m pip install -e ".[dev]"
 .venv\Scripts\python.exe -m pytest tests -q
 node tests/frontend_behavior.cjs
-node tests/frontend_continuity.cjs
-node tests/frontend_model_context.cjs
-node tests/frontend_plugins.cjs
-node tests/frontend_skills.cjs
 ```
 
-浏览器冒烟使用隔离数据目录、本地模拟提供商和已安装的 Chrome，通过 Node 内置 WebSocket 操作页面，不调用真实模型，也不需要 npm 依赖（Node 22+）。Windows 默认使用 Chrome 标准安装路径，可通过 `NEXUS_CHROME` 和 `NEXUS_TEST_PYTHON` 指定实际可执行文件：
-
-```powershell
-node tests/browser_smoke.cjs
-```
-
-上下文管理与消息操作的定向浏览器验收使用 `node tests/browser_context.cjs`，同样只访问隔离数据与本地模拟模型。
+前端定向检查使用 Node 内置模块执行实际脚本和模拟接口，覆盖发送附件、回复期间补充输入、任务审批与详情保留、实时连接恢复和宿主插件配置。需要 Node 22+，不需要 npm 依赖或真实模型。Python 修改优先运行受影响的测试文件；仅在改动范围或失败证据需要时扩大验证。
 
 测试覆盖范围、通过数量及真实模型验证情况会随版本变化；请以当前测试运行结果为准。自动化测试通过不等于所有功能已经完成实际操作验收。
+
+## 许可证
+
+Nexus 本体使用 [MIT License](LICENSE)。随包分发的第三方网页库和字体遵循各自保留的许可文件；独立发布的插件及手机端以各自的许可说明为准。
+
+## 开发区与发行区
+
+当前 Git 仓库作为开发区，独立的 `../Nexus-release/` 作为发行区。发行区位于仓库之外，
+不创建或复制 `.git`，不受开发区 Git 跟踪。更新发行区时，只从已提交版本复制 `nexus/`、
+`start.bat`、`pyproject.toml`、`LICENSE` 和 `.gitignore`，并将
+[发行版说明](docs/发行版README.md) 放为发行区的 `README.md`。
+
+保留 `nexus/` 中运行所需的网页、字体、第三方库及各自许可。发行区不放 `docs/`、
+`tests/`、独立插件或手机端发布包、开发工具、虚拟环境、构建缓存、模型配置与凭据、
+会话、附件和其他运行数据。发行区用于对外复制，实际使用后生成的数据不再属于干净
+发行文件；再次发布时从开发区的已提交版本重新整理。
 
 ## 文档导航
 

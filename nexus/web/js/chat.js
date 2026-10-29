@@ -1029,28 +1029,6 @@
       { duration: N.DUR.enter, easing: EASE_OUT }).onfinish = () => i.remove();
   }
 
-  function send() {
-    const text = input.value.trim();
-    const files = [...state.files];
-    if (!text && !files.length) return;
-    sendRipple();
-    anim(composer, [{ transform: 'translateY(-2px) scale(1)' }, { transform: 'translateY(-2px) scale(.994)' }, { transform: 'translateY(-2px) scale(1)' }],
-      { duration: N.DUR.move, easing: EASE_OUT });
-    if (state.replying) {
-      state.queue.push({ id: N.uid('q'), text: text || '附件', status: 'queued', target: state.target });
-      renderQueue();
-      input.value = ''; state.files = []; renderFiles(); autosize(); updateSend();
-      N.notify('已加入队列，当前回应结束后处理');
-      N.save();
-      return;
-    }
-    if ($('#view-chat').classList.contains('is-empty')) leaveEmpty();
-    const target = state.target;
-    appendUser(text, target, files);
-    input.value = ''; state.files = []; renderFiles(); autosize(); updateSend();
-    respond(text, target);
-  }
-
   function leaveEmpty() {
     const view = $('#view-chat');
     const hero = $('.hero');
@@ -1272,7 +1250,7 @@
     if (act === 'review-unknown') return reviewUnknown(t.dataset.id);
     if (act === 'work-answer') return answerWorkRequest(t.dataset.id, t.dataset.i);
     if (act === 'work-approve') return approveWorkRequest(t.dataset.id, t.dataset.i, t.dataset.allow === '1');
-    if (act === 'open-work') { N.morphIsland?.('detail', { id: t.dataset.id }); return; }
+    if (act === 'open-work') return N.openWork(t.dataset.id);
     if (act === 'stop') return stopReply();
   });
   document.addEventListener('click', e => {

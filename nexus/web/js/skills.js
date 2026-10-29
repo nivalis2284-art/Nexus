@@ -14,8 +14,8 @@
     const list = state.skills;
     return list.map(s => ({
       ...s,
-      effective: s.source === 'builtin' || !list.some(o => o.name === s.name && o.source === 'project' && s.source !== 'project'),
-      shadowed: s.source === 'personal' && list.some(o => o.name === s.name && o.source === 'project'),
+      effective: s.effective,
+      shadowed: !s.error && !s.effective,
     }));
   }
 
@@ -35,9 +35,9 @@
           <h3 class="${/^[a-z0-9-]+$/.test(s.name) ? 'mono' : ''}">${esc(s.name)}</h3>
           <span class="src ${s.source}">${SOURCE[s.source] || s.source}</span>
           <p>${esc(s.description || '暂无摘要')}</p>
-          <span class="meta-line ${s.shadowed ? 'over' : ''}">${s.shadowed ? '被更高优先级的同名项目技能覆盖' : s.effective ? '当前生效' : '未生效'}</span>
+          <span class="meta-line ${s.shadowed ? 'over' : ''}">${s.error ? '读取失败 · 原文件未修改' : s.shadowed ? '被更高优先级的同名技能覆盖' : s.effective ? '当前生效' : '未生效'}</span>
           <footer><span class="pill">${s.read_only ? '只读' : '可编辑'}</span><div class="acts">
-            <button data-act="view-skill" data-i="${i}">${s.read_only ? '查看' : '编辑'}</button>
+            ${s.error ? '' : `<button data-act="view-skill" data-i="${i}">${s.read_only ? '查看' : '编辑'}</button>`}
             ${s.read_only ? '' : `<button class="del" data-act="del-skill" data-i="${i}">删除</button>`}
           </div></footer>
         </div>`).join('')}

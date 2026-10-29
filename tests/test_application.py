@@ -16,6 +16,20 @@ from nexus.session import Message
 from nexus.web import server as web
 
 
+def test_bad_skill_does_not_prevent_application_start(tmp_path):
+    path = tmp_path / "home" / "skills" / "broken" / "SKILL.md"
+    path.parent.mkdir(parents=True)
+    original = "---\nname: broken\ndescription: demo\n---\n技能".encode("utf-16")
+    path.write_bytes(original)
+    app = Application().start(home=tmp_path / "home", workspace=tmp_path)
+    try:
+        assert app.inbox().session_id
+        assert app.state["skills"].get("broken") is None
+        assert path.read_bytes() == original
+    finally:
+        app.close()
+
+
 def test_application_input_result_settings_and_shutdown(tmp_path, monkeypatch):
     config, _ = configure(tmp_path)
     seen = []

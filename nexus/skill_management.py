@@ -43,6 +43,14 @@ class SkillManager:
             for path in self._paths(root):
                 try:
                     text = skills.read_skill_text(path)
+                except skills.SkillEncodingError as error:
+                    rows.append({
+                        "source": source, "path": path.relative_to(root).as_posix(),
+                        "name": path.parent.name if path.name.lower() == "skill.md" else path.stem,
+                        "description": str(error), "error": str(error), "body": "",
+                        "effective": False, "read_only": source == "builtin",
+                    })
+                    continue
                 except OSError:
                     continue
                 skill = skills._read_skill_file(path)

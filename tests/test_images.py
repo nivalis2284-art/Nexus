@@ -10,7 +10,6 @@ from nexus.core.protocol import (
 )
 from nexus.model import APIFamily, ModelCapabilities, ModelProfile
 from nexus.application import MAX_IMAGE_BYTES, MAX_IMAGES_PER_TURN, read_images as _read_images
-from nexus.web.server import _content_blocks
 
 PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 
@@ -70,16 +69,6 @@ def test_read_images_empty_is_fine():
 
 
 # ---------------------------------------------------------------- blocks
-
-
-def test_content_blocks_stays_a_string_without_images():
-    assert _content_blocks("hello", []) == "hello"
-
-
-def test_content_blocks_builds_blocks_with_images():
-    blocks = _content_blocks("hello", [{"mime": "image/png", "data": PNG}])
-    assert blocks[0] == {"type": "text", "text": "hello"}
-    assert blocks[1]["type"] == "image"
 
 
 def test_blocks_to_text_ignores_images():

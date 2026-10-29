@@ -1,6 +1,8 @@
 """Concurrent rename must not replace newly appended conversation records."""
 import threading
 
+import pytest
+
 from nexus.session import Message, SessionStore
 
 
@@ -57,3 +59,16 @@ def test_automatic_first_title_does_not_replace_owner_title(tmp_path):
     assert store.rename(session.id, "owner title")
     assert store.rename(session.id, "automatic title", only_if_empty=True)
     assert store.load(session.id).title == "owner title"
+
+
+@pytest.mark.parametrize("tail", [b"", b'{"kind":"assistant","text":"torn', b'{"text":"\xe4'])
+def test_append_after_unterminated_record_preserves_new_messages(tmp_path, tail):
+    store = SessionStore(tmp_path)
+    session = store.create("fake")
+    store.append(session, Message(kind="user", text="before restart"))
+    original = session.path.read_bytes().rstrip(b"\n") if not tail else session.path.read_bytes() + tail
+    session.path.write_bytes(original)
+    restored = store.load(session.id)
+    store.append(restored, Message(kind="user", text="first after restart"))
+    assert [m.text for m in store.load(session.id).items] == ["before restart", "first after restart"]
+    assert session.path.read_bytes().startswith(original)

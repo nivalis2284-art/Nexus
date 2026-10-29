@@ -213,7 +213,7 @@ def _updated_frontmatter(block: str, name: str, description: str) -> str:
 def _read_skill_file(path: Path) -> Skill | None:
     try:
         text = read_skill_text(path)
-    except OSError:
+    except (OSError, SkillEncodingError):
         return None
     meta, body = parse_frontmatter(text)
     stem = path.parent.name if path.name.lower() == "skill.md" else path.stem

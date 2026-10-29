@@ -139,7 +139,7 @@ def _dependencies_import(python: Path, *, root: Path, run: Run) -> bool:
                 str(python),
                 "-c",
                 (
-                    "import httpx, pydantic, tzdata, pypdf, "
+                    "import httpx, pydantic, pypdf, "
                     "docx, openpyxl, pptx, mcp"
                 ),
             ],

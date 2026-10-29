@@ -257,7 +257,7 @@
                 <span class="pst ${r.status === 'error' || r.status === 'failed' ? 'err' : ''}">${esc(r.status || '状态未记录')}</span>
               </button>`).join('') : '<p class="plug-empty-line" style="padding:14px">没有符合条件的请求。</p>'}
             </div>
-            ${list.length > 4 ? `<button class="btn ghost sm" data-act="req-more" style="width:calc(100% - 12px);margin:6px 6px 2px;justify-content:center">${pv.more ? '收起' : `加载更早记录（还有 ${list.length - 4} 条）`}</button>` : ''}
+            ${list.length > 4 || state.modelRequestsNext ? `<button class="btn ghost sm" data-act="req-more" style="width:calc(100% - 12px);margin:6px 6px 2px;justify-content:center">${!pv.more ? '展开记录' : state.modelRequestsNext ? '加载更早记录' : '收起'}</button>` : ''}
           </div>
         </div>
         <div class="card preq-detail" data-s>${sel ? requestDetail(sel) : '<p class="plug-empty-line">选择一条请求查看来源、参与原因与最终 JSON。</p>'}</div>
@@ -265,6 +265,7 @@
   }
 
   function requestDetail(r) {
+    if (r.body === undefined) return '<p class="plug-empty-line">正在读取请求…</p>';
     const participation = Array.isArray(r.plugins) ? r.plugins : [];
     const statusLabel = { used: '已参与', not_applicable: '无需参与', failed: '失败', skipped: '未参与' };
     return `<h2>请求 #${esc(r.id)}<span class="pst ${r.status === 'error' ? 'err' : ''}">${esc(r.status || '状态未记录')}</span></h2>
@@ -283,6 +284,35 @@
   }
 
   /* ---------------------------------------------------------------- 操作 */
+  async function openRequest(id) {
+    pv.req = id;
+    renderPlugins();
+    try {
+      const detail = await N.api.modelRequest(id);
+      const index = state.modelRequests.findIndex(r => String(r.id) === String(id));
+      if (index >= 0) state.modelRequests[index] = detail;
+      if (pv.req === id) renderPlugins();
+    } catch (error) {
+      N.notify(error?.message || '读取请求失败', 'cinnabar', 4000);
+    }
+  }
+
+  async function loadRequests(append = false) {
+    const query = new URLSearchParams();
+    if (pv.owner) query.set('owner_id', pv.owner);
+    if (pv.kind) query.set('kind', pv.kind);
+    query.set('limit', '100');
+    if (append) query.set('before', state.modelRequestsNext);
+    try {
+      const value = await N.api.modelRequests(query.toString());
+      if (append) value.requests = [...state.modelRequests, ...value.requests];
+      N.sync.modelRequests(value);
+      renderPlugins();
+    } catch (error) {
+      N.notify(error?.message || '查询请求记录失败', 'cinnabar', 4000);
+    }
+  }
+
   function selectPlugin(id) {
     pv.selected = id; pv.frame = null; pv.dirty = false;
     $$('.plug-item').forEach(b => b.classList.toggle('is-selected', b.dataset.id === id));
@@ -478,8 +508,12 @@
       return;
     }
     if (act === 'plug-save') return saveSettings(t.dataset.id);
-    if (act === 'req-open') { pv.req = t.dataset.id; return renderPlugins(); }
-    if (act === 'req-more') { pv.more = !pv.more; return renderPlugins(); }
+    if (act === 'req-open') return openRequest(t.dataset.id);
+    if (act === 'req-more') {
+      if (pv.more && state.modelRequestsNext) return loadRequests(true);
+      pv.more = !pv.more;
+      return renderPlugins();
+    }
   });
   document.addEventListener('input', e => {
     if (!e.target.closest('#plug-settings')) return;
@@ -496,14 +530,7 @@
     pv.owner = $('#f-owner').value.trim();
     pv.kind = $('#f-kind').value.trim();
     pv.more = false;
-    const query = new URLSearchParams();
-    if (pv.owner) query.set('owner_id', pv.owner);
-    if (pv.kind) query.set('kind', pv.kind);
-    query.set('limit', '100');
-    N.api.modelRequests(query.toString()).then(value => {
-      N.sync.modelRequests(value);
-      renderPlugins();
-    }).catch(error => N.notify(error?.message || '查询请求记录失败', 'cinnabar', 4000));
+    return loadRequests();
   });
 
   N.renderPlugins = renderPlugins;

@@ -72,6 +72,22 @@ class Session:
 
     _path: Path | None = None
 
+    def remove_items(self, removed: set[int]) -> None:
+        """Remove records while keeping checkpoint boundaries on surviving history."""
+        items, remap = [], {}
+        for index, item in enumerate(self.items):
+            if index in removed:
+                continue
+            if item.kind == "checkpoint":
+                through = int(item.data["through"])
+                boundary = next((old for old in reversed(remap) if old <= through), None)
+                if boundary is None:
+                    continue
+                item.data["through"] = str(remap[boundary])
+            remap[index] = len(items)
+            items.append(item)
+        self.items = items
+
 
 class SessionStore:
     """Files in one directory; no index, no database."""
@@ -133,7 +149,7 @@ class SessionStore:
         session = Session(id=session_id)
         session._path = path
         try:
-            raw = path.read_text(encoding="utf-8").splitlines()
+            raw = path.read_bytes().splitlines()
         except OSError:
             return None
         for line in raw:
@@ -188,8 +204,13 @@ class SessionStore:
             path = self.path_for(session.id)
             session._path = path
         line = json.dumps(record, ensure_ascii=False)
-        with path.open("a", encoding="utf-8") as handle:
-            handle.write(line + "\n")
+        with path.open("ab+") as handle:
+            handle.seek(0, os.SEEK_END)
+            if handle.tell():
+                handle.seek(-1, os.SEEK_END)
+                if handle.read(1) != b"\n":
+                    handle.write(b"\n")
+            handle.write((line + "\n").encode("utf-8"))
             handle.flush()
             os.fsync(handle.fileno())
         if record.get("kind") == "meta":

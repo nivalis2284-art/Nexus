@@ -333,19 +333,16 @@ class LingInbox:
             known = {task.id for task in self.store.list(include_archived=True)}
         except Exception:
             return 0
-        kept = []
-        dropped = 0
-        for item in session.items:
+        removed = set()
+        for index, item in enumerate(session.items):
             if item.kind == "work_report":
                 task_id = (item.data.get("report") or {}).get("task_id")
                 if task_id and task_id not in known:
-                    dropped += 1
-                    continue
-            kept.append(item)
-        if dropped:
-            session.items = kept
+                    removed.add(index)
+        if removed:
+            session.remove_items(removed)
             self.state["sessions"].rewrite(session)
-        return dropped
+        return len(removed)
 
     def enqueue(self, text: str, images: list, attachments: list, request_id: str, task_id: str | None = None, *, report=None, control=None) -> dict:
         if not request_id or len(request_id) > 200:
