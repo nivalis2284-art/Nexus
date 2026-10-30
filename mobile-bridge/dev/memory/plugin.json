@@ -1,0 +1,8 @@
+{
+  "id": "memory", "name": "记忆", "version": "0.1.0", "api_version": 1,
+  "description": "主交流的主题级记忆粒子：自动采集、两轮提炼、语义检索与按需展开。",
+  "entry": "backend.py:create_plugin", "capabilities": ["context", "page", "tools"],
+  "dependencies": ["sqlite-vec>=0.1.6,<0.2", "tzdata>=2025.1"],
+  "services": [{"name": "memory", "command": "{python}", "args": ["{plugin}/service.py", "--data", "{data}"], "model_tools": []}],
+  "pages": [{"id": "main", "title": "记忆管理", "path": "web/index.html"}]
+}
