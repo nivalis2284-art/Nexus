@@ -1,0 +1,48 @@
+/* Host-rendered pages share the shell's variables, controls and motion engine. */
+.hui-page { padding: 20px 0 4px; min-width: 0; }
+.hui-components, .hui-column { display: grid; gap: 16px; min-width: 0; }
+.hui-section { padding: 18px; border-radius: 18px; background: var(--card); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.hui-section > .hui-components { margin-top: 14px; }
+.hui-section > h3 { font-size: 15px; font-weight: 600; }
+.hui-section > .help { margin-top: 5px; }
+.hui-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+.hui-row > .hui-field, .hui-row > .hui-column { flex: 1 1 180px; }
+.hui-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13.5px; line-height: 1.75; }
+.hui-muted { color: var(--ink-3); }
+.hui-success { color: var(--jade-ink); }
+.hui-error { color: var(--danger); }
+.hui-badge { display: inline-flex; width: fit-content; padding: 4px 10px; border-radius: 10px; background: var(--paper-2); font-size: 12px; }
+.hui-badge.hui-success { background: var(--jade-soft); }
+.hui-badge.hui-error { background: var(--cinnabar-soft); }
+.hui-code { background: var(--raised); padding: 14px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.7 var(--mono); max-height: 420px; overflow: auto; }
+.hui-notice { padding: 10px 14px; border-radius: 12px; background: var(--jade-soft); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hui-notice.hui-error { background: var(--cinnabar-soft); }
+.hui-loading:not(:empty), .hui-page > .hui-notice:not([hidden]) { margin-bottom: 14px; }
+.hui-list { display: grid; min-width: 0; }
+.hui-item { padding: 14px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.hui-item:last-child { border-bottom: 0; }
+.hui-item > .hui-row:not(:empty) { margin-top: 10px; }
+.hui-item > .help { margin-top: 4px; }
+.hui-field { min-width: 0; }
+.hui-field > label { display: flex; flex-direction: column; gap: 7px; }
+.hui-field > label.check { flex-direction: row; align-items: center; }
+.hui-field input:not([type=checkbox]), .hui-field select, .hui-field textarea { width: 100%; min-width: 0; }
+.hui-field input[type=checkbox] { accent-color: var(--jade); width: 16px; height: 16px; }
+.hui-field .help:empty, .hui-field .sheet-error:empty { display: none; }
+.hui-field .help, .hui-field .sheet-error { margin-top: 5px; }
+.hui-field .sheet-error { font-size: 12px; color: var(--danger); }
+.hui-field [aria-invalid=true] { box-shadow: inset 0 0 0 1.5px var(--danger); }
+.hui-table-wrap { overflow-x: auto; }
+.hui-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.hui-table th, .hui-table td { padding: 10px; text-align: left; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.hui-table th { color: var(--ink-3); font-weight: 500; }
+.hui-table .btn { height: 32px; font-size: 12px; margin: 2px; }
+.hui-pagination { justify-content: flex-end; }
+.hui-dialog { width: min(600px, calc(100vw - 32px)); }
+.hui-dialog .sheet-body { max-height: 85dvh; overflow: auto; }
+.hui-dialog-error { white-space: pre-wrap; }
+.hui-page .btn:disabled, .hui-dialog .btn:disabled { opacity: .45; cursor: default; }
+@media (max-width: 640px) {
+  .hui-section { padding: 14px; }
+  .hui-row > .hui-field, .hui-row > .hui-column { flex-basis: 100%; }
+}

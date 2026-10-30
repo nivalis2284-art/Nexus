@@ -59,7 +59,16 @@ class PluginManager:
         self.events = EventStore(self.home / 'plugin-events.sqlite3')
         self.registry_file = self.home / 'plugins.json'
         self.saved = json.loads(self.registry_file.read_text(encoding='utf-8')) if self.registry_file.exists() else {}
+        self._host_runtime = None
         self.scan()
+
+    @property
+    def runtime(self):
+        with self.lock:
+            if self._host_runtime is None:
+                from .host.runtime import Runtime
+                self._host_runtime = Runtime(self)
+            return self._host_runtime
 
     def data_dir(self, plugin_id):
         path = self.home / 'plugins' / plugin_id
@@ -82,8 +91,14 @@ class PluginManager:
         plugin_id = value.get('id', '')
         if not isinstance(plugin_id, str) or not plugin_id or any(c not in 'abcdefghijklmnopqrstuvwxyz0123456789-_' for c in plugin_id):
             raise ValueError('插件标识仅支持小写字母、数字、连字符和下划线')
+        from .host import CAPABILITIES
+        requires = value.get('requires_host', {})
+        if not isinstance(requires, dict) or any(type(v) is not int or CAPABILITIES.get(k) != v for k,v in requires.items()):
+            raise ValueError('宿主不支持插件所需的能力版本')
         if value.get('api_version', 1) != 1:
             raise ValueError('不支持此插件所需的宿主接口版本')
+        from .pages import declarations
+        declarations(value.get('pages', []))
         return value
 
     def scan(self):
@@ -159,6 +174,8 @@ class PluginManager:
         try:
             item.python = prepare(item.path, self.data_dir(item.id), item.manifest,
                                   on_progress=lambda message: setattr(item, 'progress', message))
+            if item.manifest.get('requires_host'):
+                self.runtime.bridge.environment(item.id)
             location = item.manifest.get('entry')
             if location:
                 filename, _, factory = location.partition(':')
@@ -186,6 +203,8 @@ class PluginManager:
                                 'legacy', required=hook_name == 'before_tool'
                                 and item.manifest.get('tool_hook_required', False))
                     item.status = 'ready'
+                    if self._host_runtime:
+                        self._host_runtime.ready(item.id)
                     item.progress = ''
                     self.events.pause(item.id, False)
                 else:
@@ -231,6 +250,8 @@ class PluginManager:
             was_loading = item.status == 'loading'
             item.status = 'draining'
             self.hooks.remove_plugin(item.id)
+            if self._host_runtime:
+                self._host_runtime.suspend(item.id)
             self._close_chat_subscriptions(item)
             self.events.pause(item.id, True)
             self._save()
@@ -242,6 +263,8 @@ class PluginManager:
                 item.instance.close()
         finally:
             self.hooks.remove_plugin(item.id)
+            if self._host_runtime:
+                self._host_runtime.release(item.id)
             item.instance = None
             for name in list(item.services.values()):
                 self.state['mcp'].remove(name)
@@ -334,8 +357,28 @@ class PluginManager:
     def call(self, plugin_id, action, values=None, scope=None):
         with self.lease(plugin_id, scope=scope) as item:
             if not item.instance or not hasattr(item.instance, 'call'):
+                remote = item.manifest.get('call_handler')
+                if remote:
+                    return self.call_service(plugin_id, remote['service'], remote['tool'], {'action': action, 'values': values or {}})
                 raise ValueError('插件没有提供此操作接口')
             return item.instance.call(action, values or {})
+
+    def page(self, plugin_id, page_id, payload):
+        from .pages import validate_view
+        item = self.entries[plugin_id]
+        page = next((p for p in item.manifest.get('pages', []) if p.get('id') == page_id), None)
+        if not page or page.get('renderer') != 'host':
+            raise ValueError('宿主渲染页面不存在')
+        if not isinstance(payload, dict) or payload.get('event') not in ('open', 'action'):
+            raise ValueError('页面事件仅支持 open 或 action')
+        for key in ('values', 'context', 'arguments'):
+            if not isinstance(payload.get(key, {}), dict):
+                raise ValueError(key + ' 必须是对象')
+        if payload['event'] == 'action' and (not isinstance(payload.get('action'), str) or not payload['action'] or payload['action'].startswith('$')):
+            raise ValueError('页面操作标识无效')
+        values = {k: payload[k] for k in ('event', 'action', 'values', 'context', 'arguments', 'request_id') if k in payload}
+        values['page_id'] = page_id
+        return validate_view(self.call(plugin_id, page['action'], values))
 
     def expand(self, item, value):
         replacements = {'{plugin}': str(item.path), '{data}': str(self.data_dir(item.id)),
@@ -353,6 +396,8 @@ class PluginManager:
         item = self.entries[plugin_id]
         full_name = 'plugin_' + plugin_id + '_' + name
         values = self.expand(item, {**config, 'name': full_name})
+        if item.manifest.get('requires_host'):
+            values['env'] = {**values.get('env', {}), **self.runtime.bridge.environment(plugin_id)}
         cfg = ServerConfig.from_dict(values)
         if cfg is None:
             raise ValueError('插件服务声明缺少命令或地址')
@@ -510,6 +555,9 @@ class PluginManager:
 
     def publish(self, event_type, data, event_id=None):
         self.events.publish(event_type, data, event_id)
+        if self._host_runtime:
+            for owner in self.enabled_ids():
+                self._host_runtime.store.emit(owner, '', event_type, data)
 
     def poll(self):
         tasks = self.state.get('tasks')
@@ -656,6 +704,9 @@ class PluginManager:
     def close(self):
         with self.lock:
             self.closing = True
+        if self._host_runtime:
+            for owner in list(self.entries):
+                self._host_runtime.suspend(owner)
         self._events_stop.set()
         for item in list(self.entries.values()):
             with self.lock:
@@ -668,3 +719,5 @@ class PluginManager:
                 self._cleanup(item)
         if self._events_thread and self._events_thread is not threading.current_thread():
             self._events_thread.join(timeout=5)
+        if self._host_runtime:
+            self._host_runtime.close()

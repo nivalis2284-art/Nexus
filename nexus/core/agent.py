@@ -302,28 +302,9 @@ class Agent:
             return "".join(parts).strip() if complete and not self.stopped else None
 
         try:
-            current = transcript
-            while True:
-                chunks = []
-                offset = 0
-                while offset < len(current):
-                    size = min(len(current) - offset, room * 3)
-                    while size > 1 and compaction.estimate(current[offset:offset + size]) > room:
-                        size = max(1, size * 3 // 4)
-                    chunks.append(current[offset:offset + size])
-                    offset += size
-                summaries = []
-                for chunk in chunks:
-                    value = await ask(chunk)
-                    if not value:
-                        return trimmed, compaction.CompactionReport(reason="Summary failed, was interrupted or reached its output limit; original history retained.")
-                    summaries.append(value)
-                checkpoint = "\n\n".join(summaries)
-                if len(chunks) == 1:
-                    break
-                if compaction.estimate(checkpoint) >= compaction.estimate(current):
-                    return trimmed, compaction.CompactionReport(reason="Summary made no progress; original history retained.")
-                current = checkpoint
+            checkpoint = await compaction.summarize_chunks(transcript, room, ask)
+        except compaction.CompactionBlocked as error:
+            return trimmed, compaction.CompactionReport(reason=str(error))
         except TaskSuspension as error:
             raise AgentSuspended.from_tool(error) from error
         except PermissionError:

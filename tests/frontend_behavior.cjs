@@ -75,13 +75,22 @@ function page({ hooks = [] } = {}) {
       timers.clear();
       for (const callback of pending) await callback();
     },
-    async click(act, id, data = {}) {
+    async click(act, id, data = {}, disabled = false) {
+      const button = { dataset: { act, id, ...data }, disabled };
       for (const callback of listeners.get('click') || []) {
-        await callback({ target: { closest: () => ({ dataset: { act, id, ...data } }) } });
+        await callback({ target: { closest: () => button } });
       }
+      return button;
     },
   };
 }
+
+test('host management leaves unrelated plugin page buttons disabled', async () => {
+  const p = page();
+  p.load('host-sdk.js');
+  const button = await p.click('plugin-page-operation', undefined, {}, true);
+  assert.equal(button.disabled, true, 'only the page that owns the operation may release its busy state');
+});
 
 test('a message sent during a reply reaches the server with its file and image', async () => {
   const p = page();

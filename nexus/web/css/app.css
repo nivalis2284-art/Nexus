@@ -1081,3 +1081,8 @@ body {
   from { transform: rotate(-24deg) scale(.66); opacity: 0; }
   to { transform: rotate(-6deg) scale(1); opacity: 1; }
 }
+
+/* Host SDK sheets inherit theme, typography, controls and motion from settings. */
+.host-runtime-sections { display: grid; gap: 20px; min-width: 0; }
+.host-runtime-row { border-top: 1px solid var(--line); padding: 12px 0; }
+.host-runtime-json { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; padding: 12px; border-radius: 12px; background: var(--raised); font: 11px/1.7 var(--mono); color: var(--ink-2); }

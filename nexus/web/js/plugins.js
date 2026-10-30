@@ -5,7 +5,7 @@
 
 (function (N) {
   const { $, $$, esc, icon, state } = N;
-  const pv = { tab: 'plugins', selected: null, req: null, owner: '', kind: '', more: false, dirty: false, busy: false, frame: null, notice: null };
+  const pv = { tab: 'plugins', selected: null, req: null, owner: '', kind: '', plugin_id: '', dialogue_id: '', job_id: '', purpose: '', more: false, dirty: false, busy: false, frame: null, notice: null };
   const KIND_LABEL = { ling: '主交流', task: '工作', subagent: '子代理', chat: '交流' };
 
   function plugin() { return state.plugins.find(p => p.id === pv.selected) || state.plugins[0]; }
@@ -71,10 +71,14 @@
     const view = $('#view-plugins');
     const keep = view.scrollTop;
     const p = plugin();
-    const frame = $('#plugin-frame');
+    if (pv.frame?.renderer === 'host' && (p?.id !== pv.frame.pluginId || p?.status !== 'ready' || pv.tab !== 'plugins')) {
+      N.hostPages?.dispose(); pv.frame = null;
+    }
+    const frame = $('#plugin-frame') || $('#plugin-host-page');
+    if (!pv.frame || pv.tab !== 'plugins') N.hostPages?.dispose();
     const preserve = pv.tab === 'plugins' && frame && pv.frame &&
       pv.frame.pluginId === p?.id && frame.dataset.pluginId === p.id &&
-      frame.dataset.pluginPath === pv.frame.path;
+      frame.dataset.pluginPath === (pv.frame.pageId || pv.frame.path);
     const next = document.createElement('div');
     next.innerHTML = `<div class="page plugins-page">
       <header class="page-head" data-s>
@@ -146,8 +150,8 @@
     if (pv.frame && pv.frame.pluginId === p.id) {
       return `<div class="card plug-detail" data-s>
         <div class="plug-frame">
-          <div class="plug-frame-head"><b>${esc(pv.frame.title)}</b><span>${esc(pv.frame.path)}</span><button data-act="plug-close-frame">关闭页面</button></div>
-          <iframe id="plugin-frame" title="插件功能页" loading="lazy"></iframe>
+          <div class="plug-frame-head"><b>${esc(pv.frame.title)}</b><span>${esc(pv.frame.renderer === 'host' ? 'Nexus UI' : pv.frame.path)}</span><button data-act="plug-close-frame">关闭页面</button></div>
+          ${pv.frame.renderer === 'host' ? '<div id="plugin-host-page"></div>' : '<iframe id="plugin-frame" title="插件功能页" loading="lazy"></iframe>'}
         </div>
       </div>`;
     }
@@ -184,6 +188,7 @@
         ${pv.busy ? '<span class="note">正在处理…</span>' : ''}
       </div>
 
+      <div class="plug-sec" data-s><h3>宿主能力与运行</h3><p class="help">查看能力版本、依赖、公开服务、独立对话和作业。</p><button class="btn ghost sm" data-act="host-runtime" data-id="${esc(p.id)}">查看运行状态</button></div>
       <div class="plug-sec" data-s><h3>能力</h3>
         <div class="plug-tags">${caps.length ? caps.map(c => {
           const label = typeof c === 'object' ? (c.title || c.name || c.id || JSON.stringify(c)) : String(c);
@@ -192,7 +197,7 @@
       </div>
 
       <div class="plug-sec" data-s><h3>功能页</h3>
-        <div class="plug-pages">${pages.length ? pages.map(pg => `<div class="plug-page"><b>${esc(pg.title || pg.id || '功能页')}</b><span>${esc(pg.path)}</span><button data-act="plug-page" data-path="${esc(pg.path)}" data-title="${esc(pg.title || pg.id || '功能页')}">打开页面</button></div>`).join('') : '<p class="plug-empty-line">此插件没有提供功能页。</p>'}</div>
+        <div class="plug-pages">${pages.length ? pages.map(pg => `<div class="plug-page"><b>${esc(pg.title || pg.id || '功能页')}</b><span>${esc(pg.renderer === 'host' ? 'Nexus UI v1' : pg.path)}</span><button data-act="plug-page" data-page-id="${esc(pg.id)}" data-path="${esc(pg.path || '')}" data-title="${esc(pg.title || pg.id || '功能页')}" data-renderer="${esc(pg.renderer || 'iframe')}" ${pg.renderer === 'host' && p.status !== 'ready' ? 'disabled' : ''}>打开页面</button></div>`).join('') : '<p class="plug-empty-line">此插件没有提供功能页。</p>'}</div>
       </div>
 
       <div class="plug-sec" data-s><h3>设置</h3>
@@ -224,6 +229,16 @@
   }
 
   function mountFrame() {
+    if (pv.frame?.renderer === 'host') {
+      const root = $('#plugin-host-page');
+      if (root) {
+        root.dataset.pluginId = pv.frame.pluginId;
+        root.dataset.pluginPath = pv.frame.pageId;
+        N.hostPages.mount(root, pv.frame.pluginId, pv.frame.pageId);
+      }
+      return;
+    }
+    N.hostPages?.dispose();
     const frame = $('#plugin-frame');
     if (!frame || !pv.frame) return;
     const path = String(pv.frame.path || '').replace(/^\/+/, '');
@@ -245,6 +260,7 @@
       <form class="plug-filters" data-s id="plug-filters">
         <label>活动标识<input id="f-owner" type="text" autocomplete="off" placeholder="可按 owner_id 筛选" value="${esc(pv.owner)}"></label>
         <label>类型<input id="f-kind" type="text" autocomplete="off" list="kind-options" placeholder="可按 kind 筛选" value="${esc(pv.kind)}"><datalist id="kind-options">${kinds.map(k => `<option value="${esc(k)}">`).join('')}</datalist></label>
+        ${[['plugin_id','插件'],['dialogue_id','独立对话'],['job_id','插件作业'],['purpose','用途']].map(([key,label])=>`<label>${label}<input id="f-${key}" type="text" value="${esc(pv[key])}"></label>`).join('')}
         <button class="btn ghost sm" type="submit">查询</button>
       </form>
       <div class="plug-req-layout">
@@ -301,6 +317,7 @@
     const query = new URLSearchParams();
     if (pv.owner) query.set('owner_id', pv.owner);
     if (pv.kind) query.set('kind', pv.kind);
+    for (const field of ['plugin_id','dialogue_id','job_id','purpose']) if (pv[field]) query.set(field,pv[field]);
     query.set('limit', '100');
     if (append) query.set('before', state.modelRequestsNext);
     try {
@@ -314,6 +331,7 @@
   }
 
   function selectPlugin(id) {
+    N.hostPages?.dispose();
     pv.selected = id; pv.frame = null; pv.dirty = false;
     $$('.plug-item').forEach(b => b.classList.toggle('is-selected', b.dataset.id === id));
     const current = $('.plug-detail');
@@ -475,6 +493,7 @@
     const act = t.dataset.act;
     if (act === 'plug-tab') {
       if (pv.tab === t.dataset.k) return;
+      N.hostPages?.dispose(); pv.frame = null;
       pv.tab = t.dataset.k;
       renderPlugins();
       N.stagger?.($('.plug-pane'), 26);
@@ -486,10 +505,12 @@
       return op(t.dataset.id, t.dataset.op);
     }
     if (act === 'plug-page') {
-      pv.frame = { pluginId: pv.selected, title: t.dataset.title, path: t.dataset.path };
+      N.hostPages?.dispose();
+      pv.frame = { pluginId: pv.selected, title: t.dataset.title, path: t.dataset.path,
+        pageId: t.dataset.pageId, renderer: t.dataset.renderer || 'iframe' };
       return renderPlugins();
     }
-    if (act === 'plug-close-frame') { pv.frame = null; return renderPlugins(); }
+    if (act === 'plug-close-frame') { N.hostPages?.dispose(); pv.frame = null; return renderPlugins(); }
     if (act === 'plug-refresh') {
       pv.busy = true; renderPlugins();
       N.sync.pluginsOnly().then(() => {
@@ -529,9 +550,11 @@
     e.preventDefault();
     pv.owner = $('#f-owner').value.trim();
     pv.kind = $('#f-kind').value.trim();
+    for (const field of ['plugin_id','dialogue_id','job_id','purpose']) pv[field] = $('#f-'+field).value.trim();
     pv.more = false;
     return loadRequests();
   });
 
   N.renderPlugins = renderPlugins;
+  N.closePluginPage = () => { N.hostPages?.dispose(); pv.frame = null; };
 })(window.N);

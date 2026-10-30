@@ -127,6 +127,9 @@
       </section>
 
       <section class="card set-sec" data-s>
+        <h3>嵌入模型</h3><p>供插件生成向量；与主交流模型选择分别管理。</p><div class="save-bar"><button class="btn ghost sm" data-act="host-embeddings">管理嵌入模型</button></div>
+      </section>
+      <section class="card set-sec" data-s>
         <h3>基本原则</h3><p>这些原则会随每次请求交给灵；只有保存后才会生效。</p>
         <label class="field"><span class="sr">原则与交流偏好</span><textarea id="instructions" rows="5" placeholder="例如：先说明关键取舍，再执行；遇到不确定的外部影响时先停下确认。">${esc(state.instructions)}</textarea></label>
       </section>

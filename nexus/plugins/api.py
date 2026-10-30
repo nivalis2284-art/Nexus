@@ -18,9 +18,16 @@ class PluginHost:
 
     chat_api_version = 1
     hooks_api_version = 1
+    sdk_api_version = 1
 
     def __init__(self, manager, plugin_id: str):
         self._manager, self.id = manager, plugin_id
+
+    def __getattr__(self, name):
+        if name in ('capabilities', 'models', 'dialogues', 'history', 'jobs', 'storage', 'services', 'context', 'events', 'hooks', 'chat', 'mcp'):
+            from .host import Namespace
+            return Namespace(lambda method, params: self._manager.runtime.invoke(self.id, method, params), name)
+        raise AttributeError(name)
 
     @property
     def data_dir(self):

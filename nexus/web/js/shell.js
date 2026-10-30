@@ -245,6 +245,7 @@
       syncDock(true);
       return;
     }
+    if (state.view === 'plugins') N.closePluginPage?.();
     const cur = $('#view-' + state.view), next = $('#view-' + name);
     state.view = name;
     $$('.dock-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));

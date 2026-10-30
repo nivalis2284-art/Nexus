@@ -1,0 +1,36 @@
+{
+  "id": "host-sdk-node",
+  "name": "宿主 SDK · Node 示例",
+  "version": "1.1.0",
+  "api_version": 1,
+  "requires_host": {
+    "models": 1,
+    "dialogues": 1,
+    "jobs": 1,
+    "services": 1,
+    "ui": 1
+  },
+  "services": [
+    {
+      "name": "worker",
+      "command": "node",
+      "args": [
+        "{plugin}/worker.mjs"
+      ],
+      "model_tools": []
+    }
+  ],
+  "call_handler": {
+    "service": "worker",
+    "tool": "page"
+  },
+  "pages": [
+    {
+      "id": "main",
+      "title": "SDK 示例",
+      "renderer": "host",
+      "ui_version": 1,
+      "action": "ui"
+    }
+  ]
+}

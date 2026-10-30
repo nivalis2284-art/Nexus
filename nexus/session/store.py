@@ -15,6 +15,7 @@ Record kinds:
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import threading
 import time
@@ -92,10 +93,12 @@ class Session:
 class SessionStore:
     """Files in one directory; no index, no database."""
 
-    def __init__(self, directory: Path) -> None:
+    def __init__(self, directory: Path, *, identities: bool = False) -> None:
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
+        self.identity_enabled = identities
+        self.on_change = None
 
     def path_for(self, session_id: str) -> Path:
         if not session_id or not session_id.replace("_", "").isalnum():
@@ -174,7 +177,33 @@ class SessionStore:
             if not isinstance(text, str):
                 text = ""
             session.items.append(Message(kind=str(kind), text=text, data=record, at=str(at)))
+        if self.identity_enabled and self._identities(session):
+            backup = self.directory / '.pre-plugin-sdk-v1' / path.name
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            if not backup.exists():
+                backup.write_bytes(path.read_bytes())
+            self._rewrite(session)
         return session
+
+    @staticmethod
+    def _identity(record):
+        record.setdefault('_record_id', uuid.uuid4().hex)
+        material = {k: v for k, v in record.items() if k not in ('_record_id', '_record_version')}
+        record['_record_version'] = hashlib.sha256(json.dumps(material, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+
+    def _identities(self, session):
+        changed = False
+        for item in session.items:
+            record = {'kind': item.kind, 'text': item.text, 'at': item.at, **item.data}
+            before = (record.get('_record_id'), record.get('_record_version'))
+            self._identity(record)
+            item.data.update({k: record[k] for k in ('_record_id', '_record_version')})
+            changed |= before != (record['_record_id'], record['_record_version'])
+        return changed
+
+    def _changed(self, session):
+        if self.on_change:
+            self.on_change(session)
 
     # --- writing ---------------------------------------------------------
 
@@ -203,6 +232,8 @@ class SessionStore:
         if path is None:
             path = self.path_for(session.id)
             session._path = path
+        if self.identity_enabled and record.get('kind') != 'meta':
+            self._identity(record)
         line = json.dumps(record, ensure_ascii=False)
         with path.open("ab+") as handle:
             handle.seek(0, os.SEEK_END)
@@ -222,6 +253,7 @@ class SessionStore:
             text = record.pop("text", "")
             at = record.pop("at", "")
             session.items.append(Message(kind=str(kind), text=str(text), data=record, at=str(at)))
+            self._changed(session)
 
     def rewrite(self, session: Session) -> None:
         """Replace the file with the in-memory items (used by edits/pruning)."""
@@ -229,6 +261,8 @@ class SessionStore:
             self._rewrite(session)
 
     def _rewrite(self, session: Session) -> None:
+        if self.identity_enabled:
+            self._identities(session)
         path = session.path or self.path_for(session.id)
         session._path = path
         lines = [
@@ -243,6 +277,7 @@ class SessionStore:
             record.update(item.data)
             lines.append(json.dumps(record, ensure_ascii=False))
         replace_text(path, "\n".join(lines) + "\n")
+        self._changed(session)
 
     def rename(self, session_id: str, title: str, *, only_if_empty: bool = False) -> bool:
         """Set a session's title, persisting it through the meta record.
@@ -267,6 +302,7 @@ class SessionStore:
         with self._lock:
             try:
                 path.unlink()
+                self._changed(Session(id=session_id))
                 return True
             except OSError:
                 return False

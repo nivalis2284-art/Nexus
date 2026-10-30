@@ -1,0 +1,22 @@
+{
+  "id": "host-sdk-python",
+  "name": "宿主 SDK · Python 示例",
+  "version": "1.1.0",
+  "api_version": 1,
+  "requires_host": {
+    "models": 1,
+    "history": 1,
+    "jobs": 1,
+    "ui": 1
+  },
+  "entry": "backend.py:create_plugin",
+  "pages": [
+    {
+      "id": "main",
+      "title": "SDK 示例",
+      "renderer": "host",
+      "ui_version": 1,
+      "action": "ui"
+    }
+  ]
+}

@@ -71,7 +71,7 @@ class Application:
             store.ensure()
             if workspace is not None:
                 store.save_preferences(workspace=str(Path(workspace).resolve()))
-            state.update(store=store, sessions=SessionStore(store.sessions_dir), jobs={}, closing=False)
+            state.update(store=store, sessions=SessionStore(store.sessions_dir, identities=True), jobs={}, closing=False)
             root = Path(store.load().workspace)
             state["skills"] = load_skills(store, root)
             state["mcp"] = start_mcp(store.load().mcp_servers, root) or MCPRegistry()

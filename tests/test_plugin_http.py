@@ -20,11 +20,15 @@ def bundle():
     with zipfile.ZipFile(content, 'w') as archive:
         archive.writestr('plugin.json', json.dumps({'id': 'check', 'name': 'Check', 'api_version': 1,
             'version': '1', 'entry': 'backend.py:create_plugin',
-            'pages': [{'id': 'home', 'path': 'web/index.html'}]}))
+            'pages': [{'id': 'home', 'path': 'web/index.html'},
+                      {'id': 'native', 'renderer': 'host', 'ui_version': 1, 'action': 'ui'}]}))
         archive.writestr('backend.py', '''
 class Plugin:
     def __init__(self,host): self.host=host
-    def call(self,action,values): return {'action':action,'values':values}
+    def call(self,action,values):
+        if action == 'ui':
+            return {'ui_version':1,'context':values,'components':[{'id':'text','type':'text','text':'host page'}]}
+        return {'action':action,'values':values}
 def create_plugin(host): return Plugin(host)
 ''')
         archive.writestr('web/index.html', '<p>plugin page</p>')
@@ -76,6 +80,14 @@ def test_import_load_configure_page_events_requests_uninstall_over_http(tmp_path
         status, value = request(base, '/api/plugins/check/commands', 'POST', {'operation': 'stop'})
         assert status == 400 and '没有可停止' in value['error']
         assert request(base, '/plugins/check/web/index.html') == (200, b'<p>plugin page</p>')
+        status, native = request(base, '/api/plugins/check/pages/native', 'POST', {'event': 'open'})
+        assert status == 200 and native['components'][0]['text'] == 'host page'
+        status, native = request(base, '/api/plugins/check/pages/native', 'POST', {
+            'event': 'action', 'action': 'save', 'values': {'draft': 'kept'}, 'context': {'page': 1}})
+        assert status == 200 and native['context']['values'] == {'draft': 'kept'}
+        assert native['context']['page_id'] == 'native'
+        assert request(base, '/api/plugins/check/pages/home', 'POST', {'event': 'open'})[0] == 400
+        assert request(base, '/api/plugins/check/pages/native', 'POST', {'event': 'unknown'})[0] == 400
         status, event = request(base, '/api/plugin-events/check', 'POST', {'id': 'e1', 'text': 'hello'})
         assert status == 202 and event['accepted'] and event['status'] == 'pending'
         assert request(base, '/api/plugin-events/' + event['id'])[1]['text'] == 'hello'

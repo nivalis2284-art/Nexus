@@ -113,9 +113,14 @@
     edit._save = save;
     return edit(options);
   }
-  function confirmEdit({ title, description, submitLabel = '删除' }) {
+  function confirmEdit({ title, description, submitLabel = '删除', signal }) {
+    if (signal?.aborted) return Promise.resolve(false);
     edit._save = null;
-    return edit({ title, text: '', description, submitLabel, confirm: true }).then(Boolean);
+    const promise = edit({ title, text: '', description, submitLabel, confirm: true });
+    const pending = resolveEdit;
+    const abort = () => { if (pending && resolveEdit === pending) finish(null); };
+    signal?.addEventListener('abort', abort, { once: true });
+    return promise.then(Boolean).finally(() => signal?.removeEventListener('abort', abort));
   }
 
   /* ---------------------------------------------------------------- 文件预览 */
@@ -178,6 +183,13 @@
   }
 
   /* ---------------------------------------------------------------- 关闭委托 */
+  function openDialog(d) {
+    if (!d || d.open) return;
+    d.showModal();
+    anim(d, [{ opacity: 0, transform: 'translateY(24px) scale(.92)' }, { opacity: 1, transform: 'none' }],
+      { duration: SP.settle.d, easing: SP.settle.e });
+  }
+
   function closeDialog(d) {
     if (!d || !d.open || d._closing) return;
     if (N.REDUCED) { d.close(); return; }
@@ -219,5 +231,5 @@
 
   N.menu = openMenu; N.closeMenu = closeMenu;
   N.ask = ask; N.edit = edit; N.confirmEdit = confirmEdit;
-  N.openFile = openFile; N.openImage = openImage; N.closeDialog = closeDialog;
+  N.openFile = openFile; N.openImage = openImage; N.openDialog = openDialog; N.closeDialog = closeDialog;
 })(window.N);

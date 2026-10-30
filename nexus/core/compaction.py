@@ -478,3 +478,30 @@ def compact(
     report.before_tokens = summary_report.before_tokens
     report.after_tokens = summary_report.after_tokens
     return result, report
+
+
+async def summarize_chunks(transcript, room, ask):
+    """Shared bounded summary reduction. ask(text) returns complete text or None."""
+    if room <= 0:
+        raise CompactionBlocked("No room for a summary request; increase the context window or reduce output allowance.")
+    current = transcript
+    while True:
+        chunks, offset = [], 0
+        while offset < len(current):
+            size = min(len(current) - offset, room * 3)
+            while size > 1 and estimate(current[offset:offset + size]) > room:
+                size = max(1, size * 3 // 4)
+            chunks.append(current[offset:offset + size])
+            offset += size
+        summaries = []
+        for chunk in chunks:
+            value = await ask(chunk)
+            if not value:
+                raise CompactionBlocked("Summary failed, was interrupted or reached its output limit; original history retained.")
+            summaries.append(value)
+        checkpoint = "\n\n".join(summaries)
+        if len(chunks) == 1:
+            return checkpoint
+        if estimate(checkpoint) >= estimate(current):
+            raise CompactionBlocked("Summary made no progress; original history retained.")
+        current = checkpoint

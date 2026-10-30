@@ -139,6 +139,10 @@ class RequestHistory:
         kind: str | None = None,
         limit: int = 50,
         before: int | None = None,
+        plugin_id: str | None = None,
+        dialogue_id: str | None = None,
+        job_id: str | None = None,
+        purpose: str | None = None,
     ) -> dict[str, Any]:
         """Return newest-first summaries without request bodies."""
         if type(limit) is not int or limit <= 0:
@@ -151,6 +155,10 @@ class RequestHistory:
         if kind is not None:
             clauses.append("kind = ?")
             params.append(str(kind))
+        for field, value in (('plugin_id', plugin_id), ('dialogue_id', dialogue_id), ('job_id', job_id), ('purpose', purpose)):
+            if value is not None:
+                clauses.append("json_extract(scope, '$." + field + "') = ?")
+                params.append(str(value))
         if before is not None:
             clauses.append("id < ?")
             params.append(int(before))

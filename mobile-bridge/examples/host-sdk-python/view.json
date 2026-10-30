@@ -1,0 +1,202 @@
+{
+  "ui_version": 1,
+  "components": [
+    {
+      "id": "intro",
+      "type": "text",
+      "text": "页面内容由插件声明，控件、主题和动效由 Nexus 渲染。"
+    },
+    {
+      "id": "version",
+      "type": "badge",
+      "text": "SDK 1.1.0 · Nexus UI v1",
+      "tone": "success"
+    },
+    {
+      "id": "capabilities",
+      "type": "section",
+      "title": "宿主能力",
+      "description": "读取状态不会发起模型请求。",
+      "children": [
+        {
+          "id": "actions",
+          "type": "row",
+          "children": [
+            {
+              "id": "status",
+              "type": "button",
+              "label": "读取状态",
+              "action": "status",
+              "variant": "primary"
+            },
+            {
+              "id": "models",
+              "type": "button",
+              "label": "模型目录",
+              "action": "models"
+            },
+            {
+              "id": "history",
+              "type": "button",
+              "label": "历史快照",
+              "action": "history"
+            },
+            {
+              "id": "echo",
+              "type": "button",
+              "label": "插件服务回声",
+              "action": "echo"
+            },
+            {
+              "id": "job",
+              "type": "button",
+              "label": "启动检查点作业",
+              "action": "job",
+              "confirm": {
+                "title": "启动示例作业？",
+                "description": "运行有限的计数作业，用于展示检查点恢复。",
+                "submitLabel": "启动"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "conversation",
+      "type": "section",
+      "title": "独立请求与对话",
+      "description": "选择已配置的生成模型；这里的请求和历史不进入主交流。",
+      "children": [
+        {
+          "id": "model",
+          "type": "field",
+          "name": "model",
+          "label": "模型",
+          "control": "select",
+          "options": []
+        },
+        {
+          "id": "message",
+          "type": "field",
+          "name": "message",
+          "label": "消息",
+          "control": "textarea"
+        },
+        {
+          "id": "model-actions",
+          "type": "row",
+          "children": [
+            {
+              "id": "generate",
+              "type": "button",
+              "label": "独立生成",
+              "action": "generate"
+            },
+            {
+              "id": "stream",
+              "type": "button",
+              "label": "读取流式事件",
+              "action": "stream"
+            },
+            {
+              "id": "dialogue",
+              "type": "button",
+              "label": "创建独立对话",
+              "action": "dialogue"
+            },
+            {
+              "id": "send",
+              "type": "button",
+              "label": "发送到独立对话",
+              "action": "send"
+            }
+          ]
+        },
+        {
+          "id": "dialogue-state",
+          "type": "text",
+          "text": "尚未创建独立对话。",
+          "tone": "muted"
+        }
+      ]
+    },
+    {
+      "id": "catalog",
+      "type": "section",
+      "title": "模型目录",
+      "children": [
+        {
+          "id": "model-table",
+          "type": "table",
+          "columns": [
+            {
+              "key": "provider",
+              "label": "提供商"
+            },
+            {
+              "key": "model",
+              "label": "模型"
+            },
+            {
+              "key": "kind",
+              "label": "用途"
+            },
+            {
+              "key": "status",
+              "label": "状态"
+            }
+          ],
+          "rows": [],
+          "empty": "尚未配置模型。"
+        },
+        {
+          "id": "model-pages",
+          "type": "pagination",
+          "page": 1,
+          "total_pages": 1,
+          "action": "models-page"
+        }
+      ]
+    },
+    {
+      "id": "editing",
+      "type": "section",
+      "title": "列表与编辑示例",
+      "description": "备注属于示例插件，不会写入记忆库。",
+      "children": [
+        {
+          "id": "notes",
+          "type": "list",
+          "items": [
+            {
+              "id": "note-row",
+              "title": "示例备注",
+              "text": "",
+              "actions": [
+                {
+                  "id": "edit-note",
+                  "type": "button",
+                  "label": "编辑备注",
+                  "action": "edit-note"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "output",
+      "type": "section",
+      "title": "返回结果",
+      "children": [
+        {
+          "id": "result",
+          "type": "code",
+          "text": "{}"
+        }
+      ]
+    }
+  ]
+}

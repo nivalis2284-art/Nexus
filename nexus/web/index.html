@@ -23,6 +23,7 @@ try {
 <link rel="stylesheet" href="vendor/highlight.css">
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/plugin-pages.css">
 </head>
 <body data-mood="calm">
 
@@ -260,6 +261,8 @@ try {
 <script src="vendor/marked.js"></script>
 <script src="vendor/purify.js"></script>
 <script src="vendor/highlight.js"></script>
+<dialog class="sheet tall" id="host-runtime-dialog" aria-labelledby="host-runtime-title"><div class="sheet-body"><header class="sheet-head"><div><h2 id="host-runtime-title">插件运行</h2><p class="sheet-note">宿主能力、独立对话与后台作业。</p></div><button class="ic-btn" data-close="host-runtime-dialog" aria-label="关闭">×</button></header><div id="host-runtime-body"></div><p id="host-runtime-error" class="sheet-error" role="alert"></p><footer class="sheet-foot"><button class="btn ghost" data-act="host-runtime-refresh">刷新</button><span class="spacer"></span><button class="btn solid" data-close="host-runtime-dialog">完成</button></footer></div></dialog>
+<dialog class="sheet tall" id="embedding-dialog" aria-labelledby="embedding-title"><div class="sheet-body"><header class="sheet-head"><div><h2 id="embedding-title">嵌入模型</h2><p class="sheet-note">OpenAI 兼容 Embeddings；密钥留空不变。</p></div><button class="ic-btn" data-close="embedding-dialog" aria-label="关闭">×</button></header><div id="embedding-list" class="mcp-list"></div><form id="embedding-form"><div class="fields"><label class="field">名称<input id="embedding-name" required></label><label class="field">模型<input id="embedding-model" required></label><label class="field span-2">API 地址<input id="embedding-url" type="url" required placeholder="https://api.example.com/v1"></label><label class="field span-2">API Key<input id="embedding-key" type="password" autocomplete="new-password"></label></div><label class="check"><input id="embedding-clear" type="checkbox">清除此模型密钥</label><p id="embedding-error" class="sheet-error" role="alert"></p><footer class="sheet-foot"><button class="btn ghost" type="button" data-act="embedding-new">新增</button><span class="spacer"></span><button class="btn solid" type="submit">保存</button></footer></form></div></dialog>
 <script src="js/core.js"></script>
 <script src="js/api.js"></script>
 <script src="js/dialogs.js"></script>
@@ -268,7 +271,9 @@ try {
 <script src="js/context.js"></script>
 <script src="js/skills.js"></script>
 <script src="js/plugins.js"></script>
+<script src="js/plugin-pages.js"></script>
 <script src="js/settings.js"></script>
+<script src="js/host-sdk.js"></script>
 <script src="js/shell.js"></script>
 <script src="js/boot.js"></script>
 </body>

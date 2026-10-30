@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 def route(handler, state, respond, method):
     parsed = urlparse(handler.path)
     path = unquote(parsed.path)
-    if not (path.startswith(('/api/plugins', '/api/hooks', '/plugins/', '/api/plugin-events',
+    if not (path.startswith(('/api/plugins', '/api/hooks', '/api/embedding-models', '/plugins/', '/api/plugin-events',
                              '/api/plugin-host', '/api/model-requests'))):
         return False
     try:
@@ -18,7 +18,11 @@ def route(handler, state, respond, method):
             respond(handler, 503, {'error': '插件服务尚未初始化'})
             return True
         query = parse_qs(parsed.query)
-        if method == 'GET' and path == '/api/hooks':
+        if method == 'GET' and path == '/api/embedding-models':
+            respond(handler, 200, {'models': [{**m, 'has_key': state['store'].has_key('embedding:' + m['id'])} for m in manager.runtime.models.embeddings()]})
+        elif method == 'GET' and path.startswith('/api/plugins/') and path.endswith('/runtime'):
+            respond(handler, 200, manager.runtime.snapshot(path.split('/')[3]))
+        elif method == 'GET' and path == '/api/hooks':
             respond(handler, 200, manager.hooks.snapshot())
         elif method == 'GET' and path == '/api/plugins':
             respond(handler, 200, manager.snapshot())
@@ -38,7 +42,8 @@ def route(handler, state, respond, method):
                 result = history.list(owner_id=query.get('owner_id', [None])[-1] or None,
                     kind=query.get('kind', [None])[-1] or None,
                     limit=min(100, max(1, int(query.get('limit', ['50'])[-1]))),
-                    before=query.get('before', [None])[-1] or None)
+                    before=query.get('before', [None])[-1] or None,
+                    **{k: query.get(k, [None])[-1] or None for k in ('plugin_id', 'dialogue_id', 'job_id', 'purpose')})
             else:
                 result = history.get(path.rsplit('/', 1)[-1])
                 if result is None:
@@ -55,7 +60,17 @@ def route(handler, state, respond, method):
                 respond(handler, 409 if result.get('conflict') else 200, result)
                 return True
             body = json.loads(content or b'{}')
-            if path == '/api/hooks/settings':
+            if path == '/api/embedding-models':
+                result = {'models': manager.runtime.models.save_embedding(body)}
+            elif path == '/api/embedding-models/delete':
+                result = {'models': manager.runtime.models.delete_embedding(body['id'])}
+            elif path.startswith('/api/plugins/') and path.endswith('/runtime'):
+                owner = path.split('/')[3]
+                action = body['method']
+                if action not in ('jobs.cancel', 'jobs.retry', 'operations.cancel', 'dialogues.cancel', 'dialogues.history'):
+                    raise ValueError('此管理接口只允许查看对话、取消或重试')
+                result = manager.runtime.invoke(owner, action, body.get('params', {}))
+            elif path == '/api/hooks/settings':
                 result = manager.hooks.configure(body['name'], body['enabled'],
                     body.get('plugin_id'), body.get('key'))
             elif path == '/api/plugins/scan':
@@ -69,6 +84,8 @@ def route(handler, state, respond, method):
                     result = manager.configure(plugin_id, body)
                 elif action == 'call':
                     result = manager.call(plugin_id, body.get('action', ''), body.get('values', {}))
+                elif action == 'pages' and len(parts) == 6:
+                    result = manager.page(plugin_id, parts[5], body)
                 else:
                     raise ValueError('未知插件接口')
             elif path.startswith('/api/plugin-events/'):
