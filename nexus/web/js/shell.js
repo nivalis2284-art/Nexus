@@ -366,6 +366,7 @@
   function applyPalette(id) {
     document.documentElement.dataset.palette = id;
     state.palette = id;
+    N.rebuildSprings?.();
     N.save();
     N.syncSettingsUi?.();
   }

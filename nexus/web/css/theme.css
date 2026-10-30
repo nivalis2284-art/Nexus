@@ -46,8 +46,8 @@ html[data-motion="slow"] { --motion: 1.3; }
 
 /* ---------------------------------------------------------------- 浅蓝 · 淡紫（冷色） */
 [data-palette="cool"] {
-  --paper: #f2f5fa; --paper-2: #e7ecf5; --card: #fff; --card-glass: rgba(255, 255, 255, .78);
-  --raised: #f6f8fc;
+  --paper: #f7f8fa; --paper-2: #edf0f6; --card: #fff; --card-glass: rgba(255, 255, 255, .82);
+  --raised: #f5f7fb;
   --ink: #14161c; --ink-2: #4a5060; --ink-3: #858c9c; --ink-4: #b6bdca;
   --line: rgba(20, 26, 40, .08); --line-2: rgba(20, 26, 40, .14);
   --ink-glass: rgba(20, 26, 40, .055);
@@ -216,3 +216,83 @@ body[data-mood="waiting"],
 .skill .glyph { color: var(--on-primary); }
 
 [data-palette="cool"] .dock-owner { background: linear-gradient(140deg, var(--jade-hi), var(--jade)); color: var(--on-primary); }
+
+
+/* ==========================================================================
+   两种语言：暖是颜料，冷是光
+   同一套 DOM、同一套尺度。只换四层：材质、阴影、节奏、状态语言。
+   ========================================================================== */
+
+/* 暖 · 宣纸：纸吸光，影子很浅，边缘靠一条发丝线；慢半拍 */
+[data-palette="jade"] {
+  --temper: 1.12;
+  --track: -.01em;
+  --sh-1: 0 1px 2px rgba(21, 22, 26, .035);
+  --sh-2: 0 1px 2px rgba(21, 22, 26, .04), 0 16px 36px -22px rgba(21, 22, 26, .17);
+  --sh-3: 0 24px 60px -24px rgba(21, 22, 26, .26);
+}
+[data-theme="night"][data-palette="jade"] {
+  --sh-1: 0 1px 2px rgba(0, 0, 0, .38);
+  --sh-2: 0 2px 6px rgba(0, 0, 0, .42), 0 18px 40px -22px rgba(0, 0, 0, .62);
+  --sh-3: 0 24px 60px -24px rgba(0, 0, 0, .72);
+}
+
+/* 冷 · 流光：光会透，影子有层次；快半拍，靠玻璃与光晕浮起来 */
+[data-palette="cool"] {
+  --temper: .86;
+  --track: -.028em;
+  --sh-1: 0 1px 2px rgba(14, 20, 36, .05), 0 10px 24px -16px rgba(14, 20, 36, .24);
+  --sh-2: 0 2px 6px rgba(14, 20, 36, .06), 0 26px 54px -22px rgba(14, 20, 36, .3);
+  --sh-3: 0 30px 80px -24px rgba(14, 20, 36, .42);
+}
+[data-theme="night"][data-palette="cool"] {
+  --sh-1: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 26px -16px rgba(0, 0, 0, .7);
+  --sh-2: 0 2px 8px rgba(0, 0, 0, .55), 0 30px 60px -24px rgba(0, 0, 0, .8);
+  --sh-3: 0 34px 90px -26px rgba(0, 0, 0, .9);
+}
+
+/* 纸纹只属于暖主题；冷主题没有纸，只有光 */
+[data-palette="cool"] .aura .grain { display: none; }
+[data-palette="cool"] .aura i { opacity: .4; }
+[data-theme="night"][data-palette="cool"] .aura i { opacity: .3; }
+
+/* 冷主题的浮层是一层玻璃，不是一块纸 */
+[data-palette="cool"] .menu,
+[data-palette="cool"] .usage-pop,
+[data-palette="cool"] .toast,
+[data-palette="cool"] .preview-ctl,
+[data-palette="cool"] .sheet {
+  background: var(--card-glass);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+
+/* 状态语言：暖用印（落章一次就停住），冷用脉冲（一直在等你） */
+[data-palette="cool"] .req-seal,
+[data-palette="cool"] .seal {
+  position: relative; border-radius: 999px; background: transparent;
+  color: transparent; font-size: 0; transform: none; animation: none;
+  box-shadow: inset 0 0 0 1.5px var(--cinnabar);
+}
+[data-palette="cool"] .seal { width: 40px; height: 40px; }
+[data-palette="cool"] .req-seal::before,
+[data-palette="cool"] .seal::before {
+  content: ""; position: absolute; inset: 0; margin: auto;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--cinnabar);
+}
+[data-palette="cool"] .req-seal::after,
+[data-palette="cool"] .seal::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 999px;
+  border: 1px solid var(--cinnabar); opacity: 0;
+  animation: ring-out 2.8s ease-out infinite;
+}
+[data-palette="cool"] .req-card.work .req-seal { background: transparent; box-shadow: inset 0 0 0 1.5px var(--jade); }
+[data-palette="cool"] .req-card.work .req-seal::before { background: var(--jade); }
+[data-palette="cool"] .req-card.work .req-seal::after { border-color: var(--jade); }
+[data-palette="cool"] .decide::before {
+  background: linear-gradient(180deg, transparent, var(--cinnabar) 28%, var(--cinnabar) 72%, transparent);
+}
+@keyframes ring-out {
+  0% { transform: scale(.72); opacity: .55; }
+  70%, 100% { transform: scale(1.5); opacity: 0; }
+}

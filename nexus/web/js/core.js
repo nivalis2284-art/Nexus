@@ -27,7 +27,14 @@ window.N = window.N || {};
   const MOTION_ALIAS = { fast: '0.5', normal: '0.75', slow: '1' };
   const motionKey = id => (MOTION_ALIAS[id] || (MOTION_SCALES[id] ? id : '1'));
   let motionId = '1';
-  const motionScale = () => MOTION_SCALES[motionId] || 1;
+  /* 主题性格：暖主题慢半拍，冷主题快半拍。由 --temper 提供，读一次缓存。 */
+  let temper = 1;
+  function readTemper() {
+    const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--temper'));
+    temper = Number.isFinite(v) && v > 0 ? v : 1;
+    return temper;
+  }
+  const motionScale = () => (MOTION_SCALES[motionId] || 1) * temper;
   /* 统一时长阶梯：微交互 / 小元素 / 卡片与折叠 / 页面与弹窗 */
   const DUR = { fast: 96, micro: 160, base: 220, move: 320, enter: 480 };
   rmq.addEventListener?.('change', e => { REDUCED = e.matches; buildSprings(); });
@@ -52,6 +59,7 @@ window.N = window.N || {};
   }
   const SP = {};
   function buildSprings() {
+    readTemper();
     const base = {
       bouncy: spring({ stiffness: 320, damping: 19 }),
       snappy: spring({ stiffness: 460, damping: 34 }),
@@ -334,7 +342,7 @@ window.N = window.N || {};
 
   N.$ = $; N.$$ = $$; N.esc = esc; N.icon = icon; N.wait = wait; N.uid = uid;
   N.clone = clone; N.clamp = clamp; N.EASE_OUT = EASE_OUT;
-  N.SP = SP; N.anim = anim; N.moveInk = moveInk;
+  N.SP = SP; N.anim = anim; N.moveInk = moveInk; N.rebuildSprings = buildSprings;
   N.motionScale = motionScale; N.setMotionScale = setMotionScale; N.MOTION_SCALES = MOTION_SCALES;
   N.MOTION_LEVELS = MOTION_LEVELS; N.MOTION_ALIAS = MOTION_ALIAS; N.DUR = DUR;
   N.THEMES = THEMES;

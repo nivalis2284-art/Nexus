@@ -61,11 +61,12 @@
 
   /* 动效速度：JS 按档位写入（0.5x–1.5x）。所有过渡时长都乘它。 */
   --motion: 1;
-  --d-0: calc(96ms * var(--motion));
-  --d-1: calc(160ms * var(--motion));
-  --d-2: calc(220ms * var(--motion));
-  --d-3: calc(320ms * var(--motion));
-  --d-4: calc(480ms * var(--motion));
+  --temper: 1; --track: -.02em;
+  --d-0: calc(96ms * var(--motion) * var(--temper));
+  --d-1: calc(160ms * var(--motion) * var(--temper));
+  --d-2: calc(220ms * var(--motion) * var(--temper));
+  --d-3: calc(320ms * var(--motion) * var(--temper));
+  --d-4: calc(480ms * var(--motion) * var(--temper));
 
   color-scheme: light;
 }
@@ -518,7 +519,7 @@ body[data-mood="waiting"] { --aura-a: #9ef2db; --aura-b: #ffc2ad; --aura-c: #ffd
 @keyframes core-breathe { 50% { transform: scale(1.05); } }
 .orb-shadow { position: absolute; left: 50%; bottom: -8px; width: 120px; height: 18px; margin-left: -60px; border-radius: 50%; background: radial-gradient(rgba(4, 122, 107, .32), transparent 70%); filter: blur(4px); animation: shadow-breathe 4.2s ease-in-out infinite; }
 @keyframes shadow-breathe { 50% { transform: scale(.9); opacity: .7; } }
-.hero h1 { font-size: 34px; line-height: 1.25; font-weight: 600; letter-spacing: -.015em; }
+.hero h1 { font-size: 34px; line-height: 1.25; font-weight: 600; letter-spacing: var(--track); }
 .hero p { color: var(--ink-2); margin-top: 8px; }
 .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 26px; }
 .chip {
@@ -636,7 +637,7 @@ body[data-mood="waiting"] { --aura-a: #9ef2db; --aura-b: #ffc2ad; --aura-c: #ffd
 /* ----------------------------------------------------------------- 管理页 */
 .page { max-width: 960px; margin: 0 auto; padding: 96px 32px 80px; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
-.page-head h1 { font-size: 34px; line-height: 1.2; font-weight: 600; letter-spacing: -.02em; }
+.page-head h1 { font-size: 34px; line-height: 1.2; font-weight: 600; letter-spacing: var(--track); }
 .page-head p { color: var(--ink-2); margin-top: 6px; }
 .btn { height: 40px; padding: 0 18px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; white-space: nowrap; transition: transform var(--d-3) var(--sp-settle), background var(--d-2), box-shadow var(--d-2); }
 .btn:active { transform: scale(.94); }
