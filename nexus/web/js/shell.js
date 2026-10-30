@@ -257,8 +257,8 @@
       enterFlags[name] = true;
       renderView(name);
       if (name === 'chat') N.syncTargets(true);
-      anim(next, [{ opacity: 0, transform: 'translateY(16px)', filter: 'blur(5px)' }, { opacity: 1, transform: 'none', filter: 'blur(0px)' }],
-        { duration: N.DUR.enter, easing: SP.settle.e });
+      anim(next, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }],
+        { duration: N.DUR.move, easing: SP.settle.e });
       N.stagger(next);
     };
     if (N.REDUCED || !cur) {
@@ -269,7 +269,7 @@
     // 旧页先退场，新页再逐组件登场；不做交叉淡入，避免两页重影
     cur.style.zIndex = '1';
     next.style.zIndex = '2';
-    const out = anim(cur, [{ opacity: 1, transform: 'none', filter: 'blur(0px)' }, { opacity: 0, transform: 'translateY(-8px) scale(.992)', filter: 'blur(4px)' }],
+    const out = anim(cur, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-6px)' }],
       { duration: N.DUR.micro, easing: 'ease-in', fill: 'forwards' });
     out.onfinish = () => {
       cur.hidden = true;
@@ -282,20 +282,20 @@
     N.save();
   }
 
-  function stagger(root, step = 34) {
+  function stagger(root, step = 24) {
     const items = $$('[data-s]', root);
     items.forEach((n, i) => {
       const head = n.classList.contains('page-head');
       const row = n.matches('.work-item,.ctx-owner-row,.ctx-role,.ctx-msg,.plug-item,.preq,.provider-row,.mcp-row,.qrow,.ctx-metrics div');
-      const from = head ? 'translateY(-8px)' : row ? 'translateX(-8px)' : 'translateY(16px) scale(.99)';
-      const dur = head ? 420 : row ? 300 : 400;
+      const from = head ? 'translateY(-8px)' : row ? 'translateX(-8px)' : 'translateY(12px)';
+      const dur = head ? 320 : row ? 240 : 300;
       anim(n, [{ opacity: 0, transform: from }, { opacity: 1, transform: 'none' }],
-        { duration: dur, delay: 34 + i * step, easing: SP.soft.e, fill: 'backwards' });
+        { duration: dur, delay: 20 + Math.min(i, 4) * step, easing: SP.soft.e, fill: 'backwards' });
     });
   }
 
   /* 只编排某个面板的直接子元素：标签页切换、插件详情切换用 */
-  function cascade(root, step = 30, dur = 380) {
+  function cascade(root, step = 24, dur = 300) {
     if (!root || N.REDUCED) return;
     [...root.children].filter(n => n.nodeType === 1 && !n.hidden).forEach((n, i) => {
       anim(n, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }],

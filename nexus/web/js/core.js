@@ -23,11 +23,11 @@ window.N = window.N || {};
   let REDUCED = rmq.matches;
   /* 五档速度：1.0x 是基准，0.5x 最快，1.5x 最慢。 */
   const MOTION_LEVELS = ['0.5', '0.75', '1', '1.25', '1.5'];
-  const MOTION_SCALES = { '0.5': .675, '0.75': 1.0125, '1': 1.35, '1.25': 1.6875, '1.5': 2.025 };
+  const MOTION_SCALES = { '0.5': .68, '0.75': .84, '1': 1, '1.25': 1.16, '1.5': 1.32 };
   const MOTION_ALIAS = { fast: '0.5', normal: '0.75', slow: '1' };
   const motionKey = id => (MOTION_ALIAS[id] || (MOTION_SCALES[id] ? id : '1'));
   let motionId = '1';
-  const motionScale = () => MOTION_SCALES[motionId] || 1.35;
+  const motionScale = () => MOTION_SCALES[motionId] || 1;
   /* 统一时长阶梯：微交互 / 小元素 / 卡片与折叠 / 页面与弹窗 */
   const DUR = { fast: 96, micro: 160, base: 220, move: 320, enter: 480 };
   rmq.addEventListener?.('change', e => { REDUCED = e.matches; buildSprings(); });

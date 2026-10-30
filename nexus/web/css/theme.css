@@ -10,8 +10,25 @@
   --on-accent: #fff;
   --motion: 1;
 }
-html[data-motion="fast"] { --motion: .72; }
-html[data-motion="slow"] { --motion: 1.35; }
+html[data-motion="fast"] { --motion: .7; }
+html[data-motion="slow"] { --motion: 1.3; }
+
+/* ---------------------------------------------------------------- 语义色
+   工具、忙、挂起不是第三种品牌色，而是状态标记：只用于区分，不参与表达。 */
+:root {
+  --tool: #4d8dff; --tool-soft: #eef2ff; --tool-ink: #4d6bd8;
+  --busy: #a86a12; --busy-soft: #fff3e0;
+  --held: #e3a857;
+  --on-dark-warm: #ffb4a2;
+  --seg-ink: #fff;
+}
+[data-theme="night"] {
+  --tool: #74a6ff; --tool-soft: rgba(77, 141, 255, .16); --tool-ink: #a9c6ff;
+  --busy: #ffc46b; --busy-soft: rgba(255, 196, 107, .14);
+  --held: #eac37d;
+  --on-dark-warm: #ffc0ad;
+  --seg-ink: #2f3238;
+}
 
 /* ---------------------------------------------------------------- 灵青 · 朱砂 */
 [data-palette="jade"] {
@@ -87,20 +104,20 @@ body[data-mood="waiting"],
 .ui-row { display: flex; align-items: center; gap: 18px; padding: 14px 0; }
 .ui-row + .ui-row { box-shadow: 0 -1px 0 var(--line); }
 .ui-row > div:first-child { flex: 1; min-width: 0; }
-.ui-row b { display: block; font-size: 14.5px; font-weight: 500; }
-.ui-row small { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.55; margin-top: 2px; }
+.ui-row b { display: block; font-size: 15px; font-weight: 500; }
+.ui-row small { display: block; font-size: 13px; color: var(--ink-3); line-height: 1.55; margin-top: 2px; }
 .ui-controls { display: flex; align-items: center; gap: 10px; flex: none; }
-.ui-seg { padding: 4px; border-radius: 18px; }
-.ui-seg button { height: 30px; padding: 0 14px; border-radius: 14px; font-size: 12.5px; }
-.ui-seg .seg-ink { top: 4px; height: calc(100% - 8px); border-radius: 14px; }
+.ui-seg { padding: 4px; border-radius: 999px; }
+.ui-seg button { height: 28px; padding: 0 14px; border-radius: 12px; font-size: 13px; }
+.ui-seg .seg-ink { top: 4px; height: calc(100% - 8px); border-radius: 12px; }
 .motion-demo { display: flex; align-items: center; gap: 5px; width: 34px; height: 24px; }
-.ui-controls .motion-play { height: 30px; padding: 0 10px; font-size: 12px; border-radius: 15px; }
+.ui-controls .motion-play { height: 28px; padding: 0 10px; font-size: 12px; border-radius: 12px; }
 .motion-demo i { width: 8px; height: 8px; border-radius: 50%; background: var(--jade); opacity: .3; }
 .motion-demo i:nth-child(2) { background: var(--cinnabar); }
 
 .theme-picker { margin-top: 14px; padding-top: 14px; box-shadow: 0 -1px 0 var(--line); }
-.theme-copy b { display: block; font-size: 14.5px; font-weight: 500; }
-.theme-copy small { display: block; font-size: 12.5px; color: var(--ink-3); line-height: 1.55; margin-top: 2px; }
+.theme-copy b { display: block; font-size: 15px; font-weight: 500; }
+.theme-copy small { display: block; font-size: 13px; color: var(--ink-3); line-height: 1.55; margin-top: 2px; }
 .theme-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
 .theme-card {
   position: relative; text-align: left; padding: 12px; border-radius: 16px;
@@ -128,7 +145,6 @@ body[data-mood="waiting"],
   .theme-grid { grid-template-columns: repeat(2, 1fr); }
   .theme-picker { margin-top: 12px; }
 }
-EOF
 
 /* ---------------------------------------------------------------- 主交流细节动效 */
 .orb-hero { animation: orb-float 7s ease-in-out infinite; }
