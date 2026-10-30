@@ -93,16 +93,14 @@
     return '';
   }
 
-  function attachmentView(item) {
+  function attachmentView(item, ownerUrl = `/api/sessions/${encodeURIComponent(state.sessionId || "")}`) {
     if (!item) return null;
     if (typeof item === 'string') return { id: item, name: item, size: 0, kind: 'file', url: '' };
     const mime = String(item.mime || '');
     return {
       id: item.id, name: item.name || '附件', size: item.size || 0,
       kind: /^image\//.test(mime) ? 'image' : 'file',
-      url: state.sessionId && item.id
-        ? `/api/sessions/${encodeURIComponent(state.sessionId)}/attachments/${encodeURIComponent(item.id)}`
-        : '',
+      url: item.url || (item.id ? `${ownerUrl}/attachments/${encodeURIComponent(item.id)}` : ''),
     };
   }
 
@@ -122,7 +120,7 @@
         out.push({
           key: itemKey(raw, 'u'), role: 'user', text: raw.text || '',
           at: clock(raw.at), images: (raw.images || []).map(imageUrl).filter(Boolean),
-          attachments: (raw.attachments || []).map(attachmentView).filter(Boolean),
+          attachments: (raw.attachments || []).map(item => attachmentView(item)).filter(Boolean),
           index: raw.index, message_id: raw.message_id, compressed: !!raw.compressed,
         });
         continue;
@@ -188,6 +186,8 @@
   function mapTask(raw) {
     if (!raw || typeof raw !== 'object') return null;
     const old = (state.works || []).find(w => w.id === raw.id);
+    raw = { ...(old ? { model_id: old.model, effort: old.effort, workspace: old.path,
+      constraints: old.constraints, steps: old.steps, evidence: old.evidence } : {}), ...raw };
     const stateValue = raw.state || 'pending';
     return {
       id: raw.id, title: raw.title || '未命名工作', state: stateValue,
@@ -196,7 +196,7 @@
       next_step: raw.next_step || '', blocked: raw.blocked || '',
       model: raw.model_id || raw.model || '', effort: raw.effort || '',
       path: raw.workspace || raw.path || '',
-      started: raw.created_at ? clock(raw.created_at) : (raw.updated_at ? clock(raw.updated_at) : ''),
+      started: raw.created_at ? clock(raw.created_at) : (old?.started || (raw.updated_at ? clock(raw.updated_at) : '')),
       finished: stateValue === 'completed' && raw.updated_at ? clock(raw.updated_at) : '',
       progress_text: raw.progress_text || raw.work_summary || '暂无进展说明',
       state_label: raw.state_label || '', status_detail: raw.status_detail || '',
@@ -205,7 +205,7 @@
       children: Array.isArray(raw.children) ? raw.children : (old?.children || []),
       pending_interactions: Array.isArray(raw.pending_interactions) ? raw.pending_interactions : [],
       unfinished_operations: Array.isArray(raw.unfinished_operations) ? raw.unfinished_operations : (old?.unfinished_operations || []),
-      records: Array.isArray(raw.messages) ? raw.messages.map(recordView).filter(Boolean)
+      records: Array.isArray(raw.messages) ? raw.messages.map(item => recordView(item, raw.id)).filter(Boolean)
         : Array.isArray(raw.records) ? raw.records : (old?.records || []),
       parent_id: raw.parent_id || old?.parent_id || '', parent_kind: raw.parent_kind || old?.parent_kind || '',
       archived: !!raw.archived,
@@ -216,13 +216,14 @@
     };
   }
 
-  function recordView(raw) {
+  function recordView(raw, taskId) {
     if (!raw || typeof raw !== 'object') return null;
     const role = raw.kind || raw.role;
     const at = clock(raw.created_at || raw.at);
     const key = 'w:' + (raw.seq ?? raw.index ?? Math.random().toString(36).slice(2, 8));
     if (role === 'user' || role === 'work_report') {
-      return { key, role: 'user', text: raw.text || '', at };
+      return { key, role: 'user', text: raw.text || '', at,
+        attachments: (raw.attachments || []).map(item => attachmentView(item, `/api/tasks/${encodeURIComponent(taskId)}`)) };
     }
     if (role === 'assistant') {
       if (!raw.text) return null;
@@ -293,7 +294,7 @@
         return;
       }
       if (value.session_id) state.sessionId = value.session_id;
-      state.baseItems = mapItems(value.items);
+      state.baseItems = mapItems((value.items || []).filter(item => !item.live));
       state.liveItems = liveItems(value.live);
       state.live = value.live || {};
       state.liveRevision = Number(value.live_revision || 0);

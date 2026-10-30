@@ -233,7 +233,7 @@
 
   function miniItem(item) {
     if (item.role === 'user') {
-      return `<article class="msg msg-user"><div class="bubble">${esc(item.text || '查看附件')}</div>
+      return `<article class="msg msg-user"><div class="bubble">${esc(item.text || '查看附件')}</div>${N.fileLinks(item.attachments)}
         <div class="user-meta"><span>你 · ${esc(item.at || '')}</span></div></article>`;
     }
     if (item.role === 'notice') return `<article class="msg notice">${esc(item.text)}</article>`;

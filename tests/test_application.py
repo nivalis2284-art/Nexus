@@ -163,3 +163,75 @@ def test_completion_during_snapshot_is_not_acknowledged_before_history_read(tmp_
         feed.unsubscribe(updates)
     finally:
         app.close()
+
+
+@pytest.mark.parametrize("snapshot_method", ["chat_snapshot", "context_snapshot"])
+def test_snapshot_does_not_block_start_behind_its_store_lock(tmp_path, monkeypatch, snapshot_method):
+    app = Application().start(home=tmp_path / "home", workspace=tmp_path)
+    tasks, controller = app.state["tasks"], app.state["task_controller"]
+    task = tasks.create(title="overlap", goal="overlap", workspace=str(tmp_path))
+    controller.run = lambda *_: "paused"
+    snapshot_ready, command_entered = threading.Event(), threading.Event()
+    original_list, original_command = tasks.list, tasks.command
+    original_active = controller.is_active
+    errors = []
+
+    def gated_list(**kwargs):
+        if threading.current_thread().name == "snapshot-test":
+            snapshot_ready.set()
+            assert command_entered.wait(2)
+        return original_list(**kwargs)
+
+    def gated_command(*args, **kwargs):
+        if threading.current_thread().name == "submit-test":
+            command_entered.set()
+        return original_command(*args, **kwargs)
+
+    def bounded_active(task_id):
+        # Bound the old deadlock so a failing regression does not strand threads.
+        if not controller._lock.acquire(timeout=1):
+            raise AssertionError("snapshot and task submission deadlocked")
+        try:
+            return original_active(task_id)
+        finally:
+            controller._lock.release()
+
+    def capture(action):
+        try:
+            action()
+        except BaseException as error:
+            errors.append(error)
+
+    monkeypatch.setattr(tasks, "list", gated_list)
+    monkeypatch.setattr(tasks, "command", gated_command)
+    monkeypatch.setattr(controller, "is_active", bounded_active)
+    snapshot = threading.Thread(target=lambda: capture(getattr(app, snapshot_method)), name="snapshot-test")
+    submit = threading.Thread(target=lambda: capture(lambda: controller.submit(task.id, request_id="overlap")), name="submit-test")
+    try:
+        snapshot.start()
+        assert snapshot_ready.wait(2)
+        submit.start()
+        snapshot.join(3)
+        submit.join(3)
+        assert not snapshot.is_alive() and not submit.is_alive()
+        assert not errors, errors
+    finally:
+        command_entered.set()
+        snapshot.join(3)
+        if submit.ident is not None:
+            submit.join(3)
+        app.close()
+
+
+def test_model_selection_resets_effort_but_omission_preserves_it(tmp_path):
+    from nexus.core.config import ConfigStore
+    config = ConfigStore(tmp_path)
+    current = config.ensure()
+    app = Application({"store": config})
+    selection = {"provider": current.provider.id, "model": current.model["id"]}
+    for reset in (None, "", "off", "default"):
+        config.select(current.provider.id, current.model["id"], "high")
+        app.select_model(selection)
+        assert config.load().effort == "high"
+        app.select_model({**selection, "effort": reset})
+        assert config.load().effort is None

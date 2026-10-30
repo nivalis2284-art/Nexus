@@ -5,14 +5,14 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 // Only the DOM methods touched by these actions; requests run through the real API code.
-function page({ hooks = [] } = {}) {
+function page({ hooks = [], respond } = {}) {
   const nodes = new Map(), listeners = new Map(), timers = new Map(), requests = [];
   let timerId = 0, uid = 0;
   const element = () => ({
     value: '', hidden: true, dataset: {}, children: [], childNodes: [], scrollTop: 0,
     style: { setProperty() {} }, offsetHeight: 20, scrollHeight: 20,
     classList: { contains: () => false, add() {}, remove() {}, toggle() {} },
-    addEventListener() {}, setAttribute() {}, insertAdjacentHTML() {},
+    handlers: {}, focus() {}, addEventListener(type, callback) { this.handlers[type] = callback; }, setAttribute() {}, insertAdjacentHTML() {},
     querySelector: () => null, querySelectorAll: () => [], getAnimations: () => [],
     replaceChildren() {}, prepend() {}, appendChild() {}, remove() {}, scrollTo() {},
     showModal() { this.open = true; },
@@ -51,6 +51,10 @@ function page({ hooks = [] } = {}) {
     },
     async fetch(url, init = {}) {
       requests.push({ url, ...init });
+      if (respond) {
+        const response = await respond(url, init);
+        if (response !== undefined) return response;
+      }
       if (url === '/api/hooks/settings') {
         const change = JSON.parse(init.body);
         const hook = hooks.find(h => h.name === change.name);
@@ -196,4 +200,93 @@ test('settings hook management loads, toggles and preserves errors without disca
   p.N.api.hooks = async () => { throw new Error('load failed'); };
   await p.click('refresh-hooks');
   assert.equal(p.$('#hooks-error').textContent, 'load failed');
+});
+
+
+test('chat snapshots append live text, thinking and tool activity only once', () => {
+  const { N } = page();
+  N.sync.chat({ live_revision: 1, running: true,
+    items: [{ role: 'user', index: 0, text: 'hello' },
+      { role: 'assistant', message_id: 'm', text: 'partial', thinking: 'thought', live: true }],
+    live: { message_id: 'm', text: 'partial', thinking: 'thought' } });
+  assert.equal(N.state.items.filter(i => i.role === 'assistant').length, 1);
+  assert.equal(N.state.items.filter(i => i.role === 'thinking').length, 1);
+  N.sync.chat({ live_revision: 2, items: [{ role: 'tool', live: true, tool_call_id: 'c' }],
+    live: { tool: { id: 'c', name: 'read_file' } } });
+  assert.equal(N.state.items.filter(i => i.role === 'tool').length, 1);
+});
+
+test('chat task summaries preserve detail fields and explicit empty details clear them', () => {
+  const { N } = page();
+  N.state.works = [N.mapTask({ id: 'work', model_id: 'vision', workspace: 'H:/project', effort: 'high',
+    created_at: '08:30', constraints: 'keep files', steps: [{ content: 'check' }], evidence: [{ summary: 'verified' }], messages: [] })];
+  N.sync.chat({ tasks: [{ id: 'work', state: 'running', updated_at: '10:30' }] });
+  const w = N.state.works[0];
+  assert.equal(w.model, 'vision'); assert.equal(w.path, 'H:/project');
+  assert.equal(w.started, '08:30'); assert.equal(w.effort, 'high'); assert.equal(w.constraints, 'keep files');
+  assert.equal(w.steps.length, 1); assert.equal(w.evidence.length, 1);
+  N.sync.works({ tasks: [{ id: 'work', steps: [], evidence: [], workspace: '', effort: null }] });
+  assert.equal(N.state.works[0].steps.length, 0); assert.equal(N.state.works[0].evidence.length, 0);
+  assert.equal(N.state.works[0].path, ''); assert.equal(N.state.works[0].effort, '');
+});
+
+test('uploaded documents and work attachments link to their owned originals', () => {
+  const p = page(); p.load('chat.js');
+  const chat = p.N.mapItems([{ role: 'user', attachments: [{ id: 'a1', name: 'notes.pdf' }] }])[0];
+  assert.match(p.N.fileLinks(chat.attachments), /href="\/api\/sessions\/s1\/attachments\/a1"/);
+  const work = p.N.mapTask({ id: 'task1', messages: [{ kind: 'user', seq: 1, text: 'inspect',
+    attachments: [{ id: 'a2', name: 'work.pdf' }] }] });
+  assert.match(p.N.fileLinks(work.records[0].attachments), /href="\/api\/tasks\/task1\/attachments\/a2"/);
+  p.N.state.works = [work]; p.N.stateLabel = () => ''; p.N.statusDetail = () => '';
+  p.load('work.js');
+  assert.match(p.N.workDetailHTML('task1'), /href="\/api\/tasks\/task1\/attachments\/a2"/);
+});
+
+test('provider default sends an explicit null effort', async () => {
+  const p = page(); p.load('chat.js');
+  p.N.state.current = { provider: 'p', model: 'm', effort: 'high' };
+  p.N.state.effort = { levels: [], labels: {} };
+  let menu; p.N.menu = (_anchor, items) => { menu = items; };
+  p.$('#effort-btn').handlers.click({ currentTarget: {} });
+  await menu[1].onPick();
+  assert.deepEqual(JSON.parse(p.requests.find(r => r.url === '/api/select').body),
+    { provider: 'p', model: 'm', effort: null });
+});
+
+test('lost admission response restores files and retries the exact input without another upload', async () => {
+  const admitted = [];
+  const p = page({ respond(url, init) {
+    if (url !== '/api/ling/input') return;
+    admitted.push(JSON.parse(init.body));
+    if (admitted.length === 1) throw new TypeError('response lost after server admission');
+    return { ok: true, text: async () => JSON.stringify({ queued: true }) };
+  } });
+  p.load('chat.js');
+  const file = { name: 'notes.pdf', kind: 'file', file: new Blob(['document']) };
+  const image = { name: 'image.png', kind: 'image', file: new Blob(['image'], { type: 'image/png' }) };
+  p.N.state.files = [file, image]; p.$('#input').value = 'inspect';
+  p.N.send(); await new Promise(setImmediate);
+  assert.equal(p.$('#input').value, 'inspect');
+  assert.equal(p.N.state.files[0], file); assert.equal(p.N.state.files[1], image);
+  p.N.send(); await new Promise(setImmediate);
+  assert.equal(admitted.length, 2); assert.deepEqual(admitted[1], admitted[0]);
+  assert.equal(p.requests.filter(r => r.url.includes('/attachments?')).length, 1);
+  p.$('#input').value = 'new request'; p.N.send(); await new Promise(setImmediate);
+  assert.notEqual(admitted[2].request_id, admitted[0].request_id);
+});
+
+
+test('retry resumes a partial upload without repeating completed uploads', async () => {
+  let fail = true;
+  const p = page({ respond(url) {
+    if (url.includes('second.pdf') && fail) { fail = false; throw new TypeError('upload interrupted'); }
+  } });
+  p.load('chat.js');
+  p.N.state.files = ['first.pdf', 'second.pdf'].map(name => ({ name, kind: 'file', file: new Blob([name]) }));
+  p.$('#input').value = 'inspect'; p.N.send(); await new Promise(setImmediate);
+  assert.equal(p.N.state.files.length, 2);
+  p.$('#input').value = 'inspect'; p.N.send(); await new Promise(setImmediate);
+  assert.equal(p.requests.filter(r => r.url.includes('first.pdf')).length, 1);
+  assert.equal(p.requests.filter(r => r.url.includes('second.pdf')).length, 2);
+  assert.equal(p.requests.filter(r => r.url === '/api/ling/input').length, 1);
 });

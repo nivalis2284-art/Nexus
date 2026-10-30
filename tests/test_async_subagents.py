@@ -207,3 +207,41 @@ def test_pause_all_also_stops_a_parent_waiting_for_children(tmp_path):
     assert store.get(child).state == "paused"
     assert not controller.queued_ids()
     controller.close()
+
+
+@pytest.mark.parametrize("finish_tool", [False, True])
+def test_child_completion_before_parent_parks_still_resumes(tmp_path, monkeypatch, finish_tool):
+    from nexus.core.agent import AgentSuspended
+    from nexus.runtime.callbacks import TaskCallbacks
+    from nexus.runtime.subagents import collect_children
+    config, provider = configure(tmp_path)
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    controller = TaskController(store, run=lambda *_: "paused")
+    parent = store.create(title="parent", goal="parent", workspace=str(tmp_path), provider_id=provider, model_id="fake")
+    child = store.create(title="child", goal="child", workspace=str(tmp_path))
+    store.link_child(child.id, parent_id=parent.id, parent_kind="task", context_mode="fresh")
+    store.command(parent.id, "running", request_id="parent-running")
+    store.command(child.id, "running", request_id="child-running")
+    run = store.begin_run(parent.id)
+    original = store.command
+
+    def finish_in_gap(task_id, operation, **kwargs):
+        if task_id == parent.id and operation == "paused" and kwargs.get("reason") == WAITING:
+            original(child.id, "completed", request_id="child-finished")
+            collect_children(store, controller, parent.id)
+        return original(task_id, operation, **kwargs)
+
+    monkeypatch.setattr(store, "command", finish_in_gap)
+    try:
+        with pytest.raises(AgentSuspended):
+            if finish_tool:
+                callbacks = TaskCallbacks(store, parent.id, run["id"], cancel=threading.Event())
+                callbacks.finish({"summary": "done"})
+            else:
+                SubagentService(store, controller, config, parent.id, "task").wait()
+        controller._changed(parent.id)
+        assert store.get(parent.id).state == "queued"
+        assert parent.id in controller.queued_ids()
+        assert len([m for m in store.messages(parent.id) if "Subagent observation" in m["text"]]) == 1
+    finally:
+        controller.close()

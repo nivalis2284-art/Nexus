@@ -56,7 +56,7 @@
     if (!files?.length) return '';
     return `<div class="msg-files">${files.map(f => f.kind === 'image'
       ? `<button class="file-link" data-act="open-image" data-url="${esc(f.url || '')}" data-name="${esc(f.name)}">${icon('image', 'i xs')}<span>${esc(f.name)}</span><small class="muted">${N.fmtSize(f.size)}</small></button>`
-      : `<button class="file-link" data-act="open-attach" data-name="${esc(f.name)}">${icon('file', 'i xs')}<span>${esc(f.name)}</span><small class="muted">${N.fmtSize(f.size)}</small></button>`).join('')}</div>`;
+      : `<a class="file-link" href="${esc(f.url || '')}" download="${esc(f.name)}">${icon('file', 'i xs')}<span>${esc(f.name)}</span><small class="muted">${N.fmtSize(f.size)}</small></a>`).join('')}</div>`;
   }
   function imageGrid(images) {
     if (!images?.length) return '';
@@ -905,7 +905,12 @@
     renderChat(); scrollEnd(true); updateStats();
   }
 
+  // shortcut: retry identity lasts for this page; persist drafts when reload recovery is required.
+  let retryDraft = null;
   async function submit(text, files, target) {
+    const draft = retryDraft && retryDraft.text === text && retryDraft.target === target
+      && retryDraft.files.length === files.length && files.every((file, i) => file === retryDraft.files[i])
+      ? retryDraft : { text, files, target, requestId: N.uid('req'), attachments: [], images: [], prepared: 0 };
     const pending = optimisticUser(text, target, files);
     state.pending = [...(state.pending || []), pending];
     N.composeItems?.();
@@ -913,9 +918,9 @@
 
     let accepted = false;
     try {
-      const attachments = [];
-      const images = [];
-      for (const file of files) {
+      const { attachments, images } = draft;
+      for (; draft.prepared < files.length; draft.prepared++) {
+        const file = files[draft.prepared];
         const blob = file.file || (file.url ? await (await fetch(file.url)).blob() : null);
         if (!blob) continue;
         if (file.kind === 'image') {
@@ -925,8 +930,9 @@
           if (saved?.id) attachments.push(saved.id);
         }
       }
-      await N.api.input(text, { images, attachments, taskId: target || undefined });
+      await N.api.input(text, { images, attachments, taskId: target || undefined, requestId: draft.requestId });
       accepted = true;
+      if (retryDraft === draft) retryDraft = null;
       /* 快照可能被正在运行的回合拖慢；提交成功后即使刷新失败也不再报错。 */
       try { await N.sync.chatOnly(); } catch (_) {}
       N.composeItems?.();
@@ -935,7 +941,10 @@
       N.refreshIsland?.(); N.updateSend?.();
     } catch (error) {
       if (accepted) { N.notify('已发送，但记录刷新稍后补上', 'jade', 2600); return; }
-      state.pending = [];
+      retryDraft = draft;
+      state.pending = state.pending.filter(item => item !== pending);
+      state.files = [...files.filter(file => !state.files.includes(file)), ...state.files];
+      renderFiles();
       N.composeItems?.();
       renderChat();
       if (text && !input.value) { input.value = text; autosize(); }
@@ -1116,7 +1125,7 @@
   $('#effort-btn').addEventListener('click', e => {
     const pick = async level => {
       try {
-        await N.api.select({ provider: state.current.provider, model: state.current.model, effort: level || undefined });
+        await N.api.select({ provider: state.current.provider, model: state.current.model, effort: level });
         await N.sync.settingsOnly();
         renderEffortLabel(); N.notify(level ? '思考强度：' + (state.effort.labels[level] || level) : '使用提供商默认强度', 'jade');
       } catch (error) {
@@ -1238,7 +1247,6 @@
       else done();
       return;
     }
-    if (act === 'open-attach') return N.openFile(t.dataset.name);
     if (act === 'open-image') return N.openImage(t.dataset.url, t.dataset.name);
     if (act === 'suggest') {
       input.value = t.dataset.text || t.textContent.trim();
@@ -1261,6 +1269,7 @@
   });
 
   /* ---------------------------------------------------------------- 导出 */
+  N.fileLinks = fileLinks;
   N.renderChat = renderChat;
   N.renderRequests = renderRequests;
   N.renderQueue = renderQueue;

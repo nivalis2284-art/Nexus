@@ -98,9 +98,11 @@ class TaskController:
                 worker.start()
 
     def _changed(self, task_id: str) -> None:
+        from .subagents import WAITING, collect_children
+        if not self._closed and self.store.get(task_id).wait_reason == WAITING:
+            collect_children(self.store, self, task_id)
         relation = self.store.child_relation(task_id)
         if not self._closed and relation and relation["parent_kind"] == "task":
-            from .subagents import collect_children
             collect_children(self.store, self, relation["parent_id"])
         if self.on_change is not None:
             self.on_change(task_id)

@@ -168,78 +168,6 @@ window.N = window.N || {};
   }
 
   /* ---------------------------------------------------------------- Markdown */
-  const FILE_MAP = {
-    'README.md': `# Nexus
-
-Nexus 是一个持续存在的本地代理：主交流负责理解与交代，后台工作独立推进，
-上下文与扩展配置为它们提供运行条件。
-
-## 目录
-
-- \`nexus/web/\` 网页前端
-- \`nexus/runtime/\` 运行与调度
-- \`nexus/task/\` 工作状态与记录
-- \`docs/\` 需求、研究与验收
-
-## 运行
-
-\`\`\`powershell
-.venv\\Scripts\\python.exe -m nexus
-\`\`\`
-
-打开 http://127.0.0.1:8766/ 即可。
-`,
-    'nexus/web/index.html': `<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <title>Nexus</title>
-</head>
-<body>
-  <aside id="sidebar">…</aside>
-  <main id="main">
-    <header id="topbar">…</header>
-    <div id="scroller"><div id="transcript"></div></div>
-    <form id="composer">…</form>
-  </main>
-</body>
-</html>
-`,
-    'nexus/web/app.js': `// One page, no framework. State is one object; the transcript rebuilds from it.
-const state = { providers: [], current: {}, items: [], running: false };
-
-async function refresh() {
-  const value = await api("/api/state");
-  Object.assign(state, value);
-  renderModelLabel();
-}
-
-function renderTranscript(options) {
-  const box = $("transcript");
-  const following = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 48;
-  if (!state.items.length) box.replaceChildren(welcome());
-  else reconcileTranscript(box, state.items, state.workspacePath);
-  updateStats();
-}
-`,
-    'nexus/web/tasks.js': `const taskView = { tasks: [], current: null, request: 0 };
-
-async function openTask(id) {
-  const value = await api("/api/tasks/" + encodeURIComponent(id));
-  taskView.current = value;
-  $("task-panel").hidden = false;
-  $("task-title").textContent = value.title;
-  renderTaskSummary(value);
-  renderTaskSteps(value.steps || []);
-  renderTaskMessages(value.messages || [], value.live);
-}
-`,
-  };
-  function fileText(path) {
-    if (FILE_MAP[path]) return FILE_MAP[path];
-    return `# ${path}\n\n（预览数据）\n\n这个文件没有真实内容。正式前端会通过 /api/workspace-file 读取工作区。\n`;
-  }
-
   let mdRenderer = null;
   function renderer() {
     if (mdRenderer || typeof marked === 'undefined') return mdRenderer;
@@ -414,7 +342,7 @@ async function openTask(id) {
   N.nowHM = nowHM; N.fmtSize = fmtSize; N.fmtNum = fmtNum; N.shortPath = shortPath;
   N.duration = duration;
   N.approx = approx; N.firstLine = firstLine; N.countUp = countUp; N.truncate = truncate; N.demoImage = demoImage;
-  N.md = md; N.decorate = decorate; N.fileText = fileText;
+  N.md = md; N.decorate = decorate;
   N.STATE_LABEL = STATE_LABEL; N.stateLabel = stateLabel; N.statusDetail = statusDetail; N.progressText = progressText;
   N.seed = seed; N.save = save; N.load = load; N.clearSaved = clearSaved;
   N.state = Object.assign(seed(), load() || {});

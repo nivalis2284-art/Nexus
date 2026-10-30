@@ -137,6 +137,9 @@ class Application:
             through = int(checkpoint[1].data["through"]) if checkpoint else -1
             for item in snapshot["items"]:
                 item["compressed"] = item.get("index", through + 1) <= through
+        from .ling import task_summary
+        snapshot["tasks"] = [task_summary(inbox.store, self.state["task_controller"], task)
+                             for task in inbox.store.list()]
         snapshot["live_revision"] = watermark
         return snapshot
 
@@ -144,7 +147,7 @@ class Application:
         from .runtime.context_management import snapshot
 
         inbox = self.inbox()
-        with inbox._condition, inbox.store._lock, self.state["sessions"]._lock:
+        with inbox._condition, self.state["sessions"]._lock:
             session = self.state["sessions"].load(inbox.session_id)
             value = snapshot(self.state, session)
         value["running"] = inbox.running
@@ -285,8 +288,8 @@ class Application:
         model_id = str(value.get("model") or "")
         if not provider_id or not model_id:
             raise ValueError("provider and model are required")
-        level = value.get("effort")
-        self.state["store"].select(provider_id, model_id, normalize(level) if level is not None else None)
+        selection = {"effort": normalize(value["effort"])} if "effort" in value else {}
+        self.state["store"].select(provider_id, model_id, **selection)
 
     def delete_session(self, session_id):
         state = self.state

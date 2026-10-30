@@ -606,8 +606,7 @@ class LingInbox:
                 "live": snapshot,
                 "live_revision": snapshot.get("revision", 0),
                 "main_requests": self.decisions.pending(),
-                "tasks": [task_summary(self.store, self.state["task_controller"], task)
-                          for task in self.store.list()], "notifications": notices,
+                "notifications": notices,
                 "unread_count": self.store.notification_count()}
 
     def _usage(self, session) -> dict[str, int]:

@@ -134,6 +134,7 @@ class SubagentService:
                 raise TaskValidationError("Finish or stop your live background commands before yielding to child work that may need this project's writer.")
             self.store.command(self.parent_id, "paused", request_id=f"child-wait-{self.call_id()}",
                 reason=WAITING, source="agent")
+            collect_children(self.store, self.controller, self.parent_id)
         from ..core.agent import AgentSuspended
         raise AgentSuspended(WAITING, kind="children")
 

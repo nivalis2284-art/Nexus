@@ -28,6 +28,7 @@ from ..model import APIFamily, ModelCapabilities, ModelProfile
 from ..file_io import replace_text
 
 _IO_LOCK = threading.RLock()
+_UNSET = object()
 
 CONFIG_NAME = "config.json"
 CREDENTIALS_NAME = "credentials.json"
@@ -295,10 +296,10 @@ class ConfigStore:
 
     # --- selection -------------------------------------------------------
 
-    def select(self, provider_id: str, model_id: str, effort: str | None = None) -> None:
+    def select(self, provider_id: str, model_id: str, effort: str | None | object = _UNSET) -> None:
         raw = self.read_config()
         raw["current"] = {"provider": provider_id, "model": model_id}
-        if effort is not None:
+        if effort is not _UNSET:
             raw["effort"] = effort
         self.write_config(raw)
 
