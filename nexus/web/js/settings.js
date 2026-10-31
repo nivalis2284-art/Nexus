@@ -98,7 +98,7 @@
           <div class="theme-grid">
             ${N.THEMES.map(t => {
               const on = state.palette === t.id;
-              return `<button class="theme-card theme-${t.id}${on ? ' is-active' : ''}" data-s data-act="palette" data-id="${t.id}" aria-pressed="${on}" title="${esc(t.desc)}">
+              return `<button class="theme-card theme-${t.id}${on ? ' is-active' : ''}" data-s data-act="palette" data-id="${t.id}" aria-pressed="${on}">
                 <div class="theme-specimen">
                   <span class="spec-glyph" aria-hidden="true">${t.id === 'jade' ? '玉' : '星'}</span>
                   <span class="theme-scene" aria-hidden="true"><i class="spec-orbit"></i><i class="spec-core"></i><i class="spec-stars"></i></span>

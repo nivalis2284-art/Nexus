@@ -335,7 +335,7 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   transform: translateY(-2px);
 }
 
-/* 灵玉：1.5px 温润金玉追光边；星枢：1px 锐利棱镜折射边 */
+/* 两境共用实际边框，避免页面缩放时 padding 遮罩的左右宽度取整不同。 */
 .card::after,
 .work-item::after,
 .plug-item::after,
@@ -346,17 +346,20 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
 .dock::after,
 .chip::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit;
-  padding: 1.5px;
+  padding: 0;
+  border: 1.5px solid transparent;
   pointer-events: none;
   opacity: var(--spot-on, 0);
   transition: opacity var(--d-2);
-  background: radial-gradient(250px circle at var(--mx, -240px) var(--my, -240px),
+  background-image: radial-gradient(250px circle at var(--mx, -240px) var(--my, -240px),
     color-mix(in srgb, var(--jade) 56%, #f5c451),
     color-mix(in srgb, #e5a324 34%, transparent) 52%,
     transparent 74%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  /* 渐变覆盖完整边框且不平铺，否则边缘会取到对侧的光。 */
+  background-origin: border-box;
+  background-repeat: no-repeat;
+  -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0) border-box;
+  mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0) border-box;
   mask-composite: exclude;
 }
 [data-palette="cool"] .card::after,
@@ -368,8 +371,7 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
 [data-palette="cool"] .composer::after,
 [data-palette="cool"] .dock::after,
 [data-palette="cool"] .chip::after {
-  padding: 1px;
-  background: radial-gradient(215px circle at var(--mx, -240px) var(--my, -240px),
+  background-image: radial-gradient(215px circle at var(--mx, -240px) var(--my, -240px),
     color-mix(in srgb, var(--jade) 54%, var(--cinnabar)), transparent 72%);
 }
 
@@ -598,4 +600,24 @@ body[data-mood="waiting"],
 [data-theme="night"][data-palette="jade"] .pv-jade-vernier { stroke: rgba(126, 240, 212, .5); filter: drop-shadow(0 0 2px rgba(78, 220, 175, .3)); }
 [data-theme="night"][data-palette="jade"] .pv-arc { opacity: .66; }
 [data-theme="night"][data-palette="jade"] .pv-arc.front { opacity: 1; filter: drop-shadow(0 0 2px rgba(78, 220, 175, .4)); }
-[data-theme="night"][data-palette="jade"] :is(.card,.work-item,.plug-item,.ctx-role,.theme-card,.req-card,.composer,.dock,.chip)::after { padding: 2px; filter: drop-shadow(0 0 3px rgba(239, 194, 91, .45)); }
+
+/* 导航光源居中，保留原版的长距离渐变与尾光。 */
+html[data-theme][data-palette] .dock::after {
+  background-image: radial-gradient(250px circle at 50% var(--my, -240px),
+    color-mix(in srgb, var(--jade) 56%, var(--cinnabar)),
+    color-mix(in srgb, var(--cinnabar) 34%, transparent) 52%, transparent 74%);
+}
+html[data-theme][data-palette="jade"] .dock::after {
+  background-image: radial-gradient(250px circle at 50% var(--my, -240px),
+    color-mix(in srgb, var(--jade) 56%, #f5c451),
+    color-mix(in srgb, #e5a324 34%, transparent) 52%, transparent 74%);
+}
+
+/* 长按沿用星枢的线色反馈，不额外增加光晕。 */
+[data-palette="jade"] .orb-stage :is(.pv-rim, .pv-jade-vernier, .pv-arc.front) {
+  transition: stroke var(--d-3), opacity var(--d-3);
+}
+html[data-palette="jade"] .orb-stage.is-grasped :is(.pv-rim, .pv-jade-vernier, .pv-arc.front) {
+  stroke: var(--jade);
+  opacity: .96;
+}
