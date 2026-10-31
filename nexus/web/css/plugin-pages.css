@@ -1,4 +1,20 @@
 /* Host-rendered pages share the shell's variables, controls and motion engine. */
+.plugin-dialog { width: min(1120px, calc(100vw - 32px)); max-height: 90dvh; overflow: hidden; }
+.plugin-dialog[open] { display: flex; flex-direction: column; }
+.plugin-dialog > .sheet-head { padding: 20px 24px; border-bottom: 1px solid var(--line); flex: none; align-items: center; }
+.plugin-dialog > .sheet-head h2 { min-width: 0; overflow-wrap: anywhere; }
+.plugin-dialog-content { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 20px 24px; }
+.plugin-dialog #plugin-page-body { padding: 0; height: 72dvh; }
+.plugin-dialog iframe { display: block; width: 100%; height: 100%; border: 0; background: var(--card); }
+.plugin-dialog .hui-page { padding: 20px 24px; }
+.plugin-readme-dialog { width: min(880px, calc(100vw - 32px)); }
+.plugin-readme-dialog .md { max-width: 72ch; margin-inline: auto; overflow-wrap: anywhere; }
+.plugin-readme-dialog .md pre { overflow-x: auto; }
+@media (max-width: 640px) {
+  .plugin-dialog > .sheet-head { padding: 16px; }
+  .plugin-dialog-content, .plugin-dialog .hui-page { padding: 16px; }
+}
+
 .hui-page { padding: 20px 0 4px; min-width: 0; }
 .hui-components, .hui-column { display: grid; gap: 16px; min-width: 0; }
 .hui-section { padding: 18px; border-radius: 16px; background: var(--card); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }

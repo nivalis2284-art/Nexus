@@ -15,7 +15,7 @@ from .dialogues import Dialogues
 from .bridge import Bridge
 
 CAPABILITIES = {name: 1 for name in ('models', 'dialogues', 'history', 'jobs', 'storage', 'services', 'context', 'events', 'hooks', 'chat', 'mcp', 'ui')}
-LONG = {'models.generate', 'models.embed', 'dialogues.send', 'dialogues.continue', 'dialogues.continue_turn', 'services.call'}
+LONG = {'models.generate', 'dialogues.send', 'dialogues.continue', 'dialogues.continue_turn', 'services.call'}
 
 class Runtime:
     def __init__(self, manager):
@@ -87,7 +87,6 @@ class Runtime:
                 op['status'] = 'running'; self.store.put('operation', key, owner, op)
                 method, p = op['method'], op['input']
                 if method == 'models.generate': result = self.models.generate(owner, p, cancel, emit)
-                elif method == 'models.embed': result = self.models.embed(owner, p, cancel, emit)
                 elif method.startswith('dialogues.'):
                     result = self.dialogues.run(owner, p, cancel, emit, method in ('dialogues.continue', 'dialogues.continue_turn'))
                 else: result = self.call_service(owner, **p)

@@ -60,14 +60,23 @@ window.N = window.N || {};
   const SP = {};
   function buildSprings() {
     readTemper();
-    const base = {
-      bouncy: spring({ stiffness: 320, damping: 19 }),
-      snappy: spring({ stiffness: 460, damping: 34 }),
-      soft: spring({ stiffness: 170, damping: 24 }),
-      island: spring({ stiffness: 340, damping: 27 }),
-      pop: spring({ stiffness: 520, damping: 30 }),
-      /* 轻微过冲后一次落定：阻尼比约 0.62，回弹幅度不到 9%，不来回震荡。 */
-      settle: spring({ stiffness: 460, damping: 26 }),
+    const isCool = document.documentElement?.dataset?.palette === 'cool';
+    const base = isCool ? {
+      /* 星枢：轻盈灵动，弹性清脆，带有灵巧微过冲 */
+      bouncy: spring({ stiffness: 400, damping: 18 }),
+      snappy: spring({ stiffness: 530, damping: 27 }),
+      soft: spring({ stiffness: 230, damping: 20 }),
+      island: spring({ stiffness: 410, damping: 24 }),
+      pop: spring({ stiffness: 590, damping: 25 }),
+      settle: spring({ stiffness: 490, damping: 23 }),
+    } : {
+      /* 灵玉：温润柔韧，如流水绕玉，平滑舒展而不死板 */
+      bouncy: spring({ stiffness: 310, damping: 22 }),
+      snappy: spring({ stiffness: 430, damping: 28 }),
+      soft: spring({ stiffness: 195, damping: 21 }),
+      island: spring({ stiffness: 340, damping: 26 }),
+      pop: spring({ stiffness: 470, damping: 28 }),
+      settle: spring({ stiffness: 380, damping: 26 }),
     };
     for (const k in base) SP[k] = { e: base[k].e, d: base[k].d };
     if (REDUCED) for (const k in SP) SP[k] = { e: 'ease', d: 1 };
@@ -91,7 +100,7 @@ window.N = window.N || {};
     return el.animate(kf, { ...o, duration: (o.duration || 0) * s, delay: (o.delay || 0) * s });
   };
 
-  /* 液态指示器：前缘先行、后缘追随 */
+  /* 液态指示器：克制平滑滑移，避免分段过冲弹簧在宽高上引发边缘抖动 */
   function moveInk(ink, target, axis = 'x', instant = false) {
     if (!ink || !target) return;
     const P = axis === 'x' ? 'translateX' : 'translateY';
@@ -99,19 +108,16 @@ window.N = window.N || {};
     const O = axis === 'x' ? 'height' : 'width';
     const pos = axis === 'x' ? target.offsetLeft : target.offsetTop;
     const size = axis === 'x' ? target.offsetWidth : target.offsetHeight;
+    if (!size) return;
     const p0 = ink._axis === axis ? ink._pos : null, s0 = ink._size;
     ink.style.transform = `${P}(${pos}px)`; ink.style[S] = size + 'px'; ink.style[O] = '';
     ink._pos = pos; ink._size = size; ink._axis = axis;
     if (instant || p0 == null || REDUCED || (p0 === pos && s0 === size)) return;
     ink.getAnimations().forEach(a => a.cancel());
-    const fwd = pos > p0, lead = fwd ? pos + size : pos, a0 = p0, a1 = p0 + s0;
-    const midStart = fwd ? a0 + (pos - a0) * 0.12 : lead;
-    const midEnd = fwd ? lead : a1 + (pos + size - a1) * 0.12;
     ink.animate([
-      { transform: `${P}(${p0}px)`, [S]: s0 + 'px', easing: 'cubic-bezier(.45,0,.2,1)' },
-      { offset: 0.34, transform: `${P}(${midStart}px)`, [S]: (midEnd - midStart) + 'px', easing: SP.bouncy.e },
+      { transform: `${P}(${p0}px)`, [S]: s0 + 'px' },
       { transform: `${P}(${pos}px)`, [S]: size + 'px' },
-    ], { duration: Math.max(260, SP.snappy.d * motionScale()) });
+    ], { duration: Math.round(SP.settle.d * motionScale()), easing: SP.settle.e });
   }
 
   /* ---------------------------------------------------------------- 格式 */
@@ -262,8 +268,24 @@ window.N = window.N || {};
 
   /* ---------------------------------------------------------------- 主题 */
   const THEMES = [
-    { id: 'jade', name: '灵青 · 朱砂', desc: '暖色 · 灵青主色 + 朱砂强调', day: { p: '#00a884', a: '#ff5a36' }, night: { p: '#19d3a8', a: '#ff7a5c' } },
-    { id: 'cool', name: '浅蓝 · 淡紫', desc: '冷色 · 浅蓝主色 + 淡紫强调', day: { p: '#4f7cf7', a: '#a78bfa' }, night: { p: '#8fb0ff', a: '#c4b0ff' } },
+    {
+      id: 'jade',
+      name: '灵玉',
+      sub: '温润沉稳 · 羊脂墨玉与中枢金晶环',
+      tag: '温玉 · 鎏金',
+      desc: '暖境 · 羊脂墨玉、中枢鎏金晶环、金玉追光与柔韧回弹',
+      day: { p: '#078c70', a: '#d99416' },
+      night: { p: '#28d8b2', a: '#f5b83d' },
+    },
+    {
+      id: 'cool',
+      name: '星枢',
+      sub: '轻盈灵动 · 星轨微芒与冰晶折光',
+      tag: '星穹 · 折光',
+      desc: '冷境 · 晴空星穹、寒星闪烁、棱镜追光与鲜活弹簧',
+      day: { p: '#3568f0', a: '#855cf2' },
+      night: { p: '#82a8ff', a: '#c0a6ff' },
+    },
   ];
 
 

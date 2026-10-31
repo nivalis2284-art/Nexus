@@ -37,8 +37,8 @@
   --sh-2: 0 2px 4px rgba(21, 22, 26, .04), 0 22px 50px -18px rgba(21, 22, 26, .22);
   --sh-3: 0 30px 80px -20px rgba(21, 22, 26, .35);
 
-  --font: "IBM Plex Sans", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
-  --mono: "Cascadia Code", "JetBrains Mono", "SF Mono", ui-monospace, Consolas, monospace;
+  --font: "Plus Jakarta Sans", "Noto Sans SC", "HarmonyOS Sans SC", "MiSans", "PingFang SC", "Microsoft YaHei UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Code", "SF Mono", ui-monospace, Consolas, monospace;
 
   --ease-out: cubic-bezier(.22, 1, .36, 1);
   --ease-in: cubic-bezier(.55, 0, .75, .3);

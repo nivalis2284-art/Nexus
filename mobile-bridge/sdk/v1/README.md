@@ -74,13 +74,12 @@ Python 使用关键字参数；JS 使用参数对象。以下方法对应同名�
 
 ### models
 
-- `list()` → 模型数组，区分 `kind=generation/embedding`。生成模型用 `provider_id + model_id`；嵌入模型使用宿主嵌入配置的 `id`。
+- `list()` → 生成模型数组，`kind=generation`，使用 `provider_id + model_id` 选择模型。
 - `generate(provider_id, model_id, messages, system='', tools=[], effort=None, purpose='generate', request_id=None, continuation_id=None)` → `{text, tool_calls, usage, finish_reason, continuation_id}`。
 - `stream(...)` → text/tool/usage 等规范事件，最后 `{type:'complete', result:生成结果}`。关闭 Python 生成器或退出 JS 迭代会请求取消。
-- `embed(model_id, input=[文字], purpose='embed', request_id=None)` → `{model_id,model,dimensions,vectors,usage}`。
 - `cancel(operation_id)` → 请求取消；外部网络流由宿主关闭。
 
-生成支持已有三协议，嵌入首轮支持 OpenAI 兼容接口。提供商配置、凭据由宿主管理，插件不能通过这些接口修改或读取模型密钥。未配置的模型可以出现在目录中，`configured=false`；真正调用时明确报错。
+生成支持已有三协议。提供商配置、凭据由宿主管理，插件不能通过这些接口修改或读取模型密钥。未配置的模型可以出现在目录中，`configured=false`；真正调用时明确报错。
 
 消息采用现有通用形式：user/assistant 的 content，assistant 的 `tool_calls=[{id,name,arguments:JSON字符串}]`，tool 的 `tool_call_id/name/content`。工具声明为 `{name,description,parameters:JSON Schema}`。模型只提出调用，由插件自行执行；不继承主交流提示、工具、历史或记忆。
 
@@ -190,6 +189,6 @@ POST 注入地址，Authorization: Bearer 注入凭据，JSON 为：
 
 ## 管理与兼容
 
-宿主插件详情提供能力依赖、服务、作业和独立对话状态；可取消、重试和查看历史，不增加第二套用户聊天入口。设置页独立管理嵌入模型；请求记录可按插件、对话、作业、用途筛选。
+宿主插件详情提供能力依赖、服务、作业和独立对话状态；可取消、重试和查看历史，不增加第二套用户聊天入口。请求记录可按插件、对话、作业、用途筛选。
 
 旧插件接口保留；旧包无须改写。SDK 示例不迁移记忆包、不接入QQ，不提供通用 Agent 执行或任意宿主工具授权。没有安装 Node.js 时，Node 示例加载会明确失败，不自动安装运行时。

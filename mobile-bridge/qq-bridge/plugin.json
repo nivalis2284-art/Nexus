@@ -1,0 +1,10 @@
+{
+  "id": "qq-bridge",
+  "name": "QQ 通信与消息预审",
+  "version": "0.1.0",
+  "api_version": 1,
+  "entry": "backend.py:create_plugin",
+  "description": "官方 QQ 单聊、群聊和多模态工具，保留消息来源，使用 Jev 预审。",
+  "capabilities": ["context", "page"],
+  "pages": [{"id": "main", "title": "QQ 连接与收件箱", "path": "web/index.html"}]
+}

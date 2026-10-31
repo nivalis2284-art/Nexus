@@ -1,0 +1,42 @@
+/* This plugin extends the existing Nexus plugin surface and its font/palette tokens. */
+.plugin-page { max-width: 1120px; }
+h1 { font-size: 26px; }
+.connection-strip { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 16px 0; border-block: 1px solid var(--line-2); }
+.connection-strip span { color: var(--ink-2); overflow-wrap: anywhere; }
+.tabs { display: flex; gap: 24px; margin: 24px 0 28px; border-bottom: 1px solid var(--line-2); }
+.tab { background: transparent; border: 0; padding: 12px 0; color: var(--ink-2); border-bottom: 2px solid transparent; }
+.tab[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+.filter { display: grid; gap: 4px; font-size: 13px; flex: none; }
+.filter select { min-width: 120px; }
+.receipt { padding: 20px 0; border-bottom: 1px solid var(--line-2); }
+.receipt-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+.receipt-head strong { overflow-wrap: anywhere; }
+.receipt-meta { color: var(--ink-2); margin: 6px 0 10px; font-size: 13px; overflow-wrap: anywhere; }
+.receipt-body { margin: 10px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.receipt details { margin-top: 12px; }
+.receipt summary { cursor: pointer; color: var(--ink-2); }
+.receipt pre { font: 13px/1.7 var(--font); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 350px; overflow: auto; background: var(--raised); padding: 16px; border-radius: 12px; }
+.receipt-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.risk { font-variant-numeric: tabular-nums; flex: none; }
+.risk.blocked { color: var(--danger); }
+.settings-row { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 40px; padding: 28px 0; border-bottom: 1px solid var(--line-2); align-items: start; }
+.description { color: var(--ink-2); margin-top: 10px; max-width: 38ch; }
+.help { color: var(--ink-2); }
+.form-panel { background: var(--raised); padding: 20px; border-radius: 14px; min-width: 0; }
+.field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.text-button { display: block; padding: 8px 0; background: transparent; border: 0; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; }
+.text-button:hover, .tab:hover { color: var(--ink); }
+.save-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 24px 0; }
+.identity-heading { margin-top: 24px; }
+.identity { display: flex; gap: 12px; justify-content: space-between; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line-2); }
+.identity span { font-size: 13px; overflow-wrap: anywhere; min-width: 0; }
+button:disabled { opacity: .55; cursor: wait; }
+.btn.primary { background: var(--ink); border-color: var(--ink); color: var(--card); }
+@media (max-width: 700px) {
+  .settings-row { grid-template-columns: 1fr; gap: 16px; }
+  .description { max-width: none; }
+  .receipt-head { flex-wrap: wrap; gap: 4px; }
+  .field-pair { grid-template-columns: 1fr; gap: 0; }
+  .section-head { flex-wrap: wrap; }
+  .form-panel { padding: 16px; }
+}

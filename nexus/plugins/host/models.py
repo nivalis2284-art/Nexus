@@ -1,14 +1,13 @@
 """Stateless model calls through the host gateway; no Agent or main prompt assembly."""
 import asyncio
 import json
-import math
 from dataclasses import asdict
 from decimal import Decimal
 import httpx
 from ...core.config import build_profile
 from ...core.protocol import request_body
 from ...core.replay import capture
-from ...model import ModelGateway, RuntimeCredentials, ModelProfile, APIFamily
+from ...model import ModelGateway, RuntimeCredentials
 from .store import uid
 
 
@@ -28,38 +27,7 @@ class Models:
                 result.append({'id': p.id + ':' + m['id'], 'provider_id': p.id, 'provider': p.name, 'model_id': m['id'],
                                'kind': 'generation', 'protocol': p.family, 'context_window_tokens': m.get('context_window_tokens'),
                                'capabilities': m.get('capabilities', {}), 'configured': bool(p.base_url and self.config.has_key(p.id))})
-        for p in self.embeddings():
-            result.append({**p, 'kind': 'embedding', 'configured': self.config.has_key('embedding:' + p['id'])})
         return result
-
-    def embeddings(self):
-        return self.config.read_config().get('embedding_models', [])
-
-    def save_embedding(self, value):
-        allowed = {'id', 'name', 'base_url', 'model_id', 'api_key'}
-        if set(value) - allowed:
-            raise ValueError('未知嵌入配置字段')
-        key = value.get('id') or uid()
-        rows = self.embeddings()
-        old = next((r for r in rows if r['id'] == key), {})
-        item = {k: value.get(k, old.get(k, '')) for k in ('name', 'base_url', 'model_id')}
-        if not all(isinstance(v, str) and v.strip() for v in item.values()):
-            raise ValueError('请填写名称、地址和模型')
-        ModelProfile(api_family=APIFamily.OPENAI_CHAT_COMPLETIONS, model=item['model_id'], base_url=item['base_url'])
-        item['id'] = key
-        raw = self.config.read_config()
-        raw['embedding_models'] = [r for r in rows if r['id'] != key] + [item]
-        self.config.write_config(raw)
-        if 'api_key' in value:
-            self.config.write_credential('embedding:' + key, value['api_key'])
-        return self.embeddings()
-
-    def delete_embedding(self, key):
-        raw = self.config.read_config()
-        raw['embedding_models'] = [r for r in self.embeddings() if r['id'] != key]
-        self.config.write_config(raw)
-        self.config.write_credential('embedding:' + key, '')
-        return self.embeddings()
 
     def select(self, provider_id, model_id):
         provider = next((p for p in self.config.providers() if p.id == provider_id), None)
@@ -142,44 +110,3 @@ class Models:
 
     def generate(self, owner, params, cancel, emit):
         return asyncio.run(self.generate_async(owner, params, cancel, emit))
-
-    def embed(self, owner, params, cancel, emit):
-        item = next((r for r in self.embeddings() if r['id'] == params['model_id']), None)
-        if item is None:
-            raise ValueError('嵌入模型不存在')
-        inputs = params['input']
-        if not isinstance(inputs, list) or not inputs or not all(isinstance(s, str) for s in inputs):
-            raise ValueError('input 必须为非空文字列表')
-        key = self.config.read_credentials().get('embedding:' + item['id'], '')
-        if not key: raise ValueError('嵌入模型尚未配置凭据')
-        base = item['base_url'].rstrip('/')
-        url = base if base.endswith('/embeddings') else base + ('/embeddings' if base.rsplit('/', 1)[-1] else 'v1/embeddings')
-        if base.count('/') == 2: url = base + '/v1/embeddings'
-        async def run():
-            async with httpx.AsyncClient(timeout=60, follow_redirects=False) as client:
-                task = asyncio.create_task(client.post(url, headers={'Authorization': 'Bearer ' + key}, json={'model': item['model_id'], 'input': inputs}))
-                while not task.done() and not cancel.is_set():
-                    await asyncio.wait({task}, timeout=.05)
-                if cancel.is_set():
-                    task.cancel()
-                    try: await task
-                    except asyncio.CancelledError: pass
-                    raise asyncio.CancelledError()
-                response = task.result()
-                if response.status_code >= 400: raise ValueError('嵌入服务返回 HTTP ' + str(response.status_code))
-                return response.json()
-        history = self.runtime.manager.state.get('request_history')
-        record = history.record({'model': item['model_id'], 'input': inputs}, {'kind': 'plugin', 'owner_id': owner, 'plugin_id': owner, 'purpose': params.get('purpose', 'embed'), 'job_id': params.get('job_id'), 'dialogue_id': params.get('dialogue_id'), 'operation_id': self.runtime.current_operation()}, item['model_id'], 'openai_embeddings', status='running') if history else None
-        try:
-            data = asyncio.run(run())
-            rows = sorted(data['data'], key=lambda r: r['index'])
-            if [r['index'] for r in rows] != list(range(len(inputs))): raise ValueError('嵌入结果数量或顺序无效')
-            vectors = [r['embedding'] for r in rows]
-            size = len(vectors[0])
-            if not size or any(len(v) != size or not all(type(x) in (int, float) and math.isfinite(x) for x in v) or not any(v) for v in vectors):
-                raise ValueError('嵌入向量无效')
-            if history: history.update(record, 'completed')
-            return {'model_id': item['id'], 'model': item['model_id'], 'dimensions': size, 'vectors': vectors, 'usage': data.get('usage', {})}
-        except BaseException:
-            if history: history.update(record, 'failed', 'embedding request did not complete')
-            raise

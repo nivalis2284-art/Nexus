@@ -534,9 +534,6 @@
         N.renderWork?.();
         N.syncTargets?.();
         N.refreshIsland?.();
-        if (state.islandMode === 'detail' || document.querySelector('#island[data-mode="detail"]')) {
-          N.renderIsland?.();
-        }
       } catch (_) {}
     }, delay);
   }
@@ -588,12 +585,11 @@
         return;
       }
       if (type === 'done' || type === 'refresh') {
-        state.liveItems = [];
-        state.live = {};
+        /* 保持最后一帧流式内容在屏，等 /api/ling 快照返回后原子替换，杜绝空窗期整段闪断消失 */
         if (type === 'done') { state.running = false; state.replying = false; finalizePending = true; }
-        N.renderChat?.();
         N.updateSend?.();
-        scheduleLing(60);
+        N.renderStatus?.();
+        scheduleLing(30);
         return;
       }
       return;

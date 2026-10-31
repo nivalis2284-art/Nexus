@@ -146,7 +146,7 @@
         const note = document.createElement('p'); note.className = 'sheet-note';
         heading.append(title, note);
         const close = document.createElement('button'); close.className = 'ic-btn';
-        close.type = 'button'; close.textContent = '×'; close.setAttribute('aria-label', '关闭');
+        close.type = 'button'; close.innerHTML = N.icon('close'); close.setAttribute('aria-label', '关闭');
         close.onclick = () => { if (!this.busy) this.dismissDialog(); };
         header.append(heading, close);
         const error = document.createElement('p'); error.className = 'sheet-error hui-dialog-error';

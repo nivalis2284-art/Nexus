@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QQ 通信 · Nexus</title>
+  <link rel="stylesheet" href="/css/plugin-ui.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="/js/plugin-ui.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body data-nexus-plugin>
+<main class="plugin-page">
+  <header class="header">
+    <div><h1>QQ 通信</h1><p class="intro">在 Nexus 中处理 QQ 消息，让每条消息保留来源和身份。</p></div>
+    <button class="btn" id="refresh" type="button">刷新状态</button>
+  </header>
+  <div id="notice" role="status" aria-live="polite" class="message"></div>
+  <section class="connection-strip" aria-label="连接状态">
+    <strong id="connection">正在读取状态…</strong><span id="connection-detail"></span>
+  </section>
+  <nav class="tabs" aria-label="QQ 插件页面">
+    <button type="button" class="tab" id="inbox-tab" aria-controls="inbox-panel" aria-pressed="true">收件箱</button>
+    <button type="button" class="tab" id="settings-tab" aria-controls="settings-panel" aria-pressed="false">连接与身份</button>
+  </nav>
+  <section id="inbox-panel" aria-labelledby="inbox-tab">
+    <div class="section-head"><div><h2>收到的消息</h2><p class="help">显示最近 60 条。被拦截及待处理的消息保留在这里，不转发给主交流。</p></div>
+      <label class="filter">筛选状态<select id="filter"><option value="all">全部消息</option><option value="held">待处理</option><option value="blocked">已拦截</option><option value="delivered">已转发</option><option value="ignored">已忽略</option></select></label>
+    </div>
+    <div id="messages"><p class="empty">正在读取收件箱…</p></div>
+  </section>
+  <section id="settings-panel" aria-labelledby="settings-tab" hidden>
+    <form id="settings-form">
+      <section class="settings-row"><div><h2>官方机器人</h2><p class="description">由插件主动连接 QQ。创建机器人后填写凭据，再启用连接。</p><p class="help" id="app-secret-status"></p></div>
+        <div class="form-panel">
+          <div class="field"><label for="app-id">AppID</label><input id="app-id" inputmode="numeric" autocomplete="off"></div>
+          <div class="field"><label for="app-secret">AppSecret</label><input id="app-secret" type="password" autocomplete="new-password" placeholder="留空保留已保存值"></div>
+          <label class="toggle"><input type="checkbox" id="connected"> 启用 QQ 连接</label>
+          <button type="button" class="text-button" data-clear="app_secret">清除已保存的 AppSecret</button>
+        </div>
+      </section>
+      <section class="settings-row"><div><h2>Jev 消息预审</h2><p class="description">非白名单消息的正文、引用、提取的文件文字和图片会发送给该服务。</p><p class="help">图片使用 Jev 的试验图像能力。概率是模型估计，不能证明内容安全。</p><p class="help" id="review-key-status"></p></div>
+        <div class="form-panel">
+          <div class="field"><label for="review-url">服务地址</label><input id="review-url" type="url" required></div>
+          <div class="field"><label for="review-model">模型</label><input id="review-model" required></div>
+          <div class="field"><label for="review-key">API 密钥</label><input id="review-key" type="password" autocomplete="new-password" placeholder="留空保留已保存值"></div>
+          <div class="field-pair"><div class="field"><label for="risk-threshold">攻击风险拦截阈值（%）</label><input id="risk-threshold" type="number" min="1" max="100" step="0.1" required></div>
+            <div class="field"><label for="violation-threshold">违规分类拦截阈值（%）</label><input id="violation-threshold" type="number" min="1" max="100" step="0.1" required></div></div>
+          <p class="help">任一分类达到阈值即拦截。检查提示词注入、人设篡改，以及色情侵害、暴力、诈骗与隐私侵害、仇恨骚扰、自伤鼓励。服务失败或附件无法判断时留待处理。</p>
+          <button type="button" class="text-button" data-clear="review_key">清除已保存的 Jev 密钥</button>
+        </div>
+      </section>
+      <section class="settings-row"><div><h2>语音转写</h2><p class="description">优先使用 QQ 附带的转写。没有转写时，将语音发送给这里配置的兼容服务。</p><p class="help" id="speech-key-status"></p></div>
+        <div class="form-panel">
+          <div class="field"><label for="speech-url">OpenAI 兼容服务地址</label><input id="speech-url" type="url" placeholder="例如 https://服务地址/v1"></div>
+          <div class="field"><label for="speech-model">转写模型</label><input id="speech-model"></div>
+          <div class="field"><label for="speech-key">API 密钥（可选）</label><input id="speech-key" type="password" autocomplete="new-password" placeholder="留空保留已保存值"></div>
+          <button type="button" class="text-button" data-clear="speech_key">清除已保存的转写密钥</button>
+        </div>
+      </section>
+      <section class="settings-row"><div><h2>群聊范围</h2><p class="description">只处理你启用的群。也可以从收件箱的一条群消息直接启用该群。</p><p class="help">全量模式需要群主在 QQ 中允许机器人接收全部消息，会增加预审和主交流调用。</p></div>
+        <div class="form-panel"><div class="field"><label for="group-mode">触发方式</label><select id="group-mode"><option value="mention">被 @ 时处理</option><option value="all">处理群内全部消息</option></select></div>
+          <div class="field"><label for="groups">启用的群 OpenID，每行一个</label><textarea id="groups" rows="4"></textarea></div></div>
+      </section>
+      <div class="save-row"><span id="dirty-status" class="help"></span><button id="save" type="submit" class="btn primary solid">保存设置</button></div>
+    </form>
+    <section class="settings-row"><div><h2>所有者与免审白名单</h2><p class="description">先从 QQ 给机器人发一条消息，再从收件箱核对发送者并绑定。群聊身份按群单独绑定。</p><p class="help">所有者和白名单均跳过预审及插件内容拦截。白名单本身不授予所有者权限。</p></div>
+      <div class="form-panel"><h3>已绑定的本人身份</h3><div id="owners"></div><h3 class="identity-heading">其他免审身份</h3><div id="whitelist"></div></div>
+    </section>
+  </section>
+</main>
+</body>
+</html>

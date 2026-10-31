@@ -30,15 +30,14 @@
       </header>
       <div class="skills-toolbar" data-s><span class="count">${list.length ? list.length + ' 个技能' : ''}</span><span class="skill-status" id="skills-status"></span></div>
       <div class="skill-grid">
-        ${list.map((s, i) => `<div class="card lift skill" data-s data-state="${s.effective ? 'on' : 'off'}">
-          <span class="glyph" style="background:${COLOR[s.source] || '#8b8d94'}">${esc((s.name || '?').slice(0, 1).toUpperCase())}</span>
+        ${list.map((s, i) => `<div class="card lift skill${s.shadowed ? ' is-shadowed' : ''}" data-s data-state="${s.effective ? 'on' : 'off'}" ${s.error ? '' : `data-act="view-skill" data-i="${i}"`}>
+          <div class="skill-top"><span class="glyph" style="background:${COLOR[s.source] || '#8b8d94'}">${esc((s.name || '?').slice(0, 1).toUpperCase())}</span><span class="src ${s.source}">${SOURCE[s.source] || s.source}</span></div>
           <h3 class="${/^[a-z0-9-]+$/.test(s.name) ? 'mono' : ''}">${esc(s.name)}</h3>
-          <span class="src ${s.source}">${SOURCE[s.source] || s.source}</span>
           <p>${esc(s.description || '暂无摘要')}</p>
-          <span class="meta-line ${s.shadowed ? 'over' : ''}">${s.error ? '读取失败 · 原文件未修改' : s.shadowed ? '被更高优先级的同名技能覆盖' : s.effective ? '当前生效' : '未生效'}</span>
+          <span class="meta-line ${s.shadowed ? 'over' : ''}">${s.error ? '读取失败 · 原文件未修改' : s.shadowed ? '被同名项目技能覆盖' : s.effective ? '当前生效' : '未生效'}</span>
           <footer><span class="pill">${s.read_only ? '只读' : '可编辑'}</span><div class="acts">
-            ${s.error ? '' : `<button data-act="view-skill" data-i="${i}">${s.read_only ? '查看' : '编辑'}</button>`}
-            ${s.read_only ? '' : `<button class="del" data-act="del-skill" data-i="${i}">删除</button>`}
+            ${s.error ? '' : `<button type="button" data-act="view-skill" data-i="${i}">${s.read_only ? '查看' : '编辑'}</button>`}
+            ${s.read_only ? '' : `<button type="button" class="del" data-act="del-skill" data-i="${i}">删除</button>`}
           </div></footer>
         </div>`).join('')}
         <button class="card skill new" data-s data-act="new-skill"><span class="plus">${icon('plus')}</span><span>新建技能</span></button>

@@ -34,16 +34,16 @@
       <section class="card ctx-card" data-s>
         <div class="ctx-card-head">
           <div><h2>所有者指令</h2><p>每条指令独立生效，可逐条编辑、删除或新增。</p></div>
-          <div class="ctx-card-acts"><span class="pill jade">可编辑</span><button class="btn ghost sm" data-act="add-rule" ${locked() ? 'disabled' : ''}>${icon('plus', 'i xs')}添加指令</button></div>
+          <div class="ctx-card-acts"><button class="btn ghost sm" data-act="add-rule" ${locked() ? 'disabled' : ''}>${icon('plus', 'i xs')}添加指令</button></div>
         </div>
-        <div class="card ctx-owner">
+        <div class="ctx-owner">
           ${owners.length ? owners.map((r, i) => `<div class="ctx-owner-row" data-s data-i="${i}"><span class="ctx-idx">${String(i + 1).padStart(2, '0')}</span><p>${esc(r)}</p><div class="ctx-owner-acts"><button data-act="edit-rule" data-i="${i}" ${locked() ? 'disabled' : ''}>编辑</button><button class="del" data-act="del-rule" data-i="${i}" ${locked() ? 'disabled' : ''}>删除</button></div></div>`).join('') : '<p class="ctx-hint">还没有所有者指令。</p>'}
         </div>
         <p class="ctx-hint">当前明确要求优先于一般偏好；这里的内容不代替实际权限设置。</p>
       </section>
 
       <section class="card ctx-card" data-s>
-        <div class="ctx-card-head"><div><h2>角色与工作规则</h2><p>三个角色分别生效，编辑后在弹窗中保存。</p></div><span class="pill">可编辑</span></div>
+        <div class="ctx-card-head"><div><h2>角色与工作规则</h2><p>三个角色分别生效，编辑后在弹窗中保存。</p></div></div>
         <div class="ctx-roles">
           ${roles.map(role => `<article class="ctx-role" data-s>
             <div class="ctx-role-top"><b>${esc(role.title)}</b><button data-act="edit-role" data-id="${esc(role.id)}" ${locked() ? 'disabled' : ''}>编辑</button></div>
@@ -164,8 +164,8 @@
     const d = state.contextData;
     view.innerHTML = `<div class="page ctx-page">
       <header class="page-head" data-s>
-        <div><p class="eyebrow">CONTEXT WORKSPACE</p><h1>上下文管理</h1><p>查看灵正在参考的信息，让指令与历史各归其位。</p></div>
-        <div class="ctx-head-acts"><button class="btn ghost sm" data-act="ctx-refresh">${icon('refresh', 'i xs')}刷新</button><button class="btn ghost sm" data-act="back-chat">${icon('back', 'i xs')}返回主交流</button></div>
+        <div><h1>上下文</h1><p>查看灵正在参考的信息，让指令与历史各归其位。</p></div>
+        <div class="ctx-head-acts"><button class="btn ghost sm" data-act="ctx-refresh">${icon('refresh', 'i xs')}刷新</button></div>
       </header>
 
       <section class="card ctx-overview" data-s>
@@ -203,27 +203,31 @@
     } else {
       requestAnimationFrame(() => {
         const tabs = $('.tabs', view);
-        if (tabs) N.moveInk($('.tab-ink', tabs), $('button.active', tabs), 'x', true);
+        if (tabs) N.moveInk($('.tab-ink', tabs), $('button.active', tabs), 'x', !ctx.tabSlide);
+        ctx.tabSlide = false;
       });
     }
   }
 
-  /* 页面只在进入时读一次内存快照，聊完回来还是旧数字；这里补一次自动刷新。 */
+  /* 页面只在进入时读一次内存快照，聊完回来还是旧数字；只在数据确实变化且用户未勾选时静默刷新。 */
   let syncing = false;
   let lastSync = 0;
+  const contextSig = () => JSON.stringify([state.context, state.contextData]);
   function maybeSync() {
-    if (syncing || Date.now() - lastSync < 1500) return;
-    /* 入场动画还没播完就整页重绘，会把逐段登场打断；等它落定再拉。 */
-    const wait = (ctx.enteredAt || 0) + 700 - Date.now();
+    if (syncing || Date.now() - lastSync < 2500) return;
+    const wait = (ctx.enteredAt || 0) + 720 - Date.now();
     if (wait > 0) { setTimeout(maybeSync, wait); return; }
     syncing = true;
+    const before = contextSig();
     Promise.resolve()
       .then(() => N.sync.contextOnly())
       .then(() => N.sync.chatOnly())
       .then(() => {
         lastSync = Date.now();
         N.composeItems?.();
-        renderContext();
+        if (state.view === 'context' && !ctx.selected.size && contextSig() !== before) {
+          renderContext();
+        }
       })
       .catch(() => {})
       .finally(() => { syncing = false; });
@@ -391,10 +395,20 @@
     if (!act?.startsWith('ctx-') && !['add-rule', 'edit-rule', 'del-rule', 'edit-role', 'edit-summary', 'back-chat'].includes(act)) return;
     if (act === 'ctx-tab') {
       if (ctx.tab === t.dataset.k) return;
+      const prevInk = $('#view-context .tabs .tab-ink');
+      const keepPos = prevInk?._pos;
+      const keepSize = prevInk?._size;
       ctx.tab = t.dataset.k;
       const oldPanel = $('.ctx-panel');
       const swap = () => {
+        ctx.tabSlide = true;
         renderContext();
+        const nextInk = $('#view-context .tabs .tab-ink');
+        if (nextInk && keepPos != null) {
+          nextInk._pos = keepPos;
+          nextInk._size = keepSize;
+          nextInk._axis = 'x';
+        }
         const panel = $('.ctx-panel');
         if (panel) N.stagger(panel, 24);
       };

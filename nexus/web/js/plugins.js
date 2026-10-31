@@ -71,14 +71,10 @@
     const view = $('#view-plugins');
     const keep = view.scrollTop;
     const p = plugin();
-    if (pv.frame?.renderer === 'host' && (p?.id !== pv.frame.pluginId || p?.status !== 'ready' || pv.tab !== 'plugins')) {
-      N.hostPages?.dispose(); pv.frame = null;
+    if (pv.frame) {
+      const owner = state.plugins.find(item => item.id === pv.frame.pluginId);
+      if (!owner || (pv.frame.wasReady && owner.status !== 'ready')) closePage();
     }
-    const frame = $('#plugin-frame') || $('#plugin-host-page');
-    if (!pv.frame || pv.tab !== 'plugins') N.hostPages?.dispose();
-    const preserve = pv.tab === 'plugins' && frame && pv.frame &&
-      pv.frame.pluginId === p?.id && frame.dataset.pluginId === p.id &&
-      frame.dataset.pluginPath === (pv.frame.pageId || pv.frame.path);
     const next = document.createElement('div');
     next.innerHTML = `<div class="page plugins-page">
       <header class="page-head" data-s>
@@ -90,25 +86,11 @@
       </div>
       <div class="plug-pane">${pv.tab === 'plugins' ? pluginsPane(p) : requestsPane()}</div>
     </div>`;
-    if (preserve) {
-      // Moving an iframe reloads its document; update only its ancestors' siblings.
-      let current = view, fresh = next;
-      for (const selector of ['.page', '.plug-pane', '.plug-layout', '.plug-detail']) {
-        const retained = current.querySelector(selector), placeholder = fresh.querySelector(selector);
-        for (const child of [...current.childNodes]) if (child !== retained) child.remove();
-        let after = false;
-        for (const child of [...fresh.childNodes]) {
-          if (child === placeholder) after = true;
-          else current.insertBefore(child, after ? null : retained);
-        }
-        current = retained;
-        fresh = placeholder;
-      }
-    } else view.replaceChildren(...next.childNodes);
+    view.replaceChildren(...next.childNodes);
     requestAnimationFrame(() => {
       const tabs = $('.tabs', view);
-      if (tabs) N.moveInk($('.tab-ink', tabs), $('button.active', tabs), 'x', true);
-      if (pv.frame) mountFrame();
+      if (tabs) N.moveInk($('.tab-ink', tabs), $('button.active', tabs), 'x', !pv.tabSlide);
+      pv.tabSlide = false;
     });
     view.scrollTop = keep;
     if (pv.animate) {
@@ -147,14 +129,6 @@
 
   function detailPane(p) {
     if (!p) return `<div class="card plug-detail" data-s><p class="plug-empty-line">选择一个插件查看详情。</p></div>`;
-    if (pv.frame && pv.frame.pluginId === p.id) {
-      return `<div class="card plug-detail" data-s>
-        <div class="plug-frame">
-          <div class="plug-frame-head"><b>${esc(pv.frame.title)}</b><span>${esc(pv.frame.renderer === 'host' ? 'Nexus UI' : pv.frame.path)}</span><button data-act="plug-close-frame">关闭页面</button></div>
-          ${pv.frame.renderer === 'host' ? '<div id="plugin-host-page"></div>' : '<iframe id="plugin-frame" title="插件功能页" loading="lazy"></iframe>'}
-        </div>
-      </div>`;
-    }
     const st = statusOf(p);
     const draining = p.status === 'draining' || p.status === 'closing';
     const loading = p.status === 'loading';
@@ -172,9 +146,9 @@
       ${p.progress ? `<div class="plug-progress" data-s>${esc(p.progress)}</div>` : ''}
       ${p.error ? `<div class="plug-error" data-s>插件错误：${esc(p.error)}</div>` : ''}
       <div class="plug-meta" data-s>
-        <span>${p.enabled ? '已启用' : '未启用'}</span>
         <span>在途调用 ${Number(p.active_calls || 0)}</span>
-        <span>状态 ${esc(p.status || '—')}</span>
+        <span>运行态 ${esc(p.status || '—')}</span>
+        ${caps.length ? `<span>能力 ${caps.length} 项</span>` : ''}
       </div>
       <div class="plug-actions" data-s>
         ${draining ? '<span class="note">插件正在收尾；页面会自动刷新状态，此时不能重复下发操作。</span>' : loading
@@ -185,6 +159,7 @@
                <button class="btn ghost sm" data-act="plug-op" data-op="stop" data-id="${esc(p.id)}">停止在途</button>`
             : `<button class="btn solid sm" data-act="plug-op" data-op="load" data-id="${esc(p.id)}">加载</button>`}
         <button class="btn ghost sm danger" data-act="plug-op" data-op="uninstall" data-id="${esc(p.id)}" ${draining || loading ? 'disabled' : ''}>卸载</button>
+        <button class="btn ghost sm" data-act="plug-readme" data-id="${esc(p.id)}">查看介绍</button>
         ${pv.busy ? '<span class="note">正在处理…</span>' : ''}
       </div>
 
@@ -226,6 +201,92 @@
       return `<div class="pfield"><label><span>${esc(title)}</span></label><p class="unsupported">此设置类型暂不支持，当前值会原样保留：${esc(type || '未声明类型')}</p></div>`;
     }
     return `<div class="pfield"><label><span>${esc(title)}</span>${control}</label>${schema.description ? `<p class="help">${esc(schema.description)}</p>` : ''}</div>`;
+  }
+
+  let pageFocus = null;
+  let readmePlugin = null;
+  let readmeController = null;
+
+  function disposePage() {
+    N.hostPages?.dispose();
+    pv.frame = null;
+    $('#plugin-page-body').replaceChildren();
+  }
+
+  function closePage() {
+    disposePage();
+    N.closeDialog($('#plugin-page-dialog'));
+  }
+
+  function openPage(trigger) {
+    const owner = plugin();
+    if (!owner) return;
+    disposePage();
+    pageFocus = { pluginId: owner.id, pageId: trigger.dataset.pageId };
+    pv.frame = { pluginId: owner.id, title: trigger.dataset.title, path: trigger.dataset.path,
+      pageId: trigger.dataset.pageId, renderer: trigger.dataset.renderer || 'iframe',
+      wasReady: owner.status === 'ready' };
+    $('#plugin-page-title').textContent = `${owner.name} · ${pv.frame.title}`;
+    $('#plugin-page-body').innerHTML = pv.frame.renderer === 'host'
+      ? '<div id="plugin-host-page"></div>'
+      : `<iframe id="plugin-frame" title="${esc(pv.frame.title)}"></iframe>`;
+    N.openDialog($('#plugin-page-dialog'));
+    mountFrame();
+  }
+
+  $('#plugin-page-dialog').addEventListener('close', () => {
+    disposePage();
+    if (pageFocus?.pluginId === plugin()?.id) {
+      $(`[data-act="plug-page"][data-page-id="${CSS.escape(pageFocus.pageId)}"]`)?.focus({ preventScroll: true });
+    }
+    pageFocus = null;
+  });
+
+  $('#plugin-readme-dialog').addEventListener('close', () => {
+    readmeController?.abort(); readmeController = null;
+    $('#plugin-readme-body').replaceChildren();
+    $(`[data-act="plug-readme"][data-id="${CSS.escape(readmePlugin || '')}"]`)?.focus({ preventScroll: true });
+    readmePlugin = null;
+  });
+
+  async function openReadme(id) {
+    const owner = state.plugins.find(item => item.id === id);
+    if (!owner) return;
+    readmeController?.abort();
+    const controller = new AbortController();
+    readmeController = controller; readmePlugin = id;
+    const body = $('#plugin-readme-body');
+    $('#plugin-readme-title').textContent = `${owner.name} · 插件介绍`;
+    body.innerHTML = '<p class="help" role="status">正在读取介绍…</p>';
+    N.openDialog($('#plugin-readme-dialog'));
+    try {
+      const response = await fetch(`/api/plugins/${encodeURIComponent(id)}/readme`, { signal: controller.signal });
+      const value = await response.json();
+      if (!response.ok) throw new Error(value.error || '读取介绍失败');
+      if (controller !== readmeController || controller.signal.aborted) return;
+      if (!value.content) {
+        body.innerHTML = '<p class="help">此插件未提供介绍文档</p>';
+        return;
+      }
+      body.innerHTML = `<div class="md">${N.md(value.content)}</div>`;
+      const base = new URL(`/plugins/${encodeURIComponent(id)}/`, location.origin);
+      for (const node of body.querySelectorAll('a, img')) {
+        const attr = node.tagName === 'IMG' ? 'src' : 'href';
+        const raw = node.dataset.file || node.getAttribute(attr);
+        node.removeAttribute('data-file'); node.classList.remove('file-link');
+        if (!raw) continue;
+        const url = new URL(raw, base);
+        const external = /^(https?:|mailto:|tel:)/i.test(raw);
+        if (external || (url.origin === base.origin && url.pathname.startsWith(base.pathname))) {
+          node.setAttribute(attr, url.href);
+          if (attr === 'href') { node.target = '_blank'; node.rel = 'noopener noreferrer'; }
+        } else node.removeAttribute(attr);
+      }
+      N.decorate(body);
+    } catch (error) {
+      if (controller !== readmeController || controller.signal.aborted) return;
+      body.innerHTML = `<p class="sheet-error" role="alert">读取介绍失败：${esc(error.message)}</p><button class="btn ghost sm" data-act="plug-readme" data-id="${esc(id)}">重新读取</button>`;
+    }
   }
 
   function mountFrame() {
@@ -331,8 +392,8 @@
   }
 
   function selectPlugin(id) {
-    N.hostPages?.dispose();
-    pv.selected = id; pv.frame = null; pv.dirty = false;
+    closePage();
+    pv.selected = id; pv.dirty = false;
     $$('.plug-item').forEach(b => b.classList.toggle('is-selected', b.dataset.id === id));
     const current = $('.plug-detail');
     if (!current) { renderPlugins(); return; }
@@ -341,7 +402,6 @@
     const fresh = tmp.firstElementChild;
     current.replaceWith(fresh);
     N.cascade?.(fresh, 26, 340);
-    requestAnimationFrame(() => { if (pv.frame) mountFrame(); });
   }
   async function op(id, action) {
     const p = state.plugins.find(x => x.id === id);
@@ -349,7 +409,7 @@
     watchGaveUp = '';
     pv.busy = true;
     pv.notice = null;
-    if (pv.frame?.pluginId === id && ['load', 'restart', 'unload'].includes(action)) pv.frame = null;
+    if (pv.frame?.pluginId === id && ['load', 'restart', 'unload'].includes(action)) closePage();
     renderPlugins();
     try {
       await N.api.pluginCommand(id, action);
@@ -387,7 +447,7 @@
       await N.sync.pluginsOnly();
       pv.busy = false;
       pv.selected = state.plugins[0]?.id || null;
-      pv.frame = null;
+      closePage();
       pv.animate = true;
       renderPlugins(); N.notify('插件已卸载', 'jade');
       const after = (state.plugins || []).find(x => x.id === id);
@@ -493,9 +553,18 @@
     const act = t.dataset.act;
     if (act === 'plug-tab') {
       if (pv.tab === t.dataset.k) return;
-      N.hostPages?.dispose(); pv.frame = null;
+      closePage();
+      const prevBtn = $('.tabs button.active', $('#view-plugins'));
+      const prevInk = $('.tabs .tab-ink', $('#view-plugins'));
       pv.tab = t.dataset.k;
+      pv.tabSlide = true;
       renderPlugins();
+      const nextInk = $('.tabs .tab-ink', $('#view-plugins'));
+      if (prevInk && nextInk && prevBtn) {
+        nextInk._pos = prevInk._pos;
+        nextInk._size = prevInk._size;
+        nextInk._axis = 'x';
+      }
       N.stagger?.($('.plug-pane'), 26);
       return;
     }
@@ -504,13 +573,8 @@
       if (t.dataset.op === 'uninstall') return uninstall(t.dataset.id);
       return op(t.dataset.id, t.dataset.op);
     }
-    if (act === 'plug-page') {
-      N.hostPages?.dispose();
-      pv.frame = { pluginId: pv.selected, title: t.dataset.title, path: t.dataset.path,
-        pageId: t.dataset.pageId, renderer: t.dataset.renderer || 'iframe' };
-      return renderPlugins();
-    }
-    if (act === 'plug-close-frame') { N.hostPages?.dispose(); pv.frame = null; return renderPlugins(); }
+    if (act === 'plug-page') return openPage(t);
+    if (act === 'plug-readme') return openReadme(t.dataset.id);
     if (act === 'plug-refresh') {
       pv.busy = true; renderPlugins();
       N.sync.pluginsOnly().then(() => {
@@ -556,5 +620,8 @@
   });
 
   N.renderPlugins = renderPlugins;
-  N.closePluginPage = () => { N.hostPages?.dispose(); pv.frame = null; };
+  N.closePluginPage = () => {
+    closePage();
+    N.closeDialog($('#plugin-readme-dialog'));
+  };
 })(window.N);

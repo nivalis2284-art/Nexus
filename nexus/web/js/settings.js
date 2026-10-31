@@ -77,7 +77,7 @@
       </header>
 
       <section class="card set-sec" data-s>
-        <h3>界面</h3><p>动效速度与主题色即时生效；一套暖色、一套冷色，各有浅色与深色。</p>
+        <h3>界面</h3><p>动效速度与四象境象即时生效；「灵玉」与「星枢」各自皆备白昼与黑夜。</p>
         <div class="ui-row" data-s>
           <div><b>动效速度</b><small>统一影响页面切换、消息入场、灵岛形变与流式节奏。</small></div>
           <div class="ui-controls">
@@ -92,20 +92,25 @@
           </div>
         </div>
         <div class="ui-row" data-s>
-          <div><b>明暗模式</b><small>浅色为宣纸底，深色为墨底；切换时从按钮扩散。</small></div>
-          <div class="seg ui-seg mode-seg" role="radiogroup" aria-label="明暗模式"><span class="seg-ink"></span>
-            ${[['day', '浅色'], ['night', '深色']].map(([k, l]) => `<button role="radio" aria-checked="${mode === k}" class="${mode === k ? 'active' : ''}" data-act="mode" data-v="${k}">${l}</button>`).join('')}
+          <div><b>昼夜模式</b><small>白昼清朗分明，黑夜幽邃沉浸；切换时自枢钮向外扩散。</small></div>
+          <div class="seg ui-seg mode-seg" role="radiogroup" aria-label="昼夜模式"><span class="seg-ink"></span>
+            ${[['day', '白昼'], ['night', '黑夜']].map(([k, l]) => `<button role="radio" aria-checked="${mode === k}" class="${mode === k ? 'active' : ''}" data-act="mode" data-v="${k}">${l}</button>`).join('')}
           </div>
         </div>
         <div class="theme-picker" data-s>
-          <div class="theme-copy"><b>主题色</b><small>灵青·朱砂是暖色互补，浅蓝·淡紫是冷色邻近；主色用于运行、确认与聚焦，强调色用于待决定与提醒。</small></div>
+          <div class="theme-copy"><b>主题意境</b><small>同一灵枢，两重天地：「灵玉」温润沉稳，金晶环枢；「星枢」轻盈灵动，寒星折光。</small></div>
           <div class="theme-grid">
             ${N.THEMES.map(t => {
               const pair = t[mode];
               const on = state.palette === t.id;
-              return `<button class="theme-card${on ? ' is-active' : ''}" data-s data-act="palette" data-id="${t.id}" aria-pressed="${on}" title="${t.desc}">
-                <span class="theme-pair"><i style="background:${pair.p}"></i><i style="background:${pair.a}"></i></span>
-                <span class="theme-name">${t.name}</span>
+              return `<button class="theme-card theme-${t.id}${on ? ' is-active' : ''}" data-s data-act="palette" data-id="${t.id}" aria-pressed="${on}" title="${esc(t.desc)}">
+                <div class="theme-specimen">
+                  <span class="spec-glyph" aria-hidden="true">${t.id === 'jade' ? '玉' : '星'}</span>
+                  <span class="theme-pair"><i style="background:${pair.p}"></i><i style="background:${pair.a}"></i></span>
+                  <span class="spec-tag">${esc(t.tag || '')}</span>
+                </div>
+                <span class="theme-name">${esc(t.name)}</span>
+                <span class="theme-sub">${esc(t.sub || '')}</span>
                 <span class="theme-check">${icon('check', 'i xs')}</span>
               </button>`;
             }).join('')}
@@ -127,15 +132,12 @@
       </section>
 
       <section class="card set-sec" data-s>
-        <h3>嵌入模型</h3><p>供插件生成向量；与主交流模型选择分别管理。</p><div class="save-bar"><button class="btn ghost sm" data-act="host-embeddings">管理嵌入模型</button></div>
-      </section>
-      <section class="card set-sec" data-s>
         <h3>基本原则</h3><p>这些原则会随每次请求交给灵；只有保存后才会生效。</p>
         <label class="field"><span class="sr">原则与交流偏好</span><textarea id="instructions" rows="5" placeholder="例如：先说明关键取舍，再执行；遇到不确定的外部影响时先停下确认。">${esc(state.instructions)}</textarea></label>
       </section>
 
       <section class="card set-sec" data-s>
-        <h3>MCP 服务</h3><p>连接本地 stdio 或 HTTP MCP 服务；启停与重连会直接作用到运行时。</p>
+        <h3>MCP 与运行钩子</h3><p>连接本地 stdio 或 HTTP MCP 服务，并管理宿主与插件提供的运行期扩展钩子。</p>
         <div class="mcp-list">
           ${state.mcp.length ? state.mcp.map((s, i) => {
             const connected = s.enabled !== false && s.connected;
@@ -154,11 +156,8 @@
           }).join('') : '<div class="mcp-empty">尚未添加 MCP 服务。</div>'}
         </div>
         <div class="save-bar" style="margin-top:12px"><button class="btn ghost sm" data-act="add-mcp">${icon('plus', 'i xs')}添加 MCP 服务</button></div>
-      </section>
-
-      <section class="card set-sec" data-s>
-        <h3>钩子</h3><p>管理宿主与插件提供的扩展时机，以及参与其中的插件。</p>
-        <div class="set-row" data-s><div><b>钩子管理</b><small>查看来源、订阅状态与最近错误，按需启用或停用。</small></div><button class="btn ghost sm" type="button" data-act="manage-hooks">管理钩子</button></div>
+        <div class="sep-line"></div>
+        <div class="set-row" style="padding-bottom:0" data-s><div><b>运行期钩子</b><small>查看扩展时机、订阅插件与最近错误，按需启用或停用。</small></div><button class="btn ghost sm" type="button" data-act="manage-hooks">管理钩子</button></div>
       </section>
 
       <section class="card set-sec" data-s>

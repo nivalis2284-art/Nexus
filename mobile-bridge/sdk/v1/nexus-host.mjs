@@ -2,7 +2,7 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {createInterface} from 'node:readline';
 const context=new AsyncLocalStorage();
-const longMethods=new Set(['models.generate','models.embed','dialogues.send','dialogues.continue','dialogues.continue_turn','services.call']);
+const longMethods=new Set(['models.generate','dialogues.send','dialogues.continue','dialogues.continue_turn','services.call']);
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export class HostClient {
  constructor({url=process.env.NEXUS_HOST_URL,token=process.env.NEXUS_PLUGIN_TOKEN}={}) {

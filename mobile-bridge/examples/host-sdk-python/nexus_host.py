@@ -37,9 +37,9 @@ class HostClient(Namespace):
 
     def call(self, method, params=None):
         params = params or {}
-        if method in ('models.generate','models.embed','dialogues.send','dialogues.continue','dialogues.continue_turn','services.call') and _job.get():
+        if method in ('models.generate','dialogues.send','dialogues.continue','dialogues.continue_turn','services.call') and _job.get():
             params = {**params, 'job_id': _job.get()[0], 'job_attempt': _job.get()[1]}
-        if method not in ('models.generate','models.embed','dialogues.send','dialogues.continue','dialogues.continue_turn','services.call'):
+        if method not in ('models.generate','dialogues.send','dialogues.continue','dialogues.continue_turn','services.call'):
             return self.request(method,params)
         if method == 'services.call' and _context.get(): params = {**params, 'context_id': _context.get()}
         key = self.request('operations.start',{'method':method,'params':params})['operation_id']

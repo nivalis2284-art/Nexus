@@ -238,12 +238,12 @@
     }
     if (item.role === 'notice') return `<article class="msg notice">${esc(item.text)}</article>`;
     if (item.role === 'thinking') {
-      return `<details class="step"><summary><span class="sicon">◇</span><span class="stitle">${esc(N.truncate(N.firstLine(item.thinking) || '思考', 100))}</span><span class="spreview">${(item.thinking || '').length} 字</span></summary><div class="thought-text">${esc(item.thinking || '')}</div></details>`;
+      return `<details class="step"><summary><span class="sicon">${icon('spark', 'i xxs')}</span><span class="stitle">${esc(N.truncate(N.firstLine(item.thinking) || '思考', 100))}</span><span class="spreview">${(item.thinking || '').length} 字</span></summary><div class="thought-text">${esc(item.thinking || '')}</div></details>`;
     }
     if (item.role === 'tool') {
       const args = item.arguments || {};
       const label = args.path || args.pattern || args.command || args.task || '';
-      return `<details class="step tool-step ${item.ok === false ? 'error' : 'done'}"><summary><span class="sicon">${item.ok === false ? '✕' : '✓'}</span><span class="sname">${esc(item.name || 'tool')}</span>${label ? `<span class="sargs">${esc(N.truncate(String(label), 70))}</span>` : ''}<span class="sstate ${item.ok === false ? 'bad' : 'good'}">${item.ok === false ? '失败' : '完成'}</span></summary><div class="sbody"><pre class="tool-output">${esc(item.text || '')}</pre></div></details>`;
+      return `<details class="step tool-step ${item.ok === false ? 'error' : 'done'}"><summary><span class="sicon">${item.ok === false ? icon('close', 'i xxs') : icon('check', 'i xxs')}</span><span class="sname">${esc(item.name || 'tool')}</span>${label ? `<span class="sargs">${esc(N.truncate(String(label), 70))}</span>` : ''}<span class="sstate ${item.ok === false ? 'bad' : 'good'}">${item.ok === false ? '失败' : '完成'}</span></summary><div class="sbody"><pre class="tool-output">${esc(item.text || '')}</pre></div></details>`;
     }
     return `<article class="msg msg-ling"><header class="ling-head"><span class="orb-mini"></span><b>灵</b><time>${esc(item.at || '')}</time></header>
       <div class="ling-body"><div class="md">${N.md(item.text || '')}</div></div>${item.elapsed ? `<div class="msg-meta">用时 ${item.elapsed} 秒</div>` : ''}</article>`;
@@ -318,7 +318,6 @@
   }
 
   async function openWork(id) {
-    N.go('chat', { silent: true });
     try {
       await N.sync.taskDetail(id);
       N.morphIsland('detail', { id });

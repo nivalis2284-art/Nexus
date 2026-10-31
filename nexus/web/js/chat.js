@@ -16,9 +16,10 @@
   const nearBottom = () => conv.scrollHeight - conv.scrollTop - conv.clientHeight < 160;
   function scrollEnd(smooth) {
     followEnabled = true;
-    stopFollow();
-    conv.scrollTo({ top: conv.scrollHeight, behavior: smooth && !N.REDUCED ? 'smooth' : 'auto' });
     setJumpLatest(false);
+    if (smooth && !N.REDUCED) { followScroll(); return; }
+    stopFollow();
+    conv.scrollTop = conv.scrollHeight;
   }
   conv.addEventListener('scroll', () => {
     if (nearBottom()) { followEnabled = true; setJumpLatest(false); }
@@ -198,7 +199,7 @@
       : status === 'error' ? N.firstLine(step.error || output) || '执行失败'
         : N.firstLine(output) || '已完成';
     details.innerHTML = `<summary class="tool-summary ${status}">
-        <span class="sicon">${status === 'error' ? '✕' : status === 'running' ? '◌' : '✓'}</span>
+        <span class="sicon">${status === 'error' ? icon('close', 'i xxs') : status === 'running' ? '<i class="spin-ring" aria-hidden="true"></i>' : icon('check', 'i xxs')}</span>
         <span class="sname">${esc(step.name || 'tool')}</span>
         ${label ? `<span class="sargs">${esc(N.truncate(label, 90))}</span>` : ''}
         <span class="spreview">${esc(N.truncate(preview, 80))}</span>
@@ -242,10 +243,16 @@
 
   function phaseSummary(node, entry) {
     node.classList.toggle('live', entry.live);
-    $('.plabel', node).textContent = entry.live ? '正在处理' : '处理过程';
+    $('.plabel', node).textContent = entry.live ? '正在运转' : '处理轨迹';
+    const names = entry.steps
+      .map(s => s.role === 'thinking' ? '思索' : (s.name || '工具'))
+      .filter((v, i, a) => i === 0 || v !== a[i - 1])
+      .slice(0, 3);
+    const trail = $('.ptrail', node);
+    if (trail) trail.textContent = names.length ? names.join(' → ') : '';
     $('.pnote', node).textContent = entry.elapsed
-      ? `（本轮用时 ${N.duration(entry.elapsed)}）`
-      : `（${entry.steps.length} 项）`;
+      ? `${N.duration(entry.elapsed)}`
+      : `${entry.steps.length} 步`;
     let dots = $('.live-dots', node);
     if (entry.live && !dots) {
       $('summary', node).insertAdjacentHTML('beforeend', '<span class="goo-dots live-dots"><i></i><i></i><i></i></span>');
@@ -256,7 +263,7 @@
     const details = document.createElement('details');
     details.className = 'phase' + (entry.live ? ' live' : '');
     details.dataset.key = entry.key;
-    details.innerHTML = `<summary><span class="tw">${icon('chev', 'i xxs')}</span><span class="plabel"></span><span class="pnote"></span></summary><div class="pbody"></div>`;
+    details.innerHTML = `<summary><span class="tw">${icon('chev', 'i xxs')}</span><span class="plabel"></span><span class="ptrail"></span><span class="pnote"></span></summary><div class="pbody"></div>`;
     const body = $('.pbody', details);
     entry.steps.forEach(step => {
       const el = step.role === 'thinking' ? buildThought(step) : toolNode(step);
@@ -435,32 +442,100 @@
     else setJumpLatest(true);
   }
 
-  /* 收束：把纯文本换成完整 Markdown，交叉淡入 */
+  /* 收束：原地将流式文本升级为排版后的 Markdown，不经过 opacity:0 黑场闪烁 */
   function finalizeAssistant(item) {
     const old = thread.querySelector(`[data-key="m:${item.key}"]`);
     if (!old) { renderChat(true); return; }
     const fresh = buildMsg(item);
     fresh.dataset.key = 'm:' + item.key;
-    const swap = () => {
-      if (!old.isConnected) return;
-      old.replaceWith(fresh);
-      if (!N.REDUCED) anim(fresh, [{ opacity: 0 }, { opacity: 1 }], { duration: N.DUR.base, easing: EASE_OUT });
-      animateBlocks(fresh);
-    };
-    if (N.REDUCED) { swap(); return; }
-    anim(old, [{ opacity: 1 }, { opacity: 0 }], { duration: N.DUR.fast, easing: 'ease-in' }).onfinish = swap;
+    if (!old.isConnected) return;
+    const h0 = old.offsetHeight;
+    old.replaceWith(fresh);
+    if (N.REDUCED) return;
+    const h1 = fresh.offsetHeight;
+    if (h0 > 0 && Math.abs(h1 - h0) > 4) {
+      fresh.style.overflow = 'hidden';
+      anim(fresh, [{ height: h0 + 'px' }, { height: h1 + 'px' }], { duration: N.DUR.base, easing: EASE_OUT })
+        .onfinish = () => { fresh.style.overflow = ''; };
+    }
+    const md = $('.md', fresh);
+    if (md) anim(md, [{ opacity: .78 }, { opacity: 1 }], { duration: N.DUR.base, easing: EASE_OUT });
   }
 
   const heroHTML = () => `<div class="hero">
-    <div class="orb-stage" id="orb-stage">
-      <svg class="orb-hero" viewBox="-100 -100 200 200" aria-hidden="true">
-        <defs><radialGradient id="og" gradientUnits="userSpaceOnUse" cx="-30" cy="-36" r="130"><stop offset="0" class="og0"/><stop offset=".2" class="og1"/><stop offset=".55" class="og2"/><stop offset="1" class="og3"/></radialGradient></defs>
-        <g filter="url(#goo)" fill="url(#og)"><circle class="core" r="50"/><g class="sat s1"><circle cy="-56" r="16"/></g><g class="sat s2"><circle cy="-60" r="11"/></g><g class="sat s3"><circle cy="-52" r="13"/></g></g>
-        <ellipse cx="-20" cy="-26" rx="15" ry="9" fill="#fff" opacity=".5" transform="rotate(-32 -20 -26)" style="filter:blur(3px)"/>
-      </svg><i class="orb-shadow"></i>
+    <div class="orb-stage" id="orb-stage" role="img" aria-label="灵·枢 浑仪星枢（长按鼠标左键可执掌偏转）">
+      <svg class="orb-hero" viewBox="-120 -120 240 240" aria-hidden="true">
+        <defs>
+          <radialGradient id="og" gradientUnits="userSpaceOnUse" cx="-13" cy="-16" r="54">
+            <stop offset="0" class="og0"/><stop offset=".28" class="og1"/>
+            <stop offset=".68" class="og2"/><stop offset="1" class="og3"/>
+          </radialGradient>
+          <linearGradient id="jg-table" gradientUnits="userSpaceOnUse" x1="-16" y1="-20" x2="16" y2="20">
+            <stop offset="0" class="og0"/><stop offset=".42" class="og1"/><stop offset="1" class="og2"/>
+          </linearGradient>
+          <radialGradient id="og-halo" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="92">
+            <stop offset="0" class="oh0"/><stop offset=".55" class="oh1"/><stop offset="1" stop-color="transparent"/>
+          </radialGradient>
+        </defs>
+        <circle class="pv-halo" r="88" fill="url(#og-halo)"/>
+        <g class="pv-meridian" id="pv-meridian">
+          <circle class="pv-rim" r="92"/>
+          <circle class="pv-vernier" r="81"/>
+          <polygon class="pv-jade-vernier" points="0,-81 40.5,-70.15 70.15,-40.5 81,0 70.15,40.5 40.5,70.15 0,81 -40.5,70.15 -70.15,40.5 -81,0 -70.15,-40.5 -40.5,-70.15"/>
+          <g class="pv-ticks" id="pv-ticks"></g>
+        </g>
+        <g class="pv-back">
+          <g class="pv-plane p1"><path class="pv-arc" d="M -80 0 A 80 27 0 0 1 80 0"/></g>
+          <g class="pv-plane p2"><path class="pv-arc" d="M -66 0 A 66 22 0 0 1 66 0"/></g>
+          <g class="pv-plane p3"><path class="pv-arc" d="M -50 0 A 50 17 0 0 1 50 0"/></g>
+          <g class="pv-nodes-back" id="pv-nodes-back"></g>
+        </g>
+        <g class="pv-axis" transform="rotate(-18)">
+          <line class="pv-spindle" x1="0" y1="-58" x2="0" y2="-36"/>
+          <circle class="pv-pole" cx="0" cy="-58" r="2.2"/>
+        </g>
+        <g class="pv-core-group" id="pv-core">
+          <g class="pv-core-sphere">
+            <circle class="pv-core-ring" r="39"/>
+            <circle class="core" r="33" fill="url(#og)"/>
+            <ellipse class="pv-spec" cx="-11" cy="-13" rx="11" ry="6.2" transform="rotate(-32 -11 -13)"/>
+            <circle class="pv-axis-pin" cx="0" cy="0" r="2.5"/>
+          </g>
+          <g class="pv-core-jade" transform="rotate(-18)">
+            <polygon class="pv-jade-guard" points="0,-42 25,-25 32,0 25,25 0,42 -25,25 -32,0 -25,-25"/>
+            <polygon class="jf-lit-1" points="-21,-20 0,-36 0,-18.5 -10.5,-10"/>
+            <polygon class="jf-lit-2" points="-27,0 -21,-20 -10.5,-10 -13.5,0"/>
+            <polygon class="jf-mid-1" points="0,-36 21,-20 10.5,-10 0,-18.5"/>
+            <polygon class="jf-mid-2" points="-21,20 -27,0 -13.5,0 -10.5,10"/>
+            <polygon class="jf-rich-1" points="21,-20 27,0 13.5,0 10.5,-10"/>
+            <polygon class="jf-rich-2" points="0,36 -21,20 -10.5,10 0,18.5"/>
+            <polygon class="jf-deep-1" points="27,0 21,20 10.5,10 13.5,0"/>
+            <polygon class="jf-deep-2" points="21,20 0,36 0,18.5 10.5,10"/>
+            <polygon class="jf-table" points="0,-18.5 10.5,-10 13.5,0 10.5,10 0,18.5 -10.5,10 -13.5,0 -10.5,-10" fill="url(#jg-table)"/>
+            <polygon class="jf-refract-hi" points="0,-18.5 -10.5,-10 -13.5,0 0,0"/>
+            <polygon class="jf-refract-lo" points="13.5,0 10.5,10 0,18.5 0,0"/>
+            <polygon class="jf-rim" points="0,-36 21,-20 27,0 21,20 0,36 -21,20 -27,0 -21,-20"/>
+            <path class="jf-ridge" d="M0,-18.5 L10.5,-10 L13.5,0 L10.5,10 L0,18.5 L-10.5,10 L-13.5,0 L-10.5,-10 Z M0,-36 L0,-18.5 M21,-20 L10.5,-10 M27,0 L13.5,0 M21,20 L10.5,10 M0,36 L0,18.5 M-21,20 L-10.5,10 M-27,0 L-13.5,0 M-21,-20 L-10.5,-10"/>
+            <circle class="jf-gold-halo" cx="0" cy="0" r="6.5"/>
+            <polygon class="jf-gold-pin" points="0,-4.4 3.2,0 0,4.4 -3.2,0"/>
+          </g>
+        </g>
+        <g class="pv-axis" transform="rotate(-18)">
+          <line class="pv-spindle" x1="0" y1="36" x2="0" y2="58"/>
+          <circle class="pv-pole" cx="0" cy="58" r="2.2"/>
+        </g>
+        <g class="pv-front">
+          <g class="pv-plane p1"><path class="pv-arc front" d="M 80 0 A 80 27 0 0 1 -80 0"/></g>
+          <g class="pv-plane p2"><path class="pv-arc front" d="M 66 0 A 66 22 0 0 1 -66 0"/></g>
+          <g class="pv-plane p3"><path class="pv-arc front" d="M 50 0 A 50 17 0 0 1 -50 0"/></g>
+          <g class="pv-nodes-front" id="pv-nodes-front"></g>
+        </g>
+      </svg>
+      <i class="orb-shadow"></i>
     </div>
+    <p class="hero-kicker"><span class="kicker-seal">枢</span><span>灵 · 枢</span></p>
     <h1>有什么需要处理？</h1>
-    <p>发送消息，或交代一项工作。</p>
+    <p class="hero-sub">直接对话，或交代一项工作交由中枢并行推进。</p>
     <div class="chips">
       <button class="chip" data-act="suggest" data-text="阅读当前项目，说明主要入口。">${icon('folder')}阅读当前项目</button>
       <button class="chip" data-act="overview">${icon('orbit')}查看后台工作进展</button>
@@ -727,7 +802,8 @@
     const pct = win ? Math.min(100, Math.round(used / win * 100)) : 0;
     /* 服务端只在请求过程中给出上下文分解；没有测量值时不要显示成 0%。 */
     const known = used > 0;
-    $('#stat-context').textContent = win && known ? '上下文 ~' + pct + '%' : '上下文 —';
+    const statCtx = $('#stat-context');
+    if (statCtx) statCtx.textContent = win && known ? '上下文 ~' + pct + '%' : '上下文 —';
     $('#ctx-pct').textContent = known ? pct + '%' : '—';
     $('#ctx-gauge').setAttribute('aria-label', `上下文已用 ${pct}%，打开上下文管理`);
     $('#ctx-gauge .arc').style.setProperty('--p', pct);
@@ -760,7 +836,7 @@
       </ul>
       <p class="usage-note">~ 表示估算；累计用量与上下文占用分别统计。</p>
       ${u.complete === false ? '<p class="usage-note">部分消息未报告完整用量，以上为已记录部分。</p>' : ''}`;
-    const anchor = panel._anchor || $('#stat-context');
+    const anchor = panel._anchor || $('#stat-tokens');
     const r = anchor.getBoundingClientRect();
     const w = panel.offsetWidth, h = panel.offsetHeight;
     panel.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
@@ -783,7 +859,7 @@
       else N.anim(panel, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(6px) scale(.97)' }],
         { duration: N.DUR.fast, easing: 'ease-in', fill: 'forwards' }).onfinish = done;
     }
-    $$('#stat-tokens,#stat-context').forEach(b => b.setAttribute('aria-expanded', String(!panel.hidden && b === anchor)));
+    $$('#stat-tokens').forEach(b => b.setAttribute('aria-expanded', String(!panel.hidden && b === anchor)));
   }
 
   function setJumpLatest(on) {
@@ -860,11 +936,9 @@
     setStopVisible(!!state.replying);
   }
   function autosize() {
-    const prev = input.offsetHeight;
+    input.style.transition = 'none';
     input.style.height = 'auto';
     const h = Math.min(input.scrollHeight, 200);
-    input.style.height = prev + 'px'; void input.offsetHeight;
-    input.style.transition = N.REDUCED ? 'none' : 'height .22s cubic-bezier(.22,1,.36,1)';
     input.style.height = h + 'px';
   }
   input.addEventListener('input', () => { autosize(); updateSend(); });
@@ -959,8 +1033,10 @@
     const files = [...state.files];
     if (!text && !files.length) return;
     sendRipple();
-    anim(composer, [{ transform: 'translateY(-2px) scale(1)' }, { transform: 'translateY(-2px) scale(.994)' }, { transform: 'translateY(-2px) scale(1)' }],
-      { duration: N.DUR.move, easing: EASE_OUT });
+    const sendBtn = $('#send');
+    if (sendBtn && !N.REDUCED) {
+      anim(sendBtn, [{ transform: 'scale(.88)' }, { transform: 'scale(1)' }], { duration: N.DUR.base, easing: SP.settle.e });
+    }
     if ($('#view-chat').classList.contains('is-empty')) leaveEmpty();
     const target = state.target;
     input.value = ''; state.files = []; renderFiles(); autosize(); updateSend();
@@ -1029,10 +1105,12 @@
     const b = $('#send');
     if (!b) return;
     const r = b.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    N.emitPulse?.('send', { x: cx, y: cy });
     const i = document.createElement('i');
     i.className = 'send-ripple';
-    i.style.left = (r.left + r.width / 2) + 'px';
-    i.style.top = (r.top + r.height / 2) + 'px';
+    i.style.left = cx + 'px';
+    i.style.top = cy + 'px';
     document.body.appendChild(i);
     anim(i, [{ opacity: .75, transform: 'scale(.55)' }, { opacity: 0, transform: 'scale(2.2)' }],
       { duration: N.DUR.enter, easing: EASE_OUT }).onfinish = () => i.remove();
@@ -1144,7 +1222,7 @@
   });
   $('#ctx-gauge').addEventListener('click', () => N.go('context'));
   $('#stat-tokens').addEventListener('click', e => toggleUsage(e.currentTarget));
-  $('#stat-context').addEventListener('click', e => toggleUsage(e.currentTarget));
+  $('#stat-context')?.addEventListener('click', e => toggleUsage(e.currentTarget));
   document.addEventListener('pointerdown', e => {
     const panel = $('#usage-panel');
     if (!panel.hidden && !panel.contains(e.target) && !e.target.closest('#stat-tokens,#stat-context')) toggleUsage(null);

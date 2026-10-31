@@ -61,6 +61,12 @@ def test_import_load_configure_page_events_requests_uninstall_over_http(tmp_path
     thread.start()
     base = f'http://127.0.0.1:{http.server_port}'
     try:
+        for path, method, body in (
+            ('/api/embedding-models', 'GET', None),
+            ('/api/embedding-models', 'POST', {'name': 'removed'}),
+            ('/api/embedding-models/delete', 'POST', {'id': 'removed'}),
+        ):
+            assert request(base, path, method, body)[0] == 404
         status, hooks = request(base, '/api/hooks')
         assert status == 200 and {h['name'] for h in hooks['hooks']} == {'host.before_tool', 'host.after_tool'}
         status, hooks = request(base, '/api/hooks/settings', 'POST', {'name': 'host.before_tool', 'enabled': False})
@@ -68,6 +74,28 @@ def test_import_load_configure_page_events_requests_uninstall_over_http(tmp_path
         assert request(base, '/api/hooks/settings', 'POST', {'name': 'host.before_tool', 'enabled': 'false'})[0] == 400
         status, snapshot = request(base, '/api/plugins/import', 'POST', bundle(), raw=True)
         assert status == 200 and not snapshot['plugins'][0]['enabled']
+        assert request(base, '/api/plugins/check/readme') == (200, {'content': None})
+        intro = manager.entries['check'].path / 'README.md'
+        intro.write_text('# Check\n\n插件介绍', encoding='utf-8-sig')
+        assert request(base, '/api/plugins/check/readme') == (200, {'content': '# Check\n\n插件介绍'})
+        with monkeypatch.context() as patch:
+            read_text = type(intro).read_text
+            def unreadable(path, *args, **kwargs):
+                if path == intro:
+                    raise PermissionError('README access denied')
+                return read_text(path, *args, **kwargs)
+            patch.setattr(type(intro), 'read_text', unreadable)
+            assert 'README access denied' in request(base, '/api/plugins/check/readme')[1]['error']
+        with monkeypatch.context() as patch:
+            resolve = type(intro).resolve
+            outside = tmp_path / 'outside.md'
+            outside.write_text('outside', encoding='utf-8')
+            patch.setattr(type(intro), 'resolve', lambda path, *a, **kw: outside if path == intro else resolve(path, *a, **kw))
+            assert request(base, '/api/plugins/check/readme')[0] == 400
+        assert request(base, '/api/plugins/missing/readme')[0] == 400
+        intro.write_bytes(b'\xff')
+        assert request(base, '/api/plugins/check/readme')[0] == 400
+        intro.unlink()
         assert request(base, '/api/plugins/import', 'POST', bundle(), raw=True)[0] == 409
         assert request(base, '/api/plugins/check/settings', 'PUT', {'choice': 'kept'})[0] == 200
         assert request(base, '/api/plugins/check/commands', 'POST', {'operation': 'load'})[0] == 200

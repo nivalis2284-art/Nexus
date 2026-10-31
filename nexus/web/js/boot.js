@@ -93,36 +93,5 @@
     if (tabs) N.moveInk($('.tab-ink', tabs), $('button.active', tabs), 'x', true);
   });
 
-  /* 初始场景：光球跟随指针，轻微倾斜 */
-  let raf = 0, move = null, tx = 0, ty = 0, x = 0, y = 0;
-  function stopOrb() {
-    cancelAnimationFrame(raf);
-    if (move) removeEventListener('pointermove', move);
-    move = null;
-  }
-  function startOrb() {
-    stopOrb();
-    const stage = $('#orb-stage');
-    if (!stage || N.REDUCED) return;
-    move = e => {
-      const r = stage.getBoundingClientRect();
-      tx = Math.max(-18, Math.min(18, (e.clientX - (r.left + r.width / 2)) * 0.035));
-      ty = Math.max(-14, Math.min(14, (e.clientY - (r.top + r.height / 2)) * 0.035));
-    };
-    addEventListener('pointermove', move, { passive: true });
-    const loop = () => {
-      x += (tx - x) * 0.06; y += (ty - y) * 0.06;
-      const sq = Math.min(0.06, Math.abs(tx - x) * 0.02);
-      stage.style.transform = `translate(${x.toFixed(2)}px,${y.toFixed(2)}px) rotate(${(x * 0.3).toFixed(2)}deg) scale(${1 + sq},${1 - sq})`;
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-  }
-  function syncOrb() {
-    if (state.view === 'chat' && !state.items.length && !state.replying) startOrb();
-    else stopOrb();
-  }
-  syncOrb();
-  new MutationObserver(syncOrb).observe($('#thread'), { childList: true });
-  $$('.dock-btn').forEach(b => b.addEventListener('click', () => setTimeout(syncOrb, 400)));
+  N.syncPivot?.();
 })(window.N);

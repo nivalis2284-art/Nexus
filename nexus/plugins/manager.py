@@ -644,6 +644,13 @@ class PluginManager:
             return store.get(task_id).to_dict()
         raise ValueError('未知宿主操作: ' + action)
 
+    def readme(self, plugin_id):
+        item = self.entries[plugin_id]
+        if not (item.path / 'README.md').exists():
+            return {'content': None}
+        content = self.asset(plugin_id, 'README.md').read_text(encoding='utf-8-sig')
+        return {'content': content if content.strip() else None}
+
     def asset(self, plugin_id, relative):
         item = self.entries[plugin_id]
         target = (item.path / relative).resolve()

@@ -63,7 +63,7 @@
   function compactHTML() {
     const queue = state.queue.filter(q => q.status !== 'failed').length;
     return `<div class="isl-compact">
-      <button class="isl-main" data-isl="overview" aria-label="查看后台工作"><span class="orb-mini${state.replying ? ' busy' : ''}" id="isl-orb"></span><span class="isl-text"><b>灵</b><span class="isl-status" id="isl-status">${statusText()}</span></span></button>
+      <button class="isl-main" data-isl="overview" aria-label="查看后台工作"><span class="orb-mini${state.replying ? ' busy' : ''}" id="isl-orb"></span><span class="isl-text"><b>灵 · 枢</b><span class="isl-status" id="isl-status">${statusText()}</span></span></button>
       ${queue ? `<span class="isl-sep"></span><span class="isl-queue-count">${queue} 条输入排队</span>` : ''}
       <span class="isl-sep"></span><div class="isl-slots">${slotList().map(slotBtn).join('')}</div></div>`;
   }
@@ -128,19 +128,18 @@
     if (N.REDUCED) return;
     island.appendChild(ghost);
     island.style.willChange = 'width, height';
-    islandInner.style.willChange = 'opacity, transform, filter';
+    islandInner.style.willChange = 'opacity, transform';
     islandInner.style.width = to.width + 'px';
-    islandInner.style.marginLeft = `calc((100% - ${to.width}px) / 2)`;
     islandAnim = island.animate([{ width: from.width + 'px', height: from.height + 'px' }, { width: to.width + 'px', height: to.height + 'px' }],
       { duration: SP.island.d * N.motionScale(), easing: SP.island.e });
-    ghost.animate([{ opacity: 1, filter: 'blur(0px)', transform: 'translateX(-50%)' }, { opacity: 0, filter: 'blur(6px)', transform: 'translateX(-50%) scale(.92)' }],
-      { duration: N.DUR.micro * N.motionScale(), easing: 'ease-in', fill: 'forwards' });
-    islandInner.animate([{ opacity: 0, filter: 'blur(8px)', transform: 'scale(.93)' }, { opacity: 1, filter: 'blur(0px)', transform: 'none' }],
-      { duration: N.DUR.enter * N.motionScale(), delay: (prev === mode ? 0 : 70) * N.motionScale(), easing: N.EASE_OUT, fill: 'backwards' });
-    if (mode === 'detail' || mode === 'overview') {
-      $$('.det-scroll > *, .wrow, .drow, .isl-sec, .kv-row, .isl-steps li', islandInner).forEach((n, i) => {
-        n.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }],
-          { duration: N.DUR.move, delay: 60 + Math.min(i, 10) * 18, easing: N.EASE_OUT, fill: 'backwards' });
+    ghost.animate([{ opacity: 1, transform: 'translateX(-50%) scale(1)' }, { opacity: 0, transform: 'translateX(-50%) scale(.96)' }],
+      { duration: N.DUR.fast * N.motionScale(), easing: 'ease-out', fill: 'forwards' });
+    islandInner.animate([{ opacity: 0, transform: 'translateY(4px) scale(.985)' }, { opacity: 1, transform: 'none' }],
+      { duration: N.DUR.move * N.motionScale(), delay: (prev === mode ? 0 : 35) * N.motionScale(), easing: N.EASE_OUT, fill: 'backwards' });
+    if ((mode === 'detail' || mode === 'overview') && prev !== mode) {
+      $$('.wrow, .drow, .isl-sec', islandInner).forEach((n, i) => {
+        n.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
+          { duration: N.DUR.base * N.motionScale(), delay: (30 + Math.min(i, 6) * 16) * N.motionScale(), easing: N.EASE_OUT, fill: 'backwards' });
       });
     }
     const clean = () => {
@@ -150,7 +149,10 @@
       ghost.remove(); islandAnim = null;
     };
     islandAnim.onfinish = clean;
-    islandAnim.oncancel = () => ghost.remove();
+    islandAnim.oncancel = () => {
+      islandInner.style.width = islandInner.style.marginLeft = '';
+      ghost.remove();
+    };
   }
 
   function updateCompact() {
@@ -168,7 +170,9 @@
     if (status) status.innerHTML = statusText();
     $('#isl-orb')?.classList.toggle('busy', state.replying);
     const to = island.getBoundingClientRect().width;
-    if (from !== to && !N.REDUCED) island.animate([{ width: from + 'px' }, { width: to + 'px' }], { duration: SP.island.d, easing: SP.island.e });
+    if (Math.abs(from - to) > 1 && !N.REDUCED) {
+      island.animate([{ width: from + 'px' }, { width: to + 'px' }], { duration: SP.island.d * N.motionScale(), easing: SP.island.e });
+    }
   }
 
   let overviewSig = '', detailSig = '';
@@ -177,14 +181,31 @@
     if (island.mode === 'compact') { updateCompact(); return; }
     if (island.mode === 'overview') {
       const sig = JSON.stringify([state.works, state.queue, state.held]);
-      if (sig !== overviewSig) { overviewSig = sig; morphIsland('overview'); }
+      if (sig !== overviewSig) {
+        overviewSig = sig;
+        if (!islandAnim) renderIsland();
+      }
       return;
     }
     if (island.mode === 'detail') {
       const w = state.works.find(x => x.id === island.data?.id);
       if (!w) { morphIsland('compact'); return; }
       const sig = JSON.stringify(w);
-      if (sig !== detailSig) { detailSig = sig; morphIsland('detail', { id: w.id }); }
+      if (sig !== detailSig) {
+        detailSig = sig;
+        if (islandAnim) return;
+        const sc = $('.isl-scroll', islandInner);
+        const keepTop = sc ? sc.scrollTop : 0;
+        const tSc = $('.isl-thread', islandInner);
+        const keepThreadTop = tSc ? tSc.scrollTop : 0;
+        const openSteps = $$('details.step', islandInner).map(d => d.open);
+        renderIsland();
+        const nextSc = $('.isl-scroll', islandInner);
+        if (nextSc) nextSc.scrollTop = keepTop;
+        const nextTSc = $('.isl-thread', islandInner);
+        if (nextTSc) nextTSc.scrollTop = keepThreadTop;
+        $$('details.step', islandInner).forEach((d, i) => { if (openSteps[i] !== undefined) d.open = openSteps[i]; });
+      }
     }
   }
 
@@ -257,6 +278,7 @@
       enterFlags[name] = true;
       renderView(name);
       if (name === 'chat') N.syncTargets(true);
+      N.syncPivot?.();
       anim(next, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }],
         { duration: N.DUR.move, easing: SP.settle.e });
       N.stagger(next);
@@ -350,11 +372,28 @@
       );
     });
   }
+  function syncCapsuleTips() {
+    const pBtn = $('#palette-btn');
+    if (pBtn) {
+      const cur = state.palette === 'cool' ? '星枢' : '灵玉';
+      const nxt = state.palette === 'cool' ? '灵玉' : '星枢';
+      pBtn.dataset.tip = `${cur} · 切换至${nxt}`;
+    }
+    const tBtn = $('#theme-btn');
+    if (tBtn) {
+      const cur = state.theme === 'night' ? '黑夜' : '白昼';
+      const nxt = state.theme === 'night' ? '白昼' : '黑夜';
+      tBtn.dataset.tip = `${cur} · 切换至${nxt}`;
+    }
+  }
   function applyTheme(next) {
-    document.documentElement.dataset.theme = next;
-    state.theme = next;
+    const val = next || state.theme || 'day';
+    document.documentElement.dataset.theme = val;
+    state.theme = val;
+    syncCapsuleTips();
     N.save();
     N.syncSettingsUi?.();
+    N.syncPivot?.();
   }
   function setTheme(next, anchor) {
     if (next === state.theme) return;
@@ -366,9 +405,11 @@
   function applyPalette(id) {
     document.documentElement.dataset.palette = id;
     state.palette = id;
+    syncCapsuleTips();
     N.rebuildSprings?.();
     N.save();
     N.syncSettingsUi?.();
+    N.syncPivot?.();
   }
   function setPalette(id, anchor) {
     if (!N.THEMES?.some(t => t.id === id) || state.palette === id) return;
@@ -462,23 +503,33 @@
     }
   });
 
+  $('#palette-btn')?.addEventListener('click', e => {
+    const next = state.palette === 'cool' ? 'jade' : 'cool';
+    setPalette(next, e.currentTarget);
+    const meta = N.THEMES.find(t => t.id === next);
+    if (meta) N.notify(`已切换至「${meta.name}」`, 'jade', 2000);
+  });
   $('#theme-btn').addEventListener('click', e => toggleTheme(e.currentTarget));
   $('#preview-more').addEventListener('click', e => {
+    const nextPal = state.palette === 'cool' ? 'jade' : 'cool';
+    const nextMeta = N.THEMES.find(t => t.id === nextPal);
+    const nextModeLabel = state.theme === 'night' ? '白昼' : '黑夜';
     const items = [
-      { label: '重新读取全部状态', icon: 'refresh', onPick: () => syncAll('已重新读取') },
-      { label: '切换昼夜', icon: 'moon', onPick: () => toggleTheme($('#preview-more')) },
+      { label: '重新同步状态', icon: 'refresh', onPick: () => syncAll('已重新读取') },
+      { label: `切换意境：${nextMeta ? nextMeta.name : nextPal}`, icon: 'palette', onPick: () => setPalette(nextPal, $('#preview-more')) },
+      { label: `切换至：${nextModeLabel}`, icon: 'moon', onPick: () => toggleTheme($('#preview-more')) },
       { sep: true },
       { label: '恢复默认界面偏好', icon: 'undo', onPick: () => {
         N.clearSaved();
-        state.theme = 'day'; state.palette = 'jade'; state.motion = 'normal';
-        N.applyTheme?.(); N.setMotion?.('normal', true); N.renderView(state.view);
-        N.notify('界面偏好已恢复默认', 'jade');
+        state.theme = 'day'; state.palette = 'jade'; state.motion = '1';
+        applyPalette('jade'); applyTheme('day'); N.setMotion?.('1', true); N.renderView(state.view);
+        N.notify('界面偏好已恢复默认（灵玉 · 白昼）', 'jade');
       } },
     ];
-    N.menu(e.currentTarget, items, { title: '界面' });
+    N.menu(e.currentTarget, items, { title: '灵 · 枢 界面' });
   });
   scrim.addEventListener('click', () => morphIsland('compact'));
-  $('#scene-btn').addEventListener('click', e => {
+  $('#scene-btn')?.addEventListener('click', e => {
     const key = sceneKey();
     const items = [
       { group: '当前状态' },
@@ -490,7 +541,7 @@
     ];
     N.menu(e.currentTarget, items, { title: '运行状态' });
   });
-  $('#reset-btn').addEventListener('click', () => syncAll('已重新读取'));
+  $('#reset-btn')?.addEventListener('click', () => syncAll('已重新读取'));
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {

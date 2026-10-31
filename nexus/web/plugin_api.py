@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 def route(handler, state, respond, method):
     parsed = urlparse(handler.path)
     path = unquote(parsed.path)
-    if not (path.startswith(('/api/plugins', '/api/hooks', '/api/embedding-models', '/plugins/', '/api/plugin-events',
+    if not (path.startswith(('/api/plugins', '/api/hooks', '/plugins/', '/api/plugin-events',
                              '/api/plugin-host', '/api/model-requests'))):
         return False
     try:
@@ -18,8 +18,8 @@ def route(handler, state, respond, method):
             respond(handler, 503, {'error': '插件服务尚未初始化'})
             return True
         query = parse_qs(parsed.query)
-        if method == 'GET' and path == '/api/embedding-models':
-            respond(handler, 200, {'models': [{**m, 'has_key': state['store'].has_key('embedding:' + m['id'])} for m in manager.runtime.models.embeddings()]})
+        if method == 'GET' and path.startswith('/api/plugins/') and path.endswith('/readme'):
+            respond(handler, 200, manager.readme(path.split('/')[3]))
         elif method == 'GET' and path.startswith('/api/plugins/') and path.endswith('/runtime'):
             respond(handler, 200, manager.runtime.snapshot(path.split('/')[3]))
         elif method == 'GET' and path == '/api/hooks':
@@ -60,11 +60,7 @@ def route(handler, state, respond, method):
                 respond(handler, 409 if result.get('conflict') else 200, result)
                 return True
             body = json.loads(content or b'{}')
-            if path == '/api/embedding-models':
-                result = {'models': manager.runtime.models.save_embedding(body)}
-            elif path == '/api/embedding-models/delete':
-                result = {'models': manager.runtime.models.delete_embedding(body['id'])}
-            elif path.startswith('/api/plugins/') and path.endswith('/runtime'):
+            if path.startswith('/api/plugins/') and path.endswith('/runtime'):
                 owner = path.split('/')[3]
                 action = body['method']
                 if action not in ('jobs.cancel', 'jobs.retry', 'operations.cancel', 'dialogues.cancel', 'dialogues.history'):

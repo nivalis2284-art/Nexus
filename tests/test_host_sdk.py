@@ -90,9 +90,6 @@ def provider():
         def do_POST(self):
             body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
             requests.append((self.path, body))
-            if self.path.endswith('embeddings'):
-                data=json.dumps({'data':[{'index':i,'embedding':[1.,0.,.5]} for i,_ in enumerate(body['input'])]}).encode()
-                self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
             self.send_response(200);self.send_header('Content-Type','text/event-stream');self.end_headers()
             def send(value,event=None):
                 for choice in value.get('choices', []): choice.setdefault('index', 0)
@@ -171,13 +168,29 @@ def test_model_stream_tool_continuation_and_isolation(manager,provider,family):
     assert len(manager.state['sessions'].load(manager.state['ling'].session_id).items)==1
 
 
-def test_embedding_catalog_and_private_credentials(manager,provider):
-    rt=manager.runtime
-    item=rt.models.save_embedding({'name':'embed','base_url':provider[0],'model_id':'e','api_key':'embedding-secret'})[0]
+def test_model_catalog_only_lists_generation_and_rejects_embedding_calls(manager,provider):
+    select=configure(manager,provider[0])
+    config=manager.state['store']
+    raw=config.read_config()
+    raw['embedding_models']=[{'id':'legacy','name':'old','model_id':'e','base_url':provider[0]}]
+    config.write_config(raw)
+    config.write_credential('embedding:legacy','embedding-secret')
     h=PluginHost(manager,'test')
-    assert 'embedding-secret' not in json.dumps(h.models.list())
-    result=h.models.embed(model_id=item['id'],input=['one','two'])
-    assert result['dimensions']==3 and len(result['vectors'])==2
+    models=h.models.list()
+    assert models and all(model['kind']=='generation' for model in models)
+    selected=next(model for model in models if model['provider_id']==select['provider_id'])
+    assert selected['model_id']==select['model_id'] and selected['configured']
+    assert 'embedding-secret' not in json.dumps(models)
+    with pytest.raises(ValueError,match='未知宿主能力方法'):
+        h.models.embed(model_id='legacy',input=['one'])
+    with pytest.raises(ValueError,match='此方法不是长操作'):
+        manager.runtime.invoke('test','operations.start',{'method':'models.embed','params':{'model_id':'legacy','input':['one']}})
+    assert not provider[1]
+    assert not manager.runtime.store.list('operation','test')
+
+
+def test_private_credentials_are_isolated(manager):
+    h=PluginHost(manager,'test')
     h.storage.secrets.set(name='private',value='mine')
     assert h.storage.secrets.get(name='private')=='mine'
     assert PluginHost(manager,'other').storage.secrets.get(name='private') is None

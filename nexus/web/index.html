@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="day" data-palette="jade" data-motion="normal">
+<html lang="zh-CN" data-theme="day" data-palette="jade" data-motion="1">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Nexus · 灵</title>
+<title>灵 · 枢 — Nexus</title><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='8' fill='%23161513'/%3E%3Ccircle cx='16' cy='16' r='10.5' fill='none' stroke='%232ec4a3' stroke-width='1.4' opacity='.72'/%3E%3Cellipse cx='16' cy='16' rx='10.5' ry='4.2' transform='rotate(-26 16 16)' fill='none' stroke='%237cead0' stroke-width='1.3'/%3E%3Ccircle cx='16' cy='16' r='3.6' fill='%23e86a4c'/%3E%3C/svg%3E">
 <script>
 try {
   var savedPreview = JSON.parse(localStorage.getItem('nexus-ui-prefs-v1') || 'null');
@@ -91,18 +91,20 @@ try {
   <symbol id="i-tool" viewBox="0 0 24 24"><path d="M14.5 6.5a4.5 4.5 0 0 0 5.8 5.8L13 19.6a2.3 2.3 0 0 1-3.2 0l-2.4-2.4a2.3 2.3 0 0 1 0-3.2l7.1-7.5Z"/></symbol>
   <symbol id="i-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/></symbol>
   <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-pivot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/><ellipse cx="12" cy="12" rx="9.2" ry="4" transform="rotate(-28 12 12)"/><ellipse cx="12" cy="12" rx="9.2" ry="4" transform="rotate(34 12 12)"/></symbol>
+  <symbol id="i-palette" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17 4.25 4.25 0 0 1 0-8.5 4.25 4.25 0 0 0 0-8.5Z" fill="currentColor" stroke="none"/></symbol>
  </defs>
 </svg>
 
-<!-- 背景气场：随状态缓慢变色 -->
-<div class="aura" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i><b class="grain"></b></div>
+<!-- 背景气场与枢场交互层 -->
+<div class="aura" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i><canvas class="pivot-field" id="pivot-field"></canvas><b class="grain"></b></div>
 
 <div class="island-scrim" id="island-scrim" hidden></div>
 
 <!-- 灵岛：后台工作、通知、详情都在这一处形变 -->
-<section class="island" id="island" data-mode="compact" aria-label="灵岛：后台工作与通知"><div class="island-inner" id="island-inner"></div></section>
+<section class="island" id="island" data-mode="compact" aria-label="灵·枢：后台工作与通知"><div class="island-inner" id="island-inner"></div></section>
 
-<!-- 导航坞 -->
+<!-- 悬浮导航胶囊：整合主导航与境象切换 -->
 <nav class="dock" id="dock" aria-label="主导航">
  <span class="dock-ink" id="dock-ink" aria-hidden="true"></span>
  <button class="dock-btn active" data-view="chat" aria-label="主交流" data-tip="主交流  ⌘1"><svg class="i"><use href="#i-chat"/></svg></button>
@@ -110,17 +112,12 @@ try {
  <button class="dock-btn" data-view="context" aria-label="上下文" data-tip="上下文  ⌘3"><svg class="i"><use href="#i-layers"/></svg></button>
  <button class="dock-btn" data-view="skills" aria-label="技能" data-tip="技能  ⌘4"><svg class="i"><use href="#i-spark"/></svg></button>
  <button class="dock-btn" data-view="plugins" aria-label="插件" data-tip="插件  ⌘5"><svg class="i"><use href="#i-plug"/></svg></button>
- <span class="dock-gap"></span>
  <button class="dock-btn" data-view="settings" aria-label="设置" data-tip="设置  ⌘6"><svg class="i"><use href="#i-tune"/></svg></button>
- <span class="dock-owner" title="所有者">L</span>
+ <span class="dock-gap"></span>
+ <button type="button" class="rail-ctl pc-palette" id="palette-btn" aria-label="切换灵玉与星枢" data-tip="灵玉 / 星枢"><svg class="i"><use href="#i-palette"/></svg></button>
+ <button type="button" class="rail-ctl pc-theme" id="theme-btn" aria-label="切换白昼与黑夜" data-tip="白昼 / 黑夜"><svg class="i sun"><use href="#i-sun"/></svg><svg class="i moon"><use href="#i-moon"/></svg></button>
+ <button type="button" class="rail-ctl pc-more" id="preview-more" aria-label="更多界面选项" aria-haspopup="menu" data-tip="更多选项"><svg class="i"><use href="#i-more"/></svg></button>
 </nav>
-<!-- 界面控制：运行状态、昼夜与更多 -->
-<div class="preview-ctl" id="app-ctl">
- <button class="pc-scene" id="scene-btn" aria-haspopup="menu" aria-expanded="false"><span id="scene-label">空闲</span><svg class="i xs"><use href="#i-down"/></svg></button>
- <button class="pc-theme" id="theme-btn" aria-label="切换昼夜"><svg class="i sun"><use href="#i-sun"/></svg><svg class="i moon"><use href="#i-moon"/></svg></button>
- <button class="pc-theme" id="reset-btn" aria-label="重新同步"><svg class="i"><use href="#i-refresh"/></svg></button>
- <button class="pc-theme pc-more" id="preview-more" aria-label="更多界面选项" aria-haspopup="menu"><svg class="i"><use href="#i-more"/></svg></button>
-</div>
 
 <button class="menu-btn" id="menu-btn" aria-label="打开导航" aria-expanded="false"><svg class="i"><use href="#i-menu"/></svg></button>
 
@@ -153,9 +150,8 @@ try {
     </div>
    </form>
    <p class="composer-hint">
-    <span id="stat-turn">3 轮</span>
-    <button type="button" class="stat-btn" id="stat-tokens" aria-expanded="false">24,360 tok</button>
-    <button type="button" class="stat-btn" id="stat-context" aria-expanded="false">上下文 24%</button>
+    <span id="stat-turn">0 轮</span>
+    <button type="button" class="stat-btn" id="stat-tokens" aria-expanded="false">0 tok</button>
     <span class="hint-kbd">Enter 发送 · Shift + Enter 换行</span>
    </p>
   </div>
@@ -175,7 +171,7 @@ try {
 <dialog class="sheet" id="editor" aria-labelledby="editor-title">
  <form method="dialog" id="editor-form">
   <h2 id="editor-title">编辑</h2>
-  <p class="sheet-note" id="editor-desc">只改变当前预览，不写入 Nexus。</p>
+  <p class="sheet-note" id="editor-desc">保存后在后续请求中生效。</p>
   <label class="sr" for="editor-text">内容</label>
   <textarea id="editor-text" required></textarea>
   <p class="sheet-error" id="editor-error" role="alert"></p>
@@ -258,11 +254,27 @@ try {
  <div class="fp-body" id="fp-body"></div>
 </dialog>
 
+<dialog class="sheet plugin-dialog" id="plugin-page-dialog" aria-labelledby="plugin-page-title">
+ <header class="sheet-head"><h2 id="plugin-page-title">插件功能页</h2><button class="ic-btn" type="button" data-close="plugin-page-dialog" aria-label="关闭功能页"><svg class="i"><use href="#i-close"/></svg></button></header>
+ <div class="plugin-dialog-content" id="plugin-page-body"></div>
+</dialog>
+<dialog class="sheet plugin-dialog plugin-readme-dialog" id="plugin-readme-dialog" aria-labelledby="plugin-readme-title">
+ <header class="sheet-head"><h2 id="plugin-readme-title">插件介绍</h2><button class="ic-btn" type="button" data-close="plugin-readme-dialog" aria-label="关闭介绍"><svg class="i"><use href="#i-close"/></svg></button></header>
+ <div class="plugin-dialog-content ling-body" id="plugin-readme-body" aria-live="polite"></div>
+</dialog>
+
+<dialog class="sheet tall" id="host-runtime-dialog" aria-labelledby="host-runtime-title">
+ <div class="sheet-body">
+  <header class="sheet-head"><div><h2 id="host-runtime-title">插件运行</h2><p class="sheet-note">宿主能力、独立对话与后台作业。</p></div><button class="ic-btn" type="button" data-close="host-runtime-dialog" aria-label="关闭"><svg class="i"><use href="#i-close"/></svg></button></header>
+  <div id="host-runtime-body"></div>
+  <p id="host-runtime-error" class="sheet-error" role="alert"></p>
+  <footer class="sheet-foot"><button class="btn ghost sm" type="button" data-act="host-runtime-refresh">刷新</button><span class="spacer"></span><button class="btn solid" type="button" data-close="host-runtime-dialog">完成</button></footer>
+ </div>
+</dialog>
+
 <script src="vendor/marked.js"></script>
 <script src="vendor/purify.js"></script>
 <script src="vendor/highlight.js"></script>
-<dialog class="sheet tall" id="host-runtime-dialog" aria-labelledby="host-runtime-title"><div class="sheet-body"><header class="sheet-head"><div><h2 id="host-runtime-title">插件运行</h2><p class="sheet-note">宿主能力、独立对话与后台作业。</p></div><button class="ic-btn" data-close="host-runtime-dialog" aria-label="关闭">×</button></header><div id="host-runtime-body"></div><p id="host-runtime-error" class="sheet-error" role="alert"></p><footer class="sheet-foot"><button class="btn ghost" data-act="host-runtime-refresh">刷新</button><span class="spacer"></span><button class="btn solid" data-close="host-runtime-dialog">完成</button></footer></div></dialog>
-<dialog class="sheet tall" id="embedding-dialog" aria-labelledby="embedding-title"><div class="sheet-body"><header class="sheet-head"><div><h2 id="embedding-title">嵌入模型</h2><p class="sheet-note">OpenAI 兼容 Embeddings；密钥留空不变。</p></div><button class="ic-btn" data-close="embedding-dialog" aria-label="关闭">×</button></header><div id="embedding-list" class="mcp-list"></div><form id="embedding-form"><div class="fields"><label class="field">名称<input id="embedding-name" required></label><label class="field">模型<input id="embedding-model" required></label><label class="field span-2">API 地址<input id="embedding-url" type="url" required placeholder="https://api.example.com/v1"></label><label class="field span-2">API Key<input id="embedding-key" type="password" autocomplete="new-password"></label></div><label class="check"><input id="embedding-clear" type="checkbox">清除此模型密钥</label><p id="embedding-error" class="sheet-error" role="alert"></p><footer class="sheet-foot"><button class="btn ghost" type="button" data-act="embedding-new">新增</button><span class="spacer"></span><button class="btn solid" type="submit">保存</button></footer></form></div></dialog>
 <script src="js/core.js"></script>
 <script src="js/api.js"></script>
 <script src="js/dialogs.js"></script>
@@ -275,6 +287,7 @@ try {
 <script src="js/settings.js"></script>
 <script src="js/host-sdk.js"></script>
 <script src="js/shell.js"></script>
+<script src="js/pivot.js"></script>
 <script src="js/boot.js"></script>
 </body>
 </html>
