@@ -57,7 +57,7 @@
       const tabs = document.querySelector('.tabs');
       if (tabs) N.moveInk($('.tab-ink', tabs), $('button.active', tabs), 'x', true);
       const perm = document.querySelector('.perm');
-      if (perm) N.moveInk($('.tab-ink', perm), $('button.active', perm), 'x', true);
+      if (perm) N.syncSettingsUi?.(true);
       if (state.view === 'chat') N.scrollEnd?.(false);
     });
   }

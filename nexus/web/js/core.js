@@ -23,6 +23,7 @@ window.N = window.N || {};
   let REDUCED = rmq.matches;
   /* 五档速度：1.0x 是基准，0.5x 最快，1.5x 最慢。 */
   const MOTION_LEVELS = ['0.5', '0.75', '1', '1.25', '1.5'];
+  const MOTION_LABELS = { '0.5': '快', '0.75': '较快', '1': '标准', '1.25': '较慢', '1.5': '慢' };
   const MOTION_SCALES = { '0.5': .68, '0.75': .84, '1': 1, '1.25': 1.16, '1.5': 1.32 };
   const MOTION_ALIAS = { fast: '0.5', normal: '0.75', slow: '1' };
   const motionKey = id => (MOTION_ALIAS[id] || (MOTION_SCALES[id] ? id : '1'));
@@ -109,15 +110,19 @@ window.N = window.N || {};
     const pos = axis === 'x' ? target.offsetLeft : target.offsetTop;
     const size = axis === 'x' ? target.offsetWidth : target.offsetHeight;
     if (!size) return;
-    const p0 = ink._axis === axis ? ink._pos : null, s0 = ink._size;
-    ink.style.transform = `${P}(${pos}px)`; ink.style[S] = size + 'px'; ink.style[O] = '';
-    ink._pos = pos; ink._size = size; ink._axis = axis;
-    if (instant || p0 == null || REDUCED || (p0 === pos && s0 === size)) return;
+    const previousAxis = ink._axis;
+    const current = getComputedStyle(ink);
+    const matrix = current.transform === 'none' ? null : new DOMMatrixReadOnly(current.transform);
+    const p0 = previousAxis === axis ? (matrix ? (axis === 'x' ? matrix.m41 : matrix.m42) : 0) : null;
+    const s0 = parseFloat(current[S]);
     ink.getAnimations().forEach(a => a.cancel());
+    ink.style.transform = `${P}(${pos}px)`; ink.style[S] = size + 'px'; ink.style[O] = '';
+    ink._axis = axis;
+    if (instant || p0 == null || REDUCED || (p0 === pos && s0 === size)) return;
     ink.animate([
       { transform: `${P}(${p0}px)`, [S]: s0 + 'px' },
       { transform: `${P}(${pos}px)`, [S]: size + 'px' },
-    ], { duration: Math.round(SP.settle.d * motionScale()), easing: SP.settle.e });
+    ], { duration: DUR.move * motionScale(), easing: EASE_OUT });
   }
 
   /* ---------------------------------------------------------------- 格式 */
@@ -271,17 +276,17 @@ window.N = window.N || {};
     {
       id: 'jade',
       name: '灵玉',
-      sub: '温润沉稳 · 羊脂墨玉与中枢金晶环',
+      sub: '温润沉稳 · 琢玉含光与鎏金环带',
       tag: '温玉 · 鎏金',
-      desc: '暖境 · 羊脂墨玉、中枢鎏金晶环、金玉追光与柔韧回弹',
+      desc: '暖境 · 温润琢玉、中枢鎏金晶环、金玉追光与柔韧回弹',
       day: { p: '#078c70', a: '#d99416' },
       night: { p: '#28d8b2', a: '#f5b83d' },
     },
     {
       id: 'cool',
       name: '星枢',
-      sub: '轻盈灵动 · 星轨微芒与冰晶折光',
-      tag: '星穹 · 折光',
+      sub: '轻盈灵动 · 群星层叠与星轨微芒',
+      tag: '群星 · 星轨',
       desc: '冷境 · 晴空星穹、寒星闪烁、棱镜追光与鲜活弹簧',
       day: { p: '#3568f0', a: '#855cf2' },
       night: { p: '#82a8ff', a: '#c0a6ff' },
@@ -366,7 +371,7 @@ window.N = window.N || {};
   N.clone = clone; N.clamp = clamp; N.EASE_OUT = EASE_OUT;
   N.SP = SP; N.anim = anim; N.moveInk = moveInk; N.rebuildSprings = buildSprings;
   N.motionScale = motionScale; N.setMotionScale = setMotionScale; N.MOTION_SCALES = MOTION_SCALES;
-  N.MOTION_LEVELS = MOTION_LEVELS; N.MOTION_ALIAS = MOTION_ALIAS; N.DUR = DUR;
+  N.MOTION_LEVELS = MOTION_LEVELS; N.MOTION_LABELS = MOTION_LABELS; N.MOTION_ALIAS = MOTION_ALIAS; N.DUR = DUR;
   N.THEMES = THEMES;
   Object.defineProperty(N, 'REDUCED', { get: () => REDUCED });
   N.nowHM = nowHM; N.fmtSize = fmtSize; N.fmtNum = fmtNum; N.shortPath = shortPath;

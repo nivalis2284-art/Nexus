@@ -68,7 +68,8 @@
   let followRAF = 0;
   let followEnabled = true;
   function followScroll() {
-    if (!followEnabled || followRAF || N.REDUCED) return;
+    if (!followEnabled || followRAF) return;
+    if (N.REDUCED) { conv.scrollTop = conv.scrollHeight; return; }
     const tick = () => {
       if (!followEnabled) { followRAF = 0; return; }
       const max = conv.scrollHeight - conv.clientHeight;
@@ -501,23 +502,8 @@
             <ellipse class="pv-spec" cx="-11" cy="-13" rx="11" ry="6.2" transform="rotate(-32 -11 -13)"/>
             <circle class="pv-axis-pin" cx="0" cy="0" r="2.5"/>
           </g>
-          <g class="pv-core-jade" transform="rotate(-18)">
-            <polygon class="pv-jade-guard" points="0,-42 25,-25 32,0 25,25 0,42 -25,25 -32,0 -25,-25"/>
-            <polygon class="jf-lit-1" points="-21,-20 0,-36 0,-18.5 -10.5,-10"/>
-            <polygon class="jf-lit-2" points="-27,0 -21,-20 -10.5,-10 -13.5,0"/>
-            <polygon class="jf-mid-1" points="0,-36 21,-20 10.5,-10 0,-18.5"/>
-            <polygon class="jf-mid-2" points="-21,20 -27,0 -13.5,0 -10.5,10"/>
-            <polygon class="jf-rich-1" points="21,-20 27,0 13.5,0 10.5,-10"/>
-            <polygon class="jf-rich-2" points="0,36 -21,20 -10.5,10 0,18.5"/>
-            <polygon class="jf-deep-1" points="27,0 21,20 10.5,10 13.5,0"/>
-            <polygon class="jf-deep-2" points="21,20 0,36 0,18.5 10.5,10"/>
-            <polygon class="jf-table" points="0,-18.5 10.5,-10 13.5,0 10.5,10 0,18.5 -10.5,10 -13.5,0 -10.5,-10" fill="url(#jg-table)"/>
-            <polygon class="jf-refract-hi" points="0,-18.5 -10.5,-10 -13.5,0 0,0"/>
-            <polygon class="jf-refract-lo" points="13.5,0 10.5,10 0,18.5 0,0"/>
-            <polygon class="jf-rim" points="0,-36 21,-20 27,0 21,20 0,36 -21,20 -27,0 -21,-20"/>
-            <path class="jf-ridge" d="M0,-18.5 L10.5,-10 L13.5,0 L10.5,10 L0,18.5 L-10.5,10 L-13.5,0 L-10.5,-10 Z M0,-36 L0,-18.5 M21,-20 L10.5,-10 M27,0 L13.5,0 M21,20 L10.5,10 M0,36 L0,18.5 M-21,20 L-10.5,10 M-27,0 L-13.5,0 M-21,-20 L-10.5,-10"/>
-            <circle class="jf-gold-halo" cx="0" cy="0" r="6.5"/>
-            <polygon class="jf-gold-pin" points="0,-4.4 3.2,0 0,4.4 -3.2,0"/>
+          <g class="pv-core-jade" transform="rotate(-14)">
+            <image href="assets/jade.svg" x="-40" y="-45" width="80" height="90"/>
           </g>
         </g>
         <g class="pv-axis" transform="rotate(-18)">
@@ -550,28 +536,61 @@
     const sig = JSON.stringify({ r: state.requests, w: works.map(w => [w.id, w.pending_interactions]) });
     if (sig === reqSig) return;
     reqSig = sig;
-    const wasOpen = !box.hidden;
     beginLayoutChange();
-    box.innerHTML = '';
+    const groups = [
+      ['ling', '灵在等你', state.requests.map(r => ({ id: r.id, value: r, owner: r.owner || '灵', build: () => requestCard(r) }))],
+      ['work', '工作请求', works.flatMap(w => w.pending_interactions.map(inter => ({ id: 'task:' + w.id + ':' + inter.id, value: inter, owner: w.title, build: () => workRequestCard(w, inter) })))],
+    ];
+    let added = 0;
+    for (const [key, title, requests] of groups) {
+      let section = box.querySelector(`[data-request-group="${key}"]`);
+      if (!requests.length) { section?.remove(); continue; }
+      if (!section) {
+        section = document.createElement('div');
+        section.className = 'req-section'; section.dataset.requestGroup = key;
+        section.innerHTML = `<div class="req-kicker">${title}</div>`;
+        box.appendChild(section);
+      }
+      const existing = new Map($$('.req-card', section).map(card => [card.dataset.req, card]));
+      requests.forEach((request, index) => {
+        const id = String(request.id);
+        const signature = JSON.stringify([request.value.kind, request.value.status, request.value.payload]);
+        let card = existing.get(id);
+        if (!card || card._requestSig !== signature) {
+          const fresh = request.build();
+          fresh._requestSig = signature;
+          if (card) {
+            // 同一组问题刷新状态时，保留尚未提交的回答与焦点。
+            const sameQuestions = card._questions === JSON.stringify(request.value.payload?.questions);
+            const focused = document.activeElement;
+            if (sameQuestions) $$('.req-free', card).forEach(field => {
+              const next = fresh.querySelector(`.req-free[data-q="${field.dataset.q}"]`);
+              if (!next) return;
+              next.value = field.value;
+              $$('.req-opt', fresh).filter(button => button.dataset.q === field.dataset.q).forEach(button => button.classList.toggle('picked', button.dataset.v === field.value));
+            });
+            card.replaceWith(fresh);
+            if (sameQuestions && focused?.matches('.req-free') && card.contains(focused)) {
+              const field = fresh.querySelector(`.req-free[data-q="${focused.dataset.q}"]`);
+              field?.focus({ preventScroll: true });
+              field?.setSelectionRange(focused.selectionStart, focused.selectionEnd);
+            }
+            fresh.style.animation = 'none';
+          } else fresh.style.animationDelay = (added++ * 45 * N.motionScale()) + 'ms';
+          card = fresh;
+          card._questions = JSON.stringify(request.value.payload?.questions);
+        }
+        const owner = $('.req-owner', card);
+        if (owner) owner.textContent = request.owner;
+        const slot = section.children[index + 1];
+        if (slot !== card) section.insertBefore(card, slot || null);
+        existing.delete(id);
+      });
+      existing.forEach(card => card.remove());
+    }
     box.hidden = !state.requests.length && !works.length;
     $('#view-chat').classList.toggle('has-top', !box.hidden || !$('#ling-inputs').hidden);
-    if (wasOpen !== !box.hidden) endLayoutChange();
-    if (box.hidden) return;
-    if (state.requests.length) {
-      const sec = document.createElement('div');
-      sec.className = 'req-section';
-      sec.innerHTML = '<div class="req-kicker">灵在等你</div>';
-      state.requests.forEach(r => sec.appendChild(requestCard(r)));
-      box.appendChild(sec);
-    }
-    if (works.length) {
-      const sec = document.createElement('div');
-      sec.className = 'req-section';
-      sec.innerHTML = '<div class="req-kicker">工作请求</div>';
-      works.forEach(w => w.pending_interactions.forEach(i => sec.appendChild(workRequestCard(w, i))));
-      box.appendChild(sec);
-    }
-    $$('.req-card', box).forEach((card, i) => { card.style.animationDelay = (i * 45 * N.motionScale()) + 'ms'; });
+    endLayoutChange();
   }
 
   function requestCard(r) {
@@ -772,23 +791,49 @@
   }
 
   /* ---------------------------------------------------------------- 输入队列 */
+  let queueSig = '';
   function renderQueue() {
     const box = $('#ling-inputs');
     const rows = state.queue.filter(q => ['pending', 'queued', 'running', 'held', 'interrupted', 'failed'].includes(q.status));
-    const wasOpen = !box.hidden;
+    const signature = JSON.stringify(rows);
+    if (signature === queueSig) return;
+    queueSig = signature;
     beginLayoutChange();
-    box.innerHTML = rows.length ? `<div class="queue-inner">${rows.slice(0, 3).map(q => {
-      const label = {
-        pending: '已接收，排队等待处理', queued: '已接收排队，当前输入完成后处理', running: '正在处理',
-        held: '重启后暂停；需要你确认继续', interrupted: '上次处理已中断；检查已生效操作后发送新消息继续',
-        failed: '处理失败' + (q.error ? '：' + q.error : ''),
-      }[q.status] || q.status;
-      return `<div class="qrow" data-status="${q.status}"><i class="qdot"></i><span class="qtext">${esc(q.text || '附件输入')}</span><span class="qstatus">${esc(label)}</span></div>`;
-    }).join('')}${rows.length > 3 ? `<div class="qmore">另有 ${rows.length - 3} 条输入排队</div>` : ''}</div>` : '';
-    $$('.qrow', box).forEach((row, i) => { row.style.animationDelay = (i * 35 * N.motionScale()) + 'ms'; });
+    let list = $('.queue-inner', box);
+    if (rows.length && !list) {
+      list = document.createElement('div'); list.className = 'queue-inner'; box.appendChild(list);
+    }
+    if (list) {
+      const existing = new Map($$('.qrow', list).map(row => [row.dataset.id, row]));
+      rows.slice(0, 3).forEach((q, index) => {
+        const id = String(q.id);
+        let row = existing.get(id);
+        if (!row) {
+          row = document.createElement('div'); row.className = 'qrow'; row.dataset.id = id;
+          row.innerHTML = '<i class="qdot"></i><span class="qtext"></span><span class="qstatus"></span>';
+          row.style.animationDelay = (index * 35 * N.motionScale()) + 'ms';
+        }
+        row.dataset.status = q.status;
+        $('.qtext', row).textContent = q.text || '附件输入';
+        $('.qstatus', row).textContent = {
+          pending: '已接收，排队等待处理', queued: '已接收排队，当前输入完成后处理', running: '正在处理',
+          held: '重启后暂停；需要你确认继续', interrupted: '上次处理已中断；检查已生效操作后发送新消息继续',
+          failed: '处理失败' + (q.error ? '：' + q.error : ''),
+        }[q.status] || q.status;
+        if (list.children[index] !== row) list.insertBefore(row, list.children[index] || null);
+        existing.delete(id);
+      });
+      existing.forEach(row => row.remove());
+      let more = $('.qmore', list);
+      if (rows.length > 3) {
+        if (!more) { more = document.createElement('div'); more.className = 'qmore'; list.appendChild(more); }
+        more.textContent = `另有 ${rows.length - 3} 条输入排队`;
+      } else more?.remove();
+      if (!rows.length) list.remove();
+    }
     box.hidden = !rows.length;
     $('#view-chat').classList.toggle('has-top', !box.hidden || !$('#ling-requests').hidden);
-    if (wasOpen !== !box.hidden) endLayoutChange();
+    endLayoutChange();
   }
 
   /* ---------------------------------------------------------------- 统计与用量 */

@@ -1,7 +1,7 @@
 /* ==========================================================================
    灵 · 枢 — 四象主题系统（灵玉 / 星枢 × 白昼 / 黑夜）
    1. 「灵玉」(jade) — 温润沉稳：羊脂墨玉、中枢鎏金晶环、圆融玉器几何、金玉追光与柔韧回弹
-   2. 「星枢」(cool) — 轻盈灵动：冰晶星穹、寒星轨芒、液态胶囊张力、棱镜折射与清脆弹簧
+   2. 「星枢」(cool) — 轻盈灵动：群星层叠、寒星轨芒、液态胶囊张力、棱镜折射与清脆弹簧
    全站统一采用「星枢」字体层级（主标题衬线 + 全局与阅读正文清隽无衬线 + 精密等宽）。
    ========================================================================== */
 
@@ -46,8 +46,8 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   --spec-top: rgba(255, 255, 255, .96);
   --ink: #131c19;
   --ink-2: #3d4d47;
-  --ink-3: #6c7d76;
-  --ink-4: #99aaa3;
+  --ink-3: #52685d;
+  --ink-4: #5e746a;
   --line: rgba(12, 44, 35, .135);
   --line-2: rgba(12, 44, 35, .22);
   --ink-glass: rgba(12, 44, 35, .065);
@@ -107,8 +107,8 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   --spec-top: rgba(136, 247, 222, .14);
   --ink: #ecf4f0;
   --ink-2: #aec2b9;
-  --ink-3: #748a80;
-  --ink-4: #44584f;
+  --ink-3: #a0b6ab;
+  --ink-4: #8ca79b;
   --line: rgba(126, 240, 212, .115);
   --line-2: rgba(126, 240, 212, .2);
   --ink-glass: rgba(126, 240, 212, .07);
@@ -142,7 +142,7 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
 
 /* 灵玉专属器物与光学玉泽 */
 [data-palette="jade"] .aura .grain { opacity: .16; }
-[data-theme="night"][data-palette="jade"] .aura .grain { opacity: .1; }
+[data-theme="night"][data-palette="jade"] .aura .grain { display: none; }
 [data-palette="jade"] .aura i { opacity: .3; filter: blur(96px); }
 [data-theme="night"][data-palette="jade"] .aura i { opacity: .24; }
 
@@ -167,7 +167,7 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
 }
 
 /* ==========================================================================
-   境二：星枢（轻盈灵动 · 晴空冰晶与深邃星穹）
+   境二：星枢（轻盈灵动 · 晴空群星与深邃星穹）
    ========================================================================== */
 [data-palette="cool"] {
   /* 白昼：拉开晴空蓝灰雾底与高透白晶卡片的明度差，强化星芒可见度 */
@@ -179,8 +179,8 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   --spec-top: rgba(255, 255, 255, .96);
   --ink: #0f1626;
   --ink-2: #3e4963;
-  --ink-3: #6c7894;
-  --ink-4: #9aa7c2;
+  --ink-3: #53617c;
+  --ink-4: #5e6d88;
   --line: rgba(22, 44, 98, .135);
   --line-2: rgba(22, 44, 98, .22);
   --ink-glass: rgba(22, 44, 98, .065);
@@ -239,8 +239,8 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   --spec-top: rgba(255, 255, 255, .14);
   --ink: #eef2fc;
   --ink-2: #b2bdd4;
-  --ink-3: #7b87a0;
-  --ink-4: #4b566d;
+  --ink-3: #a2adc4;
+  --ink-4: #8997b1;
   --line: rgba(168, 194, 255, .11);
   --line-2: rgba(168, 194, 255, .19);
   --ink-glass: rgba(168, 194, 255, .07);
@@ -307,8 +307,8 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
 .usage-pop,
 .sheet,
 .island {
-  backdrop-filter: blur(20px) saturate(1.38);
-  -webkit-backdrop-filter: blur(20px) saturate(1.38);
+  backdrop-filter: blur(16px) saturate(1.12);
+  -webkit-backdrop-filter: blur(16px) saturate(1.12);
 }
 
 .work-item,
@@ -453,31 +453,6 @@ body[data-mood="waiting"],
   fill: none; stroke: color-mix(in srgb, var(--jade) 28%, var(--line-2));
   stroke-width: .9; stroke-linejoin: miter;
 }
-.pv-jade-guard {
-  fill: none; stroke: color-mix(in srgb, #e8b038 42%, var(--jade));
-  stroke-width: .95; opacity: .62; stroke-linejoin: miter;
-}
-.jf-lit-1 { fill: color-mix(in srgb, var(--jade-hi) 42%, #ffffff); }
-.jf-lit-2 { fill: color-mix(in srgb, var(--jade-hi) 76%, #ffffff); }
-.jf-mid-1 { fill: color-mix(in srgb, var(--jade-hi) 62%, var(--jade)); }
-.jf-mid-2 { fill: color-mix(in srgb, var(--jade-hi) 45%, var(--jade)); }
-.jf-rich-1 { fill: var(--jade); }
-.jf-rich-2 { fill: color-mix(in srgb, var(--jade) 78%, var(--jade-deep)); }
-.jf-deep-1 { fill: color-mix(in srgb, var(--jade) 42%, var(--jade-deep)); }
-.jf-deep-2 { fill: var(--jade-deep); }
-.jf-refract-hi { fill: rgba(255, 255, 255, .24); pointer-events: none; }
-.jf-refract-lo { fill: rgba(2, 36, 28, .18); pointer-events: none; }
-.jf-rim {
-  fill: none; stroke: color-mix(in srgb, #f5cf6e 52%, var(--jade-hi));
-  stroke-width: 1.05; stroke-linejoin: miter;
-}
-.jf-ridge {
-  fill: none; stroke: rgba(255, 255, 255, .52);
-  stroke-width: .72; stroke-linejoin: miter; stroke-linecap: round;
-}
-[data-theme="night"] .jf-ridge { stroke: rgba(212, 255, 244, .44); }
-.jf-gold-halo { fill: rgba(245, 188, 52, .32); }
-.jf-gold-pin { fill: #f7c954; stroke: #fff6d6; stroke-width: .55; }
 [data-palette="jade"] .pv-pole { fill: #e6a82e; }
 [data-palette="jade"] .pv-spindle { stroke: color-mix(in srgb, #e6a82e 58%, var(--ink-3)); }
 
@@ -489,32 +464,12 @@ body[data-mood="waiting"],
 }
 [data-palette="jade"] .orb-mini {
   border-radius: 0;
-  background: none;
+  background: url("../assets/jade.svg") center / contain no-repeat;
   box-shadow: none;
-  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--jade) 48%, transparent));
+  filter: drop-shadow(0 2px 3px rgba(3, 55, 43, .18));
   animation: breathe 3.8s ease-in-out infinite;
 }
-[data-palette="jade"] .orb-mini::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  clip-path: polygon(29% 3%, 71% 3%, 97% 29%, 97% 71%, 71% 97%, 29% 97%, 3% 71%, 3% 29%);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, .42) 0%, transparent 44%),
-    conic-gradient(from -35deg at 50% 50%,
-      color-mix(in srgb, var(--jade-hi) 68%, #fff) 0deg 45deg,
-      var(--jade-hi) 45deg 90deg,
-      var(--jade) 90deg 135deg,
-      color-mix(in srgb, var(--jade) 72%, var(--jade-deep)) 135deg 180deg,
-      var(--jade-deep) 180deg 225deg,
-      color-mix(in srgb, var(--jade) 65%, var(--jade-deep)) 225deg 270deg,
-      var(--jade) 270deg 315deg,
-      color-mix(in srgb, #f5c856 42%, var(--jade-hi)) 315deg 360deg);
-}
-[data-palette="jade"] .orb-mini.busy::after {
-  border-radius: 0;
-  clip-path: polygon(29% 3%, 71% 3%, 97% 29%, 97% 71%, 71% 97%, 29% 97%, 3% 71%, 3% 29%);
-}
+[data-palette="jade"] .orb-mini::before { content: none; }
 .model-dot { background: conic-gradient(var(--jade), var(--cinnabar), var(--jade)); }
 
 /* ---------------------------------------------------------------- 设置页：灵玉 / 星枢 双境样张卡 */
@@ -619,3 +574,21 @@ body[data-mood="waiting"],
   from { opacity: 0; transform: translateY(6px) scale(.92); }
   to { opacity: 1; transform: none; }
 }
+
+/* 层次与双境样本：外层承托，内层资料嵌入，浮层独立抬升。 */
+.ctx-role, .ctx-sec, .plug-item { backdrop-filter: none; -webkit-backdrop-filter: none; }
+.ctx-role { background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); }
+.ctx-card .ctx-owner { border-radius: var(--r-ctrl); box-shadow: none; }
+.theme-scene { position: relative; flex: 1; height: 48px; overflow: hidden; border-radius: 12px; }
+.theme-jade .theme-scene { background: #dce9df; }
+.theme-cool .theme-scene { background: #10182d; }
+.spec-orbit { position: absolute; left: 50%; top: 50%; width: 96px; height: 30px; border: 1px solid #b58a36; border-radius: 50%; transform: translate(-50%, -50%) rotate(-18deg); }
+.spec-core { position: absolute; left: 50%; top: 50%; width: 24px; height: 30px; border-radius: 35% 42% 34% 40%; transform: translate(-50%, -50%) rotate(-14deg); background: radial-gradient(circle at 25% 20%, #d7f5df, #47b68f 35%, #08654e 88%); box-shadow: inset 1px 1px 2px #e2ffe5; }
+.theme-cool .spec-core { width: 20px; height: 20px; border-radius: 50%; background: radial-gradient(circle at 28% 24%, #f0f5ff, #8cafff 32%, #3568d6 85%); }
+.theme-cool .spec-orbit { border-color: #7897dc; height: 27px; }
+.theme-jade .spec-stars { position: absolute; width: 3px; height: 3px; border-radius: 1px; background: #9b6d20; left: 50%; top: 50%; box-shadow: -40px 10px #b28a37, -33px 9px #c59b4a, -25px 8px #a97b2e, 25px -8px #bc8a35, 33px -9px #a27728, 40px -10px #c49a47; }
+.theme-cool .spec-stars { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #e1eaff; left: 20%; top: 23%; box-shadow: 25px 19px #94abeb, 65px -4px #d9dfff, 92px 21px #c1cbf5, 116px 4px #91adee, -12px 27px #aaa8ee; }
+.theme-card:hover .spec-orbit, .theme-card:focus-visible .spec-orbit { animation: specimen-orbit 3s ease-in-out infinite alternate; }
+@keyframes specimen-orbit { to { transform: translate(-50%, -50%) rotate(-6deg); } }
+
+.theme-jade .spec-core { width: 30px; height: 36px; border-radius: 0; background: url("../assets/jade.svg") center / contain no-repeat; box-shadow: none; }

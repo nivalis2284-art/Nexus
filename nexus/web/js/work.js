@@ -60,6 +60,7 @@
   function renderWork() {
     const view = $('#view-work');
     const keep = view.scrollTop;
+    const previousStates = new Map($$('.work-item', view).map(card => [card.dataset.workOpen, card.dataset.state]));
     const works = state.works || [];
     const sig = JSON.stringify([works, state.workGroups]);
     const entering = N.takeEnter?.('work');
@@ -106,6 +107,13 @@
       <p class="foot-note" data-s>工作记录只读。开始、挂起、恢复或取消通过主交流交代；归档与删除只整理这里的列表。</p>
     </div>`;
     view.scrollTop = keep;
+    if (!entering) $$('.work-item', view).forEach(card => {
+      const before = previousStates.get(card.dataset.workOpen);
+      if (before && before !== card.dataset.state) {
+        N.anim($('.wico', card), [{ transform: 'scale(.88)', opacity: .55 }, { transform: 'none', opacity: 1 }],
+          { duration: N.DUR.move, easing: N.SP.settle.e });
+      }
+    });
   }
 
   function toggleGroup(id, btn) {

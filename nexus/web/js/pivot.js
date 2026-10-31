@@ -58,9 +58,9 @@
       line: [12, 68, 54, 0.096],
       goldGlow: [236, 162, 18],
       goldLit: [255, 226, 112],
-      goldMid: [228, 154, 18],
-      goldShade: [162, 94, 6],
-      goldEdge: [132, 74, 6],
+      goldMid: [185, 121, 24],
+      goldShade: [113, 70, 13],
+      goldEdge: [130, 82, 17],
     };
   }
 
@@ -76,7 +76,7 @@
   const goldCrystals = [];
   const bgPointer = { x: -9999, y: -9999, active: false, down: false, holdTime: 0, lastTrail: 0 };
 
-  const JADE_RING_ROT = -0.28; // ~ -16° 主星环倾角，与中枢浑仪主轴呼应
+  const JADE_RING_ROT = -0.20; // ~ -16° 主星环倾角，与中枢浑仪主轴呼应
   let hubX = 0, hubY = 0, hubOnHero = false;
   let savedHubOffsetFromMid = -157;
 
@@ -96,12 +96,9 @@
     lastT: 0,
   };
 
-  /* 统一计算两套主题的中枢锚点：
-     桌面端 .view 左起 84px，因此内容中轴严格在 cw * 0.5 + 42；
-     首屏通过 offsetTop 链提取 #orb-stage 不受转场动画影响的真实布局圆心并缓存，
-     所有子页面与对话态均复用同一中枢高度，彻底消除切页时背景粒子与阵图的高度跳变和抖动。 */
+  // 页面与场域共用屏幕中轴，导航不改变构图圆心。
   function contentCenterX() {
-    return cw > 760 ? cw * 0.5 + 42 : cw * 0.5;
+    return cw * 0.5;
   }
 
   function layoutCenterY(el) {
@@ -131,20 +128,21 @@
   function initParticles() {
     starMotes.length = 0;
     // 星枢：24 颗沿倾斜星轨运转的圆点星辰 + 16 颗散落天幕闪烁的远星
-    for (let i = 0; i < 40; i++) {
-      const orbital = i < 24;
+    const starCount = Math.round(Math.max(60, cw * ch / 10000));
+    for (let i = 0; i < starCount; i++) {
+      const orbital = i < Math.round(starCount * .35);
       starMotes.push({
         orbital,
-        rRatio: orbital ? (0.14 + (i / 24) * 0.44 + (Math.random() - 0.5) * 0.025) : 0,
+        rRatio: orbital ? (0.14 + (i / Math.max(1, Math.round(starCount * .35))) * 0.44 + (Math.random() - 0.5) * 0.025) : 0,
         nx: Math.random(),
         ny: Math.random(),
         angle: Math.random() * Math.PI * 2,
         speed: orbital ? (0.028 + Math.random() * 0.048) * (i % 2 ? 1 : -0.82) : (Math.random() - 0.5) * 0.006,
         tilt: 0.5 + Math.random() * 0.36,
         rot: (Math.random() - 0.5) * 0.78,
-        size: orbital ? (1.25 + Math.random() * 1.7) : (1.0 + Math.random() * 1.5),
+        size: orbital ? (0.8 + Math.random() * 1.5) : (0.35 + Math.random() * 1.1),
         alpha: 0.32 + Math.random() * 0.44,
-        twinkleFreq: 1.2 + Math.random() * 2.4,
+        twinkleFreq: .35 + Math.random() * 1.1,
         twinklePhase: Math.random() * Math.PI * 2,
         glint: i % 6 === 0,
         accent: i % 4 === 0,
@@ -153,11 +151,12 @@
     }
 
     goldCrystals.length = 0;
-    // 灵玉：92 枚棱角分明的切面发光金晶，分为三道完整 360° 环绕中枢的宽阔倾斜星环带（内环 / 主星环 / 外冕星环）
+    // 主环有序，伴随晶粒向外舒展；远处少量晶粒平衡全屏空间。
+    const span = Math.min(cw, ch) || 900;
     const BANDS = [
-      { count: 24, rMin: 0.165, rMax: 0.26, tilt: 0.37, speed: 0.052 },
-      { count: 38, rMin: 0.265, rMax: 0.42, tilt: 0.41, speed: 0.041 },
-      { count: 30, rMin: 0.425, rMax: 0.58, tilt: 0.45, speed: 0.031 },
+      { count: Math.round(span * .10), rMin: .372, rMax: .422, tilt: .30, speed: .042 },
+      { count: Math.round(span * .055), rMin: .30, rMax: .51, tilt: .33, speed: .034 },
+      { count: Math.round(cw * ch / 26000), rMin: .50, rMax: .90, tilt: .65, speed: .012 },
     ];
     let idx = 0;
     for (let band = 0; band < BANDS.length; band++) {
@@ -168,28 +167,29 @@
         const tier = idx % 7 === 0 ? 1.22 : (idx % 2 === 0 ? 0.96 : 0.75);
 
         goldCrystals.push({
+          distant: band === 2,
+          nx: Math.random(), ny: Math.random(),
           habit: idx % 5 === 0 ? 2 : (idx % 2 === 0 ? 0 : 1), // 0: 八面双锥菱晶, 1: 六棱晶柱, 2: 斜切晶簇片
           rRatio: rBase,
-          tilt: b.tilt + (Math.random() - 0.5) * 0.045,
-          rotOffset: (Math.random() - 0.5) * 0.09,
+          tilt: b.tilt,
+          rotOffset: 0,
           // 每一环带均独立均匀铺满完整 360° 圆周，避免单侧断层
           angle: u * Math.PI * 2 + (Math.random() - 0.5) * (Math.PI * 1.4 / b.count),
-          bandDz: (Math.random() - 0.5) * 15,
+          bandDz: (Math.random() - 0.5) * 2,
           // 开普勒式差速同向公转：内环略快，外环从容，整条星环气脉合一
-          speed: b.speed + Math.random() * 0.012,
-          bobAmp: 2.0 + Math.random() * 2.4,
+          speed: b.speed,
+          bobAmp: .35 + Math.random() * .5,
           bobFreq: 0.52 + Math.random() * 0.48,
           phase: Math.random() * Math.PI * 2,
           spin: Math.random() * Math.PI * 2,
-          spinSpeed: (0.2 + Math.random() * 0.32) * (idx % 2 ? 1 : -1),
-          size: (1.34 + Math.random() * 0.56) * tier,
-          alpha: 0.62 + Math.random() * 0.28,
+          spinSpeed: .035 * (idx % 2 ? 1 : -1),
+          size: (band === 2 ? .7 + Math.random() * .6 : 1.25 + Math.random() * .6) * tier,
+          alpha: (band === 2 ? .30 : .55) + Math.random() * .25,
           ox: 0, oy: 0, moveBoost: 0,
         });
       }
     }
   }
-  initParticles();
 
   function resizeField() {
     if (!canvas || !ctx) return;
@@ -199,6 +199,7 @@
     canvas.width = Math.round(cw * dpr);
     canvas.height = Math.round(ch * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    initParticles();
     updateHubCenter();
     drawStaticOrWake();
   }
@@ -297,14 +298,6 @@
         ctx.stroke();
         ctx.restore();
       }
-
-      // 5. 倾斜星环主平面椭圆轨
-      ctx.rotate(JADE_RING_ROT);
-      ctx.beginPath();
-      ctx.ellipse(0, 0, baseR * 1.04, baseR * 0.42, 0, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(${gr},${gg},${gb},${night ? 0.09 : 0.11})`;
-      ctx.lineWidth = 0.95;
-      ctx.stroke();
 
       ctx.restore();
       return;
@@ -455,9 +448,9 @@
     const edge = rgb.goldEdge;
 
     // 1. 贴身暖金辉晕
-    const haloR = s * (2.35 + flash * 0.9);
+    const haloR = s * (1.8 + flash * .45);
     const g = ctx.createRadialGradient(px, py, s * 0.1, px, py, haloR);
-    g.addColorStop(0, `rgba(${glowCol[0]},${glowCol[1]},${glowCol[2]},${alpha * (night ? 0.44 : 0.32) * (1 + flash * 0.42)})`);
+    g.addColorStop(0, `rgba(${glowCol[0]},${glowCol[1]},${glowCol[2]},${alpha * (night ? .28 : .12) * (1 + flash * 0.42)})`);
     g.addColorStop(0.5, `rgba(${glowCol[0]},${glowCol[1]},${glowCol[2]},${alpha * (night ? 0.14 : 0.1)})`);
     g.addColorStop(1, `rgba(${glowCol[0]},${glowCol[1]},${glowCol[2]},0)`);
     ctx.fillStyle = g;
@@ -579,11 +572,24 @@
     const span = Math.min(cw, ch);
     const night = isNight();
     const tSec = now * 0.001;
+    const perspective = Math.min(1, 750 / span);
+    const ringRotation = JADE_RING_ROT * perspective;
     const speedBoost = 1 + pv.grasp * 1.5 + pv.keyBoost * 1.2 + (state.replying ? 0.8 : 0);
 
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(ringRotation);
+    for (const [radius, width, alpha] of [[.399, 7, night ? .025 : .035], [.399, .6, night ? .12 : .15]]) {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, span * radius, span * radius * .30 * perspective, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${rgb.goldMid.join(',')},${alpha})`;
+      ctx.lineWidth = width;
+      ctx.stroke();
+    }
+    ctx.restore();
     for (const m of goldCrystals) {
-      const rot = JADE_RING_ROT + m.rotOffset + pv.curX * 0.0035;
-      const tilt = Math.max(0.24, Math.min(0.62, m.tilt + pv.curY * 0.003));
+      const rot = ringRotation + m.rotOffset + pv.curX * 0.0035;
+      const tilt = Math.max(.08, Math.min(.62, m.tilt * perspective + pv.curY * .003));
       const cr = Math.cos(rot), sr = Math.sin(rot);
       const rx = span * m.rRatio;
       const ry = rx * tilt;
@@ -592,8 +598,8 @@
       const bob0 = Math.sin(tSec * m.bobFreq + m.phase) * m.bobAmp;
       const lx0 = Math.cos(m.angle) * rx;
       const ly0 = Math.sin(m.angle) * ry + m.bandDz + bob0;
-      const estX = centerX + lx0 * cr - ly0 * sr;
-      const estY = centerY + lx0 * sr + ly0 * cr;
+      const estX = m.distant ? m.nx * cw : centerX + lx0 * cr - ly0 * sr;
+      const estY = m.distant ? m.ny * ch : centerY + lx0 * sr + ly0 * cr;
       const holdDampen = applyPointerField(m, estX, estY, dt);
 
       m.angle = (m.angle + m.speed * speedBoost * holdDampen * dt) % (Math.PI * 2);
@@ -604,8 +610,8 @@
       const ly = Math.sin(m.angle) * ry + m.bandDz + bob;
       const relX = lx * cr - ly * sr;
       const relY = lx * sr + ly * cr;
-      const px = centerX + relX + m.ox;
-      const py = centerY + relY + m.oy;
+      const px = (m.distant ? m.nx * cw : centerX + relX) + m.ox;
+      const py = (m.distant ? m.ny * ch : centerY + relY) + m.oy;
 
       // 前后半环景深缩放与中枢核心后方自然遮挡
       const depth = Math.sin(m.angle);
@@ -622,7 +628,7 @@
         * (0.76 + 0.24 * ((depth + 1) * 0.5))
         * behindCore
       );
-      const s = (m.size + boost * 0.4) * persp;
+      const s = (m.size + boost * 0.4) * persp * (night ? 1 : 1.1);
 
       drawFacetedGoldCrystal(px, py, s, m.spin, m.habit, alpha, flash, night, rgb);
     }
@@ -1002,7 +1008,7 @@
         stage.style.transform = '';
       }
 
-      if (meridian) {
+      if (meridian && !N.REDUCED) {
         merAngle = (merAngle + dt * (cool ? 3.4 : 2.2) * (1 + pv.grasp * 3.5 + pv.keyBoost * 2)) % 360;
         meridian.setAttribute('transform', `rotate(${merAngle.toFixed(2)})`);
       }
@@ -1049,8 +1055,9 @@
         if (b.g.parentNode !== parent) parent.appendChild(b.g);
       });
 
-      pivotRAF = requestAnimationFrame(renderPivot);
+      pivotRAF = N.REDUCED || document.hidden ? 0 : requestAnimationFrame(renderPivot);
     };
+    pivotMountedStage._wakePivot = () => { if (!pivotRAF && !N.REDUCED && !document.hidden) pivotRAF = requestAnimationFrame(renderPivot); };
 
     pivotRAF = requestAnimationFrame(renderPivot);
   }
@@ -1098,6 +1105,9 @@
     }
   }
 
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) N.syncPivot?.(); });
+  matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', () => { N.syncPivot?.(); });
+
   const inputEl = $('#input');
   inputEl?.addEventListener('input', () => emitPulse('key'), { passive: true });
 
@@ -1109,6 +1119,7 @@
 
   N.syncPivot = () => {
     mountPivot();
+    pivotMountedStage?._wakePivot?.();
     scheduleHubSync();
     drawStaticOrWake();
   };

@@ -96,6 +96,17 @@ test('host management leaves unrelated plugin page buttons disabled', async () =
   assert.equal(button.disabled, true, 'only the page that owns the operation may release its busy state');
 });
 
+test('reduced motion keeps a growing live reply at the bottom', () => {
+  const p = page();
+  p.load('chat.js');
+  const conversation = p.$('#conversation');
+  conversation.scrollHeight = 2800;
+  conversation.scrollTop = 0;
+  p.$('.md').insertBefore = () => {};
+  p.N.patchLive({ text: 'New streamed content' }, {});
+  assert.equal(conversation.scrollTop, 2800);
+});
+
 test('a message sent during a reply reaches the server with its file and image', async () => {
   const p = page();
   p.load('chat.js');
@@ -174,7 +185,7 @@ test('settings hook management loads, toggles and preserves errors without disca
     available: true, enabled: true, subscribers: [{ plugin_id: 'memory', key: 'capture',
       enabled: true, available: true, error: 'capture failed' }] }] });
   Object.assign(p.N.state, { providers: [], current: {}, mcp: [], motion: '1', plugins: [{ id: 'memory', name: '记忆' }] });
-  Object.assign(p.N, { providerOf: () => null, currentModel: () => null, MOTION_LEVELS: ['1'], THEMES: [] });
+  Object.assign(p.N, { providerOf: () => null, currentModel: () => null, MOTION_LEVELS: ['1'], MOTION_LABELS: { '1': '标准' }, THEMES: [] });
   p.load('settings.js');
   p.N.renderSettings();
   assert.match(p.$('#view-settings').innerHTML, /data-act="manage-hooks"/);

@@ -28,7 +28,10 @@
       b.setAttribute('aria-checked', String(on));
     });
     const range = $('#motion-range', view);
-    if (range) range.value = String(Math.max(0, N.MOTION_LEVELS.indexOf(state.motion)));
+    if (range) {
+      range.value = String(Math.max(0, N.MOTION_LEVELS.indexOf(state.motion)));
+      range.setAttribute('aria-valuetext', N.MOTION_LABELS[state.motion] || '标准');
+    }
     $$('.motion-ticks button', view).forEach(b => {
       const on = b.dataset.v === state.motion;
       b.classList.toggle('on', on);
@@ -38,19 +41,12 @@
     if (modeInk) N.moveInk(modeInk, $('.mode-seg button.active', view), 'x', instant);
 
     $$('.theme-card', view).forEach(card => {
-      const t = N.THEMES.find(x => x.id === card.dataset.id);
       const on = card.dataset.id === state.palette;
       card.classList.toggle('is-active', on);
       card.setAttribute('aria-pressed', String(on));
-      if (t) {
-        const pair = t[mode];
-        const [p, a] = $$('.theme-pair i', card);
-        if (p) p.style.background = pair.p;
-        if (a) a.style.background = pair.a;
-      }
     });
     const perm = $('.perm', view);
-    if (perm) N.moveInk($('.tab-ink', perm), $('button.active', perm), 'x', true);
+    if (perm) N.moveInk($('.tab-ink', perm), $('button.active', perm), innerWidth <= 760 ? 'y' : 'x', instant);
   }
 
   function playMotionDemo() {
@@ -77,14 +73,14 @@
       </header>
 
       <section class="card set-sec" data-s>
-        <h3>界面</h3><p>动效速度与四象境象即时生效；「灵玉」与「星枢」各自皆备白昼与黑夜。</p>
+        <h3>界面<span class="setting-scope">即时生效</span></h3><p>动效速度与四象境象即时生效；「灵玉」与「星枢」各自皆备白昼与黑夜。</p>
         <div class="ui-row" data-s>
           <div><b>动效速度</b><small>统一影响页面切换、消息入场、灵岛形变与流式节奏。</small></div>
           <div class="ui-controls">
             <div class="motion-slider">
               <input type="range" id="motion-range" min="0" max="4" step="1" value="${Math.max(0, N.MOTION_LEVELS.indexOf(state.motion))}" aria-label="动效速度">
               <div class="motion-ticks" role="group" aria-label="动效速度档位">
-                ${N.MOTION_LEVELS.map(k => `<button type="button" data-act="motion" data-v="${k}" aria-pressed="${state.motion === k}" class="${state.motion === k ? 'on' : ''}">${k === '1' ? '1.0x' : k + 'x'}</button>`).join('')}
+                ${N.MOTION_LEVELS.map(k => `<button type="button" data-act="motion" data-v="${k}" aria-pressed="${state.motion === k}" class="${state.motion === k ? 'on' : ''}">${N.MOTION_LABELS[k]}</button>`).join('')}
               </div>
             </div>
             <div class="motion-demo" id="motion-demo" aria-hidden="true" title="切换速度时演示"><i></i><i></i><i></i></div>
@@ -98,15 +94,14 @@
           </div>
         </div>
         <div class="theme-picker" data-s>
-          <div class="theme-copy"><b>主题意境</b><small>同一灵枢，两重天地：「灵玉」温润沉稳，金晶环枢；「星枢」轻盈灵动，寒星折光。</small></div>
+          <div class="theme-copy"><b>主题意境</b><small>同一灵枢，两重天地：「灵玉」温润沉稳，金晶环枢；「星枢」轻盈灵动，群星环绕。</small></div>
           <div class="theme-grid">
             ${N.THEMES.map(t => {
-              const pair = t[mode];
               const on = state.palette === t.id;
               return `<button class="theme-card theme-${t.id}${on ? ' is-active' : ''}" data-s data-act="palette" data-id="${t.id}" aria-pressed="${on}" title="${esc(t.desc)}">
                 <div class="theme-specimen">
                   <span class="spec-glyph" aria-hidden="true">${t.id === 'jade' ? '玉' : '星'}</span>
-                  <span class="theme-pair"><i style="background:${pair.p}"></i><i style="background:${pair.a}"></i></span>
+                  <span class="theme-scene" aria-hidden="true"><i class="spec-orbit"></i><i class="spec-core"></i><i class="spec-stars"></i></span>
                   <span class="spec-tag">${esc(t.tag || '')}</span>
                 </div>
                 <span class="theme-name">${esc(t.name)}</span>
@@ -132,7 +127,7 @@
       </section>
 
       <section class="card set-sec" data-s>
-        <h3>基本原则</h3><p>这些原则会随每次请求交给灵；只有保存后才会生效。</p>
+        <h3>基本原则</h3><p>这些原则会随每次请求交给灵；与权限、工作目录一起，通过底部「保存设置」生效。</p>
         <label class="field"><span class="sr">原则与交流偏好</span><textarea id="instructions" rows="5" placeholder="例如：先说明关键取舍，再执行；遇到不确定的外部影响时先停下确认。">${esc(state.instructions)}</textarea></label>
       </section>
 

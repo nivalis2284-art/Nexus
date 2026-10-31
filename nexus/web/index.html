@@ -42,10 +42,10 @@ try {
    <feGaussianBlur in="SourceGraphic" stdDeviation="2.4" result="b"/>
    <feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 16 -6"/>
   </filter>
-  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4.5 18.5 3.5 21l3.6-1.4A9 9 0 1 0 4.5 18.5Z"/><path d="M8.5 10.5h7M8.5 14h4"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path transform="translate(2.7 .55)" d="M4.5 18.5 3.5 21l3.6-1.4A9 9 0 1 0 4.5 18.5Z"/><path d="M8.5 10.5h7M8.5 14h4"/></symbol>
   <symbol id="i-work" viewBox="0 0 24 24"><path d="M4 6h10M4 12h7M4 18h9"/><circle cx="18" cy="6" r="2"/><path d="m16.5 12.2 1.4 1.4 2.6-2.8"/><circle cx="18" cy="18" r="2"/></symbol>
-  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></symbol>
-  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3c.6 4.6 3.4 7.4 8 8-4.6.6-7.4 3.4-8 8-.6-4.6-3.4-7.4-8-8 4.6-.6 7.4-3.4 8-8Z"/></symbol>
+  <symbol id="i-layers" viewBox="0 -1.5 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></symbol>
+  <symbol id="i-spark" viewBox="0 -1 24 24"><path d="M12 3c.6 4.6 3.4 7.4 8 8-4.6.6-7.4 3.4-8 8-.6-4.6-3.4-7.4-8-8 4.6-.6 7.4-3.4 8-8Z"/></symbol>
   <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 3v4M15 3v4M6.5 7h11v4a5.5 5.5 0 0 1-11 0V7ZM12 16.5V21"/></symbol>
   <symbol id="i-tune" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
   <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
@@ -106,7 +106,7 @@ try {
 
 <!-- 悬浮导航胶囊：整合主导航与境象切换 -->
 <nav class="dock" id="dock" aria-label="主导航">
- <span class="dock-ink" id="dock-ink" aria-hidden="true"></span>
+ <span class="dock-ink-clip" aria-hidden="true"><span class="dock-ink" id="dock-ink"></span></span>
  <button class="dock-btn active" data-view="chat" aria-label="主交流" data-tip="主交流  ⌘1"><svg class="i"><use href="#i-chat"/></svg></button>
  <button class="dock-btn" data-view="work" aria-label="工作" data-tip="工作  ⌘2"><svg class="i"><use href="#i-work"/></svg><i class="dock-badge" id="dock-work-badge" hidden></i></button>
  <button class="dock-btn" data-view="context" aria-label="上下文" data-tip="上下文  ⌘3"><svg class="i"><use href="#i-layers"/></svg></button>

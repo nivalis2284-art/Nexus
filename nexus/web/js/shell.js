@@ -9,12 +9,24 @@
   island.mode = 'compact'; island.data = null;
   let islandAnim = null;
   let toastTimer = null;
+  let islandTrigger = null;
   const scrim = $('#island-scrim');
   function setScrim(on) {
+    const wasOpen = island.hasAttribute('aria-modal');
+    for (const el of [$('#stage'), $('#dock'), $('#menu-btn')]) el.inert = on;
     if (on) {
+      island.setAttribute('role', 'dialog');
+      island.setAttribute('aria-modal', 'true');
       scrim.hidden = false;
       requestAnimationFrame(() => scrim.classList.add('show'));
     } else {
+      island.removeAttribute('role');
+      island.removeAttribute('aria-modal');
+      if (wasOpen) {
+        const target = islandTrigger?.isConnected ? islandTrigger : $('.isl-main', island);
+        target?.focus({ preventScroll: true });
+        islandTrigger = null;
+      }
       scrim.classList.remove('show');
       setTimeout(() => { if (!scrim.classList.contains('show')) scrim.hidden = true; }, 300);
     }
@@ -109,28 +121,39 @@
 
   function morphIsland(mode, data = null) {
     if (mode !== 'toast') clearTimeout(toastTimer);
+    if ((mode === 'overview' || mode === 'detail') && !island.hasAttribute('aria-modal')) islandTrigger = document.activeElement;
     const prev = island.mode;
     const from = island.getBoundingClientRect();
+    const fromRadius = Math.min(parseFloat(getComputedStyle(island).borderTopLeftRadius), from.height / 2, from.width / 2);
     const ghost = islandInner.cloneNode(true);
     ghost.removeAttribute('id');
     ghost.className = 'island-inner island-ghost';
     ghost.style.width = from.width + 'px';
     ghost.setAttribute('aria-hidden', 'true'); ghost.inert = true;
     $$('[id]', ghost).forEach(n => n.removeAttribute('id'));
-    islandAnim?.cancel(); $$('.island-ghost', island).forEach(g => g.remove());
+    islandAnim?.cancel(); islandAnim = null;
+    islandInner.getAnimations().forEach(a => a.cancel());
+    $$('.island-ghost', island).forEach(g => g.remove());
     island.style.width = island.style.height = '';
     islandInner.style.width = islandInner.style.marginLeft = '';
     island.mode = mode; island.data = data; island.dataset.mode = mode;
     islandInner.innerHTML = '';
     renderIsland();
-    setScrim(island.mode === 'overview' || island.mode === 'detail');
+    if (mode === 'overview') overviewSig = JSON.stringify([state.works, state.queue, state.held]);
+    if (mode === 'detail') detailSig = JSON.stringify(state.works.find(w => w.id === data?.id));
+    const modal = island.mode === 'overview' || island.mode === 'detail';
+    setScrim(modal);
+    if (modal) {
+      island.tabIndex = -1;
+      ($('[data-isl="compact"], .isl-ibtn', islandInner) || island).focus({ preventScroll: true });
+    }
     const to = island.getBoundingClientRect();
     if (N.REDUCED) return;
     island.appendChild(ghost);
     island.style.willChange = 'width, height';
     islandInner.style.willChange = 'opacity, transform';
     islandInner.style.width = to.width + 'px';
-    islandAnim = island.animate([{ width: from.width + 'px', height: from.height + 'px' }, { width: to.width + 'px', height: to.height + 'px' }],
+    islandAnim = island.animate([{ width: from.width + 'px', height: from.height + 'px', borderRadius: fromRadius + 'px' }, { width: to.width + 'px', height: to.height + 'px', borderRadius: Math.min(parseFloat(getComputedStyle(island).borderTopLeftRadius), to.height / 2) + 'px' }],
       { duration: SP.island.d * N.motionScale(), easing: SP.island.e });
     ghost.animate([{ opacity: 1, transform: 'translateX(-50%) scale(1)' }, { opacity: 0, transform: 'translateX(-50%) scale(.96)' }],
       { duration: N.DUR.fast * N.motionScale(), easing: 'ease-out', fill: 'forwards' });
@@ -147,6 +170,7 @@
       islandInner.style.willChange = '';
       island.style.willChange = '';
       ghost.remove(); islandAnim = null;
+      refreshIsland();
     };
     islandAnim.onfinish = clean;
     islandAnim.oncancel = () => {
@@ -182,8 +206,11 @@
     if (island.mode === 'overview') {
       const sig = JSON.stringify([state.works, state.queue, state.held]);
       if (sig !== overviewSig) {
+        if (islandAnim) return;
         overviewSig = sig;
-        if (!islandAnim) renderIsland();
+        const hadFocus = island.contains(document.activeElement);
+        renderIsland();
+        if (hadFocus) ($('[data-isl="compact"]', islandInner) || island).focus({ preventScroll: true });
       }
       return;
     }
@@ -192,14 +219,16 @@
       if (!w) { morphIsland('compact'); return; }
       const sig = JSON.stringify(w);
       if (sig !== detailSig) {
-        detailSig = sig;
         if (islandAnim) return;
+        detailSig = sig;
         const sc = $('.isl-scroll', islandInner);
         const keepTop = sc ? sc.scrollTop : 0;
         const tSc = $('.isl-thread', islandInner);
         const keepThreadTop = tSc ? tSc.scrollTop : 0;
         const openSteps = $$('details.step', islandInner).map(d => d.open);
+        const hadFocus = island.contains(document.activeElement);
         renderIsland();
+        if (hadFocus) ($('[data-isl="compact"]', islandInner) || island).focus({ preventScroll: true });
         const nextSc = $('.isl-scroll', islandInner);
         if (nextSc) nextSc.scrollTop = keepTop;
         const nextTSc = $('.isl-thread', islandInner);
@@ -267,20 +296,25 @@
       return;
     }
     if (state.view === 'plugins') N.closePluginPage?.();
-    const cur = $('#view-' + state.view), next = $('#view-' + name);
+    const cur = $('.view:not([hidden])'), next = $('#view-' + name);
+    const currentOpacity = cur ? getComputedStyle(cur).opacity : '1';
+    const currentTransform = cur ? getComputedStyle(cur).transform : 'none';
+    if (viewAnim) { viewAnim.onfinish = null; viewAnim.cancel(); viewAnim = null; }
+    cur?.getAnimations().forEach(a => a.cancel());
     state.view = name;
     $$('.dock-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
     syncDock();
     N.closeMenu?.();
-    viewAnim?.finish();
+
     const swap = () => {
       $$('.view').forEach(v => { v.hidden = v !== next; });
       enterFlags[name] = true;
       renderView(name);
       if (name === 'chat') N.syncTargets(true);
       N.syncPivot?.();
-      anim(next, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }],
-        { duration: N.DUR.move, easing: SP.settle.e });
+      viewAnim = anim(next, [{ opacity: 0 }, { opacity: 1 }],
+        { duration: N.DUR.base, easing: N.EASE_OUT });
+      viewAnim.onfinish = () => { viewAnim = null; };
       N.stagger(next);
     };
     if (N.REDUCED || !cur) {
@@ -291,9 +325,10 @@
     // 旧页先退场，新页再逐组件登场；不做交叉淡入，避免两页重影
     cur.style.zIndex = '1';
     next.style.zIndex = '2';
-    const out = anim(cur, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-6px)' }],
+    const out = anim(cur, [{ opacity: currentOpacity, transform: currentTransform }, { opacity: 0, transform: 'translateY(-4px)' }],
       { duration: N.DUR.micro, easing: 'ease-in', fill: 'forwards' });
     out.onfinish = () => {
+      if (state.view !== name) return;
       cur.hidden = true;
       cur.style.zIndex = ''; next.style.zIndex = '';
       out.cancel();
@@ -305,7 +340,7 @@
   }
 
   function stagger(root, step = 24) {
-    const items = $$('[data-s]', root);
+    const items = $$('[data-s]', root).filter(n => !n.parentElement.closest('[data-s]'));
     items.forEach((n, i) => {
       const head = n.classList.contains('page-head');
       const row = n.matches('.work-item,.ctx-owner-row,.ctx-role,.ctx-msg,.plug-item,.preq,.provider-row,.mcp-row,.qrow,.ctx-metrics div');
@@ -392,7 +427,7 @@
     state.theme = val;
     syncCapsuleTips();
     N.save();
-    N.syncSettingsUi?.();
+    N.syncSettingsUi?.(false);
     N.syncPivot?.();
   }
   function setTheme(next, anchor) {
@@ -408,7 +443,7 @@
     syncCapsuleTips();
     N.rebuildSprings?.();
     N.save();
-    N.syncSettingsUi?.();
+    N.syncSettingsUi?.(false);
     N.syncPivot?.();
   }
   function setPalette(id, anchor) {
@@ -424,7 +459,7 @@
     if (!silent) {
       N.save();
       N.syncSettingsUi?.(false);
-      N.notify('动效速度：' + key + 'x', 'jade');
+      N.notify('动效节奏：' + N.MOTION_LABELS[key], 'jade');
       N.playMotionDemo?.();
     }
   }
@@ -544,6 +579,13 @@
   $('#reset-btn')?.addEventListener('click', () => syncAll('已重新读取'));
 
   document.addEventListener('keydown', e => {
+    if (island.hasAttribute('aria-modal') && e.key === 'Tab' && !document.querySelector('dialog[open]')) {
+      const focusable = $$('button:not([disabled]), a[href], input, textarea, select, summary', islandInner).filter(el => el.getClientRects().length);
+      const first = focusable[0], last = focusable.at(-1);
+      if (!first) { e.preventDefault(); island.focus(); }
+      else if (e.shiftKey && (document.activeElement === first || !island.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !island.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+    }
     if (e.key === 'Escape') {
       if ($('#menu') && !$('#menu').hidden) { N.closeMenu(); return; }
       if (island.mode === 'detail' || island.mode === 'overview') { morphIsland('compact'); return; }
@@ -570,7 +612,7 @@
       const tabs = document.querySelector('.tabs');
       if (tabs) N.moveInk($('.tab-ink', tabs), $('button.active', tabs), 'x', true);
       const perm = document.querySelector('.perm');
-      if (perm) N.moveInk($('.tab-ink', perm), $('button.active', perm), 'x', true);
+      if (perm) N.syncSettingsUi?.(true);
     });
   });
 

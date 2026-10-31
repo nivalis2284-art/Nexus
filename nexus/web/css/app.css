@@ -1085,3 +1085,43 @@ body {
 .host-runtime-sections { display: grid; gap: 20px; min-width: 0; }
 .host-runtime-row { border-top: 1px solid var(--line); padding: 12px 0; }
 .host-runtime-json { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; padding: 12px; border-radius: 12px; background: var(--raised); font: 11px/1.7 var(--mono); color: var(--ink-2); }
+
+/* 精修收口：可读的资料面、明确的动作组与对称构图。 */
+.conversation { scrollbar-gutter: stable both-edges; }
+.conversation:not(:has(.hero)) .thread { isolation: isolate; }
+.view-chat:not(.is-empty) .thread::before { content: ""; position: fixed; inset: 68px max(0px, calc((100vw - 820px) / 2)) 150px; z-index: -1; pointer-events: none; background: radial-gradient(ellipse, var(--paper) 25%, transparent 72%); opacity: .84; }
+.btn { justify-content: center; }
+.ctx-composition-label { display: flex; justify-content: space-between; gap: 12px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-2); }
+.ctx-composition-label span { color: var(--ink-3); }
+.ctx-composition-label + .ctx-meter { margin-top: 8px; }
+.setting-scope { margin-left: 10px; font-size: 11px; font-weight: 400; color: var(--jade-ink); }
+.isl-thread { --ink: var(--i-ink); --ink-2: var(--i-ink-2); --ink-3: var(--i-ink-2); --ink-4: var(--i-ink-3); --jade-ink: var(--jade-hi); --raised: var(--island-2); --paper-2: var(--island-3); --line: var(--i-line); --line-2: var(--i-line); }
+.isl-thread .md { color: var(--i-ink); }
+.plug-actions { column-gap: 8px; row-gap: 8px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.plug-actions [data-op="uninstall"] { margin-left: 12px; background: transparent; box-shadow: inset 0 0 0 1px var(--cinnabar-soft); }
+.plug-actions [data-act="plug-readme"] { margin-left: auto; background: transparent; }
+.plug-toolbar { margin-bottom: 8px; }
+.plug-note { margin-top: 6px; margin-bottom: 12px; }
+.skill .glyph { background: var(--raised); color: var(--jade-ink); box-shadow: inset 0 0 0 1px var(--line); }
+.skill-empty { grid-column: 1 / -1; padding: 32px; min-height: 150px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; background: var(--card); border-radius: var(--r-card); }
+.skill-empty h2 { font: 600 21px var(--font-display); }
+.skill-empty p { color: var(--ink-2); }
+@media (max-width: 1000px) and (min-width: 761px) {
+  .ui-row { flex-wrap: wrap; }
+  .ui-controls { margin-left: auto; }
+}
+@media (max-width: 760px) {
+  .sheet .fields { grid-template-columns: minmax(0, 1fr); }
+  .sheet .span-2 { grid-column: auto; }
+  .model-row { grid-template-columns: minmax(0, 1fr); }
+  .model-row > * { min-width: 0; }
+  .perm .tab-ink { top: 0; left: 4px; width: calc(100% - 8px); }
+  .plug-toolbar { flex-wrap: wrap; justify-content: flex-start; }
+  .plug-toolbar .count { flex-basis: 100%; }
+  .plug-actions [data-act="plug-readme"] { margin-left: 0; }
+  .plug-list { grid-auto-columns: minmax(210px, 1fr); }
+  .ui-controls { gap: 6px; }
+  .motion-slider { min-width: 0; flex: 1; }
+  .motion-demo { display: none; }
+  .view-chat:not(.is-empty) .thread::before { left: 0; right: 0; }
+}

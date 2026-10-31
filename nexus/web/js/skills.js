@@ -6,7 +6,6 @@
 (function (N) {
   const { $, $$, esc, icon, state } = N;
   const SOURCE = { personal: '个人', project: '项目', builtin: '内置' };
-  const COLOR = { personal: 'var(--jade)', project: '#4d8dff', builtin: '#8b8d94' };
   let editing = null;
   let saving = false;
 
@@ -26,12 +25,12 @@
     view.innerHTML = `<div class="page">
       <header class="page-head" data-s>
         <div><h1>技能</h1><p>项目技能会覆盖同名的个人技能；内置技能只读。</p></div>
-        <div class="row" style="gap:8px"><button class="btn ghost" data-act="skills-refresh">${icon('refresh', 'i xs')}刷新</button><button class="btn solid" data-act="new-skill">${icon('plus', 'i xs')}新建技能</button></div>
+        <div class="row" style="gap:8px"><button class="btn ghost" data-act="skills-refresh">${icon('refresh', 'i xs')}刷新</button>${list.length ? `<button class="btn solid" data-act="new-skill">${icon('plus', 'i xs')}新建技能</button>` : ''}</div>
       </header>
       <div class="skills-toolbar" data-s><span class="count">${list.length ? list.length + ' 个技能' : ''}</span><span class="skill-status" id="skills-status"></span></div>
       <div class="skill-grid">
-        ${list.map((s, i) => `<div class="card lift skill${s.shadowed ? ' is-shadowed' : ''}" data-s data-state="${s.effective ? 'on' : 'off'}" ${s.error ? '' : `data-act="view-skill" data-i="${i}"`}>
-          <div class="skill-top"><span class="glyph" style="background:${COLOR[s.source] || '#8b8d94'}">${esc((s.name || '?').slice(0, 1).toUpperCase())}</span><span class="src ${s.source}">${SOURCE[s.source] || s.source}</span></div>
+        ${list.map((s, i) => `<div class="card lift skill${s.shadowed ? ' is-shadowed' : ''}" data-s data-state="${s.effective ? 'on' : 'off'}" ${s.error ? '' : `data-act="view-skill" data-i="${i}" tabindex="0" role="group" aria-label="${esc(s.name)}，按回车查看"`}>
+          <div class="skill-top"><span class="glyph">${esc((s.name || '?').slice(0, 1).toUpperCase())}</span><span class="src ${s.source}">${SOURCE[s.source] || s.source}</span></div>
           <h3 class="${/^[a-z0-9-]+$/.test(s.name) ? 'mono' : ''}">${esc(s.name)}</h3>
           <p>${esc(s.description || '暂无摘要')}</p>
           <span class="meta-line ${s.shadowed ? 'over' : ''}">${s.error ? '读取失败 · 原文件未修改' : s.shadowed ? '被同名项目技能覆盖' : s.effective ? '当前生效' : '未生效'}</span>
@@ -40,12 +39,19 @@
             ${s.read_only ? '' : `<button type="button" class="del" data-act="del-skill" data-i="${i}">删除</button>`}
           </div></footer>
         </div>`).join('')}
-        <button class="card skill new" data-s data-act="new-skill"><span class="plus">${icon('plus')}</span><span>新建技能</span></button>
+        ${list.length ? '' : `<div class="skill-empty" data-s><h2>让灵获得一项专长</h2><p>添加个人或项目技能，在这里查看用途、生效状态与覆盖关系。</p><button class="btn solid" data-act="new-skill">${icon('plus', 'i xs')}新建技能</button></div>`}
       </div>
       <p class="foot-note" data-s>技能按名称匹配；项目技能覆盖同名个人技能，内置技能始终只读。</p>
     </div>`;
     view.scrollTop = keep;
   }
+
+  document.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.skill[data-act="view-skill"]')) {
+      e.preventDefault();
+      e.target.click();
+    }
+  });
 
   /* ---------------------------------------------------------------- 编辑器 */
   const dlg = $('#skill-dialog');

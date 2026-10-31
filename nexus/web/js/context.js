@@ -134,21 +134,10 @@
 
   function growMeter(view, pct) {
     if (N.REDUCED) return;
-    const big = $('.ctx-big strong', view);
-    if (big) {
-      if (pct === null) big.textContent = '—';
-      else {
-        big.textContent = '0';
-        setTimeout(() => N.countUp?.(big, pct, 760 * N.motionScale()), 140 * N.motionScale());
-      }
-    }
-    const wrap = $('.ctx-big', view);
-    if (wrap) N.anim(wrap, [{ opacity: 0, transform: 'scale(.92)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.enter, delay: 120, easing: N.SP.soft.e });
     $$('.ctx-meter i', view).forEach((n, i) => N.anim(n, [{ transform: 'scaleX(0)' }, { transform: 'none' }],
-      { duration: N.DUR.enter, delay: 200 + i * 70, easing: N.SP.soft.e, fill: 'backwards' }));
+      { duration: N.DUR.enter, delay: i * 35, easing: N.SP.soft.e, fill: 'backwards' }));
     $$('.ctx-legend span', view).forEach((n, i) => N.anim(n, [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.move, delay: 430 + i * 60, easing: N.EASE_OUT, fill: 'backwards' }));
+      { duration: N.DUR.move, delay: 80 + i * 35, easing: N.EASE_OUT, fill: 'backwards' }));
   }
 
   function renderContext() {
@@ -175,6 +164,7 @@
             <span class="ctx-state ${locked() ? 'locked' : ''}"><i></i>${locked() ? '灵正在处理，历史修改需先停止' : '灵当前空闲，可调整后续请求参考的上下文'}</span></div>
           <span class="ctx-window">模型窗口 ${N.fmtNum(c.window)} tok</span>
         </div>
+        <div class="ctx-composition-label">已用内容构成<span>占本轮已用上下文</span></div>
         <div class="ctx-meter">${SEGS.map(([n, get, color]) => `<i style="width:${Math.round(get() / denom * 100)}%;background:${color}" title="${n} ${N.approx(get())}"></i>`).join('')}</div>
         <div class="ctx-legend">${SEGS.map(([n, get, color]) => `<span><i style="background:${color}"></i>${n}<b>${N.approx(get())}</b></span>`).join('')}</div>
         <div class="ctx-metrics">
