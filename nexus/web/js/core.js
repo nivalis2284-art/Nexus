@@ -115,10 +115,38 @@ window.N = window.N || {};
     const matrix = current.transform === 'none' ? null : new DOMMatrixReadOnly(current.transform);
     const p0 = previousAxis === axis ? (matrix ? (axis === 'x' ? matrix.m41 : matrix.m42) : 0) : null;
     const s0 = parseFloat(current[S]);
+    const crossSize = parseFloat(current[O]);
     ink.getAnimations().forEach(a => a.cancel());
     ink.style.transform = `${P}(${pos}px)`; ink.style[S] = size + 'px'; ink.style[O] = '';
     ink._axis = axis;
     if (instant || p0 == null || REDUCED || (p0 === pos && s0 === size)) return;
+    if (ink.id === 'dock-ink') {
+      const direction = Math.sign(pos - p0);
+      const stretch = Math.min(Math.abs(pos - p0) * .3, size * .52);
+      const parent = ink.parentElement;
+      const limit = axis === 'x' ? parent.clientWidth : parent.clientHeight;
+      const crossPosition = axis === 'x' ? 'top' : 'left';
+      const crossStart = parseFloat(current[crossPosition]);
+      const crossEnd = axis === 'x' ? 6 : 7;
+      const frames = [];
+      // 一条轨迹同时控制前缘、尾部与横向收束，打断时从当前轮廓继续。
+      for (let i = 0; i <= 48; i++) {
+        const t = i / 48;
+        const progress = (1 - (1 + 9 * t) * Math.exp(-9 * t)) / (1 - 10 * Math.exp(-9));
+        const tension = Math.sin(Math.PI * t) * (1 - t) * 1.7;
+        const length = s0 + (size - s0) * progress + stretch * tension;
+        const center = p0 + s0 / 2 + (pos + size / 2 - p0 - s0 / 2) * progress + direction * stretch * tension * .2;
+        frames.push({
+          offset: t,
+          transform: `${P}(${Math.max(6, Math.min(limit - 6 - length, center - length / 2))}px)`,
+          [S]: length + 'px', [O]: (crossSize + (42 - crossSize) * progress - 4 * tension) + 'px',
+          [crossPosition]: (crossStart + (crossEnd - crossStart) * progress + 2 * tension) + 'px',
+          borderRadius: '24px',
+        });
+      }
+      ink.animate(frames, { duration: (360 + Math.min(120, Math.abs(pos - p0) * .4)) * motionScale(), easing: 'linear' });
+      return;
+    }
     ink.animate([
       { transform: `${P}(${p0}px)`, [S]: s0 + 'px' },
       { transform: `${P}(${pos}px)`, [S]: size + 'px' },

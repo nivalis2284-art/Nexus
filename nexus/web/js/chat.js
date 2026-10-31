@@ -503,7 +503,7 @@
             <circle class="pv-axis-pin" cx="0" cy="0" r="2.5"/>
           </g>
           <g class="pv-core-jade" transform="rotate(-14)">
-            <image href="assets/jade.svg" x="-40" y="-45" width="80" height="90"/>
+            <image href="assets/jade-core.webp" x="-40" y="-45" width="80" height="90"/>
           </g>
         </g>
         <g class="pv-axis" transform="rotate(-18)">

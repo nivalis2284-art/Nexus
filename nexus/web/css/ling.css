@@ -338,6 +338,7 @@ body[data-mood="waiting"] { --aura-a: #9ef2db; --aura-b: #ffc2ad; --aura-c: #ffd
 .dock-ink {
   position: absolute; left: 7px; top: 0; width: 42px; height: 42px;
   border-radius: 999px; background: var(--ink);
+  transition-property: none;
   box-shadow: 0 6px 16px -6px rgba(0, 0, 0, .45); pointer-events: none;
 }
 .dock-btn, .rail-ctl {

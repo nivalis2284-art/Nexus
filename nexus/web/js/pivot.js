@@ -45,7 +45,7 @@
       p: [44, 220, 180],
       hi: [255, 246, 198],
       a: [248, 192, 62],
-      line: [110, 228, 196, 0.082],
+      line: [110, 228, 196, 0.18],
       goldGlow: [255, 198, 58],
       goldLit: [255, 238, 158],
       goldMid: [244, 182, 44],
@@ -215,6 +215,7 @@
       accent: !!opts.accent,
       strength: opts.strength || 1,
       crystalWave: !isCool(),
+      colors: themeRGB(),
     });
     ensureFieldLoop();
   }
@@ -239,6 +240,7 @@
     if (!cool) {
       // 灵玉专属：恢弘多边形灵玉阵图（外圆 + 十二棱晶切环 + 双叠八角玉琮几何 + 金玉流光弧 + 倾斜星环轨）
       const night = isNight();
+      if (night) { ctx.shadowColor = 'rgba(85, 224, 182, .32)'; ctx.shadowBlur = 5; }
       const [gr, gg, gb] = rgb.goldMid;
       const [pr, pg, pb] = rgb.p;
 
@@ -276,7 +278,7 @@
       drawPolygonRing(0, 0, baseR * 0.63, 8, rot8);
       ctx.stroke();
 
-      ctx.strokeStyle = `rgba(${gr},${gg},${gb},${night ? 0.075 : 0.09})`;
+      ctx.strokeStyle = `rgba(${gr},${gg},${gb},${night ? .19 : .09})`;
       ctx.lineWidth = 0.85;
       drawPolygonRing(0, 0, baseR * 0.63, 8, rot8 + Math.PI / 8);
       ctx.stroke();
@@ -284,14 +286,14 @@
       // 4. 金玉双色流光弧沿外周天缓行
       if (!N.REDUCED) {
         ctx.save();
-        ctx.strokeStyle = `rgba(${gr},${gg},${gb},${night ? 0.28 : 0.24})`;
+        ctx.strokeStyle = `rgba(${gr},${gg},${gb},${night ? .5 : .24})`;
         ctx.lineWidth = 1.85;
         ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.arc(0, 0, baseR, lusterAngle, lusterAngle + 0.84);
         ctx.stroke();
 
-        ctx.strokeStyle = `rgba(${pr},${pg},${pb},${night ? 0.2 : 0.17})`;
+        ctx.strokeStyle = `rgba(${pr},${pg},${pb},${night ? .36 : .17})`;
         ctx.lineWidth = 1.45;
         ctx.beginPath();
         ctx.arc(0, 0, baseR, lusterAngle + Math.PI, lusterAngle + Math.PI + 0.76);
@@ -448,10 +450,10 @@
     const edge = rgb.goldEdge;
 
     // 1. 贴身暖金辉晕
-    const haloR = s * (1.8 + flash * .45);
+    const haloR = s * (night ? 2.8 + flash * .65 : 1.8 + flash * .45);
     const g = ctx.createRadialGradient(px, py, s * 0.1, px, py, haloR);
-    g.addColorStop(0, `rgba(${glowCol[0]},${glowCol[1]},${glowCol[2]},${alpha * (night ? .28 : .12) * (1 + flash * 0.42)})`);
-    g.addColorStop(0.5, `rgba(${glowCol[0]},${glowCol[1]},${glowCol[2]},${alpha * (night ? 0.14 : 0.1)})`);
+    g.addColorStop(0, `rgba(${glowCol[0]},${glowCol[1]},${glowCol[2]},${alpha * (night ? .5 : .12) * (1 + flash * 0.42)})`);
+    g.addColorStop(0.5, `rgba(${glowCol[0]},${glowCol[1]},${glowCol[2]},${alpha * (night ? .22 : .1)})`);
     g.addColorStop(1, `rgba(${glowCol[0]},${glowCol[1]},${glowCol[2]},0)`);
     ctx.fillStyle = g;
     ctx.beginPath();
@@ -579,7 +581,7 @@
     ctx.save();
     ctx.translate(centerX, centerY);
     ctx.rotate(ringRotation);
-    for (const [radius, width, alpha] of [[.399, 7, night ? .025 : .035], [.399, .6, night ? .12 : .15]]) {
+    for (const [radius, width, alpha] of [[.399, 9, night ? .06 : .035], [.399, .8, night ? .28 : .15]]) {
       ctx.beginPath();
       ctx.ellipse(0, 0, span * radius, span * radius * .30 * perspective, 0, 0, Math.PI * 2);
       ctx.strokeStyle = `rgba(${rgb.goldMid.join(',')},${alpha})`;
@@ -696,8 +698,8 @@
       const fade = Math.pow(1 - t, 1.5) * w.strength;
 
       if (w.crystalWave) {
-        const gCol = rgb.goldMid;
-        const jCol = rgb.p;
+        const gCol = w.colors.goldMid;
+        const jCol = w.colors.p;
         ctx.strokeStyle = `rgba(${gCol[0]},${gCol[1]},${gCol[2]},${0.28 * fade})`;
         ctx.lineWidth = 1.1;
         drawPolygonRing(w.x, w.y, r, 8, Math.PI / 8);
@@ -711,14 +713,14 @@
           ctx.stroke();
         }
       } else {
-        const col = w.accent ? rgb.a : rgb.p;
+        const col = w.accent ? w.colors.a : w.colors.p;
         ctx.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${0.28 * fade})`;
         ctx.lineWidth = 1.25;
         ctx.beginPath();
         ctx.arc(w.x, w.y, r, 0, Math.PI * 2);
         ctx.stroke();
         if (r > 24) {
-          const c2 = rgb.a;
+          const c2 = w.colors.a;
           ctx.strokeStyle = `rgba(${c2[0]},${c2[1]},${c2[2]},${0.16 * fade})`;
           ctx.lineWidth = 0.85;
           ctx.beginPath();

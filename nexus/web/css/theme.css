@@ -104,13 +104,13 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   --card: rgba(16, 28, 24, .78);
   --card-glass: rgba(14, 25, 21, .74);
   --raised: rgba(23, 38, 33, .84);
-  --spec-top: rgba(136, 247, 222, .14);
+  --spec-top: rgba(136, 247, 222, .25);
   --ink: #ecf4f0;
   --ink-2: #aec2b9;
   --ink-3: #a0b6ab;
   --ink-4: #8ca79b;
-  --line: rgba(126, 240, 212, .115);
-  --line-2: rgba(126, 240, 212, .2);
+  --line: rgba(126, 240, 212, .17);
+  --line-2: rgba(126, 240, 212, .28);
   --ink-glass: rgba(126, 240, 212, .07);
   --seg-ink: #1e312b;
 
@@ -464,7 +464,7 @@ body[data-mood="waiting"],
 }
 [data-palette="jade"] .orb-mini {
   border-radius: 0;
-  background: url("../assets/jade.svg") center / contain no-repeat;
+  background: url("../assets/jade-core.webp") center / contain no-repeat;
   box-shadow: none;
   filter: drop-shadow(0 2px 3px rgba(3, 55, 43, .18));
   animation: breathe 3.8s ease-in-out infinite;
@@ -591,4 +591,11 @@ body[data-mood="waiting"],
 .theme-card:hover .spec-orbit, .theme-card:focus-visible .spec-orbit { animation: specimen-orbit 3s ease-in-out infinite alternate; }
 @keyframes specimen-orbit { to { transform: translate(-50%, -50%) rotate(-6deg); } }
 
-.theme-jade .spec-core { width: 30px; height: 36px; border-radius: 0; background: url("../assets/jade.svg") center / contain no-repeat; box-shadow: none; }
+.theme-jade .spec-core { width: 30px; height: 36px; border-radius: 0; background: url("../assets/jade-core.webp") center / contain no-repeat; box-shadow: none; }
+
+/* 墨玉黑夜：环线与近处器物边缘有可辨认的透光。 */
+[data-theme="night"][data-palette="jade"] .pv-rim,
+[data-theme="night"][data-palette="jade"] .pv-jade-vernier { stroke: rgba(126, 240, 212, .5); filter: drop-shadow(0 0 2px rgba(78, 220, 175, .3)); }
+[data-theme="night"][data-palette="jade"] .pv-arc { opacity: .66; }
+[data-theme="night"][data-palette="jade"] .pv-arc.front { opacity: 1; filter: drop-shadow(0 0 2px rgba(78, 220, 175, .4)); }
+[data-theme="night"][data-palette="jade"] :is(.card,.work-item,.plug-item,.ctx-role,.theme-card,.req-card,.composer,.dock,.chip)::after { padding: 2px; filter: drop-shadow(0 0 3px rgba(239, 194, 91, .45)); }
