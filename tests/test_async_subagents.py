@@ -1,11 +1,13 @@
 import json
 import threading
 import time
+from types import SimpleNamespace
 
 import httpx
 import pytest
 
 from nexus.runtime.assembly import TaskAssembler
+from nexus.runtime.callbacks import TaskCallbacks
 from nexus.runtime.controller import TaskController
 from nexus.runtime.subagents import SubagentService, WAITING
 from nexus.task import TaskConflict, TaskStore
@@ -146,6 +148,37 @@ def test_child_messages_models_fork_cancel_and_recovery(tmp_path):
     assert reopened.child_relation(child)["parent_id"] == parent.id
     assert reopened.messages(child)
     controller.close()
+
+
+def test_independent_child_does_not_consume_parent_input_cursor(tmp_path, monkeypatch):
+    config, provider = configure(tmp_path)
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    controller = TaskController(store, run=lambda *_: "paused")
+    parent = store.create(title="parent", goal="parent", workspace=str(tmp_path),
+                          provider_id=provider, model_id="fake")
+    store.command(parent.id, "running", request_id="parent-running")
+    run = store.begin_run(parent.id)
+    callbacks = TaskCallbacks(store, parent.id, run["id"], cancel=threading.Event())
+    history = callbacks.snapshot_history()
+    service = SubagentService(store, controller, config, parent.id, "task")
+    child = service.start("child")["id"]
+    store.accept_user_message(parent.id, text="parent only", request_id="parent-input")
+    seen = []
+    install(monkeypatch, lambda body: seen.append(body) or call_frames(
+        "finish", "task_finish", {"summary": "child done"}))
+    try:
+        store.command(child, "running", request_id="child-running")
+        store.begin_run(child)
+        result = TaskAssembler(store, config)(store.get(child), threading.Event())
+        assert result.status == "complete"
+        assert "parent only" not in json.dumps(seen)
+        assert store.input_status(parent.id)["pending_count"] == 1
+        callbacks.before_model(history, agent=SimpleNamespace(task_context=""))
+        assert history[-1]["content"] == "parent only"
+        assert history[-1]["_source_id"]
+        assert store.input_status(parent.id)["pending_count"] == 0
+    finally:
+        controller.close()
 
 
 def test_fork_keeps_image_blocks_and_does_not_share_mutable_history(tmp_path):

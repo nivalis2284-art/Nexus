@@ -1,7 +1,6 @@
 """Reconciled current history and durable change cursors; JSONL remains authoritative."""
 import base64
 import json
-from .store import uid
 
 class History:
     def __init__(self, runtime):

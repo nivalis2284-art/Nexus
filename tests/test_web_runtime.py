@@ -16,10 +16,9 @@ from nexus.core import agent as loop
 from nexus.core import compaction
 from nexus.model import APIFamily
 from nexus.runtime import TaskController
-from nexus.session import Message
+from nexus.runtime.connections import start_mcp
+from nexus.session import Message, SessionStore
 from nexus.task import TaskStore
-from nexus.tools import build
-from nexus.tools.registry import ToolResult
 from nexus.runtime.conversation import history_for_model
 from nexus.web import server as web
 
@@ -63,7 +62,7 @@ def runtime(tmp_path, monkeypatch):
     tasks = TaskStore(store.home / "tasks.sqlite3")
     controller = TaskController(tasks)
     monkeypatch.setattr(web, "STATE", {
-        "store": store, "sessions": web.SessionStore(store.sessions_dir),
+        "store": store, "sessions": SessionStore(store.sessions_dir),
         "tasks": tasks, "task_controller": controller, "jobs": {},
         "closing": False,
     })
@@ -115,7 +114,7 @@ def test_mcp_start_schema_call_failure_and_reload(runtime, monkeypatch):
     raw["mcp"] = {"servers": [{"name": "stub", "command": sys.executable,
                                "args": [str(Path(__file__).with_name("mcp_server_stub.py"))]}]}
     store.write_config(raw)
-    web.STATE["mcp"] = web.start_mcp(store.load().mcp_servers, Path(store.load().workspace))
+    web.STATE["mcp"] = start_mcp(store.load().mcp_servers, Path(store.load().workspace))
     assert web.STATE["mcp"] is not None
     seen = model(monkeypatch, [stream(calls=[("mcp__stub__echo", {"text": "hello MCP"}),
                                            ("mcp__stub__fail", {})]), stream(text="finished")])
@@ -261,7 +260,7 @@ def test_partial_model_error_is_saved(runtime, monkeypatch):
 def test_fresh_unconfigured_home_can_load_settings(tmp_path, monkeypatch):
     store = web.ConfigStore(tmp_path)
     settings = store.ensure()
-    monkeypatch.setattr(web, "STATE", {"store": store, "sessions": web.SessionStore(store.sessions_dir)})
+    monkeypatch.setattr(web, "STATE", {"store": store, "sessions": SessionStore(store.sessions_dir)})
     state = object.__new__(web.Handler)._state()
     assert state["profile"] is None
     assert state["providers"][0]["id"] == settings.provider.id

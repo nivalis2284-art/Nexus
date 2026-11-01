@@ -10,7 +10,7 @@ import httpx
 from nexus.core import agent as loop
 from nexus.runtime.assembly import TaskAssembler
 from nexus.task import TaskStore
-from test_task_runtime import configure, call_frames, text_frames
+from test_task_runtime import configure, call_frames
 
 
 def setup(tmp_path, monkeypatch, responses):
@@ -82,6 +82,14 @@ def test_task_child_keeps_mcp_and_separate_operation_identity(tmp_path, monkeypa
         assert store.get(child).state == "completed"
         assert not store.unfinished_operations(child)
         assert not store.unfinished_operations(task.id)
+        operations = {}
+        for task_id in (task.id, child):
+            operations[task_id] = [store.get_operation(event["data"]["id"])
+                for event in store.events(task_id) if event["type"] == "operation.dispatching"]
+        assert any(op["tool_name"] == "subagent" and op["status"] == "succeeded"
+                   for op in operations[task.id])
+        assert any(op["tool_name"] == "mcp__stub__echo" and op["status"] == "succeeded"
+                   for op in operations[child])
         assert any("child evidence 7319" in m["text"] for m in store.messages(task.id))
     finally:
         controller.close()

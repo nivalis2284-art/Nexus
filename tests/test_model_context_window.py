@@ -12,7 +12,7 @@ from nexus.core.agent import Agent
 from nexus.core.config import ConfigStore
 from nexus.core.permission import default_policy
 from nexus.core.workspace import inspect
-from nexus.model import APIFamily, ModelCapabilities, ModelProfile, RuntimeCredentials
+from nexus.model import ModelProfile, RuntimeCredentials
 from nexus.tools import build
 
 

@@ -12,7 +12,7 @@ from ..core import prompt
 from ..core.permission import default_policy
 from ..core.workspace import inspect
 from ..instructions import OWNER_ITEMS_NAME, load_instructions, save_instructions
-from ..role_instructions import ROLE_IDS, load_role, save_role
+from ..role_instructions import ROLE_IDS, load_role, save_role as save_role
 from ..session.presentation import transcript
 from ..tools import build
 from .history import effective_checkpoint, history_version

@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+from nexus.session import SessionStore
 from nexus.web import server as web
 
 
@@ -32,7 +33,7 @@ def live(tmp_path: Path, monkeypatch):
         "STATE",
         {
             "store": store,
-            "sessions": web.SessionStore(store.sessions_dir),
+            "sessions": SessionStore(store.sessions_dir),
             "skills": {},
             "closing": False,
         },

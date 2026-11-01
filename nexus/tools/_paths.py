@@ -75,9 +75,7 @@ def atomic_write_file(path: Path):
     """
     with ExitStack() as stack:
         if os.name == "nt":
-            # Every ancestor strictly above the leaf's own directory. Calling
-            # open_parent(path) would also open the target leaf and fail for a
-            # file that is about to be created.
+            # Hold every ancestor strictly above the leaf's own directory.
             for parent in reversed(path.parent.parents):
                 _check_windows_dir_no_delete(parent, stack)
         else:
@@ -129,84 +127,6 @@ def _check_windows_dir_no_delete(path: Path, stack: ExitStack) -> None:
     reject_link(path.lstat())
     if not stat.S_ISDIR(path.lstat().st_mode):
         raise NotADirectoryError(str(path))
-
-
-@contextmanager
-def open_parent(path: Path):
-    """Hold each verified ancestor while replacing a leaf in its directory."""
-    with ExitStack() as stack:
-        if os.name == "nt":
-            import ctypes
-            from ctypes import wintypes
-
-            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-            create = kernel.CreateFileW
-            create.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
-                               wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD,
-                               wintypes.HANDLE]
-            create.restype = wintypes.HANDLE
-            close = kernel.CloseHandle
-            close.argtypes = [wintypes.HANDLE]
-            close.restype = wintypes.BOOL
-            for parent in reversed(path.parents):
-                # Sharing read/write but not delete pins the validated ancestry.
-                handle = create(str(parent), 0, 0x1 | 0x2, None, 3,
-                                0x00200000 | 0x02000000, None)
-                if handle == wintypes.HANDLE(-1).value:
-                    raise ctypes.WinError(ctypes.get_last_error())
-                stack.callback(close, handle)
-                info = parent.lstat()
-                reject_link(info)
-                if not stat.S_ISDIR(info.st_mode):
-                    raise NotADirectoryError(str(parent))
-            yield None
-            return
-
-        directory_flag = getattr(os, "O_DIRECTORY", None)
-        nofollow = getattr(os, "O_NOFOLLOW", None)
-        if directory_flag is None or nofollow is None:
-            raise FileAccessDenied("This platform lacks secure no-follow directory opens")
-        descriptor = os.open(path.anchor, os.O_RDONLY | directory_flag)
-        stack.callback(os.close, descriptor)
-        for part in path.parts[1:-1]:
-            descriptor = os.open(part, os.O_RDONLY | directory_flag | nofollow,
-                                 dir_fd=descriptor)
-            stack.callback(os.close, descriptor)
-        yield descriptor
-
-
-@contextmanager
-def open_child(parent_fd: int, path: Path, operation: str):
-    """Open a leaf relative to a held parent directory without following links."""
-    with ExitStack() as stack:
-        nofollow = getattr(os, "O_NOFOLLOW", None)
-        nonblock = getattr(os, "O_NONBLOCK", None)
-        if nofollow is None or nonblock is None:
-            raise FileAccessDenied("This platform lacks secure no-follow file opens")
-        flags = os.O_RDONLY if operation == "read" else os.O_WRONLY
-        if operation == "create":
-            flags |= os.O_CREAT | os.O_EXCL
-        try:
-            fd = os.open(path.name, flags | nofollow | nonblock, 0o600,
-                         dir_fd=parent_fd)
-        except OSError as exc:
-            if exc.errno in (errno.ELOOP, errno.ENOTDIR):
-                raise FileAccessDenied("Linked or non-directory path component") from exc
-            raise
-        stack.callback(os.close, fd)
-        regular_file(os.fstat(fd))
-        if operation == "read":
-            with os.fdopen(fd, "rb", closefd=False) as stream:
-                yield stream
-        else:
-            # "wb" on an already-open descriptor does NOT truncate; it only sets
-            # the mode. Writing a shorter file would leave the old tail behind,
-            # which reads as silent corruption. Truncate the held handle and
-            # rewind, because the handle keeps whatever position it had.
-            os.ftruncate(fd, 0)
-            os.lseek(fd, 0, os.SEEK_SET)
-            with os.fdopen(fd, "wb", closefd=False) as stream:
-                yield stream
 
 
 def _posix_open(path: Path, operation: str, stack: ExitStack) -> int:

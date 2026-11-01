@@ -216,27 +216,6 @@ class Agent:
                 "ok": False, "error": "interrupted",
             })
 
-    def seal_pending_calls(self, messages: list[dict[str, Any]]) -> None:
-        """Mark unfinished task calls as interrupted without claiming they ran.
-
-        Task execution persists its own operation facts. This helper only keeps
-        the provider-facing transcript legal when a run is being closed for
-        recovery. ``unknown`` is intentionally different from a tool failure.
-        """
-        pending: dict[str, dict[str, Any]] = {}
-        for message in self.new_messages:
-            for call in message.get("tool_calls") or []:
-                pending[call["id"]] = call
-            if message.get("role") == "tool":
-                pending.pop(message.get("tool_call_id"), None)
-        for call in pending.values():
-            self._record(messages, {
-                "role": "tool", "tool_call_id": call["id"], "name": call["name"],
-                "arguments": _safe_json(call["arguments"]),
-                "content": "No result was recorded: operation outcome is unknown.",
-                "ok": False, "error": "unknown",
-            })
-
     async def _stream(self, gateway, body, **kwargs):
         """Close a live HTTP iterator when the owner stops, even during silence."""
         from contextlib import suppress

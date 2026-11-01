@@ -499,12 +499,6 @@ class TaskStore:
         finally:
             connection.close()
 
-    def parent_children(self, owner_id: str, *, parent_kind: str | None = None,
-                        include_archived: bool = False) -> list[dict[str, Any]]:
-        """Same as children(), accepting a session id or a task id."""
-        return self.children(owner_id, parent_kind=parent_kind,
-                             include_archived=include_archived)
-
     @staticmethod
     def _relation_dict(row: sqlite3.Row) -> dict[str, Any]:
         return {"task_id": row["child_id"], "parent_id": row["parent_id"],
@@ -577,16 +571,6 @@ class TaskStore:
             )
             self._event(connection, task_id, "task.evidence", {"version": version})
             return task_from_row(self._row(connection, task_id))
-
-    def context_message(self, task_id: str) -> None:
-        """Persist a compact resume brief before model-visible task context is cut."""
-        task = self.get(task_id)
-        if task.work_summary or task.next_step:
-            return
-        self.add_message(
-            task_id, kind="notice",
-            text="任务已保存；继续时以当前目标、步骤、证据和阻塞为工作上下文。",
-        )
 
     @staticmethod
     def _validated_task_changes(changes: dict[str, Any]) -> dict[str, Any]:
@@ -971,16 +955,6 @@ class TaskStore:
                     "arguments": json.loads(row["arguments_json"]), "status": row["status"]}
         finally:
             connection.close()
-
-    def resume_credentials(self, task_id: str) -> dict[str, Any]:
-        """Return binding and durable work needed by the task runner."""
-        task = self.get(task_id)
-        return {
-            "task": task,
-            "messages": self.messages(task_id),
-            "interactions": self.pending_interactions(task_id),
-            "operations": self.unfinished_operations(task_id),
-        }
 
     def recover_interrupted(self) -> list[str]:
         """Convert orphaned runs into reviewable task state on service boot.

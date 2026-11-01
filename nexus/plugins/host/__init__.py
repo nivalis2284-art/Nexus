@@ -1,5 +1,5 @@
 """Public host SDK v1 namespaces; direct and remote clients share the same contract."""
-from .runtime import CAPABILITIES
+from .runtime import CAPABILITIES as CAPABILITIES
 
 class Namespace:
     def __init__(self, call, path=''):

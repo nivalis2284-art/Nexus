@@ -12,9 +12,11 @@ from pathlib import Path
 import httpx
 import pytest
 
+from nexus.mcp import MCPRegistry
 from nexus.model import APIFamily
 from nexus.runtime import TaskController
 from nexus.task import TaskStore
+from nexus.session import SessionStore
 from nexus.web import server as web
 
 
@@ -72,10 +74,10 @@ def live(tmp_path: Path, monkeypatch):
     controller = TaskController(tasks)
     monkeypatch.setattr(web, "STATE", {
         "store": store,
-        "sessions": web.SessionStore(store.sessions_dir),
+        "sessions": SessionStore(store.sessions_dir),
         "tasks": tasks, "task_controller": controller,
         "skills": {}, "jobs": {}, "closing": False,
-        "mcp": web.MCPRegistry(),
+        "mcp": MCPRegistry(),
     })
 
     frames = [

@@ -18,16 +18,13 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse, urlsplit
 
 from ..application import (Application, MAX_IMAGE_BYTES, MAX_IMAGES_PER_TURN, ALLOWED_IMAGE_MIMES)
-from ..attachments import AttachmentStore
 from ..core import effort as reasoning
 from ..core.config import ConfigStore
 from ..projects import snapshot as project_snapshot
 from ..ling import LingInbox
-from ..mcp import MCPError, MCPRegistry
-from ..runtime.connections import start_mcp
-from ..session import SessionStore
+from ..mcp import MCPError
 from ..session.presentation import transcript as _transcript
-from ..task import TaskConflict, TaskNotFound, TaskStore, TaskValidationError
+from ..task import TaskConflict, TaskNotFound
 from . import instructions_api, mcp_api, plugin_api, skills_api
 from .attachments import route as attachment_route
 from .task_api import TaskHTTP

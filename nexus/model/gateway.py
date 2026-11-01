@@ -90,16 +90,6 @@ def _priced_event(profile: ModelProfile, event: ModelEvent) -> ModelEvent:
     return replace(event, usage=replace(usage, cost_usd=cost))
 
 
-def _reservation(profile: ModelProfile, body: dict[str, Any]) -> int:
-    """Conservative token upper bound for one provider request.
-
-    Input is measured as UTF-8 bytes rather than provider tokens. This is an
-    intentional upper bound for unknown tokenizers, not an exact estimate.
-    """
-    encoded = json.dumps(body, ensure_ascii=False, separators=(",", ":"))
-    return len(encoded.encode("utf-8")) + (profile.max_output_tokens or 8192)
-
-
 def _recordable_body(body: Any) -> Any:
     """A not-yet-sent body may still contain values JSON rejects.
 

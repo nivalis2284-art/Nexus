@@ -5,7 +5,6 @@ import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from ..hooks import HookRegistry
 from ...file_io import replace_text
 from .store import Store, uid, now
 from .models import Models

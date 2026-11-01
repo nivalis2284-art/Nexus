@@ -1,6 +1,5 @@
 """Queue ownership during shutdown and a resume racing final cleanup."""
 import threading
-import time
 from nexus.runtime import TaskController
 from nexus.task import TaskStore
 from test_work_execution import until

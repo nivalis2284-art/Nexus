@@ -8,6 +8,7 @@ import time
 from nexus.runtime.controller import TaskController
 from nexus.runtime.stream import RuntimeUpdates, runtime_updates
 from nexus.task import TaskStore
+from nexus.session import SessionStore
 from nexus.web import server as web
 from nexus.web.task_api import TaskHTTP
 
@@ -51,7 +52,7 @@ def test_ling_projection_includes_live_tool_and_saved_usage(tmp_path, monkeypatc
     config.ensure()
     tasks = TaskStore(tmp_path / "tasks.sqlite3")
     controller = TaskController(tasks)
-    state = {"store": config, "sessions": web.SessionStore(config.sessions_dir),
+    state = {"store": config, "sessions": SessionStore(config.sessions_dir),
              "tasks": tasks, "task_controller": controller, "closing": False}
     monkeypatch.setattr(web, "STATE", state)
     ling = web._ling()

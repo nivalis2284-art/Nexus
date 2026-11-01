@@ -125,7 +125,7 @@ def test_resend_preserves_attachments_and_undo_after_reply(app, monkeypatch):
 
 
 def test_context_and_history_http_routes(app, monkeypatch):
-    session = add_history(app)
+    add_history(app)
     monkeypatch.setattr(web, "STATE", app.state)
     server = ThreadingHTTPServer(("127.0.0.1", 0), web.Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)

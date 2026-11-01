@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import io
 import json
 import sys
@@ -132,51 +131,6 @@ def test_new_input_and_attachment_are_applied_once_at_the_next_request(tmp_path,
     assert attachment["id"] in second
     tool_messages = [m for m in tasks.messages(task.id) if m.get("kind") == "tool"]
     assert any(m.get("name") == "read_attachment" for m in tool_messages)
-    assert tasks.input_status(task.id)["pending_count"] == 0
-
-
-def test_child_uses_a_distinct_operation_scope_for_reused_call_id(tmp_path):
-    _config, tasks, task = started_task(tmp_path)
-    store = tasks
-    callbacks = TaskCallbacks(store, task.id, store.current_run(task.id), cancel=threading.Event())
-    child = callbacks.child_scope()
-    callback_by_context = {}
-
-    def invoke(owner, call_id, path):
-        registry, context = build(root=tmp_path, task_callbacks=owner)
-        prepared = registry.prepare(
-            "write_file", {"path": path, "content": path}, context,
-        )
-        owner.prepare_dispatch(call_id, prepared, context)
-        callback_by_context[path] = context._task_tool_call_id
-        outcome = owner.wrap_execute(prepared, context, registry.execute_prepared)
-        assert outcome.ok
-
-    invoke(callbacks, "c0", "parent.txt")
-    invoke(child, "c0", "child.txt")
-    assert callback_by_context["parent.txt"] == "c0"
-    assert callback_by_context["child.txt"].startswith("child-")
-    assert not store.unfinished_operations(task.id)
-
-
-def test_child_does_not_consume_parent_input_cursor(tmp_path):
-    _config, tasks, task = started_task(tmp_path)
-    callbacks = TaskCallbacks(
-        tasks, task.id, tasks.current_run(task.id), cancel=threading.Event(),
-    )
-    child = callbacks.child_scope()
-    history = callbacks.snapshot_history()
-    tasks.accept_user_message(
-        task.id, text="parent only", request_id="parent-input",
-    )
-    child_agent = type("Child", (), {"task_context": ""})()
-    child.refresh_child_context(history, agent=child_agent)
-    assert child_agent.task_context
-    assert tasks.input_status(task.id)["pending_count"] == 1
-    callbacks.before_model(history, agent=child_agent)
-    assert history[-1]["role"] == "user"
-    assert history[-1]["content"] == "parent only"
-    assert history[-1]["_source_id"]
     assert tasks.input_status(task.id)["pending_count"] == 0
 
 

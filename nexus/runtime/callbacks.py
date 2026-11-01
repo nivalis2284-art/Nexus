@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import threading
-import uuid
 from typing import Any
 
 from ..attachments import message_content
@@ -26,7 +25,6 @@ class TaskCallbacks:
         self._lock = threading.RLock()
         self._attempts: list[dict[str, Any]] = []
         self._operations: dict[str, str] = {}
-        self._operation_scope = ""
         self._finished = False
         self.waiting: dict[str, Any] | None = None
         self._saved_messages: dict[int, dict[str, Any]] = {}
@@ -344,47 +342,8 @@ class TaskCallbacks:
 
     def prepare_dispatch(self, tool_call_id: str, prepared: Any, context: Any) -> None:
         """Persist intent immediately before the side effect enters a worker."""
-        context._task_tool_call_id = self._scoped_call_id(tool_call_id)
+        context._task_tool_call_id = tool_call_id
         self.before_dispatch(prepared, context)
-
-    def child_scope(self) -> TaskCallbacks:
-        """One isolated operation namespace on the same task authority."""
-        child = TaskCallbacks(
-            self.store, self.task_id, self.run_id, cancel=self.cancel,
-            on_saved=self._on_saved,
-        )
-        child._operation_scope = "child-" + uuid.uuid4().hex[:12]
-        return child
-
-    def refresh_child_context(self, history: list[dict[str, Any]], *,
-                              agent: Any, attachment_contexts: list[Any] | None = None,
-                              include_images: bool = False) -> None:
-        """Refresh child facts without consuming the parent's input cursor."""
-        agent.task_context = self.context_text()
-        if attachment_contexts:
-            allowed = {
-                a["id"] for item in self.store.messages(self.task_id)
-                for a in (item.get("attachments") or [])
-            }
-            for context in attachment_contexts:
-                context.attachment_ids = allowed
-
-    def add_child_evidence(self, raw: dict[str, Any]) -> dict[str, Any]:
-        """Subagent observations enrich the parent without rewriting its plan."""
-        evidence = Evidence.from_dict({
-            **raw,
-            "metadata": {**(raw.get("metadata") or {}), "subagent": True},
-        })
-        updated = self.store.add_evidence(self.task_id, evidence)
-        return {
-            "evidence_count": len(updated.evidence),
-            "progress_version": updated.progress_version,
-        }
-
-    def _scoped_call_id(self, tool_call_id: str) -> str:
-        if not self._operation_scope:
-            return tool_call_id
-        return f"{self._operation_scope}:{tool_call_id}"
 
     def context_text(self) -> str:
         task = self.store.get(self.task_id)

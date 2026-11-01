@@ -8,7 +8,6 @@ from types import SimpleNamespace
 import pytest
 
 from nexus.core.config import ConfigStore
-from nexus.mcp import ServerConfig
 from nexus.web import mcp_api
 
 

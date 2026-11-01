@@ -283,7 +283,7 @@ def test_service_cycle_detection_and_bridge_owner_binding(manager):
     sys.path.insert(0,str(ROOT/'mobile-bridge/sdk/v1'))
     from nexus_host import HostClient
     client=HostClient(env['NEXUS_HOST_URL'],env['NEXUS_PLUGIN_TOKEN'])
-    d=manager.runtime.store.put('dialogue','private','test',{'id':'private'})
+    manager.runtime.store.put('dialogue','private','test',{'id':'private'})
     with pytest.raises(ValueError):client.dialogues.get(dialogue_id='private')
     assert client.capabilities.describe()['capabilities']['models']==1
 
@@ -355,6 +355,6 @@ def test_job_child_operations_are_cancelled_and_stale_attempts_rejected(manager)
     current=h.jobs.get(job_id=job['id'])
     h.jobs.cancel(job_id=job['id'])
     release.set()
-    op=eventually(lambda:next((o for o in rt.store.list('operation','test') if o['input'].get('job_id')==job['id'] and o['status']=='cancelled'),None))
+    eventually(lambda:next((o for o in rt.store.list('operation','test') if o['input'].get('job_id')==job['id'] and o['status']=='cancelled'),None))
     with pytest.raises(ValueError,match='失效'):
         rt.start('test','models.generate',{'job_id':job['id'],'job_attempt':current['attempt']})

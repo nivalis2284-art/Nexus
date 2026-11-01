@@ -15,7 +15,7 @@ from nexus.ling import LingInbox, WorkService
 from nexus.model import APIFamily
 from nexus.runtime import TaskController
 from nexus.runtime.callbacks import TaskCallbacks
-from nexus.session import Message
+from nexus.session import Message, SessionStore
 from nexus.task import TaskConflict, TaskStore
 from nexus.web import server as web
 
@@ -60,7 +60,7 @@ def live(tmp_path, monkeypatch):
         return "paused"
     controller = TaskController(store, run=run)
     controller.start()
-    state = {"store": config, "sessions": web.SessionStore(config.sessions_dir),
+    state = {"store": config, "sessions": SessionStore(config.sessions_dir),
              "tasks": store, "task_controller": controller, "skills": {},
              "closing": False}
     monkeypatch.setattr(web, "STATE", state)

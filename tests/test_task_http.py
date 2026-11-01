@@ -11,6 +11,7 @@ import pytest
 
 from nexus.runtime import TaskController
 from nexus.task import TaskStore
+from nexus.session import SessionStore
 from nexus.web import server as web
 
 
@@ -41,7 +42,7 @@ def task_live(tmp_path, monkeypatch):
     controller = TaskController(task_store, run=runner)
     controller.start()
     monkeypatch.setattr(web, "STATE", {
-        "store": store, "sessions": web.SessionStore(store.sessions_dir),
+        "store": store, "sessions": SessionStore(store.sessions_dir),
         "tasks": task_store, "task_controller": controller,
         "skills": {}, "closing": False,
     })
