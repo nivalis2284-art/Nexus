@@ -1,0 +1,554 @@
+/* ==========================================================================
+   灵 · 枢 — 四象主题系统（灵玉 / 星枢 × 白昼 / 黑夜）
+   1. 「灵玉」(jade) — 羊脂墨玉、中枢鎏金晶环与金玉追光
+   2. 「星枢」(cool) — 群星层叠、寒星轨芒与棱镜折射
+   全站共用 tokens.css 的圆角、间距、字号与动效节奏；主题只决定颜色、材质和背景。
+   ========================================================================== */
+
+:root {
+  --on-primary: #fff;
+  --on-accent: #fff;
+  --motion: 1;
+}
+html[data-motion="0.5"], html[data-motion="fast"] { --motion: .68; }
+html[data-motion="0.75"], html[data-motion="normal"] { --motion: .84; }
+html[data-motion="1"] { --motion: 1; }
+html[data-motion="1.25"] { --motion: 1.16; }
+html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
+
+/* 前景截图与实时背景共用柔边波纹，背景不参与静态捕获。 */
+@property --theme-reveal-radius { syntax: '<length>'; inherits: false; initial-value: -24px; }
+.is-theme-transitioning { view-transition-name: none; }
+::view-transition-old(*), ::view-transition-new(*) { animation: none; mix-blend-mode: normal; }
+::view-transition-new(*) {
+  mask-image: radial-gradient(circle at var(--theme-reveal-x, 50%) var(--theme-reveal-y, 42px),
+    #000 max(0px, calc(var(--theme-reveal-radius) - 24px)),
+    transparent max(0px, calc(var(--theme-reveal-radius) + 24px)));
+}
+::view-transition-old(*), .theme-background {
+  mask-image: radial-gradient(circle at var(--theme-reveal-x, 50%) var(--theme-reveal-y, 42px),
+    transparent max(0px, calc(var(--theme-reveal-radius) - 24px)),
+    #000 max(0px, calc(var(--theme-reveal-radius) + 24px)));
+}
+.theme-background { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+:root:active-view-transition, :root:active-view-transition * { transition: none !important; }
+
+/* ---------------------------------------------------------------- 语义色 */
+:root {
+  --tool: #4d8dff; --tool-soft: #eef2ff; --tool-ink: #4d6bd8;
+  --busy: #a86a12; --busy-soft: #fff3e0;
+  --held: #e3a857;
+  --on-dark-warm: #ffb4a2;
+  --seg-ink: #fff;
+}
+[data-theme="night"] {
+  --tool: #74a6ff; --tool-soft: rgba(77, 141, 255, .16); --tool-ink: #a9c6ff;
+  --busy: #ffc46b; --busy-soft: rgba(255, 196, 107, .14);
+  --held: #eac37d;
+  --on-dark-warm: #ffc0ad;
+  --seg-ink: #2c2f36;
+  --danger: #ff8a6b;
+}
+
+/* ==========================================================================
+   境一：灵玉（温润沉稳 · 羊脂墨玉与中枢鎏金晶环）
+   ========================================================================== */
+[data-palette="jade"] {
+  /* 白昼：压深温润青白石底，衬托羊脂白玉卡片与中枢鎏金晶环 */
+  --paper: #dfe5df;
+  --paper-2: #ced7cf;
+  --card: #fcfbf7;
+  --card-glass: var(--card);
+  --raised: #edf2ed;
+  --spec-top: rgba(255, 255, 255, .96);
+  --ink: #131c19;
+  --ink-2: #3d4d47;
+  --ink-3: #52685d;
+  --ink-4: #5e746a;
+  --line: rgba(12, 44, 35, .135);
+  --line-2: rgba(12, 44, 35, .22);
+  --ink-glass: rgba(12, 44, 35, .065);
+
+  --island: #0e1613;
+  --island-2: #1c2924;
+  --island-3: #283832;
+  --i-ink: #f3f7f4;
+  --i-ink-2: rgba(243, 247, 244, .66);
+  --i-ink-3: rgba(243, 247, 244, .42);
+
+  --jade: #078c70;
+  --jade-hi: #38e0bb;
+  --jade-deep: #045947;
+  --jade-ink: #045c49;
+  --jade-soft: rgba(7, 140, 112, .135);
+  --cinnabar: #d44627;
+  --cinnabar-deep: #a62f15;
+  --cinnabar-soft: rgba(212, 70, 39, .135);
+  --on-primary: #fff;
+  --on-accent: #fff;
+
+  /* 统一星枢字体层级 + 圆融玉器几何 */
+  --font-display: var(--font-serif);
+  --font-reading: var(--font-sans);
+
+  --track: -.024em;
+
+  /* 羊脂玉浮雕光影 */
+  --sh-1: 0 2px 6px rgba(8, 32, 26, .06), 0 12px 28px -14px rgba(8, 38, 30, .16);
+  --sh-2: 0 4px 14px rgba(8, 32, 26, .08), 0 24px 54px -20px rgba(8, 38, 30, .24);
+  --sh-3: 0 32px 80px -24px rgba(8, 32, 26, .34);
+}
+
+[data-palette="jade"] body {
+  background-image:
+    radial-gradient(ellipse 64% 54% at 53% 35%, rgba(252, 253, 250, .76), transparent 70%),
+    radial-gradient(ellipse 32% 24% at 53% 33%, rgba(232, 176, 42, .07), transparent 68%);
+}
+
+[data-theme="night"][data-palette="jade"] {
+  /* 黑夜：深邃墨玉底 + 莹润翠玉流萤 */
+  --paper: #08110e;
+  --paper-2: #111f1a;
+  --card: #101c18;
+  --card-glass: var(--card);
+  --raised: #172621;
+  --spec-top: rgba(136, 247, 222, .25);
+  --ink: #ecf4f0;
+  --ink-2: #aec2b9;
+  --ink-3: #a0b6ab;
+  --ink-4: #8ca79b;
+  --line: rgba(126, 240, 212, .17);
+  --line-2: rgba(126, 240, 212, .28);
+  --ink-glass: rgba(126, 240, 212, .07);
+  --seg-ink: #1e312b;
+
+  --island: #050b09;
+  --island-2: #101b17;
+  --island-3: #192923;
+
+  --jade: #28d8b2;
+  --jade-hi: #88f7de;
+  --jade-deep: #0d8a6f;
+  --jade-ink: #7ef2d7;
+  --jade-soft: rgba(40, 216, 178, .16);
+  --cinnabar: #f27255;
+  --cinnabar-deep: #ffb39f;
+  --cinnabar-soft: rgba(242, 114, 85, .18);
+  --on-primary: #051f19;
+  --on-accent: #260d07;
+
+  --sh-1: 0 2px 6px rgba(0, 0, 0, .46), 0 12px 30px -16px rgba(0, 0, 0, .72);
+  --sh-2: 0 4px 14px rgba(0, 0, 0, .54), 0 28px 62px -22px rgba(0, 0, 0, .82);
+  --sh-3: 0 36px 92px -24px rgba(0, 0, 0, .92);
+}
+
+[data-theme="night"][data-palette="jade"] body {
+  background-image:
+    radial-gradient(ellipse 58% 48% at 53% 35%, rgba(16, 54, 43, .42), transparent 70%),
+    radial-gradient(ellipse 30% 22% at 53% 33%, rgba(168, 118, 22, .09), transparent 68%);
+}
+
+/* 灵玉专属器物与光学玉泽 */
+[data-palette="jade"] .aura .grain { opacity: .16; }
+[data-theme="night"][data-palette="jade"] .aura .grain { display: none; }
+[data-palette="jade"] .aura i { opacity: .3; filter: blur(96px); }
+[data-theme="night"][data-palette="jade"] .aura i { opacity: .24; }
+
+[data-palette="jade"] .msg-user .bubble {
+  background: linear-gradient(135deg, var(--jade-deep), var(--jade));
+  color: #fff;
+  box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--jade) 52%, transparent);
+}
+[data-theme="night"][data-palette="jade"] .msg-user .bubble {
+  background: linear-gradient(135deg, #127d65, #1ea889);
+  color: #f4fbf8;
+}
+
+/* ==========================================================================
+   境二：星枢（轻盈灵动 · 晴空群星与深邃星穹）
+   ========================================================================== */
+[data-palette="cool"] {
+  /* 白昼：拉开晴空蓝灰雾底与高透白晶卡片的明度差，强化星芒可见度 */
+  --paper: #dce6f6;
+  --paper-2: #cad7ef;
+  --card: #fff;
+  --card-glass: var(--card);
+  --raised: #edf3fc;
+  --spec-top: rgba(255, 255, 255, .96);
+  --ink: #0f1626;
+  --ink-2: #3e4963;
+  --ink-3: #53617c;
+  --ink-4: #5e6d88;
+  --line: rgba(22, 44, 98, .135);
+  --line-2: rgba(22, 44, 98, .22);
+  --ink-glass: rgba(22, 44, 98, .065);
+
+  --island: #0c111e;
+  --island-2: #192134;
+  --island-3: #263048;
+  --i-ink: #f4f7fd;
+  --i-ink-2: rgba(244, 247, 253, .66);
+  --i-ink-3: rgba(244, 247, 253, .42);
+
+  --jade: #3568f0;
+  --jade-hi: #88aeff;
+  --jade-deep: #2248bd;
+  --jade-ink: #1e43b0;
+  --jade-soft: rgba(53, 104, 240, .135);
+  --cinnabar: #855cf2;
+  --cinnabar-deep: #5d35c7;
+  --cinnabar-soft: rgba(133, 92, 242, .145);
+  --on-dark-warm: #d4c2ff;
+  --on-primary: #fff;
+  --on-accent: #fff;
+
+  /* 清隽混排与液态张力几何 */
+  --font-display: var(--font-serif);
+  --font-reading: var(--font-sans);
+
+  --track: -.024em;
+
+  --sh-1: 0 2px 6px rgba(16, 30, 68, .06), 0 14px 32px -14px rgba(22, 44, 104, .18);
+  --sh-2: 0 4px 14px rgba(16, 30, 68, .08), 0 26px 56px -20px rgba(22, 44, 104, .26);
+  --sh-3: 0 34px 86px -24px rgba(16, 28, 64, .38);
+}
+
+[data-palette="cool"] body {
+  background-image:
+    radial-gradient(ellipse 68% 58% at 54% 38%, rgba(248, 251, 255, .78), transparent 72%),
+    radial-gradient(ellipse 56% 48% at 86% 88%, rgba(164, 146, 248, .16), transparent 70%);
+}
+
+[data-theme="night"][data-palette="cool"] {
+  --paper: #080c16;
+  --paper-2: #101728;
+  --card: #131a2c;
+  --card-glass: var(--card);
+  --raised: #1b243a;
+  --spec-top: rgba(255, 255, 255, .14);
+  --ink: #eef2fc;
+  --ink-2: #b2bdd4;
+  --ink-3: #a2adc4;
+  --ink-4: #8997b1;
+  --line: rgba(168, 194, 255, .11);
+  --line-2: rgba(168, 194, 255, .19);
+  --ink-glass: rgba(168, 194, 255, .07);
+  --seg-ink: #232d45;
+
+  --island: #060911;
+  --island-2: #131928;
+  --island-3: #1f273a;
+
+  --jade: #82a8ff;
+  --jade-hi: #bfd3ff;
+  --jade-deep: #557de0;
+  --jade-ink: #b8ceff;
+  --jade-soft: rgba(130, 168, 255, .16);
+  --cinnabar: #c0a6ff;
+  --cinnabar-deep: #dcd0ff;
+  --cinnabar-soft: rgba(192, 166, 255, .18);
+  --on-dark-warm: #dcd0ff;
+  --on-primary: #071024;
+  --on-accent: #1d1236;
+
+  --sh-1: 0 2px 6px rgba(0, 0, 0, .46), 0 12px 30px -16px rgba(0, 0, 0, .74);
+  --sh-2: 0 4px 14px rgba(0, 0, 0, .54), 0 28px 62px -22px rgba(0, 0, 0, .84);
+  --sh-3: 0 36px 92px -24px rgba(0, 0, 0, .92);
+}
+
+[data-theme="night"][data-palette="cool"] body {
+  background-image:
+    radial-gradient(ellipse 64% 54% at 54% 38%, rgba(26, 42, 88, .36), transparent 72%),
+    radial-gradient(ellipse 52% 46% at 86% 88%, rgba(68, 42, 112, .22), transparent 70%);
+}
+
+[data-palette="cool"] .aura .grain { display: none; }
+[data-palette="cool"] .aura i { opacity: .34; filter: blur(92px); }
+[data-theme="night"][data-palette="cool"] .aura i { opacity: .28; }
+
+[data-palette="cool"] .msg-user .bubble {
+  background: linear-gradient(135deg, var(--jade), color-mix(in srgb, var(--jade) 66%, var(--cinnabar)));
+  color: var(--on-primary);
+  box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--jade) 55%, transparent);
+}
+
+/* ==========================================================================
+   共享实色器物表面 & 双境流光追光边（灵玉温润流光 / 星枢棱镜折射）
+   ========================================================================== */
+.card,
+.work-item,
+.plug-item,
+.ctx-role,
+.ctx-sec,
+.req-card,
+.composer,
+.dock,
+.chip,
+.qrow,
+.history-undo,
+.menu,
+.usage-pop,
+.sheet,
+.island {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.work-item,
+.plug-item,
+.ctx-role,
+.ctx-sec,
+.work-quiet,
+.qrow,
+.history-undo,
+.mcp-row,
+.hui-section,
+.file,
+.plug-page {
+  position: relative;
+}
+
+.card,
+.work-item,
+.plug-item,
+.ctx-role,
+.ctx-sec,
+.dock,
+.chip {
+  box-shadow: inset 0 1px 0 var(--spec-top), inset 0 0 0 1px var(--line), var(--sh-1);
+}
+.composer {
+  box-shadow: inset 0 1px 0 var(--spec-top), inset 0 0 0 1px var(--line), var(--sh-2);
+}
+.composer:focus-within {
+  box-shadow: 0 0 0 4px var(--jade-soft), inset 0 1px 0 var(--spec-top), inset 0 0 0 1.2px color-mix(in srgb, var(--jade) 52%, transparent), var(--sh-2);
+  transform: translateY(-2px);
+}
+
+/* 每个追光表面独立保存光源，防止嵌套卡片继承父卡片的坐标。 */
+:is(.card, .work-item, .work-quiet, .plug-item, .ctx-role, .ctx-sec, .theme-card, .req-card, .composer, .dock, .chip, .qrow, .history-undo, .usage-pop, .sheet, .island, .mcp-row, .hui-section, .file, .plug-page) {
+  --spot-on: 0;
+  --mx: -240px;
+  --my: -240px;
+}
+
+/* 原生边框区域统一绘制圆角与直边；2px 避免细线取整后圆角显薄。 */
+:is(.card, .work-item, .work-quiet, .plug-item, .ctx-role, .theme-card, .req-card, .composer, .dock, .chip, .qrow, .history-undo, .usage-pop, .sheet, .island, .mcp-row, .hui-section, .file, .plug-page)::after,
+.ctx-sec > summary::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  padding: 0;
+  border: 2px solid transparent;
+  pointer-events: none;
+  opacity: var(--spot-on, 0);
+  transition: opacity var(--d-2);
+  background-image: radial-gradient(250px circle at var(--mx, -240px) var(--my, -240px),
+    color-mix(in srgb, var(--jade) 56%, #f5c451),
+    color-mix(in srgb, #e5a324 34%, transparent) 52%,
+    transparent 74%);
+  /* 渐变覆盖完整边框且不平铺，否则边缘会取到对侧的光。 */
+  background-origin: border-box;
+  background-clip: border-area;
+  background-repeat: no-repeat;
+}
+[data-palette="cool"] :is(.card, .work-item, .work-quiet, .plug-item, .ctx-role, .theme-card, .req-card, .composer, .dock, .chip, .qrow, .history-undo, .usage-pop, .sheet, .island, .mcp-row, .hui-section, .file, .plug-page)::after,
+[data-palette="cool"] .ctx-sec > summary::after {
+  background-image: radial-gradient(215px circle at var(--mx, -240px) var(--my, -240px),
+    color-mix(in srgb, var(--jade) 54%, var(--cinnabar)), transparent 72%);
+}
+
+/* 状态语言：灵玉用温润朱印章，星枢用星紫呼吸脉冲环 */
+[data-palette="cool"] .seal {
+  position: relative; border-radius: 999px; background: transparent;
+  color: transparent; font-size: 0; transform: none; animation: none;
+  box-shadow: inset 0 0 0 1.5px var(--cinnabar);
+}
+[data-palette="cool"] .seal { width: 40px; height: 40px; }
+[data-palette="cool"] .seal::before {
+  content: ""; position: absolute; inset: 0; margin: auto;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--cinnabar);
+}
+[data-palette="cool"] .seal::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 999px;
+  border: 1px solid var(--cinnabar); opacity: 0;
+  animation: ring-out 2.6s ease-out infinite;
+}
+[data-palette="cool"] .decide::before {
+  background: linear-gradient(180deg, transparent, var(--cinnabar) 28%, var(--cinnabar) 72%, transparent);
+}
+@keyframes ring-out {
+  0% { transform: scale(.72); opacity: .58; }
+  70%, 100% { transform: scale(1.52); opacity: 0; }
+}
+
+/* ---------------------------------------------------------------- 气场随状态演进 */
+body[data-mood="calm"],
+[data-theme="night"] body[data-mood="calm"] {
+  --aura-a: color-mix(in srgb, var(--jade) 34%, var(--paper));
+  --aura-b: color-mix(in srgb, var(--cinnabar) 22%, var(--paper));
+  --aura-c: color-mix(in srgb, var(--jade-hi) 20%, var(--paper-2));
+}
+[data-palette="jade"] body[data-mood="calm"],
+[data-theme="night"][data-palette="jade"] body[data-mood="calm"] {
+  --aura-b: color-mix(in srgb, var(--jade-deep) 24%, var(--paper));
+}
+body[data-mood="running"],
+[data-theme="night"] body[data-mood="running"] {
+  --aura-a: color-mix(in srgb, var(--jade) 46%, var(--paper));
+  --aura-b: color-mix(in srgb, var(--jade) 28%, var(--paper));
+  --aura-c: color-mix(in srgb, var(--jade-hi) 28%, var(--paper));
+}
+body[data-mood="waiting"],
+[data-theme="night"] body[data-mood="waiting"] {
+  --aura-a: color-mix(in srgb, var(--jade) 28%, var(--paper));
+  --aura-b: color-mix(in srgb, var(--cinnabar) 42%, var(--paper));
+  --aura-c: color-mix(in srgb, var(--cinnabar) 24%, var(--paper));
+}
+
+/* 彩色面上的文字跟随主题明度 */
+.send.ready { color: var(--on-primary); }
+.seal, .req-allow, .opt .tick { color: var(--on-accent); }
+.summary-card::before, .ctx-summary::before { color: var(--on-primary); }
+.theme-check { color: var(--on-primary); }
+.skill .glyph { color: var(--on-primary); }
+
+/* ---------------------------------------------------------------- 浑仪星枢与多面琢玉核心绑定 */
+.og0 { stop-color: color-mix(in srgb, var(--jade-hi) 26%, #fff); }
+.og1 { stop-color: var(--jade-hi); }
+.og2 { stop-color: var(--jade); }
+.og3 { stop-color: var(--jade-deep); }
+.oh0 { stop-color: color-mix(in srgb, var(--jade) 22%, transparent); }
+.oh1 { stop-color: color-mix(in srgb, var(--cinnabar) 9%, transparent); }
+
+/* 星枢显示圆融天体球核；灵玉显示八棱多面雕琢灵玉核心与十二棱内刻度环 */
+[data-palette="cool"] .pv-core-jade,
+[data-palette="cool"] .pv-jade-vernier { display: none; }
+[data-palette="jade"] .pv-core-sphere,
+[data-palette="jade"] .pv-vernier { display: none; }
+
+.pv-jade-vernier {
+  fill: none; stroke: color-mix(in srgb, var(--jade) 28%, var(--line-2));
+  stroke-width: .9; stroke-linejoin: miter;
+}
+[data-palette="jade"] .pv-pole { fill: #e6a82e; }
+[data-palette="jade"] .pv-spindle { stroke: color-mix(in srgb, #e6a82e 58%, var(--ink-3)); }
+
+.orb-shadow { background: radial-gradient(color-mix(in srgb, var(--jade-deep) 36%, transparent), transparent 70%); }
+.orb-mini {
+  background: radial-gradient(circle at 33% 28%, color-mix(in srgb, var(--jade-hi) 18%, #fff) 0 7%, var(--jade-hi) 24%, var(--jade) 58%, var(--jade-deep) 100%);
+  box-shadow: inset -2px -3px 6px color-mix(in srgb, var(--jade-deep) 45%, transparent),
+    0 3px 10px -3px color-mix(in srgb, var(--jade) 55%, transparent);
+}
+[data-palette="jade"] .orb-mini {
+  border-radius: 0;
+  background: url("../assets/jade-core.webp") center / contain no-repeat;
+  box-shadow: none;
+  filter: drop-shadow(0 2px 3px rgba(3, 55, 43, .18));
+  animation: breathe 3.8s ease-in-out infinite;
+}
+[data-palette="jade"] .orb-mini::before { content: none; }
+.model-dot { background: conic-gradient(var(--jade), var(--cinnabar), var(--jade)); }
+
+/* ---------------------------------------------------------------- 设置页：界面偏好与主题色盘 */
+.ui-row { display: flex; align-items: center; gap: var(--space-5); padding: var(--space-4) 0; }
+.ui-row + .ui-row { box-shadow: 0 -1px 0 var(--line); }
+.ui-row > div:first-child { flex: 1; min-width: 0; }
+.ui-row b { display: block; font-size: var(--text-ui); font-weight: 500; }
+.ui-row small { display: block; font-size: var(--text-caption); color: var(--ink-3); line-height: 1.55; margin-top: 2px; }
+.ui-controls { display: flex; align-items: center; gap: var(--space-3); flex: none; }
+.ui-seg { padding: var(--space-1); border-radius: var(--r-pill); }
+.ui-seg button { height: 28px; padding: 0 var(--space-4); border-radius: var(--r-pill); font-size: var(--text-ui); }
+.ui-seg .seg-ink { top: 4px; height: calc(100% - 8px); border-radius: var(--r-pill); }
+.motion-demo { display: flex; align-items: center; gap: 5px; width: 34px; height: 24px; }
+.ui-controls .motion-play { height: 28px; padding: 0 var(--space-3); font-size: var(--text-caption); border-radius: var(--r-pill); }
+.motion-demo i { width: 8px; height: 8px; border-radius: 50%; background: var(--jade); opacity: .45; }
+.motion-demo i:nth-child(2) { background: var(--cinnabar); }
+
+.theme-picker { margin-top: var(--space-4); padding-top: var(--space-4); box-shadow: 0 -1px 0 var(--line); }
+.theme-copy b { display: block; font-size: var(--text-ui); font-weight: 500; }
+.theme-copy small { display: block; font-size: var(--text-caption); color: var(--ink-3); line-height: 1.55; margin-top: 2px; }
+.theme-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin-top: var(--space-3); }
+.theme-card {
+  position: relative; display: flex; align-items: center; gap: var(--space-3);
+  min-height: 56px; text-align: left; padding: var(--space-3) var(--space-4); border-radius: var(--r-ctrl);
+  background: var(--raised); box-shadow: inset 0 0 0 1px var(--line);
+  transition: transform var(--d-2) var(--sp-settle), box-shadow var(--d-2), background var(--d-2);
+}
+.theme-card:hover { transform: translateY(-2px); background: var(--card); box-shadow: var(--sh-1), inset 0 0 0 1px var(--line-2); }
+.theme-card.is-active { background: var(--card); box-shadow: inset 0 0 0 1.8px var(--jade), var(--sh-1); }
+
+.theme-swatches { display: flex; align-items: center; gap: var(--space-1); flex: none; }
+.theme-swatches i { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08); }
+
+.theme-name { display: block; font: 600 var(--text-body)/1.3 var(--font-sans); color: var(--ink); }
+.theme-check {
+  margin-left: auto; flex: none; width: 18px; height: 18px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--jade);
+  opacity: 0; transform: scale(.6); transition: opacity var(--d-2), transform var(--d-2) var(--sp-bouncy);
+}
+.theme-card.is-active .theme-check { opacity: 1; transform: none; }
+
+@media (max-width: 760px) {
+  .ui-row { flex-direction: column; align-items: flex-start; gap: var(--space-3); }
+  .ui-controls { width: 100%; justify-content: space-between; }
+  .theme-grid { grid-template-columns: 1fr; }
+  .theme-picker { margin-top: var(--space-3); }
+}
+
+/* ---------------------------------------------------------------- 微反馈细节 */
+.send-ripple {
+  position: fixed; z-index: 75; width: 40px; height: 40px; margin: -20px 0 0 -20px;
+  border-radius: 50%; border: 1.5px solid var(--jade); pointer-events: none;
+}
+
+.msg.is-new { position: relative; }
+.msg.is-new::before {
+  content: ""; position: absolute; left: -12px; top: 4px; bottom: 4px; width: 2px; border-radius: var(--r-inline);
+  background: var(--jade); animation: new-rule calc(1.8s * var(--motion)) var(--ease-out) forwards;
+}
+@keyframes new-rule {
+  0% { opacity: 0; transform: scaleY(.2); }
+  18% { opacity: 1; transform: none; }
+  100% { opacity: 0; }
+}
+
+.send.ready { animation: send-ready calc(.38s * var(--motion)) var(--sp-bouncy); }
+@keyframes send-ready {
+  0% { transform: scale(.9); }
+  60% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+.ret-chip button { animation: chip-in calc(.3s * var(--motion)) var(--sp-bouncy) both; }
+@keyframes chip-in {
+  from { opacity: 0; transform: translateY(6px) scale(.92); }
+  to { opacity: 1; transform: none; }
+}
+
+/* 层次与双境样本：外层承托，内层资料嵌入，浮层独立抬升。 */
+.ctx-role { background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); }
+.ctx-card .ctx-owner { border-radius: var(--r-ctrl); box-shadow: none; }
+/* 墨玉黑夜：环线与近处器物边缘有可辨认的透光。 */
+[data-theme="night"][data-palette="jade"] .pv-rim,
+[data-theme="night"][data-palette="jade"] .pv-jade-vernier { stroke: rgba(126, 240, 212, .5); filter: drop-shadow(0 0 2px rgba(78, 220, 175, .3)); }
+[data-theme="night"][data-palette="jade"] .pv-arc { opacity: .66; }
+[data-theme="night"][data-palette="jade"] .pv-arc.front { opacity: 1; filter: drop-shadow(0 0 2px rgba(78, 220, 175, .4)); }
+
+/* 导航光源居中，保留原版的长距离渐变与尾光。 */
+html[data-theme][data-palette] .dock::after {
+  background-image: radial-gradient(250px circle at 50% var(--my, -240px),
+    color-mix(in srgb, var(--jade) 56%, var(--cinnabar)),
+    color-mix(in srgb, var(--cinnabar) 34%, transparent) 52%, transparent 74%);
+}
+html[data-theme][data-palette="jade"] .dock::after {
+  background-image: radial-gradient(250px circle at 50% var(--my, -240px),
+    color-mix(in srgb, var(--jade) 56%, #f5c451),
+    color-mix(in srgb, #e5a324 34%, transparent) 52%, transparent 74%);
+}
+
+/* 长按沿用星枢的线色反馈，不额外增加光晕。 */
+[data-palette="jade"] .orb-stage :is(.pv-rim, .pv-jade-vernier, .pv-arc.front) {
+  transition: stroke var(--d-3), opacity var(--d-3);
+}
+html[data-palette="jade"] .orb-stage.is-grasped :is(.pv-rim, .pv-jade-vernier, .pv-arc.front) {
+  stroke: var(--jade);
+  opacity: .96;
+}

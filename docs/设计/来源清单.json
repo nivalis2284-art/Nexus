@@ -1,0 +1,261 @@
+{
+  "checkpoint": "b62b7b193b899bed1430c4bfc3d636c8543bad90",
+  "created": "2026-11-01",
+  "files": [
+    {
+      "source": "nexus/web/index.html",
+      "preview": "页面模板.html"
+    },
+    {
+      "source": "nexus/web/assets/chinese.css",
+      "preview": "预览资源/assets/chinese.css"
+    },
+    {
+      "source": "nexus/web/assets/fonts.css",
+      "preview": "预览资源/assets/fonts.css"
+    },
+    {
+      "source": "nexus/web/assets/jade-core.webp",
+      "preview": "预览资源/assets/jade-core.webp"
+    },
+    {
+      "source": "nexus/web/assets/jetbrains-mono-latin-ext.woff2",
+      "preview": "预览资源/assets/jetbrains-mono-latin-ext.woff2"
+    },
+    {
+      "source": "nexus/web/assets/jetbrains-mono-latin.woff2",
+      "preview": "预览资源/assets/jetbrains-mono-latin.woff2"
+    },
+    {
+      "source": "nexus/web/assets/newsreader-italic-latin-ext.woff2",
+      "preview": "预览资源/assets/newsreader-italic-latin-ext.woff2"
+    },
+    {
+      "source": "nexus/web/assets/newsreader-italic-latin.woff2",
+      "preview": "预览资源/assets/newsreader-italic-latin.woff2"
+    },
+    {
+      "source": "nexus/web/assets/newsreader-latin-ext.woff2",
+      "preview": "预览资源/assets/newsreader-latin-ext.woff2"
+    },
+    {
+      "source": "nexus/web/assets/newsreader-latin.woff2",
+      "preview": "预览资源/assets/newsreader-latin.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-sc-0.woff2",
+      "preview": "预览资源/assets/noto-sc-0.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-sc-1.woff2",
+      "preview": "预览资源/assets/noto-sc-1.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-sc-2.woff2",
+      "preview": "预览资源/assets/noto-sc-2.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-0.woff2",
+      "preview": "预览资源/assets/noto-serif-0.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-1.woff2",
+      "preview": "预览资源/assets/noto-serif-1.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-2.woff2",
+      "preview": "预览资源/assets/noto-serif-2.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-3.woff2",
+      "preview": "预览资源/assets/noto-serif-3.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-4.woff2",
+      "preview": "预览资源/assets/noto-serif-4.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-5.woff2",
+      "preview": "预览资源/assets/noto-serif-5.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-ui-0.woff2",
+      "preview": "预览资源/assets/noto-serif-ui-0.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-ui-1.woff2",
+      "preview": "预览资源/assets/noto-serif-ui-1.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-ui-2.woff2",
+      "preview": "预览资源/assets/noto-serif-ui-2.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-ui-3.woff2",
+      "preview": "预览资源/assets/noto-serif-ui-3.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-ui-4.woff2",
+      "preview": "预览资源/assets/noto-serif-ui-4.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-ui-5.woff2",
+      "preview": "预览资源/assets/noto-serif-ui-5.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-ui-6.woff2",
+      "preview": "预览资源/assets/noto-serif-ui-6.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-ui-7.woff2",
+      "preview": "预览资源/assets/noto-serif-ui-7.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-ui-8.woff2",
+      "preview": "预览资源/assets/noto-serif-ui-8.woff2"
+    },
+    {
+      "source": "nexus/web/assets/noto-serif-ui-9.woff2",
+      "preview": "预览资源/assets/noto-serif-ui-9.woff2"
+    },
+    {
+      "source": "nexus/web/assets/OFL-Noto.txt",
+      "preview": "预览资源/assets/OFL-Noto.txt"
+    },
+    {
+      "source": "nexus/web/assets/OFL.txt",
+      "preview": "预览资源/assets/OFL.txt"
+    },
+    {
+      "source": "nexus/web/assets/plus-jakarta-sans-latin-ext.woff2",
+      "preview": "预览资源/assets/plus-jakarta-sans-latin-ext.woff2"
+    },
+    {
+      "source": "nexus/web/assets/plus-jakarta-sans-latin.woff2",
+      "preview": "预览资源/assets/plus-jakarta-sans-latin.woff2"
+    },
+    {
+      "source": "nexus/web/css/app.css",
+      "preview": "预览资源/css/app.css"
+    },
+    {
+      "source": "nexus/web/css/ling.css",
+      "preview": "预览资源/css/ling.css"
+    },
+    {
+      "source": "nexus/web/css/plugin-pages.css",
+      "preview": "预览资源/css/plugin-pages.css"
+    },
+    {
+      "source": "nexus/web/css/plugin-ui.css",
+      "preview": "预览资源/css/plugin-ui.css"
+    },
+    {
+      "source": "nexus/web/css/theme.css",
+      "preview": "预览资源/css/theme.css"
+    },
+    {
+      "source": "nexus/web/css/tokens.css",
+      "preview": "预览资源/css/tokens.css"
+    },
+    {
+      "source": "nexus/web/js/api.js",
+      "preview": null,
+      "replacement": "预览资源/本地交互.js"
+    },
+    {
+      "source": "nexus/web/js/boot.js",
+      "preview": null,
+      "replacement": "预览资源/启动.js"
+    },
+    {
+      "source": "nexus/web/js/chat.js",
+      "preview": "预览资源/js/chat.js"
+    },
+    {
+      "source": "nexus/web/js/context.js",
+      "preview": "预览资源/js/context.js"
+    },
+    {
+      "source": "nexus/web/js/core.js",
+      "preview": "预览资源/js/core.js"
+    },
+    {
+      "source": "nexus/web/js/dialogs.js",
+      "preview": "预览资源/js/dialogs.js"
+    },
+    {
+      "source": "nexus/web/js/host-sdk.js",
+      "preview": "预览资源/js/host-sdk.js"
+    },
+    {
+      "source": "nexus/web/js/pivot.js",
+      "preview": "预览资源/js/pivot.js"
+    },
+    {
+      "source": "nexus/web/js/plugin-pages.js",
+      "preview": "预览资源/js/plugin-pages.js"
+    },
+    {
+      "source": "nexus/web/js/plugin-ui.js",
+      "preview": "预览资源/js/plugin-ui.js"
+    },
+    {
+      "source": "nexus/web/js/plugins.js",
+      "preview": "预览资源/js/plugins.js"
+    },
+    {
+      "source": "nexus/web/js/projects.js",
+      "preview": "预览资源/js/projects.js"
+    },
+    {
+      "source": "nexus/web/js/settings.js",
+      "preview": "预览资源/js/settings.js"
+    },
+    {
+      "source": "nexus/web/js/shell.js",
+      "preview": "预览资源/js/shell.js"
+    },
+    {
+      "source": "nexus/web/js/skills.js",
+      "preview": "预览资源/js/skills.js"
+    },
+    {
+      "source": "nexus/web/js/work.js",
+      "preview": "预览资源/js/work.js"
+    },
+    {
+      "source": "nexus/web/vendor/highlight-LICENSE.txt",
+      "preview": "预览资源/vendor/highlight-LICENSE.txt"
+    },
+    {
+      "source": "nexus/web/vendor/highlight.css",
+      "preview": "预览资源/vendor/highlight.css"
+    },
+    {
+      "source": "nexus/web/vendor/highlight.js",
+      "preview": "预览资源/vendor/highlight.js"
+    },
+    {
+      "source": "nexus/web/vendor/marked-LICENSE.txt",
+      "preview": "预览资源/vendor/marked-LICENSE.txt"
+    },
+    {
+      "source": "nexus/web/vendor/marked.js",
+      "preview": "预览资源/vendor/marked.js"
+    },
+    {
+      "source": "nexus/web/vendor/purify-LICENSE.txt",
+      "preview": "预览资源/vendor/purify-LICENSE.txt"
+    },
+    {
+      "source": "nexus/web/vendor/purify.js",
+      "preview": "预览资源/vendor/purify.js"
+    },
+    {
+      "source": "nexus/web/vendor/README.txt",
+      "preview": "预览资源/vendor/README.txt"
+    }
+  ],
+  "note": "独立设计快照；正式源码不被预览读取或改写。"
+}

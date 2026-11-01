@@ -1,0 +1,41 @@
+/* 仅设计工具与样张布局；正式界面的参数仍来自 css/ 中的独立快照。 */
+.preview-tools { position: fixed; right: var(--space-4); bottom: var(--space-4); z-index: 100; width: min(480px, calc(100vw - 32px)); background: var(--card); color: var(--ink); border-radius: var(--r-inner); box-shadow: var(--sh-3), inset 0 0 0 1px var(--line-2); font: var(--text-caption)/1.5 var(--font-sans); }
+.preview-tools > summary { list-style: none; cursor: pointer; padding: var(--space-3) var(--space-4); display: flex; align-items: center; gap: var(--control-gap); }
+.preview-tools > summary::-webkit-details-marker { display: none; }
+.preview-tools > summary b { margin-right: auto; }
+.preview-tools:not([open]) { width: auto; }
+body.background-only .preview-tools { opacity: 0; visibility: hidden; pointer-events: none; }
+.preview-tool-body { display: grid; gap: var(--row-gap); padding: 0 var(--space-4) var(--space-4); max-height: 60dvh; overflow: auto; }
+.preview-tool-row { display: flex; gap: var(--control-gap); align-items: center; flex-wrap: wrap; }
+.preview-tool-row label { display: flex; gap: var(--space-1); align-items: center; }
+.preview-tools select { height: var(--control-height-sm); border-radius: var(--r-tag); color: var(--ink); background: var(--raised); border: 1px solid var(--line-2); max-width: 180px; padding: 0 var(--space-2); }
+.preview-tools .btn { font-size: var(--text-caption); }
+.preview-notice { color: var(--ink-2); }
+.preview-gallery > .sheet-head { padding: var(--card-padding); flex: none; display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+.preview-gallery > .sheet-head .ic-btn { margin-left: auto; }
+.preview-gallery-body { padding: var(--card-padding); overflow: auto; min-height: 0; }
+.preview-gallery-nav { display: flex; gap: var(--control-gap); flex-wrap: wrap; margin-bottom: var(--group-gap); }
+.preview-gallery-nav a { color: var(--jade-ink); padding: var(--space-2); border-radius: var(--r-tag); background: var(--jade-soft); }
+.preview-gallery-stack { display: grid; gap: var(--card-gap); }
+.preview-sample { padding: var(--card-padding); scroll-margin-top: var(--space-4); min-width: 0; }
+.preview-sample > h3 { font-size: var(--text-title); margin-bottom: var(--row-gap); }
+.preview-sample > p { color: var(--ink-2); margin-bottom: var(--row-gap); }
+.preview-sample .sample-row { display: flex; flex-wrap: wrap; gap: var(--control-gap); align-items: center; }
+.preview-sample .sample-stack { display: grid; gap: var(--inner-gap); }
+.preview-sample .sample-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--inner-gap); }
+.preview-sample .sample-state { padding: var(--inner-gap); border-radius: var(--r-inner); background: var(--raised); min-width: 0; overflow-wrap: anywhere; }
+.preview-sample .sample-state small { display: block; color: var(--ink-2); margin-bottom: var(--control-gap); }
+.preview-sample code { font-family: var(--mono); }
+.preview-sample .md { overflow-wrap: anywhere; }
+.preview-sample .sample-state:focus-within { outline: 2px solid var(--jade); outline-offset: 2px; }
+.preview-sample table { width: 100%; border-collapse: collapse; }
+.preview-sample td, .preview-sample th { border-bottom: 1px solid var(--line); padding: var(--space-2); text-align: left; }
+.preview-sample .scroll-sample { max-height: 160px; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+.preview-sample .msg-tools { opacity: 1; transform: none; }
+.preview-sample .msg { margin-bottom: var(--space-4); }
+.preview-sample .req-card { margin: 0; }
+.preview-sample .long-code { white-space: pre; overflow: auto; }
+@media (max-width: 640px) {
+  .preview-tools { right: var(--space-4); bottom: var(--space-20); }
+  .preview-sample .sample-grid { grid-template-columns: 1fr; }
+}

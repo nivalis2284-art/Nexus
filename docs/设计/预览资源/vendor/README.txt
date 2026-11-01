@@ -1,0 +1,1 @@
+Local browser dependencies: marked 18.1.2 (MIT), DOMPurify 3.4.17 (Apache-2.0/MPL-2.0), highlight.js 11.12.0 (BSD-3-Clause). Downloaded from versioned npm registry packages. License texts included. No runtime CDN requests.

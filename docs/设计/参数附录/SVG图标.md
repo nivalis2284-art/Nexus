@@ -1,0 +1,56 @@
+# SVG 图标目录
+
+使用 `N.icon(name)` 或 `<use href="#i-name">`；图标几何见同页 symbol。
+
+- `i-chat`
+- `i-eye`
+- `i-work`
+- `i-layers`
+- `i-spark`
+- `i-plug`
+- `i-tune`
+- `i-arrow`
+- `i-up`
+- `i-plus`
+- `i-minus`
+- `i-check`
+- `i-close`
+- `i-back`
+- `i-chev`
+- `i-down`
+- `i-copy`
+- `i-edit`
+- `i-trash`
+- `i-file`
+- `i-clip`
+- `i-sun`
+- `i-moon`
+- `i-menu`
+- `i-folder`
+- `i-orbit`
+- `i-panel-r`
+- `i-expand`
+- `i-stop`
+- `i-zip`
+- `i-refresh`
+- `i-play`
+- `i-pause`
+- `i-alert`
+- `i-lock`
+- `i-clock`
+- `i-search`
+- `i-upload`
+- `i-key`
+- `i-server`
+- `i-link`
+- `i-eye`
+- `i-ban`
+- `i-gauge`
+- `i-code`
+- `i-image`
+- `i-undo`
+- `i-tool`
+- `i-dot`
+- `i-more`
+- `i-pivot`
+- `i-palette`
