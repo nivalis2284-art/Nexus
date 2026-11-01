@@ -15,6 +15,7 @@ def save_settings(
     value: Any,
     busy,
     workspace_effect: Callable[[Path], None] | None = None,
+    *, projects: list[dict[str, str]] | None = None,
 ):
     """Validate first, then save preferences, instructions and workspace.
 
@@ -66,11 +67,12 @@ def save_settings(
         wrote_config = False
         wrote_instructions = False
         try:
-            if any(key in value for key in ("permission", "max_steps", "workspace")):
+            if projects is not None or any(key in value for key in ("permission", "max_steps", "workspace")):
                 store.save_preferences(
                     permission=permission,
                     max_steps=max_steps,
                     workspace=str(target) if target is not None else None,
+                    projects=projects,
                 )
                 wrote_config = True
             if "instructions" in value:

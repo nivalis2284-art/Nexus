@@ -28,6 +28,33 @@ from nexus.tools import build
 SSE = "text/event-stream"
 
 
+@pytest.mark.parametrize(("reason", "expected", "log"), [
+    ("max_output_tokens", "最大 token", "incomplete_response:max_output_tokens"),
+    ("content_filter", "内容过滤", "incomplete_response:content_filter"),
+    ("untrusted-secret-value", "response incomplete", "incomplete_response"),
+])
+def test_responses_incomplete_reason_is_visible_and_safely_recorded(tmp_path, reason, expected, log):
+    history = RequestHistory(tmp_path / "requests.sqlite3")
+    response = {"type": "response.incomplete", "response": {"id": "resp_1", "status": "incomplete",
+                "incomplete_details": {"reason": reason}, "output": []}}
+    transport = httpx.MockTransport(lambda request: httpx.Response(
+        200, headers={"content-type": SSE}, text="data: " + json.dumps(response) + "\n\n"))
+    selected = profile().model_copy(update={"api_family": APIFamily.OPENAI_RESPONSES})
+
+    async def drive():
+        async with httpx.AsyncClient(transport=transport) as client:
+            gateway = ModelGateway(client, request_history=history)
+            return [event async for event in gateway.stream(selected,
+                {"model": "fake-model", "stream": True, "input": "hi"},
+                credentials=RuntimeCredentials("test-key"))]
+
+    events = asyncio.run(drive())
+    error = events[-1].error
+    assert events[-1].type == "error" and expected in error.message
+    assert error.reason == (reason if reason != "untrusted-secret-value" else None)
+    assert history.list()["requests"][0]["error"] == log
+
+
 def chat_reply(text: str = "done") -> str:
     return (
         "data: "

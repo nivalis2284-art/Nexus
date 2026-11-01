@@ -1,0 +1,44 @@
+/* Nexus 设计参数：docs/设计/DESIGN.md。主题只定义颜色、材质和背景。 */
+:root {
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --space-12: 48px; --space-16: 64px; --space-20: 80px; --space-24: 96px;
+  --card-padding: var(--space-6); --card-gap: var(--space-6);
+  --group-gap: var(--space-8); --inner-gap: var(--space-4);
+  --row-gap: var(--space-3); --control-gap: var(--space-2);
+  --page-gutter: var(--space-8); --page-top: var(--space-24);
+  --page-bottom: var(--space-20); --page-width: 960px;
+  --r-inline: 4px; --r-tag: 8px; --r-ctrl: 12px; --r-inner: 16px;
+  --r-card: 20px; --r-sheet: 24px; --r-composer: 24px;
+  --r-pill: 999px; --r-btn: var(--r-ctrl); --r-rail: var(--r-pill);
+  --r-island-compact: var(--r-pill); --r-island-open: var(--r-sheet);
+  --r-bubble: 20px 20px 8px 20px;
+  --text-caption: 12px; --text-ui: 14px; --text-body: 16px;
+  --text-title: 20px; --text-heading: 24px; --text-page: 32px;
+  --text-metric: 40px;
+  --leading-ui: 1.5; --leading-body: 1.75;
+  --control-height: 40px; --control-height-sm: 36px;
+  --dialog-width-small: 480px; --dialog-height-small: 60dvh;
+  --dialog-width-compact: 640px; --dialog-height-compact: 70dvh;
+  --dialog-width-medium: 880px; --dialog-height-medium: 80dvh;
+  --dialog-width-large: 1120px; --dialog-height-large: 88dvh;
+  --dialog-gutter: 16px;
+  --duration-fast: 96ms; --duration-micro: 120ms; --duration-base: 200ms;
+  --duration-move: 240ms; --duration-enter: 240ms;
+  --duration-fade: 220ms; --duration-text: 140ms; --duration-theme: 850ms;
+  --enter-stagger: 24ms; --enter-limit: 8; --enter-offset: 8px;
+  --temper: 1;
+  --d-0: calc(var(--duration-fast) * var(--motion));
+  --d-1: calc(var(--duration-micro) * var(--motion));
+  --d-2: calc(var(--duration-base) * var(--motion));
+  --d-3: calc(var(--duration-move) * var(--motion));
+  --d-4: calc(var(--duration-enter) * var(--motion));
+}
+@media (max-width: 760px) {
+  :root {
+    --card-padding: var(--space-4); --card-gap: var(--space-4);
+    --group-gap: var(--space-6); --inner-gap: var(--space-3);
+    --page-gutter: var(--space-4); --page-top: var(--space-20);
+    --page-bottom: var(--space-16); --text-page: 24px;
+  }
+}

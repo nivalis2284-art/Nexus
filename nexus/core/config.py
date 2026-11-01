@@ -26,6 +26,7 @@ from typing import Any
 
 from ..model import APIFamily, ModelCapabilities, ModelProfile
 from ..file_io import replace_text
+from ..projects import DEFAULT_WORKSPACE
 
 _IO_LOCK = threading.RLock()
 _UNSET = object()
@@ -51,19 +52,19 @@ def _new_id(prefix: str) -> str:
 
 
 def _normalize_model_window(model: dict[str, Any]) -> dict[str, Any]:
-    """Copy a model row and validate its optional per-model context window.
+    """Copy a model row and validate optional context and output token limits.
 
     An empty value removes any previous override so the model inherits the
-    default window. The window only affects local budgeting, never the API
-    request or the provider's own limit.
+    default. The context window affects local budgeting; max output is sent
+    to the provider and must fit the model's supported limit.
     """
     entry = dict(model)
-    raw = entry.get("context_window_tokens")
-    if raw is None or raw == "":
-        entry.pop("context_window_tokens", None)
-        return entry
-    if type(raw) is not int or raw <= 0:
-        raise ValueError("context_window_tokens must be a positive integer")
+    for field_name in ("context_window_tokens", "max_output_tokens"):
+        raw = entry.get(field_name)
+        if raw is None or raw == "":
+            entry.pop(field_name, None)
+        elif type(raw) is not int or raw <= 0:
+            raise ValueError(f"{field_name} must be a positive integer")
     return entry
 
 
@@ -278,7 +279,7 @@ class ConfigStore:
                     "effort": "medium",
                     "max_steps": 40,
                     "permission": "ask",
-                    "workspace": os.getcwd(),
+                    "workspace": str(DEFAULT_WORKSPACE),
                 }
             )
         return self.load()
@@ -334,7 +335,7 @@ class ConfigStore:
             permission = "ask"
         workspace = raw.get("workspace")
         if not isinstance(workspace, str) or not workspace:
-            workspace = os.getcwd()
+            workspace = str(DEFAULT_WORKSPACE)
         context_limit = raw.get("context_limit")
         if type(context_limit) is not int or context_limit <= 0:
             context_limit = None
@@ -376,7 +377,7 @@ class ConfigStore:
 
     def save_preferences(self, **values: Any) -> None:
         raw = self.read_config()
-        for key in ("max_steps", "permission", "workspace", "context_limit", "effort"):
+        for key in ("max_steps", "permission", "workspace", "context_limit", "effort", "projects"):
             if key in values and values[key] is not None:
                 raw[key] = values[key]
         self.write_config(raw)

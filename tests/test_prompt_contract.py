@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import os
 
 from nexus.core import prompt
 from nexus.core.workspace import Workspace, inspect, load_instructions, refresh
@@ -40,8 +41,13 @@ def test_role_and_environment_describe_the_real_bash_contract():
         Workspace(root=__import__("pathlib").Path.cwd()),
         registry.declarations(),
     )
-    assert "bash receives one command-line string (not an argv list)" in system
-    assert "does not interpret shell operators" in system
+    if os.name == "nt":
+        assert "Shell: Windows PowerShell" in system
+        assert "Use the powershell tool for commands" in system
+        assert "powershell_background for long-running jobs" in system
+    else:
+        assert "bash receives one command-line string (not an argv list)" in system
+        assert "does not interpret shell operators" in system
     assert "Retry when the failure is transient" in system
     assert "without a reason to expect a different result" in system
 
@@ -61,8 +67,8 @@ def test_generated_prompt_names_sources_nature_and_priority(tmp_path):
     system = generated(inspect(tmp_path))
 
     assert "Source: `owner-instructions.txt` in the Nexus data directory" in system
-    assert "Source: instruction files on the path from the filesystem root down to" in system
-    assert "plus directories already touched in this run" in system
+    assert "Source: instruction files in the workspace root" in system
+    assert "already touched inside this workspace" in system
     assert f"### `{tmp_path / 'AGENTS.md'}`" in system
     assert "Scope: `.`" in system
     assert "PROJECT-BOUNDARY" in system
@@ -124,7 +130,7 @@ def test_refresh_uses_changed_file_on_the_next_request(tmp_path):
     assert "OLD-RULE" not in second.instructions
 
 
-def test_ancestor_chain_is_kept_but_touched_paths_stay_inside_the_workspace(tmp_path):
+def test_workspace_boundary_excludes_parent_and_sibling_instructions(tmp_path):
     (tmp_path / "AGENTS.md").write_text("PARENT-RULE", encoding="utf-8")
     root = tmp_path / "workspace"
     (root / "pkg").mkdir(parents=True)
@@ -136,10 +142,9 @@ def test_ancestor_chain_is_kept_but_touched_paths_stay_inside_the_workspace(tmp_
     loaded = load_instructions(root, [root / "pkg" / "file.py", outside])
     assert "ROOT-ONLY" in loaded
     assert loaded.count("ROOT-ONLY") == 1
-    assert "PARENT-RULE" in loaded
-    assert f"### `{tmp_path / 'AGENTS.md'}`" in loaded
-    assert "Scope: `" + str(tmp_path) + "`" in loaded
+    assert "PARENT-RULE" not in loaded
     assert "OUTSIDE-RULE" not in loaded
+    assert "PARENT-RULE" not in generated(inspect(root))
 
 
 def test_oversized_instruction_is_visible_and_marked_as_truncated(tmp_path):

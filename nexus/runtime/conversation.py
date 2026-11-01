@@ -13,6 +13,7 @@ from ..attachments import AttachmentStore, message_content
 from ..core.agent import Agent, AgentSuspended
 from ..core.config import build_profile
 from ..core.permission import default_policy
+from ..core.protocol import blocks_to_text
 from ..core.workspace import inspect
 from ..instructions import load_instructions
 from ..role_instructions import load_role
@@ -45,8 +46,10 @@ def persist(state, session, new_messages):
                 key: message.get(key)
                 for key in ("tool_call_id", "parent_message_id", "name", "arguments", "error", "ok", "details")
             }
+            if isinstance(message.get("content"), list):
+                data["content_blocks"] = message["content"]
             store.append(
-                session, Message(kind="tool", text=message.get("content") or "", data=data)
+                session, Message(kind="tool", text=blocks_to_text(message.get("content")), data=data)
             )
         elif role == "checkpoint":
             store.append(session, Message(kind="checkpoint", text=message["content"],
@@ -98,7 +101,7 @@ def history_for_model(session) -> list[dict[str, Any]]:
                     "role": "tool",
                     "tool_call_id": item.data.get("tool_call_id", ""),
                     "name": item.data.get("name", ""),
-                    "content": item.text,
+                    "content": item.data.get("content_blocks") or item.text,
                 }
             )
         elif item.kind == "checkpoint":

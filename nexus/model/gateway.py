@@ -414,7 +414,8 @@ class ModelGateway:
                     if event.type in ("complete", "error"):
                         return
         except ProtocolError as exc:
-            self._finish_unsettled(attempts, "error", exc.code)
+            detail = exc.code + (f":{exc.reason}" if exc.code == "incomplete_response" and exc.reason else "")
+            self._finish_unsettled(attempts, "error", detail)
             yield _priced_event(profile, self._error(parser, exc.code, reason=exc.reason))
         except (TimeoutError, httpx.TimeoutException):
             self._finish_unsettled(attempts, "error", "timeout")
@@ -509,9 +510,14 @@ class ModelGateway:
         reason: str | None = None,
         retry_after: float | None = None,
     ) -> ModelEvent:
+        message = ERROR_MESSAGES[code]
+        if code == "incomplete_response" and reason == "max_output_tokens":
+            message = "模型输出达到最大 token 上限，响应未完成。可在模型设置中调整最大输出，或降低思考强度后继续任务。"
+        elif code == "incomplete_response" and reason == "content_filter":
+            message = "模型服务因内容过滤而中止响应；请检查服务商返回的内容限制。"
         return ModelEvent(
             "error",
-            error=ModelError(code, ERROR_MESSAGES[code], status, reason, retry_after),
+            error=ModelError(code, message, status, reason, retry_after),
             usage=parser.usage,
             continuation=parser.snapshot(),
         )

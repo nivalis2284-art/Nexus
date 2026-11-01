@@ -407,7 +407,11 @@ class ResponsesParser(Parser):
             if kind == "response.failed":
                 raise ProtocolError("provider_error")
             if kind == "response.incomplete":
-                raise ProtocolError("incomplete_response")
+                details = response.get("incomplete_details")
+                reason = details.get("reason") if isinstance(details, dict) else None
+                if reason not in ("max_output_tokens", "content_filter"):
+                    reason = None
+                raise ProtocolError("incomplete_response", reason=reason)
             if kind == "response.completed":
                 if response.get("status") != "completed":
                     raise ProtocolError()

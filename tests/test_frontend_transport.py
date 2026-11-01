@@ -39,3 +39,30 @@ def test_runtime_includes_browser_assets(live):
         response = httpx.get(base + path)
         assert response.status_code == 200, path
         assert response.content
+
+
+def test_project_routes_save_rename_select_delete_and_choose_folder(live, tmp_path, monkeypatch):
+    from nexus import folder_picker, projects
+
+    base, workspace, store, _, _ = live
+    monkeypatch.setattr(projects, "DEFAULT_WORKSPACE", tmp_path / "Work")
+    monkeypatch.setattr(folder_picker, "choose", lambda initial: {"path": str(workspace)})
+    picked = httpx.post(base + "/api/projects/choose-folder", json={})
+    assert picked.status_code == 200
+    assert picked.json() == {"path": str(workspace)}
+    for action, name in [("save", "项目"), ("rename", "显示名称")]:
+        response = httpx.post(base + "/api/projects", json={
+            "action": action, "path": str(workspace), "name": name,
+        })
+        assert response.status_code == 200, response.text
+        assert response.json()["project"] == {"path": str(workspace), "name": name}
+    response = httpx.post(base + "/api/projects", json={
+        "action": "select", "path": str(projects.DEFAULT_WORKSPACE),
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()["workspace"] == str(projects.DEFAULT_WORKSPACE)
+    response = httpx.post(base + "/api/projects", json={"action": "delete", "path": str(workspace)})
+    assert response.status_code == 200
+    assert response.json()["projects"] == []
+    assert (workspace / "a.txt").read_text(encoding="utf-8") == "hello\n"
+    assert store.load().workspace == str(projects.DEFAULT_WORKSPACE)

@@ -282,7 +282,7 @@ def test_server_shutdown_closes_session_background_tasks(tmp_path, monkeypatch):
             raise KeyboardInterrupt
         def server_close(self):
             pass
-    monkeypatch.setattr(web, "ThreadingHTTPServer", Server)
+    monkeypatch.setattr(web, "LocalHTTPServer", Server)
     monkeypatch.setattr(web, "STATE", {})
     web.serve(home=tmp_path / "home", port=0, workspace=tmp_path)
     assert started[0].wait_closed(3)

@@ -1,19 +1,21 @@
 """Background job tools: start, inspect, stop.
 
-Split from ``shell.py`` so a foreground command and a background job stay
-separate concerns, while both share the same argument-parsing rules.
+Split from ``shell.py`` so foreground commands and background jobs share
+the same execution setup.
 """
 
 from __future__ import annotations
 
 import time
+import os
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..cache import process_environment
 from ._jobs import MAX_WAIT, JobRegistry
 from .registry import ToolSpec
-from .shell import _argv, _environment
+from .shell import _argv, _environment, _powershell_argv
 
 
 class StartArgs(BaseModel):
@@ -47,11 +49,11 @@ def _registry(context: Any) -> JobRegistry:
     return registry
 
 
-def start(context: Any, args: dict[str, Any]) -> dict[str, Any]:
-    argv = _argv(args["command"])
+def _start(context: Any, args: dict[str, Any], argv: list[str]) -> dict[str, Any]:
     job = _registry(context).start(
-        argv, cwd=str(context.root), env=_environment()
+        argv, cwd=str(context.root), env=process_environment(_environment())
     )
+    job.display_command = args["command"]
     # Give very fast commands a moment so a one-shot does not need a second call.
     deadline = time.monotonic() + 0.4
     while job.running and time.monotonic() < deadline:
@@ -59,7 +61,7 @@ def start(context: Any, args: dict[str, Any]) -> dict[str, Any]:
     chunk, cursor = job.read()
     info = job.snapshot()
     state = "finished" if not info["running"] else "running"
-    head = f"$ {' '.join(argv)}\njob: {job.id} ({state}"
+    head = f"$ {args['command']}\njob: {job.id} ({state}"
     if info["returncode"] is not None:
         head += f", exit {info['returncode']}"
     head += ")"
@@ -71,6 +73,14 @@ def start(context: Any, args: dict[str, Any]) -> dict[str, Any]:
         "cursor": cursor,
         "returncode": info["returncode"],
     }
+
+
+def start(context: Any, args: dict[str, Any]) -> dict[str, Any]:
+    return _start(context, args, _argv(args["command"]))
+
+
+def powershell_start(context: Any, args: dict[str, Any]) -> dict[str, Any]:
+    return _start(context, args, _powershell_argv(args["command"]))
 
 
 def output(context: Any, args: dict[str, Any]) -> dict[str, Any]:
@@ -120,7 +130,7 @@ def listing(context: Any, args: dict[str, Any]) -> dict[str, Any]:
         return {"content": "(no background jobs)", "jobs": []}
     lines = [
         f"- {item['id']}: {'running' if item['running'] else 'done'}"
-        f" · {item['elapsed']}s · {' '.join(item['argv'])[:80]}"
+        f" · {item['elapsed']}s · {(item.get('command') or ' '.join(item['argv']))[:80]}"
         for item in jobs
     ]
     return {"content": "\n".join(lines), "jobs": jobs}
@@ -131,7 +141,9 @@ TOOLS = [
         "bash_background",
         "Start a command in the background and return immediately with a job id. "
         "Use this for anything that may run longer than about a minute: installs, "
-        "test suites, builds, servers. Read its output with job_output.",
+        "test suites, builds, servers. Commands are split into argv without a shell; "
+        "on Windows prefer powershell_background for PowerShell commands. "
+        "Read its output with job_output.",
         StartArgs,
         start,
     ),
@@ -158,3 +170,12 @@ TOOLS = [
         read_only=True,
     ),
 ]
+
+if os.name == "nt":
+    TOOLS.append(ToolSpec(
+        "powershell_background",
+        "Run a PowerShell command or script in the background in the workspace. "
+        "Use Windows PowerShell 5.1 syntax. Returns a job id; use job_output to "
+        "read output and job_kill to stop it.",
+        StartArgs, powershell_start,
+    ))

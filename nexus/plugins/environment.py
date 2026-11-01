@@ -15,6 +15,7 @@ import tempfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from ..cache import cache_dir
 
 VENV_DIR_NAME = "venv"
 STAMP_NAME = "environment.json"
@@ -168,7 +169,7 @@ def prepare(
         on_progress("Installing plugin dependencies...")
     # pip creates tracked temporary folders beside its working directory.
     # Keep those out of the version-controlled plugin program directory.
-    with tempfile.TemporaryDirectory(prefix="nexus-plugin-pip-") as scratch:
+    with tempfile.TemporaryDirectory(prefix="nexus-plugin-pip-", dir=cache_dir()) as scratch:
         _run(command, cwd=Path(scratch), action="Installing plugin dependencies")
     _write_stamp(stamp_path, expected_stamp)
     return python

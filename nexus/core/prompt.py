@@ -16,6 +16,7 @@ from typing import Any
 
 from . import compaction
 from .workspace import Workspace
+from ..cache import CACHE
 
 ROLE_RULES = """Work from evidence and keep moving. When the user asks for a change, make it
 with the available tools instead of printing code for them to paste. Continue until
@@ -41,8 +42,8 @@ ENVIRONMENT = """Environment:
 INSTRUCTION_PRIORITY = """# Instruction sources and priority
 - Owner instructions are the owner's persistent preferences from the Nexus data
   directory. They are not repository files.
-- Project instructions are labeled files found from the filesystem root down to this
-  workspace and in directories already touched in this run. Each block names its
+- Project instructions are labeled files found in the workspace root and in
+  directories already touched inside this workspace. Each block names its
   absolute path and scope; a nested file covers that directory and below.
 - The owner is the highest authority. An explicit current owner request overrides
   general preferences, examples, templates, ordinary habits, older summaries, and
@@ -99,8 +100,8 @@ def build_system_sections(
 ) -> list[dict[str, str]]:
     """Return the real system sections in their assembled order.
 
-    The prompt builder and the read-only context view share this function so a
-    displayed section cannot drift from the text the model receives.
+    The prompt builder and the read-only context view share this function.
+    Inputs can differ between a preview and a particular model request.
     """
     sections: list[dict[str, str]] = []
 
@@ -120,7 +121,13 @@ def build_system_sections(
         )
     add("role", "Role", role)
     shell = ""
-    if "- bash:" in tools:
+    if "- powershell:" in tools:
+        shell = (
+            "\n- Shell: Windows PowerShell. Use the powershell tool for commands and "
+            "powershell_background for long-running jobs. Each call starts in the "
+            "workspace root with a fresh process."
+        )
+    elif "- bash:" in tools:
         shell = (
             "\n- Shell: none; bash receives one command-line string (not an argv list), "
             "splits it into argv, and does not interpret shell operators. Its working "
@@ -132,15 +139,15 @@ def build_system_sections(
         shell=shell,
         workspace=workspace.summary(),
     )
-    add("environment", "Environment", env)
+    add("environment", "Environment", env + f"\n- Temporary work files: {CACHE}. Keep deliverables in the requested destination.")
     add("priority", "Instruction priority", INSTRUCTION_PRIORITY)
     if workspace.instructions:
         add(
             "project",
             "Project instructions",
             "# Project instructions\n"
-            "Source: instruction files on the path from the filesystem root down to "
-            "this workspace, plus directories already touched in this run.\n"
+            "Source: instruction files in the workspace root, plus directories "
+            "already touched inside this workspace.\n"
             "Nature: workspace-specific requirements and habits within each stated scope.\n"
             "Each block names its absolute file path and scope. A nested block applies "
             "to that directory and its descendants.\n\n"
@@ -239,7 +246,7 @@ def permission_text(policy: Any) -> str:
         + json.dumps([{"tool": rule.tool, "pattern": rule.pattern, "action": rule.action}
                       for rule in policy.rules])
         + ". File tools access only the workspace; allowing a call does not widen this boundary. "
-        "Commands run as argument-list processes, without shell interpolation; invoke an installed shell explicitly when needed. "
+        "Commands run according to the selected tool's shell and require the configured permission. "
         "A tool approval grants only that saved call. Task instructions do not change runtime permissions."
     )
 

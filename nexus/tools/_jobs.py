@@ -58,6 +58,7 @@ def _discard_start(
 class Job:
     id: str
     argv: list[str]
+    display_command: str = ""
     started_at: float = field(default_factory=time.monotonic)
     returncode: int | None = None
     _buffer: str = ""
@@ -109,6 +110,7 @@ class Job:
         return {
             "id": self.id,
             "argv": self.argv,
+            "command": self.display_command,
             "running": self.running,
             "returncode": self.returncode,
             "elapsed": round(time.monotonic() - self.started_at, 1),

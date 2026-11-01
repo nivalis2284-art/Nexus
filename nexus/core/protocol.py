@@ -284,6 +284,20 @@ def request_body(
     tools: list[dict[str, Any]],
     effort: str | None = None,
 ) -> dict[str, Any]:
+    # Providers accept screenshots as user images after the complete tool-result group.
+    projected: list[dict[str, Any]] = []
+    images: list[dict[str, Any]] = []
+    for index, message in enumerate(messages):
+        content = message.get("content")
+        if message.get("role") == "tool" and is_blocks(content):
+            images.extend(block for block in content if isinstance(block, dict) and block.get("type") == "image")
+            projected.append({**message, "content": blocks_to_text(content)})
+        else:
+            projected.append(message)
+        if images and (index + 1 == len(messages) or messages[index + 1].get("role") != "tool"):
+            projected.append({"role": "user", "content": [{"type": "text", "text": "Images returned by the preceding tools:"}, *images]})
+            images = []
+    messages = projected
     if not profile.capabilities.images:
         messages = [
             {**message, "content": blocks_to_text(message["content"]) +

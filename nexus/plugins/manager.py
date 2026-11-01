@@ -39,6 +39,7 @@ class Entry:
     progress: str = ''
     loading: bool = False
     chat_subscriptions: set = field(default_factory=set)
+    pending_update: tuple[Path, dict, bool] | None = None
 
 
 class PluginManager:
@@ -287,7 +288,16 @@ class PluginManager:
             self._close_resources(item)
             operation = item.pending_operation
             item.pending_operation = ''
-            item.status = 'error' if operation == 'load_failed' else 'unloaded'
+            if operation == 'update':
+                source, manifest, was_enabled = item.pending_update
+                item.pending_update = None
+                try:
+                    self._replace_plugin(item.path, source)
+                    item.manifest = manifest
+                    item.error = ''
+                finally:
+                    if source.exists():
+                        self._remove_directory(source)
             if operation == 'uninstall':
                 # Verify the actual target; imported directories always live under root.
                 target = item.path.resolve()
@@ -298,10 +308,18 @@ class PluginManager:
                     self.entries.pop(item.id, None)
                     self.saved[item.id] = {'enabled': False, 'settings': item.settings}
             with self.lock:
+                item.status = 'error' if operation == 'load_failed' else 'unloaded'
                 self._save()
             if operation == 'restart' and not self.closing:
                 self.load(item.id)
+            if operation == 'update' and was_enabled and not self.closing:
+                self.load(item.id)
         except Exception as error:  # noqa: BLE001 -- unloading must expose its actual failure.
+            if item.pending_update:
+                source, _, _ = item.pending_update
+                item.pending_update = None
+                if source.exists():
+                    self._remove_directory(source)
             item.status, item.error = 'error', str(error)
 
     @contextmanager
@@ -664,6 +682,19 @@ class PluginManager:
             raise ValueError('待移除目录不在插件根目录中')
         shutil.rmtree(target)
 
+    def _replace_plugin(self, target, source):
+        backup = self.root / ('.previous-' + uuid.uuid4().hex)
+        if target.exists():
+            target.rename(backup)
+        try:
+            source.rename(target)
+        except Exception:
+            if backup.exists():
+                backup.rename(target)
+            raise
+        if backup.exists():
+            self._remove_directory(backup)
+
     def import_zip(self, content: bytes, replace_existing=False):
         staging = self.root / ('.import-' + uuid.uuid4().hex)
         staging.mkdir()
@@ -684,24 +715,23 @@ class PluginManager:
             if previous and not replace_existing:
                 return {'conflict': True, 'error': '该插件已安装，请确认替换', 'plugin': manifest,
                         'installed_version': previous.manifest.get('version', '')}
-            if previous and previous.status not in ('unloaded', 'error'):
-                raise ValueError('请先停用插件并等待收尾，再更新安装包')
-            target = previous.path if previous else self.root / plugin_id
-            backup = self.root / ('.previous-' + uuid.uuid4().hex)
-            if target.exists():
-                target.rename(backup)
-            try:
-                source.rename(target)
-            except Exception:
-                if backup.exists():
-                    backup.rename(target)
-                raise
-            if backup.exists():
-                self._remove_directory(backup)
             if previous:
-                previous.manifest = manifest
-                previous.error, previous.status = '', 'unloaded'
+                with self.lock:
+                    if previous.status in ('draining', 'closing'):
+                        raise ValueError('插件正在收尾，请等待当前操作完成')
+                    pending = self.root / ('.update-' + uuid.uuid4().hex)
+                    source.rename(pending)
+                    previous.pending_update = (pending, manifest, previous.enabled)
+                    try:
+                        cleanup = self._begin_drain(previous, 'update')
+                    except Exception:
+                        previous.pending_update = None
+                        self._remove_directory(pending)
+                        raise
+                if cleanup:
+                    self._cleanup(previous)
             else:
+                self._replace_plugin(self.root / plugin_id, source)
                 self.scan()
             return self.snapshot()
         finally:

@@ -1,0 +1,15 @@
+{
+  "id": "web-research",
+  "name": "网页搜索与阅读",
+  "version": "0.1.0",
+  "api_version": 1,
+  "description": "搜索网页、阅读公开页面及 GitHub 仓库文件。",
+  "entry": "backend.py:create_plugin",
+  "capabilities": ["网页搜索", "网页阅读", "GitHub 读取"],
+  "dependencies": ["mcp>=2.3,<3", "ddgs>=9.14,<10", "beautifulsoup4>=4.12,<5", "httpx>=0.28,<1"],
+  "services": [{"name": "worker", "command": "{python}", "args": ["{plugin}/worker.py"], "model_tools": []}],
+  "settings_schema": {"type": "object", "properties": {
+    "provider": {"type": "string", "title": "搜索服务", "enum": ["DDGS", "Tavily"], "default": "DDGS", "description": "DDGS 无需密钥；Tavily 支持免密钥模式或填写 API Key。"},
+    "tavily_api_key": {"type": "string", "title": "Tavily API Key（可选）", "default": "", "description": "仅用于 Tavily。当前宿主设置以明文显示并保存在本地。"}
+  }}
+}

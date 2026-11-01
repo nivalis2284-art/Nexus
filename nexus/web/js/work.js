@@ -78,15 +78,15 @@
           ? `<div class="work-group-body">${list.map(workCard).join('')}</div>`
           : `<div class="work-quiet" data-s>${icon('orbit', 'i sm')}<span>现在没有正在进行的工作。在主交流里交代一件具体的事，它会出现在这里。</span></div>`;
         const hint = list.length ? group.hint : '等待新的交代';
-        return `<section class="work-group" data-s data-g="${group.id}">
-          <div class="work-group-h static"><h3>${group.title}</h3><span>${list.length} 项 · ${hint}</span></div>
+        return `<section class="work-group" data-g="${group.id}">
+          <div class="work-group-h static" data-s><h3>${group.title}</h3><span>${list.length} 项 · ${hint}</span></div>
           ${inner}
         </section>`;
       }
       if (!list.length) return '';
       const open = groupOpen(group.id);
-      return `<section class="work-group" data-s data-g="${group.id}">
-        <button class="work-group-h" type="button" data-act="group-toggle" data-g="${group.id}" aria-expanded="${open}">
+      return `<section class="work-group" data-g="${group.id}">
+        <button class="work-group-h" data-s type="button" data-act="group-toggle" data-g="${group.id}" aria-expanded="${open}">
           ${icon('chev', 'i chev')}<h3>${group.title}</h3><span>${list.length} 项 · ${group.hint}</span>
         </button>
         <div class="work-group-body"${open ? '' : ' hidden'}>${list.map(workCard).join('')}</div>

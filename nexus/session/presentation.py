@@ -14,6 +14,7 @@ def transcript(session) -> list[dict[str, Any]]:
                     "role": item.kind,
                     "index": index,
                     "message_id": item.data.get("message_id"),
+                    **({"request_id": item.data["request_id"]} if item.kind == "user" and item.data.get("request_id") else {}),
                     "text": item.text,
                     "thinking": item.data.get("thinking") or "",
                     "usage": item.data.get("usage") or None,

@@ -9,11 +9,11 @@
   const conv = $('#conversation');
   const input = $('#input');
   const composer = $('#composer');
+  let sendLayout = null;
 
   const MAX_SLOTS = 3;
   const activeWorks = () => state.works.filter(w => ['running', 'waiting_user', 'queued', 'pending', 'pausing'].includes(w.state));
   const byId = id => state.works.find(w => w.id === id);
-  const nearBottom = () => conv.scrollHeight - conv.scrollTop - conv.clientHeight < 160;
   function scrollEnd(smooth) {
     followEnabled = true;
     setJumpLatest(false);
@@ -21,9 +21,6 @@
     stopFollow();
     conv.scrollTop = conv.scrollHeight;
   }
-  conv.addEventListener('scroll', () => {
-    if (nearBottom()) { followEnabled = true; setJumpLatest(false); }
-  }, { passive: true });
 
   /* ---------------------------------------------------------------- 处理过程 */
   function groupItems(items) {
@@ -67,49 +64,187 @@
   /* ---------------------------------------------------------------- 滚动跟随 */
   let followRAF = 0;
   let followEnabled = true;
+  let readingAnchor = null, manualDown = false, lastScrollTop = 0, touchY = 0;
+  function captureReadingAnchor() {
+    if (followEnabled || state.backgroundOnly || !conv.getBoundingClientRect) return;
+    const top = conv.getBoundingClientRect().top + 76;
+    const node = [...thread.children].find(n => n.dataset.key && n.getBoundingClientRect().bottom > top);
+    if (node) readingAnchor = { node, offset: node.getBoundingClientRect().top - conv.getBoundingClientRect().top };
+  }
   function followScroll() {
-    if (!followEnabled || followRAF) return;
-    if (N.REDUCED) { conv.scrollTop = conv.scrollHeight; return; }
-    const tick = () => {
-      if (!followEnabled) { followRAF = 0; return; }
+    if (state.backgroundOnly || state.view && state.view !== 'chat') return;
+    if (N.REDUCED && followEnabled) { conv.scrollTop = conv.scrollHeight; return; }
+    if (followRAF) return;
+    let last = 0;
+    const tick = now => {
+      followRAF = 0;
+      if (state.backgroundOnly) return;
+      if (!followEnabled) {
+        if (readingAnchor?.node.isConnected) {
+          const offset = readingAnchor.node.getBoundingClientRect().top - conv.getBoundingClientRect().top;
+          conv.scrollTop += offset - readingAnchor.offset;
+        }
+        setJumpLatest(conv.scrollHeight - conv.clientHeight - conv.scrollTop > 8);
+        lastScrollTop = conv.scrollTop;
+        return;
+      }
       const max = conv.scrollHeight - conv.clientHeight;
       const d = max - conv.scrollTop;
-      if (d > 0.5) conv.scrollTop += Math.min(d, Math.max(1.5, d * 0.3));
+      const dt = last ? Math.min(50, now - last) : 16;
+      last = now;
+      if (d > 0.5) conv.scrollTop += Math.min(d, Math.max(.5, d * (1 - Math.exp(-dt / 55))));
+      lastScrollTop = conv.scrollTop;
       followRAF = d > 1 ? requestAnimationFrame(tick) : 0;
     };
     followRAF = requestAnimationFrame(tick);
   }
   function stopFollow() { cancelAnimationFrame(followRAF); followRAF = 0; }
 
-  /* 顶部请求区显隐时，交流区用 FLIP 滑移，避免整块跳变 */
-  let glideBefore = null, glideScheduled = false;
-  function beginLayoutChange() {
-    if (glideBefore === null) glideBefore = conv.offsetTop;
+  function beginLayoutChange() { captureReadingAnchor(); }
+  function endLayoutChange() { followScroll(); }
+  function pauseFollow() {
+    followEnabled = false; manualDown = false; stopFollow(); captureReadingAnchor();
   }
-  function endLayoutChange() {
-    if (glideScheduled) return;
-    glideScheduled = true;
-    requestAnimationFrame(() => {
-      const from = glideBefore;
-      glideBefore = null; glideScheduled = false;
-      if (from === null || N.REDUCED) return;
-      const dy = from - conv.offsetTop;
-      if (Math.abs(dy) < 1) return;
-      conv.getAnimations().forEach(a => a.cancel());
-      anim(conv, [{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: N.DUR.move, easing: SP.soft.e });
-    });
+  conv.addEventListener('wheel', e => { if (e.deltaY < 0) pauseFollow(); else manualDown = true; }, { passive: true });
+  conv.addEventListener('touchstart', e => { touchY = e.touches[0].clientY; }, { passive: true });
+  conv.addEventListener('touchmove', e => {
+    const y = e.touches[0].clientY;
+    if (y > touchY) pauseFollow(); else manualDown = true;
+    touchY = y;
+  }, { passive: true });
+  conv.addEventListener('pointerdown', () => { manualDown = true; }, { passive: true });
+  conv.addEventListener('pointermove', e => { if (e.buttons & 1) manualDown = true; }, { passive: true });
+  conv.addEventListener('scroll', () => {
+    if (manualDown && conv.scrollTop < lastScrollTop - .5) pauseFollow();
+    if (!followEnabled) {
+      captureReadingAnchor();
+      if (manualDown && conv.scrollTop >= lastScrollTop && conv.scrollHeight - conv.clientHeight - conv.scrollTop <= 8) {
+        followEnabled = true; readingAnchor = null; manualDown = false;
+      }
+    }
+    lastScrollTop = conv.scrollTop;
+    setJumpLatest(!followEnabled && conv.scrollHeight - conv.clientHeight - conv.scrollTop > 8);
+  }, { passive: true });
+  document.addEventListener('keydown', e => {
+    if (state.view !== 'chat' || /INPUT|TEXTAREA|SELECT/.test(e.target?.tagName || '')) return;
+    if (['ArrowUp', 'PageUp', 'Home'].includes(e.key)) pauseFollow();
+    if (['ArrowDown', 'PageDown', 'End'].includes(e.key)) manualDown = true;
+  });
+  if (typeof ResizeObserver !== 'undefined') {
+    const observer = new ResizeObserver(endLayoutChange);
+    [thread, conv, $('#composer-wrap'), $('#chat-top')].forEach(el => observer.observe(el));
   }
-  conv.addEventListener('wheel', () => { followEnabled = false; stopFollow(); }, { passive: true });
-  conv.addEventListener('touchmove', () => { followEnabled = false; stopFollow(); }, { passive: true });
 
   const dispatchChip = w => `<button class="dispatch" data-open-work="${esc(w.id)}"><span class="ring${w.state === 'completed' ? ' done' : ''}"></span><span>${esc(w.title)}</span><span class="st">${esc(N.stateLabel(w))}</span>${icon('chev')}</button>`;
   const resultCard = w => `<button class="card lift result" data-open-work="${esc(w.id)}"><span class="ok">${icon('check')}</span><span><b>${esc(w.title)}</b><span class="rs">${esc(w.work_summary || '')}</span></span>${icon('chev', 'i go')}</button>`;
 
-  function animateBlocks(node) {
-    if (N.REDUCED) return;
-    const blocks = $$('.md > *, .ling-body > .spine, .ling-body > .dispatch, .ling-body > .result', node);
-    blocks.forEach((b, i) => anim(b, [{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.move, delay: 40 + i * 32, easing: EASE_OUT, fill: 'backwards' }));
+  function patchMarkdownNode(old, source, live) {
+    if (source.nodeType === 3) {
+      if (!source.textContent.trim() && !old?._textLeaf) {
+        if (old?.nodeType === 3) { old.textContent = source.textContent; return old; }
+        return source.cloneNode();
+      }
+      const node = old?._textLeaf ? old : document.createElement('span');
+      node._textLeaf = true;
+      const before = node.textContent, text = source.textContent;
+      if (before === text) return node;
+      if (live && !N.REDUCED && text.startsWith(before)) {
+        const piece = document.createElement('span');
+        piece.className = 'tok-stream'; piece.textContent = text.slice(before.length);
+        node.appendChild(piece);
+        setTimeout(() => {
+          if (!piece.isConnected) return;
+          piece.replaceWith(document.createTextNode(piece.textContent)); node.normalize();
+        }, 160 * N.motionScale());
+      } else node.textContent = text;
+      return node;
+    }
+    if (source.nodeType !== 1) return source.cloneNode(true);
+    const wrapper = source.tagName === 'PRE' && old?.classList?.contains('code-block') ? old : null;
+    const target = wrapper ? $('pre', wrapper) : old;
+    const node = target?.nodeType === 1 && target.tagName === source.tagName ? target : source.cloneNode(false);
+    for (const a of [...node.attributes]) if (!source.hasAttribute(a.name) && a.name !== 'data-highlighted') node.removeAttribute(a.name);
+    for (const a of [...source.attributes]) if (node.getAttribute(a.name) !== a.value) node.setAttribute(a.name, a.value);
+    if (source.tagName === 'CODE' && source.parentElement?.tagName === 'PRE') {
+      if (node.textContent !== source.textContent) {
+        node.textContent = source.textContent; delete node.dataset.highlighted;
+      }
+    } else {
+      [...source.childNodes].forEach((child, i) => {
+        const current = node.childNodes[i];
+        const next = patchMarkdownNode(current, child, live);
+        if (next !== current) node.insertBefore(next, current || null);
+        if (current && next !== current) current.remove();
+      });
+      while (node.childNodes.length > source.childNodes.length) node.lastChild.remove();
+    }
+    return wrapper || node;
+  }
+
+  function renderMarkdown(body, text, live) {
+    const template = document.createElement('template');
+    template.innerHTML = N.md(text);
+    let fence = null;
+    for (const line of text.split('\n')) {
+      const hit = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+      if (!hit) continue;
+      if (!fence) fence = hit[1];
+      else if (hit[1][0] === fence[0] && hit[1].length >= fence.length && !hit[2].trim()) fence = null;
+    }
+    const blocks = [...template.content.children];
+    blocks.forEach((source, i) => {
+      const old = body.children[i], html = source.outerHTML;
+      if (old?._sourceHTML === html) return;
+      const node = patchMarkdownNode(old, source, live);
+      node._sourceHTML = html;
+      if (node !== old) { body.insertBefore(node, old || null); old?.remove(); }
+      N.decorate(node, { highlight: !live || !fence || i < blocks.length - 1 });
+      body.children[i]._sourceHTML = html;
+    });
+    while (body.children.length > blocks.length) body.lastElementChild.remove();
+    if (!live) N.decorate(body);
+  }
+
+  const streams = new Map();
+  let streamRAF = 0;
+  const graphemes = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null;
+  function advanceStream(now) {
+    streamRAF = 0;
+    if (state.backgroundOnly) { streams.clear(); return; }
+    let pending = false;
+    beginLayoutChange();
+    for (const [body, s] of streams) {
+      if (!body.isConnected) { streams.delete(body); continue; }
+      if (!s.final && now - s.last < 1000 / 30) { pending = true; continue; }
+      const remaining = s.target.slice(s.shown.length);
+      const dt = Math.min(50, s.last ? now - s.last : 34);
+      let take = s.final || N.REDUCED ? remaining.length : Math.max(1, Math.ceil(remaining.length * dt / Math.max(dt, s.deadline - now)));
+      if (graphemes && take < remaining.length) {
+        for (const part of graphemes.segment(remaining)) {
+          if (part.index + part.segment.length >= take) { take = part.index + part.segment.length; break; }
+        }
+      }
+      s.shown += remaining.slice(0, take); s.last = now;
+      renderMarkdown(body, s.shown, !s.final);
+      if (s.final) {
+        body.classList.remove('streaming'); $('.caret', body.parentElement)?.remove();
+        streams.delete(body);
+      } else if (s.shown !== s.target) pending = true;
+      else streams.delete(body);
+    }
+    endLayoutChange();
+    if (pending) streamRAF = requestAnimationFrame(advanceStream);
+  }
+
+  function queueText(body, text, final) {
+    const s = body._stream || (body._stream = { shown: '', target: '', last: 0, final: false });
+    if (!text.startsWith(s.shown)) s.shown = '';
+    if (s.target === text && s.final === final && !streams.has(body) && s.shown === text) return;
+    if (s.target !== text) s.deadline = performance.now() + 120;
+    s.target = text; s.final = final;
+    streams.set(body, s);
+    if (N.REDUCED && body.isConnected) advanceStream(performance.now());
+    else if (!streamRAF) streamRAF = requestAnimationFrame(advanceStream);
   }
 
   function buildMsg(item) {
@@ -124,20 +259,17 @@
       const w = item.workId && byId(item.workId);
       art.innerHTML = `<div class="bubble"></div>
         ${fileLinks(item.attachments)}${imageGrid(item.images)}
-        <div class="user-meta">${w ? `<span class="to-tag">${icon('arrow', 'i xs')}${esc(w.title)}</span>` : ''}<span>你 · ${esc(item.at || '')}</span>${tools(item)}</div>`;
+        <div class="msg-foot"><div class="user-meta"><span>${w ? `<span class="to-tag">${icon('arrow', 'i xs')}${esc(w.title)}</span>` : ''}你 · ${esc(item.at || '')}</span></div>${tools(item)}</div>`;
       $('.bubble', art).textContent = item.text || '查看附件';
       return art;
     }
     const live = !!item.live;
     art.className = 'msg msg-ling';
-    art.innerHTML = `${head(item, live)}<div class="ling-body"><div class="md${live ? ' streaming' : ''}"></div></div>${live ? '' : tools(item)}`;
+    art.innerHTML = `${head(item, live)}<div class="ling-body"><div class="md${live ? ' streaming' : ''}"></div>${live ? '<i class="caret" aria-hidden="true"></i>' : ''}</div><div class="msg-foot"><div class="msg-meta">${item.elapsed ? `用时 ${N.duration(item.elapsed)}` : ''}</div>${tools(item)}</div>`;
+    art.classList.toggle('is-streaming', live);
     const body = $('.md', art);
     if (live) {
-      body.textContent = item.text || '';
-      const caret = document.createElement('i');
-      caret.className = 'caret';
-      body.appendChild(caret);
-      body._len = (item.text || '').length;
+      queueText(body, item.text || '', false);
     } else {
       body.innerHTML = N.md(item.text || '');
       N.decorate(body);
@@ -153,12 +285,6 @@
       const w = item.workId && byId(item.workId);
       if (w && item.card === 'result') wrap.insertAdjacentHTML('beforeend', resultCard(w));
       else if (w) wrap.insertAdjacentHTML('beforeend', dispatchChip(w));
-    }
-    if (item.elapsed) {
-      const meta = document.createElement('div');
-      meta.className = 'msg-meta';
-      meta.textContent = '用时 ' + N.duration(item.elapsed);
-      art.appendChild(meta);
     }
     if (item.compressed) {
       const tag = document.createElement('span');
@@ -313,6 +439,8 @@
       el._sig = sig;
       if (old) {
         el.open = old.open;
+        const args = $('.tool-args', el), previousArgs = $('.tool-args', old);
+        if (args && previousArgs) args.open = previousArgs.open;
         body.replaceChild(el, old);
       } else {
         body.appendChild(el);
@@ -323,8 +451,6 @@
     existing.forEach(n => n.remove());
   }
 
-  let renderedKeys = [];
-  let renderedEntries = [];
   function syncUndoBar() {
     let bar = thread.querySelector('.history-undo');
     if (state.historyUndo && !bar) {
@@ -336,26 +462,56 @@
     } else if (!state.historyUndo && bar) bar.remove();
   }
 
-  function sameEntry(a, b) {
-    if (!a || !b || a.type !== b.type) return false;
-    if (a.type === 'phase') {
-      const left = a.steps || [];
-      const right = b.steps || [];
-      return left.length === right.length && left.every((s, i) => s.key === right[i].key);
-    }
-    const x = a.item || {};
-    const y = b.item || {};
-    return x.role === y.role && (x.text || '').trim() === (y.text || '').trim();
+  function updateMessage(node, item) {
+    if (item.role === 'assistant') {
+      const body = $('.md', node);
+      if (item.live || body._stream) queueText(body, item.text || '', !item.live);
+      else if (node._text !== item.text) renderMarkdown(body, item.text || '', false);
+      node.classList.toggle('is-streaming', !!item.live);
+      $('.orb-mini', node)?.classList.toggle('busy', !!item.live);
+      const time = $('time', node);
+      if (time) time.textContent = item.at || '';
+      const meta = $('.msg-meta', node);
+      if (meta) meta.textContent = item.elapsed ? '用时 ' + N.duration(item.elapsed) : '';
+    } else if (item.role === 'user') {
+      const fresh = buildMsg(item);
+      const children = [...fresh.children];
+      children.forEach((child, i) => {
+        const old = node.children[i];
+        if (old?.outerHTML === child.outerHTML) return;
+        if (old?.className === 'bubble' && child.className === 'bubble' && old.textContent === child.textContent) return;
+        if (old) old.replaceWith(child); else node.appendChild(child);
+      });
+      while (node.children.length > children.length) node.lastElementChild.remove();
+    } else node.textContent = item.text;
+    node._text = item.text;
+    if (item.compressed && !$('.compressed-tag', node)) {
+      node.insertAdjacentHTML('beforeend', `<span class="compressed-tag">${icon('lock', 'i xs')} 已压缩 · 在上下文管理中修改摘要</span>`);
+    } else if (!item.compressed) $('.compressed-tag', node)?.remove();
   }
 
-  /* 增量渲染：只在末尾追加新条目，已有阶段就地更新，避免整段重排 */
+  function enterChat() {
+    if (N.REDUCED || state.backgroundOnly) return;
+    const rect = conv.getBoundingClientRect();
+    const visible = [...thread.children].filter(n => {
+      const r = n.getBoundingClientRect(); return r.bottom > rect.top + 76 && r.top < rect.bottom;
+    });
+    N.enterItems(visible, conv);
+    anim($('#composer-wrap'), [{ opacity: 0, transform: `translateY(${N.MOTION.offset}px)` }, { opacity: 1, transform: 'none' }],
+      { duration: N.DUR.enter, delay: N.MOTION.stagger * 2, easing: EASE_OUT, fill: 'backwards' });
+  }
+
+  /* 身份稳定的节点就地更新，快照与实时输出共享同一条记录。 */
   function renderChat(force = false) {
+    if (state.backgroundOnly) return;
+    const entering = N.takeEnter?.('chat');
+    beginLayoutChange();
     const empty = !state.items.length;
     $('#view-chat').classList.toggle('is-empty', empty);
     if (empty) {
-      renderedKeys = [];
-      renderedEntries = [];
       if (!thread.querySelector('.hero')) thread.innerHTML = heroHTML();
+      N.renderProjectButton?.();
+      if (entering) requestAnimationFrame(enterChat);
       return;
     }
     if (thread.querySelector('.hero')) thread.innerHTML = '';
@@ -365,57 +521,37 @@
       const today = new Date();
       day.innerHTML = `<span>今天 · ${today.getMonth() + 1} 月 ${today.getDate()} 日</span>`;
       thread.prepend(day);
-      if (!N.REDUCED) anim(day, [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: N.DUR.move, easing: EASE_OUT });
     }
     const entries = groupItems(state.items);
-    const keys = entries.map(e => e.key);
-    const extend = !force && renderedKeys.length <= keys.length && renderedKeys.every((k, i) => k === keys[i]);
-    const wasEmpty = renderedKeys.length === 0;
-    /* 乐观消息换成服务端记录时 key 会变，但内容没变，这时只换 key 不重画。 */
-    const reuse = !force && !extend && entries.length <= renderedEntries.length
-      && entries.length > 0
-      && entries.every((e, i) => sameEntry(e, renderedEntries[i]));
-    if (!extend && !reuse) {
-      thread.replaceChildren();
-      renderedKeys = [];
-      renderedEntries = [];
-    }
-    if (reuse) {
-      const nodes = [...thread.children].filter(n => n.dataset.key);
-      entries.forEach((e, i) => {
-        const node = nodes[i];
-        if (node && node.dataset.key !== e.key) node.dataset.key = e.key;
-      });
-      nodes.slice(entries.length).forEach(n => n.remove());
-      renderedKeys = keys;
-      renderedEntries = entries;
-      if (followEnabled) followScroll();
-      return;
-    }
+    const existing = new Map([...thread.children].filter(n => n.dataset.key).map(n => [n.dataset.key, n]));
     syncUndoBar();
-    const start = renderedKeys.length;
-    for (let i = start; i < entries.length; i++) {
-      const entry = entries[i];
-      const node = entry.type === 'phase' ? buildPhase(entry) : buildMsg(entry.item);
-      node.dataset.key = entry.key;
-      thread.appendChild(node);
-      if (start > 0 && entry.type === 'msg' && entry.item.role === 'assistant') animateBlocks(node);
-      if (!N.REDUCED) {
-        const isUser = entry.type === 'msg' && entry.item.role === 'user';
-        const delay = wasEmpty && entries.length > 1 ? Math.min(i, 8) * 55 : 0;
-        anim(node, [{ opacity: 0, transform: `translateY(${isUser ? 14 : 9}px) scale(${isUser ? .96 : .995})` }, { opacity: 1, transform: 'none' }],
-          { duration: isUser ? 380 : 300, delay, easing: isUser ? SP.bouncy.e : EASE_OUT });
+    let previous = thread.querySelector('.day');
+    for (const entry of entries) {
+      let node = existing.get(entry.key);
+      const before = node?._entry;
+      const unchanged = before && (entry.type === 'msg' ? before.item === entry.item
+        : before.live === entry.live && before.elapsed === entry.elapsed && before.steps.length === entry.steps.length && before.steps.every((step, i) => step === entry.steps[i]));
+      const sig = unchanged ? node._sig : JSON.stringify(entry);
+      if (!node) {
+        node = entry.type === 'phase' ? buildPhase(entry) : buildMsg(entry.item);
+        node.dataset.key = entry.key;
+        node._text = entry.item?.text;
+        if (!N.REDUCED && !entering && !force && !sendLayout) anim(node,
+          [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
+          { duration: 220, easing: EASE_OUT });
+      } else if (node._sig !== sig) {
+        if (entry.type === 'phase') updatePhase(node, entry);
+        else updateMessage(node, entry.item);
       }
+      node._sig = sig;
+      node._entry = entry;
+      if (previous?.nextElementSibling !== node) thread.insertBefore(node, previous?.nextElementSibling || null);
+      previous = node;
+      existing.delete(entry.key);
     }
-    for (let i = 0; i < start; i++) {
-      const entry = entries[i];
-      if (entry.type !== 'phase') continue;
-      const node = thread.querySelector(`[data-key="${entry.key}"]`);
-      if (node) updatePhase(node, entry);
-    }
-    renderedKeys = keys;
-    renderedEntries = entries;
-    if (followEnabled) followScroll();
+    existing.forEach(node => node.remove());
+    endLayoutChange();
+    if (entering) requestAnimationFrame(enterChat);
   }
 
   /* 流式文字：直接追加片段，不重排 Markdown */
@@ -424,106 +560,24 @@
     if (!node) return;
     const md = $('.md', node);
     if (!md) return;
-    let caret = $('.caret', md);
-    if (!caret) {
-      caret = document.createElement('i');
-      caret.className = 'caret';
-      md.appendChild(caret);
-    }
-    const prev = md._len || 0;
-    const chunk = String(item.text || '').slice(prev);
-    if (chunk) {
-      const span = document.createElement('span');
-      span.className = 'tok-stream';
-      span.textContent = chunk;
-      md.insertBefore(span, caret);
-      md._len = prev + chunk.length;
-    }
-    if (followEnabled) followScroll();
-    else setJumpLatest(true);
+    queueText(md, String(item.text || ''), false);
+    endLayoutChange();
   }
 
   /* 收束：原地将流式文本升级为排版后的 Markdown，不经过 opacity:0 黑场闪烁 */
   function finalizeAssistant(item) {
     const old = thread.querySelector(`[data-key="m:${item.key}"]`);
     if (!old) { renderChat(true); return; }
-    const fresh = buildMsg(item);
-    fresh.dataset.key = 'm:' + item.key;
-    if (!old.isConnected) return;
-    const h0 = old.offsetHeight;
-    old.replaceWith(fresh);
-    if (N.REDUCED) return;
-    const h1 = fresh.offsetHeight;
-    if (h0 > 0 && Math.abs(h1 - h0) > 4) {
-      fresh.style.overflow = 'hidden';
-      anim(fresh, [{ height: h0 + 'px' }, { height: h1 + 'px' }], { duration: N.DUR.base, easing: EASE_OUT })
-        .onfinish = () => { fresh.style.overflow = ''; };
-    }
-    const md = $('.md', fresh);
-    if (md) anim(md, [{ opacity: .78 }, { opacity: 1 }], { duration: N.DUR.base, easing: EASE_OUT });
+    updateMessage(old, { ...item, live: false });
   }
 
   const heroHTML = () => `<div class="hero">
-    <div class="orb-stage" id="orb-stage" role="img" aria-label="灵·枢 浑仪星枢（长按鼠标左键可执掌偏转）">
-      <svg class="orb-hero" viewBox="-120 -120 240 240" aria-hidden="true">
-        <defs>
-          <radialGradient id="og" gradientUnits="userSpaceOnUse" cx="-13" cy="-16" r="54">
-            <stop offset="0" class="og0"/><stop offset=".28" class="og1"/>
-            <stop offset=".68" class="og2"/><stop offset="1" class="og3"/>
-          </radialGradient>
-          <linearGradient id="jg-table" gradientUnits="userSpaceOnUse" x1="-16" y1="-20" x2="16" y2="20">
-            <stop offset="0" class="og0"/><stop offset=".42" class="og1"/><stop offset="1" class="og2"/>
-          </linearGradient>
-          <radialGradient id="og-halo" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="92">
-            <stop offset="0" class="oh0"/><stop offset=".55" class="oh1"/><stop offset="1" stop-color="transparent"/>
-          </radialGradient>
-        </defs>
-        <circle class="pv-halo" r="88" fill="url(#og-halo)"/>
-        <g class="pv-meridian" id="pv-meridian">
-          <circle class="pv-rim" r="92"/>
-          <circle class="pv-vernier" r="81"/>
-          <polygon class="pv-jade-vernier" points="0,-81 40.5,-70.15 70.15,-40.5 81,0 70.15,40.5 40.5,70.15 0,81 -40.5,70.15 -70.15,40.5 -81,0 -70.15,-40.5 -40.5,-70.15"/>
-          <g class="pv-ticks" id="pv-ticks"></g>
-        </g>
-        <g class="pv-back">
-          <g class="pv-plane p1"><path class="pv-arc" d="M -80 0 A 80 27 0 0 1 80 0"/></g>
-          <g class="pv-plane p2"><path class="pv-arc" d="M -66 0 A 66 22 0 0 1 66 0"/></g>
-          <g class="pv-plane p3"><path class="pv-arc" d="M -50 0 A 50 17 0 0 1 50 0"/></g>
-          <g class="pv-nodes-back" id="pv-nodes-back"></g>
-        </g>
-        <g class="pv-axis" transform="rotate(-18)">
-          <line class="pv-spindle" x1="0" y1="-58" x2="0" y2="-36"/>
-          <circle class="pv-pole" cx="0" cy="-58" r="2.2"/>
-        </g>
-        <g class="pv-core-group" id="pv-core">
-          <g class="pv-core-sphere">
-            <circle class="pv-core-ring" r="39"/>
-            <circle class="core" r="33" fill="url(#og)"/>
-            <ellipse class="pv-spec" cx="-11" cy="-13" rx="11" ry="6.2" transform="rotate(-32 -11 -13)"/>
-            <circle class="pv-axis-pin" cx="0" cy="0" r="2.5"/>
-          </g>
-          <g class="pv-core-jade" transform="rotate(-14)">
-            <image href="assets/jade-core.webp" x="-40" y="-45" width="80" height="90"/>
-          </g>
-        </g>
-        <g class="pv-axis" transform="rotate(-18)">
-          <line class="pv-spindle" x1="0" y1="36" x2="0" y2="58"/>
-          <circle class="pv-pole" cx="0" cy="58" r="2.2"/>
-        </g>
-        <g class="pv-front">
-          <g class="pv-plane p1"><path class="pv-arc front" d="M 80 0 A 80 27 0 0 1 -80 0"/></g>
-          <g class="pv-plane p2"><path class="pv-arc front" d="M 66 0 A 66 22 0 0 1 -66 0"/></g>
-          <g class="pv-plane p3"><path class="pv-arc front" d="M 50 0 A 50 17 0 0 1 -50 0"/></g>
-          <g class="pv-nodes-front" id="pv-nodes-front"></g>
-        </g>
-      </svg>
-      <i class="orb-shadow"></i>
-    </div>
-    <p class="hero-kicker"><span class="kicker-seal">枢</span><span>灵 · 枢</span></p>
+    <div class="orb-anchor" id="pivot-grip" role="img" aria-label="灵·枢 浑仪星枢（长按鼠标左键可执掌偏转）"></div>
+    <p class="hero-kicker">灵 · 枢</p>
     <h1>有什么需要处理？</h1>
     <p class="hero-sub">直接对话，或交代一项工作交由中枢并行推进。</p>
     <div class="chips">
-      <button class="chip" data-act="suggest" data-text="阅读当前项目，说明主要入口。">${icon('folder')}阅读当前项目</button>
+      <button class="chip" type="button" data-act="projects" aria-haspopup="dialog">${icon('folder')}<span data-project-name>${esc(state.project?.name || 'Work')}</span></button>
       <button class="chip" data-act="overview">${icon('orbit')}查看后台工作进展</button>
       <button class="chip" data-view="context">${icon('layers')}管理上下文</button>
     </div></div>`;
@@ -600,7 +654,7 @@
     const approval = r.kind === 'approval';
     const p = r.payload || {};
     const unknown = r.status === 'unknown';
-    card.innerHTML = `<div class="req-head"><span class="req-seal" aria-hidden="true">决</span><span class="req-owner">${esc(r.owner || '灵')}</span><span class="req-title">${approval ? '需要你确认' : '需要你回答'}</span>${unknown ? '<span class="req-state">结果待核对</span>' : ''}</div>`;
+    card.innerHTML = `<div class="req-head"><span class="orb-mini req-orb" aria-hidden="true"></span><span class="req-owner">${esc(r.owner || '灵')}</span><span class="req-title">${approval ? '需要你确认' : '需要你回答'}</span>${unknown ? '<span class="req-state">结果待核对</span>' : ''}</div>`;
     if (approval) {
       card.insertAdjacentHTML('beforeend', `<div class="req-tool">${icon('tool', 'i xs')}${esc(p.tool || '请求确认')}</div>`);
       if (p.arguments && Object.keys(p.arguments).length) {
@@ -649,7 +703,7 @@
     card.dataset.req = 'task:' + w.id + ':' + inter.id;
     const approval = inter.kind === 'approval';
     const p = inter.payload || {};
-    card.innerHTML = `<div class="req-head"><span class="req-seal" aria-hidden="true">决</span><span class="req-owner">${esc(w.title)}</span><span class="req-title">${approval ? '需要你确认' : '需要你回答'}</span></div>`;
+    card.innerHTML = `<div class="req-head"><span class="orb-mini req-orb" aria-hidden="true"></span><span class="req-owner">${esc(w.title)}</span><span class="req-title">${approval ? '需要你确认' : '需要你回答'}</span></div>`;
     if (approval) {
       card.insertAdjacentHTML('beforeend', `<div class="req-tool">${icon('tool', 'i xs')}${esc(p.tool || '请求确认')}</div>`);
       if (p.arguments && Object.keys(p.arguments).length) {
@@ -794,7 +848,7 @@
   let queueSig = '';
   function renderQueue() {
     const box = $('#ling-inputs');
-    const rows = state.queue.filter(q => ['pending', 'queued', 'running', 'held', 'interrupted', 'failed'].includes(q.status));
+    const rows = state.queue.filter(q => ['held', 'interrupted', 'failed'].includes(q.status));
     const signature = JSON.stringify(rows);
     if (signature === queueSig) return;
     queueSig = signature;
@@ -810,13 +864,15 @@
         let row = existing.get(id);
         if (!row) {
           row = document.createElement('div'); row.className = 'qrow'; row.dataset.id = id;
-          row.innerHTML = '<i class="qdot"></i><span class="qtext"></span><span class="qstatus"></span>';
+          row.innerHTML = `<i class="qdot"></i><span class="qtext"></span><span class="qstatus"></span><button class="qclose" type="button" data-act="dismiss-input" aria-label="关闭输入失败提示">${icon('close', 'i xs')}</button>`;
           row.style.animationDelay = (index * 35 * N.motionScale()) + 'ms';
         }
         row.dataset.status = q.status;
+        const close = $('.qclose', row);
+        close.hidden = !['failed', 'interrupted'].includes(q.status);
+        close.dataset.id = id;
         $('.qtext', row).textContent = q.text || '附件输入';
         $('.qstatus', row).textContent = {
-          pending: '已接收，排队等待处理', queued: '已接收排队，当前输入完成后处理', running: '正在处理',
           held: '重启后暂停；需要你确认继续', interrupted: '上次处理已中断；检查已生效操作后发送新消息继续',
           failed: '处理失败' + (q.error ? '：' + q.error : ''),
         }[q.status] || q.status;
@@ -827,7 +883,7 @@
       let more = $('.qmore', list);
       if (rows.length > 3) {
         if (!more) { more = document.createElement('div'); more.className = 'qmore'; list.appendChild(more); }
-        more.textContent = `另有 ${rows.length - 3} 条输入排队`;
+        more.textContent = `另有 ${rows.length - 3} 条输入提示`;
       } else more?.remove();
       if (!rows.length) list.remove();
     }
@@ -909,36 +965,21 @@
 
   function setJumpLatest(on) {
     const el = $('#jump-latest');
-    if (!el || on === !el.hidden) return;
+    if (!el || el._wanted === on) return;
+    el._wanted = on;
+    if (el._motion) { el._motion.onfinish = null; el._motion.cancel(); }
     if (on) {
       el.hidden = false;
       if (!N.REDUCED) {
-        N.anim(el, [{ opacity: 0, transform: 'translateX(-50%) translateY(8px)' }, { opacity: 1, transform: 'translateX(-50%)' }],
+        el._motion = N.anim(el, [{ opacity: 0, transform: 'translateX(-50%) translateY(8px)' }, { opacity: 1, transform: 'translateX(-50%)' }],
           { duration: N.DUR.move, easing: N.SP.settle.e });
       }
       return;
     }
-    const done = () => { el.hidden = true; el.getAnimations().forEach(a => a.cancel()); };
+    const done = () => { if (!el._wanted) el.hidden = true; };
     if (N.REDUCED) done();
-    else N.anim(el, [{ opacity: 1, transform: 'translateX(-50%)' }, { opacity: 0, transform: 'translateX(-50%) translateY(6px)' }],
-      { duration: N.DUR.micro, easing: 'ease-in', fill: 'forwards' }).onfinish = done;
-  }
-
-  function setStopVisible(on) {
-    const btn = $('#stop-reply');
-    if (!btn || on === !btn.hidden) return;
-    if (on) {
-      btn.hidden = false;
-      if (!N.REDUCED) {
-        N.anim(btn, [{ opacity: 0, transform: 'scale(.82)' }, { opacity: 1, transform: 'none' }],
-          { duration: N.DUR.move, easing: N.SP.settle.e });
-      }
-      return;
-    }
-    const done = () => { btn.hidden = true; btn.getAnimations().forEach(a => a.cancel()); };
-    if (N.REDUCED) done();
-    else N.anim(btn, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.86)' }],
-      { duration: N.DUR.fast, easing: 'ease-in', fill: 'forwards' }).onfinish = done;
+    else (el._motion = N.anim(el, [{ opacity: 1, transform: 'translateX(-50%)' }, { opacity: 0, transform: 'translateX(-50%) translateY(6px)' }],
+      { duration: N.DUR.micro, easing: 'ease-in', fill: 'forwards' })).onfinish = done;
   }
 
   /* ---------------------------------------------------------------- 输入舱 */
@@ -973,25 +1014,48 @@
   }
   function updateSend() {
     const b = $('#send');
-    const has = input.value.trim() || state.files.length;
-    b.classList.toggle('busy', state.replying);
-    b.classList.toggle('ready', !state.replying && !!has);
+    const has = !!(input.value.trim() || state.files.length);
+    const stopping = state.replying && !has;
+    b.classList.toggle('busy', stopping);
+    b.classList.toggle('running', !!state.replying);
+    b.classList.toggle('ready', has);
     b.classList.toggle('idle', !state.replying && !has);
-    b.setAttribute('aria-label', state.replying ? '加入队列' : '发送');
-    setStopVisible(!!state.replying);
+    const label = stopping ? '停止当前回应' : state.replying ? '加入队列' : '发送';
+    b.setAttribute('aria-label', label);
+    b.title = label;
   }
+  let inputMeasure = null;
   function autosize() {
-    input.style.transition = 'none';
-    input.style.height = 'auto';
-    const h = Math.min(input.scrollHeight, 200);
-    input.style.height = h + 'px';
+    if (!inputMeasure) {
+      inputMeasure = input.cloneNode();
+      inputMeasure.removeAttribute('id'); inputMeasure.removeAttribute('name');
+      inputMeasure.setAttribute('aria-hidden', 'true'); inputMeasure.tabIndex = -1;
+      inputMeasure.placeholder = ''; inputMeasure.readOnly = true;
+      inputMeasure.style.cssText = 'position:fixed;left:-9999px;top:0;visibility:hidden;height:0;min-height:0;max-height:none;overflow:hidden;pointer-events:none';
+      document.body.appendChild(inputMeasure);
+    }
+    const style = getComputedStyle(input);
+    for (const property of ['font', 'line-height', 'letter-spacing', 'padding', 'border-width', 'box-sizing', 'text-indent', 'word-spacing', 'overflow-wrap', 'word-break', 'tab-size']) {
+      inputMeasure.style.setProperty(property, style.getPropertyValue(property));
+    }
+    inputMeasure.style.width = input.getBoundingClientRect().width + 'px';
+    inputMeasure.value = input.value;
+    // 在布局外测量，避免 height:auto 每打一个字都撑缩会话区并截断滚动位置。
+    const h = Math.min(200, Math.ceil(Math.max(parseFloat(style.minHeight) || 0, inputMeasure.scrollHeight) / 4) * 4);
+    if (input.style.height !== h + 'px') {
+      beginLayoutChange(); input.style.height = h + 'px'; endLayoutChange();
+    }
   }
   input.addEventListener('input', () => { autosize(); updateSend(); });
   input.addEventListener('keydown', e => {
     if (e.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   });
-  composer.addEventListener('submit', e => { e.preventDefault(); send(); });
+  composer.addEventListener('submit', e => {
+    e.preventDefault();
+    if (state.replying && !input.value.trim() && !state.files.length) stopReply();
+    else send();
+  });
   composer.addEventListener('dragover', e => e.preventDefault());
   composer.addEventListener('drop', e => {
     if (e.dataTransfer?.files?.length) { e.preventDefault(); addFiles(e.dataTransfer.files); }
@@ -1009,9 +1073,10 @@
     reader.readAsDataURL(blob);
   });
 
-  function optimisticUser(text, target, files) {
+  function optimisticUser(text, target, files, requestId = N.uid('req')) {
     return {
-      key: 'pending:' + N.uid('p'), role: 'user', text: text || '查看附件',
+      key: 'u:' + requestId, requestId, role: 'user', text: text || '查看附件',
+      afterKey: state.items.at(-1)?.key || null, duringReply: !!state.replying,
       at: N.nowHM(), workId: target || undefined,
       attachments: (files || []).map(f => ({ name: f.name, size: f.size, kind: f.kind, url: f.url })),
       images: (files || []).filter(f => f.kind === 'image').map(f => f.url),
@@ -1030,10 +1095,11 @@
     const draft = retryDraft && retryDraft.text === text && retryDraft.target === target
       && retryDraft.files.length === files.length && files.every((file, i) => file === retryDraft.files[i])
       ? retryDraft : { text, files, target, requestId: N.uid('req'), attachments: [], images: [], prepared: 0 };
-    const pending = optimisticUser(text, target, files);
+    const pending = optimisticUser(text, target, files, draft.requestId);
     state.pending = [...(state.pending || []), pending];
     N.composeItems?.();
-    renderChat(); scrollEnd(true); updateStats();
+    renderChat(); scrollEnd(!sendLayout); updateStats();
+    finishSendLayout(pending.key);
 
     let accepted = false;
     try {
@@ -1055,7 +1121,7 @@
       /* 快照可能被正在运行的回合拖慢；提交成功后即使刷新失败也不再报错。 */
       try { await N.sync.chatOnly(); } catch (_) {}
       N.composeItems?.();
-      renderChat(); scrollEnd(true);
+      renderChat();
       N.renderRequests(); N.renderQueue(); N.updateStats(); N.syncTargets(true);
       N.refreshIsland?.(); N.updateSend?.();
     } catch (error) {
@@ -1077,6 +1143,7 @@
     const text = input.value.trim();
     const files = [...state.files];
     if (!text && !files.length) return;
+    startSendLayout(text);
     sendRipple();
     const sendBtn = $('#send');
     if (sendBtn && !N.REDUCED) {
@@ -1091,6 +1158,7 @@
   function respond(text, targetId) {
     const value = String(text || '').trim();
     if (!value) return;
+    startSendLayout('');
     if ($('#view-chat').classList.contains('is-empty')) leaveEmpty();
     submit(value, [], targetId || null);
   }
@@ -1170,11 +1238,45 @@
       Object.assign(ghost.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', margin: 0, zIndex: 2, pointerEvents: 'none' });
       $$('[id]', ghost).forEach(n => n.removeAttribute('id'));
       document.body.appendChild(ghost);
-      anim(ghost, [{ opacity: 1, transform: 'none', filter: 'blur(0px)' }, { opacity: 0, transform: 'translateY(-26px) scale(.94)', filter: 'blur(8px)' }],
-        { duration: N.DUR.enter, easing: EASE_OUT }).onfinish = () => ghost.remove();
+      anim(ghost, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-8px)' }],
+        { duration: 220, easing: EASE_OUT }).onfinish = () => ghost.remove();
     }
     view.classList.remove('is-empty');
     thread.innerHTML = '';
+  }
+
+  function startSendLayout(text) {
+    if (N.REDUCED) return;
+    const wrap = $('#composer-wrap');
+    const bounds = conv.getBoundingClientRect();
+    const visible = [...thread.children].filter(n => {
+      const r = n.getBoundingClientRect(); return n.dataset.key && r.bottom > bounds.top && r.top < bounds.bottom;
+    });
+    sendLayout = { positions: [wrap, ...visible].map(node => [node, node.getBoundingClientRect()]), source: input.getBoundingClientRect(), text };
+  }
+
+  function finishSendLayout(key) {
+    const before = sendLayout;
+    sendLayout = null;
+    if (!before) return;
+    const bubble = thread.querySelector(`[data-key="m:${key}"] .bubble`);
+    const positions = before.positions.map(([node, rect]) => [node, rect, node.getBoundingClientRect()]);
+    for (const [node, from, to] of positions) {
+      if (!node.isConnected || Math.abs(from.y - to.y) < .5 || node !== $('#composer-wrap') && Math.abs(from.y - to.y) > conv.clientHeight) continue;
+      node._sendMotion?.cancel();
+      node._sendMotion = anim(node, [{ transform: `translateY(${from.y - to.y}px)` }, { transform: 'none' }], { duration: 280, easing: EASE_OUT });
+    }
+    if (!bubble) return;
+    if (before.text) {
+      const target = bubble.getBoundingClientRect(), ghost = document.createElement('div');
+      ghost.className = 'send-text-ghost'; ghost.textContent = before.text;
+      Object.assign(ghost.style, { left: before.source.x + 'px', top: before.source.y + 'px', width: before.source.width + 'px', maxHeight: before.source.height + 'px' });
+      document.body.appendChild(ghost);
+      anim(ghost, [{ opacity: .85, transform: 'none' }, { opacity: 0, transform: `translate(${target.x - before.source.x}px, ${target.y - before.source.y}px)` }],
+        { duration: 280, easing: EASE_OUT }).onfinish = () => ghost.remove();
+    }
+    anim(bubble, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 200, delay: 80, easing: EASE_OUT, fill: 'backwards' });
   }
 
   /* ---------------------------------------------------------------- 附件 */
@@ -1194,12 +1296,14 @@
     renderFiles(); updateSend(); N.save();
   }
   function renderFiles() {
+    beginLayoutChange();
     const box = $('#files');
     box.hidden = !state.files.length;
     box.innerHTML = state.files.map((f, i) => `<span class="file">
       ${f.kind === 'image' ? `<img class="thumb" src="${esc(f.url)}" alt="">` : icon('file', 'i xs')}
       <span>${esc(f.name)}</span><small class="fmeta">${N.fmtSize(f.size)}</small>
       <button type="button" data-act="rm-file" data-i="${i}" aria-label="移除附件 ${esc(f.name)}">${icon('close', 'i xs')}</button></span>`).join('');
+    endLayoutChange();
   }
   $('#attach-btn').addEventListener('click', () => $('#file-input').click());
   $('#file-input').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
@@ -1272,7 +1376,6 @@
     const panel = $('#usage-panel');
     if (!panel.hidden && !panel.contains(e.target) && !e.target.closest('#stat-tokens,#stat-context')) toggleUsage(null);
   });
-  $('#stop-reply').addEventListener('click', stopReply);
   $('#jump-latest').addEventListener('click', () => scrollEnd(true));
 
   /* ---------------------------------------------------------------- 消息操作 */
@@ -1297,7 +1400,7 @@
     const h = node.offsetHeight;
     node.style.overflow = 'hidden';
     N.anim(node, [{ opacity: 1, height: h + 'px' }, { opacity: 0, height: '0px', transform: 'scale(.97)' }],
-      { duration: N.DUR.move, easing: N.EASE_OUT }).onfinish = () => renderChat();
+      { duration: N.DUR.move, easing: N.EASE_OUT }).onfinish = () => { node.style.overflow = ''; renderChat(); };
   }
 
   async function deleteItem(key) {
@@ -1358,6 +1461,17 @@
     if (!t) return;
     const act = t.dataset.act;
     const key = t.dataset.key;
+    if (act === 'dismiss-input') {
+      t.disabled = true;
+      N.api.dismissInput(Number(t.dataset.id)).then(() => {
+        state.queue = state.queue.filter(q => String(q.id) !== t.dataset.id);
+        renderQueue(); N.refreshIsland?.();
+      }).catch(error => {
+        t.disabled = false;
+        N.notify(error?.message || '关闭提示失败', 'cinnabar', 4200);
+      });
+      return;
+    }
     if (act === 'copy') return copyItem(key);
     if (act === 'del') return deleteItem(key);
     if (act === 'resend') return resend(key);
@@ -1382,7 +1496,6 @@
     if (act === 'work-answer') return answerWorkRequest(t.dataset.id, t.dataset.i);
     if (act === 'work-approve') return approveWorkRequest(t.dataset.id, t.dataset.i, t.dataset.allow === '1');
     if (act === 'open-work') return N.openWork(t.dataset.id);
-    if (act === 'stop') return stopReply();
   });
   document.addEventListener('click', e => {
     const tg = e.target.closest('[data-target]');
@@ -1414,6 +1527,22 @@
   N.currentModel = currentModel;
   N.providerOf = providerOf;
   N.scrollEnd = scrollEnd;
+  N.enterChat = enterChat;
+  N.pauseChatDisplay = () => { captureReadingAnchor(); stopFollow(); cancelAnimationFrame(streamRAF); streamRAF = 0; streams.clear(); };
+  N.resumeChatDisplay = () => {
+    renderChat(true);
+    $$('.md', thread).forEach(body => {
+      const item = state.items.find(i => 'm:' + i.key === body.closest('[data-key]')?.dataset.key);
+      if (item && body._stream) {
+        Object.assign(body._stream, { shown: item.text || '', target: item.text || '', final: !item.live });
+        streams.delete(body);
+        renderMarkdown(body, item.text || '', false);
+        body.classList.toggle('streaming', !!item.live);
+        if (!item.live) $('.caret', body.parentElement)?.remove();
+      }
+    });
+    followScroll();
+  };
   N.toggleUsage = toggleUsage;
   N.filesRender = renderFiles;
   N.reqSig = () => { reqSig = ''; };

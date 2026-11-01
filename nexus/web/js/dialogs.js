@@ -42,7 +42,7 @@
     menu.style.setProperty('--ox', (r.left + r.width / 2 - left) + 'px');
     menu.style.setProperty('--oy', (top > r.top ? '0%' : '100%') );
     anim(menu, [{ opacity: 0, transform: 'translateY(9px) scale(.9)' }, { opacity: 1, transform: 'none' }],
-      { duration: SP.settle.d, easing: SP.settle.e });
+      { duration: N.DUR.enter, easing: N.EASE_OUT });
     $$('button', menu).forEach((b, i) => anim(b, [{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'none' }],
       { duration: N.DUR.base, delay: 20 + i * 24, easing: EASE_OUT, fill: 'backwards' }));
     menu.onclick = e => {
@@ -70,9 +70,10 @@
     area.required = !confirm;
     $('#editor-error').textContent = '';
     $('#editor-save').textContent = submitLabel;
+    dlg.dataset.size = confirm ? 'small' : 'medium';
     dlg.showModal();
     anim(dlg, [{ opacity: 0, transform: 'translateY(22px) scale(.92)' }, { opacity: 1, transform: 'none' }],
-      { duration: SP.settle.d, easing: SP.settle.e });
+      { duration: N.DUR.enter, easing: N.EASE_OUT });
     (confirm ? $('.btn.ghost', dlg) : area).focus();
     return new Promise(resolve => {
       resolveEdit = resolve;
@@ -136,7 +137,7 @@
     fpBody.appendChild(loading);
     if (!fp.open) fp.showModal();
     anim(fp, [{ opacity: 0, transform: 'translateY(20px) scale(.93)' }, { opacity: 1, transform: 'none' }],
-      { duration: SP.settle.d, easing: SP.settle.e });
+      { duration: N.DUR.enter, easing: N.EASE_OUT });
 
     let text = '';
     try {
@@ -179,7 +180,7 @@
     fpBody.appendChild(img);
     if (!fp.open) fp.showModal();
     anim(fp, [{ opacity: 0, transform: 'translateY(20px) scale(.93)' }, { opacity: 1, transform: 'none' }],
-      { duration: SP.settle.d, easing: SP.settle.e });
+      { duration: N.DUR.enter, easing: N.EASE_OUT });
   }
 
   /* ---------------------------------------------------------------- 关闭委托 */
@@ -187,7 +188,7 @@
     if (!d || d.open) return;
     d.showModal();
     anim(d, [{ opacity: 0, transform: 'translateY(24px) scale(.92)' }, { opacity: 1, transform: 'none' }],
-      { duration: SP.settle.d, easing: SP.settle.e });
+      { duration: N.DUR.enter, easing: N.EASE_OUT });
   }
 
   function closeDialog(d) {
@@ -195,7 +196,11 @@
     if (N.REDUCED) { d.close(); return; }
     d._closing = true;
     d.classList.add('is-closing');
+    const current = getComputedStyle(d);
+    const opacity = current.opacity, transform = current.transform;
     d.getAnimations().forEach(a => { try { a.cancel(); } catch (_) {} });
+    d.style.opacity = opacity;
+    d.style.transform = transform;
     const ms = Math.round(N.DUR.base * N.motionScale());
     const ease = 'cubic-bezier(.4,0,.75,.2)';
     /* 入场是 WAAPI，退场用 transition：两者同时挂在 opacity 上会互相抢占。 */
@@ -221,7 +226,11 @@
     closeDialog(document.getElementById(t.dataset.close));
   });
   $$('dialog').forEach(d => {
-    d.addEventListener('click', e => { if (e.target === d) closeDialog(d); });
+    d.addEventListener('click', e => {
+      if (e.target !== d) return;
+      if (d === dlg) { if (!saving) finish(null); }
+      else closeDialog(d);
+    });
     d.addEventListener('cancel', e => {
       if (d.id === 'editor') return;
       e.preventDefault();

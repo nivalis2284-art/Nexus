@@ -1,6 +1,6 @@
 # Nexus 插件 SDK
 
-这是唯一的插件开发规范和客户端来源。宿主能力版本为 v1，客户端版本沿用 1.1.0。所有插件在 `plugin-dev/<插件ID>/` 开发，在自己的子目录交付 ZIP。
+这是插件开发规范和客户端的统一来源。宿主能力版本为 v1，客户端版本沿用 1.1.0。SDK 可单独复制，插件可在任意目录开发并在自己的目录生成 ZIP。
 
 ## 目录与接入方式
 
@@ -8,7 +8,7 @@ Python 插件直接使用宿主传入的 `host`，无需复制 SDK。独立 Pyth
 
 ## 最小插件
 
-在 `plugin-dev/hello/plugin.json` 填写：
+在插件目录的 `plugin.json` 填写：
 
 ```json
 {"id":"hello","name":"Hello","version":"0.1.0","api_version":1,"entry":"backend.py:create_plugin","requires_host":{"models":1}}
@@ -33,6 +33,49 @@ def create_plugin(host):
 
 宿主调用工厂，然后调用可选 `start()`；停用时调用可选 `close()`。在 `close()` 释放线程、连接和订阅。长驻循环使用可停止线程；`host.background()` 用于有限工作。Python 入口在宿主解释器执行。工具声明从公开入口 `nexus.plugins.api` 导入 `ToolSpec`、`BaseModel`、`Field`、`EmptyArgs`，通过插件实例的 `tools()` 返回工具声明。
 
+## 提供 Agent 工具和 Skill
+
+插件可以提供工具与使用这些工具的 Skill，无需修改宿主源码。主交流与后台 Agent 在每次准备模型请求时加载已启用插件的工具和技能；停用后，后续请求不再加载它们，已写入对话的工具结果和技能正文仍保留在历史中。
+
+最小工具示例：
+
+```python
+from nexus.plugins.api import EmptyArgs, ToolSpec
+
+
+class Plugin:
+    def __init__(self, host):
+        self.host = host
+
+    def tools(self, scope):
+        return [ToolSpec("example_status", "Read the example plugin's status.",
+                         EmptyArgs, self.status, read_only=True)]
+
+    def status(self, context, arguments):
+        return {"content": "Example plugin is ready."}
+
+
+def create_plugin(host):
+    return Plugin(host)
+```
+
+使用带插件前缀的工具名，避免重名。与现有工具重名时加载请求会报错；确需替换时在清单中显式声明 `"overrides": ["工具名"]`。`read_only` 应按实际行为填写；工具仍使用宿主现有的工具执行和权限流程。
+
+技能放在插件根目录的 `skills/<技能名>/SKILL.md`，也支持 `skills/<技能名>.md`。例如 `skills/example-workflow/SKILL.md`：
+
+```markdown
+---
+name: example-workflow
+description: 查看示例插件状态并根据实际结果答复。
+when: 用户询问示例插件是否就绪时
+---
+调用 example_status，依据工具返回的真实状态回答，不要猜测。
+```
+
+`name` 使用小写字母、数字和连字符，`description` 必填。模型请求只加入名称、描述与可选的 `when`；正文通过 `read_skill(name="example-workflow")` 按需读取。技能名与已有技能冲突时，工作区、用户和宿主基础技能优先；插件之间按加载目录的既有顺序先到者优先。建议使用插件名作为技能名前缀。
+
+纯 Skill 插件只需 `plugin.json`、`README.md` 和 `skills/`，无需声明 `entry`。`skills/` 中的参考资料和脚本会随包保留，但不会自动执行或注入模型上下文；运行脚本仍需适用的工具和权限。开发临时文件不要放进 `skills/`，该目录会完整打包。
+
 ## 插件介绍
 
 新插件根目录须提供非空的 UTF-8 `README.md`，介绍用途、使用方法、配置要求和实际限制。统一打包工具会检查并将它加入 ZIP；宿主仍接受缺少 README 的历史插件。
@@ -43,7 +86,7 @@ def create_plugin(host):
 
 功能页通过网页内大弹窗打开，保留管理页的选中项与滚动位置。关闭弹窗会释放页面和未保存的输入，再打开重新初始化；普通管理刷新不重载已打开的页面。插件停用或卸载会关闭其功能页，关闭页面本身不撤销已提交的后台操作。
 
-新页面优先使用宿主渲染，清单 `pages` 指定 `renderer: "host"`、`ui_version: 1`、`action: "ui"`。协议见 [UI.md](UI.md)，历史示例可参考 `mobile-bridge/examples/`，其业务实现按后续重构需求处理。已有 HTML 页面用 `path: "web/index.html"`，引用 `/css/plugin-ui.css` 与 `/js/plugin-ui.js`，根元素加 `data-nexus-plugin`；HTML 页面可按该约定接入。
+新页面优先使用宿主渲染，清单 `pages` 指定 `renderer: "host"`、`ui_version: 1`、`action: "ui"`。协议见 [UI.md](UI.md)，可运行示例见 [examples/host-page](examples/host-page/README.md)。已有 HTML 页面用 `path: "web/index.html"`，引用 `/css/plugin-ui.css` 与 `/js/plugin-ui.js`，根元素加 `data-nexus-plugin`；HTML 页面可按该约定接入。
 
 独立服务通过清单 `services` 声明命令、参数和 `model_tools`，通过 `requires_host` 声明能力依赖。内部管理服务使用 `model_tools: []`。纯服务插件可省略 `entry`，用 `call_handler: {"service":"worker","tool":"page"}` 接收页面操作。第三方依赖通过 `dependencies` 声明。
 
@@ -71,7 +114,7 @@ Python 使用关键字参数，Node 使用参数对象。客户端导出 `serve`
 
 ## 打包与验证
 
-仓库根目录执行 `.venv\Scripts\python.exe plugin-dev/build.py <插件目录名>`。输出 `plugin-dev/<插件目录>/nexus-<ID>-<版本>.zip`，清单位于 ZIP 根目录。包含顶层源码、清单、README/LICENSE、web/docs 及实际引用的共享客户端；测试、环境、缓存、APK、运行资料不入包。发布前更新插件自己的版本号。
+执行 `python <SDK路径>/build.py <插件目录路径>`，ZIP 输出到插件目录，清单位于 ZIP 根目录。包含顶层源码、清单、README/LICENSE、web/docs/skills 及实际引用的共享客户端；根目录的测试、环境、缓存、APK、运行资料不入包。发布前更新插件自己的版本号。仓库内也可沿用 `python plugin-dev/build.py <插件目录名>`。
 
 按实际改动运行插件定向测试。完成 ZIP 不代表已经安装、加载或通过真实云端与硬件验收。
 

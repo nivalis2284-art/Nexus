@@ -39,7 +39,7 @@
             ${s.read_only ? '' : `<button type="button" class="del" data-act="del-skill" data-i="${i}">删除</button>`}
           </div></footer>
         </div>`).join('')}
-        ${list.length ? '' : `<div class="skill-empty" data-s><h2>让灵获得一项专长</h2><p>添加个人或项目技能，在这里查看用途、生效状态与覆盖关系。</p><button class="btn solid" data-act="new-skill">${icon('plus', 'i xs')}新建技能</button></div>`}
+        ${list.length ? '' : `<div class="card skill-empty" data-s><h2>让灵获得一项专长</h2><p>添加个人或项目技能，在这里查看用途、生效状态与覆盖关系。</p><button class="btn solid" data-act="new-skill">${icon('plus', 'i xs')}新建技能</button></div>`}
       </div>
       <p class="foot-note" data-s>技能按名称匹配；项目技能覆盖同名个人技能，内置技能始终只读。</p>
     </div>`;
@@ -74,7 +74,7 @@
     $('#skill-save').disabled = false;
     dlg.showModal();
     N.anim(dlg, [{ opacity: 0, transform: 'translateY(24px) scale(.92)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.SP.settle.d, easing: N.SP.settle.e });
+      { duration: N.DUR.enter, easing: N.EASE_OUT });
     if (!readonly) $('#skill-name').focus();
   }
   function closeEditor() {
@@ -138,6 +138,7 @@
       await N.sync.skillsOnly();
       renderSkills(); N.notify('技能已删除', 'jade');
     } catch (failure) {
+      card?.getAnimations().forEach(a => a.cancel());
       N.notify(failure?.message || '删除技能失败', 'cinnabar', 4200);
     }
   }

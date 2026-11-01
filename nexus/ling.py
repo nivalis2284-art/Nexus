@@ -307,6 +307,7 @@ class LingInbox:
                 id INTEGER PRIMARY KEY AUTOINCREMENT, request_id TEXT NOT NULL UNIQUE,
                 session_id TEXT NOT NULL, text TEXT NOT NULL, data_json TEXT NOT NULL,
                 status TEXT NOT NULL, error TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL)""")
+            connection.execute("CREATE TABLE IF NOT EXISTS ling_inbox_dismissed (input_id INTEGER PRIMARY KEY)")
             connection.execute("UPDATE ling_inbox SET status='interrupted',error='服务中断；已执行操作未回滚，请核查后发送新消息继续' WHERE status='running'")
             connection.execute("UPDATE ling_inbox SET status='held' WHERE status='pending'")
             row = connection.execute("SELECT session_id FROM ling_identity WHERE id=1").fetchone()
@@ -382,6 +383,19 @@ class LingInbox:
         runtime_updates(self.state).refresh("ling", self.session_id)
         return {"resumed": True}
 
+    def dismiss_input(self, input_id: int) -> dict:
+        if type(input_id) is not int or input_id <= 0:
+            raise TaskValidationError("输入记录编号无效")
+        with self.store._lock, self.store._transaction() as connection:
+            row = connection.execute("SELECT status FROM ling_inbox WHERE id=? AND session_id=?",
+                                     (input_id, self.session_id)).fetchone()
+            if not row or row["status"] not in ("failed", "interrupted"):
+                raise TaskValidationError("只能关闭失败或已中断的输入提示")
+            connection.execute("INSERT OR IGNORE INTO ling_inbox_dismissed(input_id) VALUES(?)", (input_id,))
+        from .runtime.stream import runtime_updates
+        runtime_updates(self.state).refresh("ling", self.session_id)
+        return {"dismissed": True}
+
     def _report_current(self, report):
         if report.get("kind") != "interaction" or not report.get("interaction_id"):
             return True
@@ -434,7 +448,7 @@ class LingInbox:
         data = json.loads(item["data_json"])
         if not any(message.data.get("ling_input_id") == item["id"] for message in session.items):
             self.state["sessions"].append(session, Message(kind="work_report" if data.get("report") else "user", text=item["text"],
-                 data={**data, "ling_input_id": item["id"]}))
+                 data={**data, "ling_input_id": item["id"], "request_id": item["request_id"]}))
         if history is not None:
             from .attachments import message_content
             content = message_content(item["text"], data.get("attachments", []), include_images=True)
@@ -575,7 +589,8 @@ class LingInbox:
     def projection(self, transcript: Callable) -> dict:
         with self.store._transaction() as connection:
             inputs = [dict(row) for row in connection.execute(
-                "SELECT id,text,status,error,created_at FROM ling_inbox ORDER BY id DESC LIMIT 40")]
+                "SELECT id,text,status,error,created_at FROM ling_inbox "
+                "WHERE id NOT IN (SELECT input_id FROM ling_inbox_dismissed) ORDER BY id DESC LIMIT 40")]
             pending = connection.execute("SELECT COUNT(*) FROM ling_inbox WHERE status IN ('pending','held')").fetchone()[0]
         session = self.state["sessions"].load(self.session_id)
         items = transcript(session) if session else []

@@ -13,7 +13,7 @@
   const scrim = $('#island-scrim');
   function setScrim(on) {
     const wasOpen = island.hasAttribute('aria-modal');
-    for (const el of [$('#stage'), $('#dock'), $('#menu-btn')]) el.inert = on;
+    for (const el of [$('#stage'), $('#dock'), $('#menu-btn')]) el.inert = on || (el.id === 'stage' && !!state.backgroundOnly);
     if (on) {
       island.setAttribute('role', 'dialog');
       island.setAttribute('aria-modal', 'true');
@@ -131,11 +131,16 @@
     ghost.style.width = from.width + 'px';
     ghost.setAttribute('aria-hidden', 'true'); ghost.inert = true;
     $$('[id]', ghost).forEach(n => n.removeAttribute('id'));
-    islandAnim?.cancel(); islandAnim = null;
+    if (islandAnim) {
+      islandAnim.onfinish = islandAnim.oncancel = null;
+      islandAnim.cancel(); islandAnim = null;
+    }
     islandInner.getAnimations().forEach(a => a.cancel());
     $$('.island-ghost', island).forEach(g => g.remove());
     island.style.width = island.style.height = '';
+    island.style.willChange = '';
     islandInner.style.width = islandInner.style.marginLeft = '';
+    islandInner.style.willChange = '';
     island.mode = mode; island.data = data; island.dataset.mode = mode;
     islandInner.innerHTML = '';
     renderIsland();
@@ -153,8 +158,11 @@
     island.style.willChange = 'width, height';
     islandInner.style.willChange = 'opacity, transform';
     islandInner.style.width = to.width + 'px';
-    islandAnim = island.animate([{ width: from.width + 'px', height: from.height + 'px', borderRadius: fromRadius + 'px' }, { width: to.width + 'px', height: to.height + 'px', borderRadius: Math.min(parseFloat(getComputedStyle(island).borderTopLeftRadius), to.height / 2) + 'px' }],
-      { duration: SP.island.d * N.motionScale(), easing: SP.island.e });
+    // 收起态的窄屏 max-width 不能提前截断外壳；宽高与上边缘沿同一进度到位。
+    islandAnim = island.animate([
+      { width: from.width + 'px', maxWidth: from.width + 'px', height: from.height + 'px', top: from.top + 'px', borderRadius: fromRadius + 'px' },
+      { width: to.width + 'px', maxWidth: to.width + 'px', height: to.height + 'px', top: to.top + 'px', borderRadius: Math.min(parseFloat(getComputedStyle(island).borderTopLeftRadius), to.height / 2) + 'px' },
+    ], { duration: N.DUR.move * N.motionScale(), easing: N.EASE_OUT });
     ghost.animate([{ opacity: 1, transform: 'translateX(-50%) scale(1)' }, { opacity: 0, transform: 'translateX(-50%) scale(.96)' }],
       { duration: N.DUR.fast * N.motionScale(), easing: 'ease-out', fill: 'forwards' });
     islandInner.animate([{ opacity: 0, transform: 'translateY(4px) scale(.985)' }, { opacity: 1, transform: 'none' }],
@@ -180,7 +188,7 @@
   }
 
   function updateCompact() {
-    if (island.mode !== 'compact') return;
+    if (island.mode !== 'compact' || islandAnim) return;
     const btns = $$('.isl-slots .slot', islandInner), list = slotList();
     if (btns.length !== 3) { renderIsland(); return; }
     const from = island.getBoundingClientRect().width;
@@ -195,7 +203,8 @@
     $('#isl-orb')?.classList.toggle('busy', state.replying);
     const to = island.getBoundingClientRect().width;
     if (Math.abs(from - to) > 1 && !N.REDUCED) {
-      island.animate([{ width: from + 'px' }, { width: to + 'px' }], { duration: SP.island.d * N.motionScale(), easing: SP.island.e });
+      islandAnim = island.animate([{ width: from + 'px' }, { width: to + 'px' }], { duration: N.DUR.move * N.motionScale(), easing: N.EASE_OUT });
+      islandAnim.onfinish = () => { islandAnim = null; refreshIsland(); };
     }
   }
 
@@ -249,7 +258,7 @@
     $('#live').textContent = text;
     if (island.mode === 'compact' || island.mode === 'toast') {
       clearTimeout(toastTimer);
-      const ico = tone === 'cinnabar' ? '<b style="font-size:13px">决</b>' : tone === 'jade' ? icon('check', 'i sm') : '<span class="orb-mini" style="--s:16px"></span>';
+      const ico = tone === 'jade' ? icon('check', 'i sm') : '<span class="orb-mini" style="--s:16px" aria-hidden="true"></span>';
       island.mode = 'toast'; island.dataset.mode = 'toast';
       setScrim(false);
       islandInner.innerHTML = `<div class="isl-toast" data-tone="${tone}"><span class="t-ico">${ico}</span><span>${esc(text)}</span></div>`;
@@ -286,7 +295,26 @@
     if (name === 'settings') N.renderSettings();
   }
   let viewAnim = null;
+  function setBackgroundOnly(on) {
+    if (!!state.backgroundOnly === on) return;
+    if (on) {
+      N.pauseChatDisplay?.();
+      N.closeMenu?.(true);
+      if (island.mode !== 'compact') morphIsland('compact');
+      closeNav();
+    }
+    state.backgroundOnly = on;
+    document.body.classList.toggle('background-only', on);
+    [$('#stage'), island, $('#usage-panel')].forEach(el => { el.inert = on; });
+    const button = $('#background-btn');
+    button.setAttribute('aria-pressed', String(on));
+    button.setAttribute('aria-label', on ? '恢复界面' : '隐藏界面');
+    button.dataset.tip = on ? '恢复界面 · Esc' : '隐藏界面';
+    if (on) button.focus({ preventScroll: true });
+    else N.resumeChatDisplay?.();
+  }
   function go(name, opts = {}) {
+    setBackgroundOnly(false);
     closeNav();
     if (!VIEWS.includes(name)) return;
     if (island.mode !== 'compact' && !opts.keepIsland) morphIsland('compact');
@@ -312,10 +340,9 @@
       renderView(name);
       if (name === 'chat') N.syncTargets(true);
       N.syncPivot?.();
-      viewAnim = anim(next, [{ opacity: 0 }, { opacity: 1 }],
-        { duration: N.DUR.base, easing: N.EASE_OUT });
-      viewAnim.onfinish = () => { viewAnim = null; };
-      N.stagger(next);
+      if (name !== 'chat') {
+        N.stagger(next);
+      }
     };
     if (N.REDUCED || !cur) {
       swap();
@@ -339,25 +366,15 @@
     N.save();
   }
 
-  function stagger(root, step = 24) {
+  function stagger(root) {
     const items = $$('[data-s]', root).filter(n => !n.parentElement.closest('[data-s]'));
-    items.forEach((n, i) => {
-      const head = n.classList.contains('page-head');
-      const row = n.matches('.work-item,.ctx-owner-row,.ctx-role,.ctx-msg,.plug-item,.preq,.provider-row,.mcp-row,.qrow,.ctx-metrics div');
-      const from = head ? 'translateY(-8px)' : row ? 'translateX(-8px)' : 'translateY(12px)';
-      const dur = head ? 320 : row ? 240 : 300;
-      anim(n, [{ opacity: 0, transform: from }, { opacity: 1, transform: 'none' }],
-        { duration: dur, delay: 20 + Math.min(i, 4) * step, easing: SP.soft.e, fill: 'backwards' });
-    });
+    N.enterItems(items, root.closest('.view, dialog') || root);
   }
 
   /* 只编排某个面板的直接子元素：标签页切换、插件详情切换用 */
-  function cascade(root, step = 24, dur = 300) {
+  function cascade(root) {
     if (!root || N.REDUCED) return;
-    [...root.children].filter(n => n.nodeType === 1 && !n.hidden).forEach((n, i) => {
-      anim(n, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }],
-        { duration: dur, delay: 20 + i * step, easing: N.EASE_OUT, fill: 'backwards' });
-    });
+    N.enterItems([...root.children].filter(n => n.nodeType === 1 && !n.hidden), root.closest('.view, dialog') || root);
   }
 
   function openNav() { document.body.classList.add('nav-open'); $('#menu-btn').setAttribute('aria-expanded', 'true'); requestAnimationFrame(() => syncDock(true)); }
@@ -398,13 +415,38 @@
     const x = r ? r.left + r.width / 2 : innerWidth / 2;
     const y = r ? r.top + r.height / 2 : 42;
     const rad = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    document.documentElement.style.setProperty('--theme-reveal-x', x + 'px');
+    document.documentElement.style.setProperty('--theme-reveal-y', y + 'px');
+    const background = N.prepareThemeBackground();
+    const surfaces = $$('.stage, .dock, .island, .menu-btn, .menu, .usage-pop, .island-scrim, dialog[open]')
+      .filter(el => el.getClientRects().length).map((el, i) => {
+        const rect = el.getBoundingClientRect();
+        const name = 'theme-ui-' + i;
+        const previous = el.style.viewTransitionName;
+        el.style.viewTransitionName = name;
+        return { el, name, previous, x: x - rect.left, y: y - rect.top };
+      });
+    const origins = document.createElement('style');
+    origins.textContent = surfaces.map(s => `::view-transition-group(${s.name}) { --theme-reveal-x: ${s.x}px; --theme-reveal-y: ${s.y}px; }`).join('\n');
+    document.head.appendChild(origins);
+    document.documentElement.classList.add('is-theme-transitioning');
     const vt = document.startViewTransition(apply);
-    vt.finished.finally(() => { revealing = false; });
+    const waves = [];
+    vt.finished.finally(() => {
+      waves.forEach(wave => wave.cancel());
+      surfaces.forEach(s => { s.el.style.viewTransitionName = s.previous; });
+      background.remove();
+      origins.remove();
+      document.documentElement.classList.remove('is-theme-transitioning');
+      revealing = false;
+    });
     vt.ready.then(() => {
-      document.documentElement.animate(
-        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${rad}px at ${x}px ${y}px)`] },
-        { duration: N.DUR.enter * N.motionScale(), easing: N.EASE_OUT, pseudoElement: '::view-transition-new(root)' },
-      );
+      const frames = { '--theme-reveal-radius': ['-24px', (rad + 24) + 'px'] };
+      const timing = { duration: N.MOTION.theme * N.motionScale(), easing: 'ease-in-out', fill: 'both' };
+      waves.push(background.element.animate(frames, timing));
+      for (const s of surfaces) for (const side of ['old', 'new']) {
+        waves.push(document.documentElement.animate(frames, { ...timing, pseudoElement: `::view-transition-${side}(${s.name})` }));
+      }
     });
   }
   function syncCapsuleTips() {
@@ -422,7 +464,7 @@
     }
   }
   function applyTheme(next) {
-    const val = next || state.theme || 'day';
+    const val = next || state.theme || 'night';
     document.documentElement.dataset.theme = val;
     state.theme = val;
     syncCapsuleTips();
@@ -545,6 +587,7 @@
     if (meta) N.notify(`已切换至「${meta.name}」`, 'jade', 2000);
   });
   $('#theme-btn').addEventListener('click', e => toggleTheme(e.currentTarget));
+  $('#background-btn').addEventListener('click', () => setBackgroundOnly(!state.backgroundOnly));
   $('#preview-more').addEventListener('click', e => {
     const nextPal = state.palette === 'cool' ? 'jade' : 'cool';
     const nextMeta = N.THEMES.find(t => t.id === nextPal);
@@ -554,12 +597,12 @@
       { label: `切换意境：${nextMeta ? nextMeta.name : nextPal}`, icon: 'palette', onPick: () => setPalette(nextPal, $('#preview-more')) },
       { label: `切换至：${nextModeLabel}`, icon: 'moon', onPick: () => toggleTheme($('#preview-more')) },
       { sep: true },
-      { label: '恢复默认界面偏好', icon: 'undo', onPick: () => {
+      { label: '恢复默认界面偏好', icon: 'undo', onPick: () => reveal(() => {
         N.clearSaved();
-        state.theme = 'day'; state.palette = 'jade'; state.motion = '1';
-        applyPalette('jade'); applyTheme('day'); N.setMotion?.('1', true); N.renderView(state.view);
-        N.notify('界面偏好已恢复默认（灵玉 · 白昼）', 'jade');
-      } },
+        state.theme = 'night'; state.palette = 'cool'; state.motion = '1';
+        applyPalette('cool'); applyTheme('night'); N.setMotion?.('1', true); N.renderView(state.view);
+        N.notify('界面偏好已恢复默认（星枢 · 黑夜）', 'jade');
+      }, $('#preview-more')) },
     ];
     N.menu(e.currentTarget, items, { title: '灵 · 枢 界面' });
   });
@@ -588,6 +631,7 @@
     }
     if (e.key === 'Escape') {
       if ($('#menu') && !$('#menu').hidden) { N.closeMenu(); return; }
+      if (state.backgroundOnly) { setBackgroundOnly(false); return; }
       if (island.mode === 'detail' || island.mode === 'overview') { morphIsland('compact'); return; }
       closeNav();
       const usage = $('#usage-panel');
@@ -633,6 +677,7 @@
   N.pulseSlot = pulseSlot;
   N.notify = notify;
   N.go = go;
+  N.setBackgroundOnly = setBackgroundOnly;
   N.stagger = stagger;
   N.cascade = cascade;
   N.flyDroplet = flyDroplet;

@@ -33,6 +33,18 @@ def test_configured_rules_replace_the_defaults():
     assert policy.decide("bash", "git status") == ALLOW
     assert policy.decide("bash", "rm -rf build") == DENY
     assert policy.decide("bash", "ls") == ASK
+    assert policy.decide("powershell", "git status; Remove-Item file") == ASK
+    assert policy.decide("powershell", "rm build") == DENY
+
+
+def test_new_shell_requires_explicit_allow_with_old_wildcard_rules():
+    policy = default_policy("ask", [
+        {"tool": "*", "pattern": "git *", "action": ALLOW},
+        {"tool": "powershell", "pattern": "Get-Location", "action": ALLOW},
+    ])
+    assert policy.decide("bash", "git status") == ALLOW
+    assert policy.decide("powershell", "git status; Remove-Item file") == ASK
+    assert policy.decide("powershell", "Get-Location") == ALLOW
 
 
 def test_last_match_wins():

@@ -136,6 +136,7 @@
       if (!this.dialog) {
         fresh = true;
         const d = document.createElement('dialog'); d.className = 'sheet hui-dialog';
+        d.dataset.size = 'medium';
         d.dataset.dialogId = spec.id;
         const titleId = 'hui-dialog-' + N.uid();
         d.setAttribute('aria-labelledby', titleId);

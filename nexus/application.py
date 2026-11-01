@@ -67,10 +67,13 @@ class Application:
         """Create the existing runtime; the host may attach plugin HTTP afterwards."""
         state = self.state
         try:
+            from .cache import cache_dir
+            cache_dir()
             store = ConfigStore(home)
             store.ensure()
-            if workspace is not None:
-                store.save_preferences(workspace=str(Path(workspace).resolve()))
+            from .projects import initialize
+
+            initialize(store, workspace)
             state.update(store=store, sessions=SessionStore(store.sessions_dir, identities=True), jobs={}, closing=False)
             root = Path(store.load().workspace)
             state["skills"] = load_skills(store, root)
@@ -262,10 +265,17 @@ class Application:
             raise TaskValidationError("每次最多 8 个附件")
         return attachments
 
-    def save_settings(self, value):
+    def save_settings(self, value, *, projects=None):
         from .runtime.settings import save_settings
 
-        return save_settings(self.state, value, self.busy, self.workspace_changed)
+        return save_settings(self.state, value, self.busy, self.workspace_changed,
+                             projects=projects)
+
+    def project_command(self, value):
+        from .projects import command
+
+        with self.resources:
+            command(self, value)
 
     def workspace_changed(self, workspace):
         store, live = self.state["store"], self.state.get("mcp")

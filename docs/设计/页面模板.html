@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN" data-palette="cool" data-theme="night" data-motion="1">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nexus · 页面与组件模板</title>
+  <link rel="stylesheet" href="../../nexus/web/assets/fonts.css">
+  <link rel="stylesheet" href="../../nexus/web/assets/chinese.css">
+  <link rel="stylesheet" href="../../nexus/web/css/tokens.css">
+  <link rel="stylesheet" href="../../nexus/web/css/ling.css">
+  <link rel="stylesheet" href="../../nexus/web/css/app.css">
+  <link rel="stylesheet" href="../../nexus/web/css/theme.css">
+  <style>
+    .template-view { inset: 0; }
+    .template-stack { display: grid; gap: var(--card-gap); }
+    .template-card { padding: var(--card-padding); }
+    .template-card h2 { font: 600 var(--text-title)/1.5 var(--font-display); }
+    .template-card > p { color: var(--ink-2); margin-top: var(--row-gap); }
+    .template-controls { display: flex; flex-wrap: wrap; gap: var(--control-gap); margin-top: var(--inner-gap); }
+    .template-masterdetail { display: grid; grid-template-columns: minmax(0, .618fr) minmax(0, .382fr); gap: var(--card-gap); }
+    .template-masterdetail > * { min-width: 0; }
+    .template-card .fields { margin-top: var(--inner-gap); }
+    @media (max-width: 980px) { .template-masterdetail { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <section class="view view-page template-view">
+      <div class="page">
+        <header class="page-head" data-s>
+          <div><h1>页面与组件模板</h1><p>开发参考样张 · 参数来自仓库实际样式，不连接后端。</p></div>
+          <div class="template-controls">
+            <button class="btn ghost" type="button" id="template-palette">切换意境</button>
+            <button class="btn ghost" type="button" id="template-mode">切换昼夜</button>
+            <button class="btn solid" type="button" id="template-motion">重播入场</button>
+          </div>
+        </header>
+        <div class="template-stack">
+          <div class="template-masterdetail">
+            <section class="card template-card" data-s>
+              <h2>主内容</h2><p>卡片圆角 20px。桌面内边距与同级间距 24px，手机 16px。此处主从布局约 62／38，手机转单列。</p>
+              <div class="fields">
+                <label class="field"><span>名称</span><input placeholder="输入示例"></label>
+                <label class="field"><span>类别</span><select><option>选项一</option><option>选项二</option></select></label>
+              </div>
+              <div class="template-controls"><button class="btn solid" type="button">主操作示例</button><button class="btn ghost" type="button">次操作示例</button><span class="pill">辅助标签</span></div>
+            </section>
+            <section class="card template-card" data-s>
+              <h2>辅助信息</h2><p>正文与控件使用同一套字阶。颜色、材质随主题变化，圆角、排版与节奏保持一致。</p>
+              <div class="template-controls"><button class="btn ghost sm" type="button">小按钮</button></div>
+            </section>
+          </div>
+          <section class="card template-card" data-s>
+            <h2>组件层级</h2><p>页面组间距 32px；卡片内的控件与字段使用 8／12／16px 的内部档位。已有业务页面直接复用既有类和状态处理。</p>
+            <div class="template-controls"><span class="pill">标签 8px 圆角</span><button class="btn ghost" type="button">控件 12px 圆角</button></div>
+            <div class="template-controls"><button class="btn ghost" type="button" data-dialog-size="small">小弹窗</button><button class="btn ghost" type="button" data-dialog-size="compact">中小弹窗</button><button class="btn ghost" type="button" data-dialog-size="medium">中弹窗</button><button class="btn ghost" type="button" data-dialog-size="large">大弹窗</button></div>
+          </section>
+          <details class="ctx-sec" data-s>
+            <summary><i class="dot"></i>折叠卡片<span class="lock">示例</span></summary>
+            <div class="body">summary 显式共用卡片圆角；新页面复用既有追光，不另写遮罩。
+页面退场 120ms，入场 240ms，错峰 24ms，只编排最多 8 个可见项。</div>
+          </details>
+        </div>
+      </div>
+    </section>
+  </main>
+  <dialog class="sheet" data-size="small" id="template-dialog" aria-labelledby="template-dialog-title">
+    <div class="sheet-body"><header class="sheet-head"><h2 id="template-dialog-title">弹窗尺寸示例</h2><button class="ic-btn" type="button" aria-label="关闭" id="template-dialog-close"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header><p>小：480px 宽，最高 60dvh。中小：640px 宽，最高 70dvh。中：880px 宽，最高 80dvh。大：1120px 宽，最高 88dvh。高度随内容收紧，超出上限时内部滚动；屏幕两侧至少保留 16px。</p></div>
+  </dialog>
+  <script src="../../nexus/web/js/core.js"></script>
+  <script>
+    const root = document.documentElement, view = document.querySelector('.template-view');
+    const sampleDialog = document.querySelector('#template-dialog');
+    document.querySelectorAll('[data-dialog-size]').forEach(button => button.onclick = () => {
+      sampleDialog.dataset.size = button.dataset.dialogSize; sampleDialog.showModal();
+    });
+    document.querySelector('#template-dialog-close').onclick = () => sampleDialog.close();
+    function replay() {
+      N.enterItems([...view.querySelectorAll('[data-s]')].filter(el => !el.parentElement.closest('[data-s]')), view);
+    }
+    document.querySelector('#template-palette').onclick = () => {
+      root.dataset.palette = root.dataset.palette === 'cool' ? 'jade' : 'cool'; N.rebuildSprings();
+    };
+    document.querySelector('#template-mode').onclick = () => { root.dataset.theme = root.dataset.theme === 'night' ? 'day' : 'night'; };
+    document.querySelector('#template-motion').onclick = replay;
+    requestAnimationFrame(replay);
+  </script>
+</body>
+</html>

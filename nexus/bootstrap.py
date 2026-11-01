@@ -140,7 +140,7 @@ def _dependencies_import(python: Path, *, root: Path, run: Run) -> bool:
                 "-c",
                 (
                     "import httpx, pydantic, pypdf, "
-                    "docx, openpyxl, pptx, mcp"
+                    "docx, openpyxl, pptx, mcp, PIL"
                 ),
             ],
             root=root,

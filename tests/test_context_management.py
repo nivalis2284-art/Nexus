@@ -109,3 +109,20 @@ def test_snapshot_has_no_summary_without_a_checkpoint(tmp_path):
     assert value["summary"] is None
     assert value["messages"][0]["index"] == 0
     assert value["messages"][0]["role"] == "user"
+
+
+def test_snapshot_project_instructions_follow_selected_workspace_boundary(tmp_path):
+    state, config = _state(tmp_path)
+    (tmp_path / "AGENTS.md").write_text("PARENT-RULE", encoding="utf-8")
+    workspace = tmp_path / "Work"
+    workspace.mkdir()
+    config.save_preferences(workspace=str(workspace))
+    session = state["sessions"].create("test")
+    _bind_ling(state, session)
+    value = snapshot(state, session)
+    assert "project" not in {section["id"] for section in value["sections"]}
+    (workspace / "AGENTS.md").write_text("WORKSPACE-RULE", encoding="utf-8")
+    value = snapshot(state, session)
+    section = next(section for section in value["sections"] if section["id"] == "project")
+    assert "WORKSPACE-RULE" in section["text"]
+    assert "PARENT-RULE" not in section["text"]

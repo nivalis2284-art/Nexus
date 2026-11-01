@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -123,6 +124,69 @@ def build_agent(root: Path, *, policy=None) -> Agent:
         workspace=inspect(root),
         policy=policy or default_policy("yolo"),
     )
+
+
+def test_screenshot_reaches_vision_model_and_history(workspace, monkeypatch, tmp_path):
+    from PIL import Image, ImageGrab
+    from nexus.runtime.conversation import history_for_model, persist
+    from nexus.session import SessionStore
+    from nexus.tools import screenshot
+
+    monkeypatch.setattr(ImageGrab, "grab", lambda **kwargs: Image.new("RGB", (10, 10), "red"))
+    monkeypatch.setattr(screenshot, "cache_dir", lambda: tmp_path / "cache")
+    agent = build_agent(workspace)
+    agent.profile = agent.profile.model_copy(update={"capabilities": ModelCapabilities(tools=True, images=True)})
+    seen = []
+    run(agent, [{"role": "user", "content": "look"}], [
+        tool_call_stream("screenshot_1", "screenshot", {"target": "screen"}), text_stream("done")
+    ], seen)
+    assert "data:image/jpeg;base64," in json.dumps(seen[-1])
+    store = SessionStore(tmp_path / "sessions")
+    session = store.create("screenshots")
+    persist({"sessions": store}, session, agent.new_messages)
+    restored = history_for_model(store.load(session.id))
+    result = next(m for m in restored if m["role"] == "tool")
+    assert result["content"][1]["type"] == "image"
+
+
+def test_model_requests_only_receive_workspace_and_touched_child_instructions(tmp_path):
+    (tmp_path / "AGENTS.md").write_text("PARENT-ONLY-MARKER", encoding="utf-8")
+    root = tmp_path / "workspace"
+    child = root / "child"
+    child.mkdir(parents=True)
+    (root / "AGENTS.md").write_text("WORKSPACE-MARKER", encoding="utf-8")
+    (child / "AGENTS.md").write_text("CHILD-MARKER", encoding="utf-8")
+    (child / "file.txt").write_text("hello", encoding="utf-8")
+    seen = []
+    run(build_agent(root), [{"role": "user", "content": "read child/file.txt"}], [
+        tool_call_stream("call_1", "read_file", {"path": "child/file.txt"}),
+        text_stream("done"),
+    ], seen)
+    assert len(seen) == 2
+    first, second = [request["messages"][0]["content"] for request in seen]
+    assert "WORKSPACE-MARKER" in first and "WORKSPACE-MARKER" in second
+    assert "CHILD-MARKER" not in first and "CHILD-MARKER" in second
+    assert "PARENT-ONLY-MARKER" not in first and "PARENT-ONLY-MARKER" not in second
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows PowerShell tool")
+def test_agent_calls_powershell_with_approval_and_receives_output(tmp_path):
+    seen = []
+    approvals = []
+    agent = build_agent(tmp_path, policy=default_policy("ask"))
+
+    async def approve(request):
+        approvals.append((request.tool, request.value))
+        return True
+
+    agent.approve = approve
+    run(agent, [{"role": "user", "content": "run a command"}], [
+        tool_call_stream("call_ps", "powershell", {"command": "Write-Output 'agent-ok'"}),
+        text_stream("done"),
+    ], seen)
+    assert approvals == [("powershell", "Write-Output 'agent-ok'")]
+    assert any(message.get("role") == "tool" and "agent-ok" in message.get("content", "")
+               for message in seen[-1]["messages"])
 
 
 def test_reads_a_file_and_answers(workspace: Path):

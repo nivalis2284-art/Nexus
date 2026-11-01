@@ -59,16 +59,17 @@
     });
   }
 
-  function renderSettings() {
+  function renderSettings(reset = false) {
     const view = $('#view-settings');
     const keep = view.scrollTop;
+    const instructions = reset ? state.instructions : view.querySelector('#instructions')?.value ?? state.instructions;
     const mode = document.documentElement.dataset.theme === 'night' ? 'night' : 'day';
     const p = N.providerOf(state.current.provider);
     const m = N.currentModel();
     const budget = m?.context_window_tokens || state.context?.window;
     view.innerHTML = `<div class="page set-page">
       <header class="page-head" data-s>
-        <div><h1>设置</h1><p>配置界面、模型、MCP、钩子、权限与工作目录。</p></div>
+        <div><h1>设置</h1><p>配置界面、模型、MCP、钩子与权限。</p></div>
         <span class="pill">改动保存在本机</span>
       </header>
 
@@ -99,14 +100,9 @@
             ${N.THEMES.map(t => {
               const on = state.palette === t.id;
               return `<button class="theme-card theme-${t.id}${on ? ' is-active' : ''}" data-s data-act="palette" data-id="${t.id}" aria-pressed="${on}">
-                <div class="theme-specimen">
-                  <span class="spec-glyph" aria-hidden="true">${t.id === 'jade' ? '玉' : '星'}</span>
-                  <span class="theme-scene" aria-hidden="true"><i class="spec-orbit"></i><i class="spec-core"></i><i class="spec-stars"></i></span>
-                  <span class="spec-tag">${esc(t.tag || '')}</span>
-                </div>
+                <span class="theme-swatches" aria-hidden="true">${[t.day.p, t.night.p, t.day.a].map(color => `<i style="background:${esc(color)}"></i>`).join('')}</span>
                 <span class="theme-name">${esc(t.name)}</span>
-                <span class="theme-sub">${esc(t.sub || '')}</span>
-                <span class="theme-check">${icon('check', 'i xs')}</span>
+                <span class="theme-check" aria-hidden="true">${icon('check', 'i xs')}</span>
               </button>`;
             }).join('')}
           </div>
@@ -127,8 +123,8 @@
       </section>
 
       <section class="card set-sec" data-s>
-        <h3>基本原则</h3><p>这些原则会随每次请求交给灵；与权限、工作目录一起，通过底部「保存设置」生效。</p>
-        <label class="field"><span class="sr">原则与交流偏好</span><textarea id="instructions" rows="5" placeholder="例如：先说明关键取舍，再执行；遇到不确定的外部影响时先停下确认。">${esc(state.instructions)}</textarea></label>
+        <h3>基本原则</h3><p>这些原则会随每次请求交给灵；与权限一起，通过底部「保存设置」生效。</p>
+        <label class="field"><span class="sr">原则与交流偏好</span><textarea id="instructions" rows="5" placeholder="例如：先说明关键取舍，再执行；遇到不确定的外部影响时先停下确认。">${esc(instructions)}</textarea></label>
       </section>
 
       <section class="card set-sec" data-s>
@@ -156,11 +152,10 @@
       </section>
 
       <section class="card set-sec" data-s>
-        <h3>其他</h3><p>权限与工作目录对所有工作生效。</p>
+        <h3>其他</h3><p>设置工具执行时的权限。</p>
         <div class="perm" role="radiogroup"><span class="tab-ink" aria-hidden="true"></span>
           ${[['ask', '写前询问', '写文件和运行命令前询问'], ['yolo', '全部放行', '不再逐项确认']].map(([v, b, s]) => `<button role="radio" aria-checked="${state.permission === v}" class="${state.permission === v ? 'active' : ''}" data-act="perm" data-v="${v}"><b>${b}</b><small>${s}</small></button>`).join('')}
         </div>
-        <div class="set-row" style="margin-top:8px"><div><b>工作目录</b><small>后台工作的默认根目录。</small></div><label class="field" style="min-width:260px"><span class="sr">工作目录</span><input id="workspace-input" type="text" value="${esc(state.workspace)}" placeholder="C:\\path\\to\\project"></label></div>
         <p class="ctx-window-info" id="ctx-window-info">${budget ? `当前模型上下文预算：${N.fmtNum(budget)} tok（可在编辑提供商时为每个模型单独设置）` : ''}</p>
         <p class="sheet-error" id="settings-error" role="alert"></p>
       </section>
@@ -209,7 +204,7 @@
     $('#hooks-error').textContent = '';
     dlg.showModal();
     N.anim(dlg, [{ opacity: 0, transform: 'translateY(24px) scale(.92)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.SP.settle.d, easing: N.SP.settle.e });
+      { duration: N.DUR.enter, easing: N.EASE_OUT });
     await refreshHooks();
     N.stagger?.($('#hooks-list'));
   }
@@ -244,8 +239,10 @@
       return;
     }
     box.innerHTML = editingModels.map((m, i) => `<div class="model-row">
-      <input type="text" value="${esc(m.id || '')}" placeholder="模型名" aria-label="模型名" data-model-name="${i}">
-      <label class="win"><input type="number" min="1" step="1" value="${m.context_window_tokens ? esc(m.context_window_tokens) : ''}" placeholder="默认" aria-label="${esc(m.id || '模型')} 的上下文窗口 token" data-model-window="${i}"><span>tok</span></label>
+      <label class="model-limit model-name"><span>模型名称</span><input type="text" value="${esc(m.id || '')}" placeholder="模型名" aria-label="模型名" data-model-name="${i}"></label>
+      <label class="model-limit"><span>上下文</span><span class="win"><input type="number" min="1" step="1" value="${m.context_window_tokens ? esc(m.context_window_tokens) : ''}" placeholder="默认" aria-label="${esc(m.id || '模型')} 的上下文窗口 token" data-model-window="${i}"><span>tok</span></span></label>
+      <label class="model-limit"><span>最大输出</span><span class="win"><input type="number" min="1" step="1" value="${m.max_output_tokens ? esc(m.max_output_tokens) : ''}" placeholder="默认" aria-label="${esc(m.id || '模型')} 的最大输出 token" data-model-output="${i}"><span>tok</span></span></label>
+      <div class="model-images"><button type="button" class="switch" role="switch" aria-checked="${m.capabilities?.images === true}" aria-label="${esc(m.id || '模型')} 支持图片输入" data-act="p-model-images" data-i="${i}"></button><span>多模态</span></div>
       <button class="rm" type="button" data-act="p-rm-model" data-i="${i}" aria-label="移除模型 ${esc(m.id || '')}">${icon('close', 'i xs')}</button>
     </div>`).join('');
   }
@@ -267,7 +264,7 @@
     dlg.showModal();
     setTimeout(() => $('#p-name').focus(), 40);
     N.anim(dlg, [{ opacity: 0, transform: 'translateY(24px) scale(.92)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.SP.settle.d, easing: N.SP.settle.e });
+      { duration: N.DUR.enter, easing: N.EASE_OUT });
   }
   function addModel() {
     const id = $('#p-model-new').value.trim();
@@ -294,11 +291,16 @@
       if (seen.has(id)) { err.textContent = '模型名不能重复：' + id; return; }
       seen.add(id);
       const raw = String(m.context_window_tokens ?? '').trim();
-      const entry = { id };
+      const entry = { ...m, id };
       if (raw) {
         if (!/^\d+$/.test(raw) || Number(raw) <= 0) { err.textContent = `模型“${id}”的上下文窗口需要填写正整数，或留空使用默认值。`; return; }
         entry.context_window_tokens = Number(raw);
-      }
+      } else delete entry.context_window_tokens;
+      const output = String(m.max_output_tokens ?? '').trim();
+      if (output) {
+        if (!/^\d+$/.test(output) || Number(output) <= 0) { err.textContent = `模型“${id}”的最大输出需要填写正整数，或留空使用默认值。`; return; }
+        entry.max_output_tokens = Number(output);
+      } else delete entry.max_output_tokens;
       models.push(entry);
     }
     if (!models.length) { err.textContent = '请至少配置一个模型。'; return; }
@@ -388,7 +390,7 @@
     const dlg = $('#mcp-dialog');
     dlg.showModal();
     N.anim(dlg, [{ opacity: 0, transform: 'translateY(24px) scale(.92)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.SP.settle.d, easing: N.SP.settle.e });
+      { duration: N.DUR.enter, easing: N.EASE_OUT });
   }
   async function saveMcp() {
     const err = $('#mcp-error');
@@ -486,16 +488,14 @@
   async function saveSettings() {
     const err = $('#settings-error');
     err.textContent = '';
-    const workspace = $('#workspace-input').value.trim();
     const instructions = $('#instructions').value;
     const payload = { instructions, permission: state.permission };
-    if (workspace && workspace !== state.workspace) payload.workspace = workspace;
     try {
       await N.api.settings(payload);
       await N.sync.settingsOnly();
       await N.sync.instructionsOnly();
       await N.sync.contextOnly();
-      renderSettings(); N.notify('设置已保存', 'jade');
+      renderSettings(true); N.notify('设置已保存', 'jade');
     } catch (failure) {
       err.textContent = failure?.message || '保存设置失败';
     }
@@ -504,7 +504,7 @@
     try {
       await N.sync.all();
       N.renderModelLabel(); N.renderEffortLabel();
-      renderSettings(); N.notify('已重新读取设置', 'jade');
+      renderSettings(true); N.notify('已重新读取设置', 'jade');
     } catch (failure) {
       N.notify(failure?.message || '读取设置失败', 'cinnabar', 4200);
     }
@@ -521,6 +521,15 @@
     if (act === 'palette') return N.setPalette(t.dataset.id, t);
     if (act === 'add-provider') return openProvider(null);
     if (act === 'edit-provider') return openProvider(state.providers.find(p => p.id === t.dataset.id));
+    if (act === 'p-model-images') {
+      const model = editingModels[+t.dataset.i];
+      if (model) {
+        const enabled = model.capabilities?.images !== true;
+        model.capabilities = { ...(model.capabilities || { streaming: true, tools: true, thinking: true }), images: enabled };
+        t.setAttribute('aria-checked', String(enabled));
+      }
+      return;
+    }
     if (act === 'p-rm-model') {
       editingModels.splice(+t.dataset.i, 1);
       return renderProviderModels();
@@ -542,7 +551,7 @@
         b.classList.toggle('active', on);
         b.setAttribute('aria-checked', String(on));
       });
-      N.moveInk($('.perm .tab-ink'), t, 'x');
+      syncSettingsUi(false);
       N.api.settings({ permission: state.permission }).then(() => {
         N.notify(state.permission === 'yolo' ? '已改为全部放行' : '已改为写前询问', 'jade');
       }).catch(error => {
@@ -572,6 +581,14 @@
         const raw = e.target.value.trim();
         if (raw) editingModels[i].context_window_tokens = raw;
         else delete editingModels[i].context_window_tokens;
+      }
+    }
+    if (e.target.dataset.modelOutput !== undefined) {
+      const model = editingModels[+e.target.dataset.modelOutput];
+      if (model) {
+        const raw = e.target.value.trim();
+        if (raw) model.max_output_tokens = raw;
+        else delete model.max_output_tokens;
       }
     }
   });

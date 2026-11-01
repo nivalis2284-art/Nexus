@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="day" data-palette="jade" data-motion="1">
+<html lang="zh-CN" data-theme="night" data-palette="cool" data-motion="1">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -8,10 +8,10 @@
 try {
   var savedPreview = JSON.parse(localStorage.getItem('nexus-ui-prefs-v1') || 'null');
   if (savedPreview) {
-    if (savedPreview.theme === 'night') document.documentElement.dataset.theme = 'night';
+    if (savedPreview.theme === 'day' || savedPreview.theme === 'night') document.documentElement.dataset.theme = savedPreview.theme;
     var pal = savedPreview.palette;
     if (pal === 'blue') pal = 'cool';
-    else if (pal && pal !== 'jade' && pal !== 'cool') pal = 'jade';
+    else if (pal && pal !== 'jade' && pal !== 'cool') pal = 'cool';
     if (pal) document.documentElement.dataset.palette = pal;
     if (savedPreview.motion) document.documentElement.dataset.motion = savedPreview.motion;
   }
@@ -19,6 +19,7 @@ try {
 </script>
 <link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/chinese.css">
+<link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/ling.css">
 <link rel="stylesheet" href="vendor/highlight.css">
 <link rel="stylesheet" href="css/app.css">
@@ -43,6 +44,7 @@ try {
    <feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 16 -6"/>
   </filter>
   <symbol id="i-chat" viewBox="0 0 24 24"><path transform="translate(2.7 .55)" d="M4.5 18.5 3.5 21l3.6-1.4A9 9 0 1 0 4.5 18.5Z"/><path d="M8.5 10.5h7M8.5 14h4"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="i-work" viewBox="0 0 24 24"><path d="M4 6h10M4 12h7M4 18h9"/><circle cx="18" cy="6" r="2"/><path d="m16.5 12.2 1.4 1.4 2.6-2.8"/><circle cx="18" cy="18" r="2"/></symbol>
   <symbol id="i-layers" viewBox="0 -1.5 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></symbol>
   <symbol id="i-spark" viewBox="0 -1 24 24"><path d="M12 3c.6 4.6 3.4 7.4 8 8-4.6.6-7.4 3.4-8 8-.6-4.6-3.4-7.4-8-8 4.6-.6 7.4-3.4 8-8Z"/></symbol>
@@ -99,6 +101,64 @@ try {
 <!-- 背景气场与枢场交互层 -->
 <div class="aura" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i><canvas class="pivot-field" id="pivot-field"></canvas><b class="grain"></b></div>
 
+<div class="pivot-core" id="pivot-core" aria-hidden="true">
+    <div class="orb-stage" id="orb-stage">
+      <svg class="orb-hero" viewBox="-120 -120 240 240" aria-hidden="true">
+        <defs>
+          <radialGradient id="og" gradientUnits="userSpaceOnUse" cx="-13" cy="-16" r="54">
+            <stop offset="0" class="og0"/><stop offset=".28" class="og1"/>
+            <stop offset=".68" class="og2"/><stop offset="1" class="og3"/>
+          </radialGradient>
+          <linearGradient id="jg-table" gradientUnits="userSpaceOnUse" x1="-16" y1="-20" x2="16" y2="20">
+            <stop offset="0" class="og0"/><stop offset=".42" class="og1"/><stop offset="1" class="og2"/>
+          </linearGradient>
+          <radialGradient id="og-halo" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="92">
+            <stop offset="0" class="oh0"/><stop offset=".55" class="oh1"/><stop offset="1" stop-color="transparent"/>
+          </radialGradient>
+        </defs>
+        <circle class="pv-halo" r="88" fill="url(#og-halo)"/>
+        <g class="pv-meridian" id="pv-meridian">
+          <circle class="pv-rim" r="92"/>
+          <circle class="pv-vernier" r="81"/>
+          <polygon class="pv-jade-vernier" points="0,-81 40.5,-70.15 70.15,-40.5 81,0 70.15,40.5 40.5,70.15 0,81 -40.5,70.15 -70.15,40.5 -81,0 -70.15,-40.5 -40.5,-70.15"/>
+          <g class="pv-ticks" id="pv-ticks"></g>
+        </g>
+        <g class="pv-back">
+          <g class="pv-plane p1"><path class="pv-arc" d="M -80 0 A 80 27 0 0 1 80 0"/></g>
+          <g class="pv-plane p2"><path class="pv-arc" d="M -66 0 A 66 22 0 0 1 66 0"/></g>
+          <g class="pv-plane p3"><path class="pv-arc" d="M -50 0 A 50 17 0 0 1 50 0"/></g>
+          <g class="pv-nodes-back" id="pv-nodes-back"></g>
+        </g>
+        <g class="pv-axis" transform="rotate(-18)">
+          <line class="pv-spindle" x1="0" y1="-58" x2="0" y2="-36"/>
+          <circle class="pv-pole" cx="0" cy="-58" r="2.2"/>
+        </g>
+        <g class="pv-core-group" id="pv-core">
+          <g class="pv-core-sphere">
+            <circle class="pv-core-ring" r="39"/>
+            <circle class="core" r="33" fill="url(#og)"/>
+            <ellipse class="pv-spec" cx="-11" cy="-13" rx="11" ry="6.2" transform="rotate(-32 -11 -13)"/>
+            <circle class="pv-axis-pin" cx="0" cy="0" r="2.5"/>
+          </g>
+          <g class="pv-core-jade" transform="rotate(-14)">
+            <image href="assets/jade-core.webp" x="-40" y="-45" width="80" height="90"/>
+          </g>
+        </g>
+        <g class="pv-axis" transform="rotate(-18)">
+          <line class="pv-spindle" x1="0" y1="36" x2="0" y2="58"/>
+          <circle class="pv-pole" cx="0" cy="58" r="2.2"/>
+        </g>
+        <g class="pv-front">
+          <g class="pv-plane p1"><path class="pv-arc front" d="M 80 0 A 80 27 0 0 1 -80 0"/></g>
+          <g class="pv-plane p2"><path class="pv-arc front" d="M 66 0 A 66 22 0 0 1 -66 0"/></g>
+          <g class="pv-plane p3"><path class="pv-arc front" d="M 50 0 A 50 17 0 0 1 -50 0"/></g>
+          <g class="pv-nodes-front" id="pv-nodes-front"></g>
+        </g>
+      </svg>
+      <i class="orb-shadow"></i>
+    </div>
+</div>
+
 <div class="island-scrim" id="island-scrim" hidden></div>
 
 <!-- 灵岛：后台工作、通知、详情都在这一处形变 -->
@@ -114,6 +174,7 @@ try {
  <button class="dock-btn" data-view="plugins" aria-label="插件" data-tip="插件  ⌘5"><svg class="i"><use href="#i-plug"/></svg></button>
  <button class="dock-btn" data-view="settings" aria-label="设置" data-tip="设置  ⌘6"><svg class="i"><use href="#i-tune"/></svg></button>
  <span class="dock-gap"></span>
+ <button type="button" class="rail-ctl" id="background-btn" aria-label="隐藏界面" aria-pressed="false" data-tip="隐藏界面"><svg class="i"><use href="#i-eye"/></svg></button>
  <button type="button" class="rail-ctl pc-palette" id="palette-btn" aria-label="切换灵玉与星枢" data-tip="灵玉 / 星枢"><svg class="i"><use href="#i-palette"/></svg></button>
  <button type="button" class="rail-ctl pc-theme" id="theme-btn" aria-label="切换白昼与黑夜" data-tip="白昼 / 黑夜"><svg class="i sun"><use href="#i-sun"/></svg><svg class="i moon"><use href="#i-moon"/></svg></button>
  <button type="button" class="rail-ctl pc-more" id="preview-more" aria-label="更多界面选项" aria-haspopup="menu" data-tip="更多选项"><svg class="i"><use href="#i-more"/></svg></button>
@@ -124,10 +185,10 @@ try {
 <main class="stage" id="stage">
  <section class="view view-chat" id="view-chat" data-view-name="chat">
   <div class="chat-top" id="chat-top">
-   <div class="queue" id="ling-inputs" hidden aria-label="灵的工作队列"></div>
+   <div class="queue" id="ling-inputs" hidden aria-label="输入异常提示"></div>
    <div class="requests" id="ling-requests" hidden aria-label="灵在等待你处理的事项"></div>
   </div>
-  <div class="conversation" id="conversation" aria-label="与灵的交流记录" aria-live="polite"><div class="thread" id="thread"></div></div>
+  <div class="conversation" id="conversation" tabindex="0" aria-label="与灵的交流记录" aria-live="polite"><div class="thread" id="thread"></div></div>
   <div class="composer-wrap" id="composer-wrap">
    <div class="ret-chip" id="jump-latest" hidden><button type="button" data-act="jump-latest"><svg class="i"><use href="#i-down"/></svg>最新</button></div>
    <form class="composer" id="composer" autocomplete="off">
@@ -144,12 +205,12 @@ try {
      </div>
      <div class="bar-right">
       <button type="button" class="ctx-gauge" id="ctx-gauge" aria-label="上下文已用 24%，打开上下文管理"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"/><circle class="arc" cx="10" cy="10" r="7.5" pathLength="100" style="--p:24"/></svg><span id="ctx-pct">24%</span></button>
-      <button type="button" class="c-pill stop-pill" id="stop-reply" data-act="stop" hidden><svg class="i xs"><use href="#i-stop"/></svg>停止</button>
       <button type="submit" class="send" id="send" aria-label="发送"><svg class="i go"><use href="#i-up"/></svg><svg class="i halt"><use href="#i-stop"/></svg><i class="send-ring"></i></button>
      </div>
     </div>
    </form>
    <p class="composer-hint">
+    <button type="button" class="composer-project" data-act="projects" aria-haspopup="dialog"><svg class="i xs"><use href="#i-folder"/></svg><span data-project-name>Work</span></button>
     <span id="stat-turn">0 轮</span>
     <button type="button" class="stat-btn" id="stat-tokens" aria-expanded="false">0 tok</button>
     <span class="hint-kbd">Enter 发送 · Shift + Enter 换行</span>
@@ -168,7 +229,32 @@ try {
 <div class="toast" id="toast" role="status"></div>
 <p class="sr" id="live" aria-live="polite"></p>
 
-<dialog class="sheet" id="editor" aria-labelledby="editor-title">
+<dialog class="sheet project-sheet" id="projects-dialog" data-size="compact" aria-labelledby="projects-title">
+ <div class="sheet-body">
+  <header class="sheet-head"><div><h2 id="projects-title">选择项目</h2><p class="sheet-note">切换后，后续工作使用所选文件夹。</p></div><button class="ic-btn" type="button" data-close="projects-dialog" aria-label="关闭"><svg class="i"><use href="#i-close"/></svg></button></header>
+  <div id="project-list" class="project-list" aria-live="polite"></div>
+  <p id="projects-error" class="sheet-error" role="alert"></p>
+  <footer class="sheet-foot"><p class="project-hint">移除记录会保留文件和任务。</p><span class="spacer"></span><button class="btn solid" type="button" data-act="project-new"><svg class="i xs"><use href="#i-plus"/></svg>新建项目</button></footer>
+ </div>
+</dialog>
+
+<dialog class="sheet project-sheet" id="project-editor" data-size="small" aria-labelledby="project-editor-title">
+ <form class="sheet-body" id="project-form">
+  <header class="sheet-head"><h2 id="project-editor-title">创建项目</h2><button class="ic-btn" type="button" data-close="project-editor" aria-label="关闭"><svg class="i"><use href="#i-close"/></svg></button></header>
+  <label class="field project-name-field"><span class="sr">项目名称</span><svg class="i"><use href="#i-folder"/></svg><input id="project-name" type="text" required autocomplete="off" placeholder="项目名称"></label>
+  <div id="project-source">
+   <p class="project-source-label">源文件夹</p>
+   <div class="project-folder">
+    <p id="project-folder-label">在此电脑上选择文件夹</p>
+    <button class="btn ghost sm" type="button" id="project-folder-pick"><svg class="i xs"><use href="#i-plus"/></svg><span>添加</span></button>
+   </div>
+  </div>
+  <p id="project-editor-error" class="sheet-error" role="alert"></p>
+  <footer class="sheet-foot"><span class="spacer"></span><button class="btn ghost" type="button" data-close="project-editor">取消</button><button class="btn solid" type="submit" id="project-save">创建项目</button></footer>
+ </form>
+</dialog>
+
+<dialog class="sheet" id="editor" data-size="medium" aria-labelledby="editor-title">
  <form method="dialog" id="editor-form">
   <h2 id="editor-title">编辑</h2>
   <p class="sheet-note" id="editor-desc">保存后在后续请求中生效。</p>
@@ -179,7 +265,7 @@ try {
  </form>
 </dialog>
 
-<dialog class="sheet tall" id="hooks-dialog" aria-labelledby="hooks-title">
+<dialog class="sheet" id="hooks-dialog" data-size="medium" aria-labelledby="hooks-title">
  <div class="sheet-body">
   <header class="sheet-head"><div><h2 id="hooks-title">钩子管理</h2><p class="sheet-note">查看扩展时机与订阅插件；启停即时生效并保存在本机。</p></div><button class="ic-btn" type="button" data-close="hooks-dialog" aria-label="关闭"><svg class="i"><use href="#i-close"/></svg></button></header>
   <div id="hooks-list" class="mcp-list" aria-live="polite"></div>
@@ -188,7 +274,7 @@ try {
  </div>
 </dialog>
 
-<dialog class="sheet tall" id="provider-dialog" aria-labelledby="provider-title">
+<dialog class="sheet" id="provider-dialog" data-size="medium" aria-labelledby="provider-title">
  <div class="sheet-body">
   <header class="sheet-head"><div><h2 id="provider-title">添加提供商</h2><p class="sheet-note">接口协议决定请求体格式；模型可分别设置上下文窗口。</p></div><button class="ic-btn" type="button" data-close="provider-dialog" aria-label="关闭"><svg class="i"><use href="#i-close"/></svg></button></header>
   <div class="fields">
@@ -201,7 +287,7 @@ try {
    <label class="field span-2">Base URL<input id="p-base" type="url" placeholder="https://api.example.com" autocomplete="off"></label>
   </div>
   <div class="model-editor">
-   <div class="sec-h"><h3>模型</h3><span>上下文窗口只用于本地上下文裁剪与压缩预算，留空使用默认值。</span></div>
+   <div class="sec-h"><h3>模型</h3><span>上下文与最大输出以 token 为单位，留空使用默认值；支持图片输入的模型请勾选多模态。</span></div>
    <div id="p-models-list" class="model-rows"></div>
    <div class="model-add"><input id="p-model-new" type="text" placeholder="新增模型名，例如 deepseek-v4.1-flash" autocomplete="off" aria-label="新增模型名"><button id="p-model-add" class="btn ghost sm" type="button"><svg class="i xs"><use href="#i-plus"/></svg>添加</button></div>
    <p id="p-models-error" class="sheet-error" aria-live="polite"></p>
@@ -212,7 +298,7 @@ try {
  </div>
 </dialog>
 
-<dialog class="sheet tall" id="mcp-dialog" aria-labelledby="mcp-dialog-title">
+<dialog class="sheet" id="mcp-dialog" data-size="medium" aria-labelledby="mcp-dialog-title">
  <div class="sheet-body">
   <header class="sheet-head"><div><h2 id="mcp-dialog-title">添加 MCP 服务</h2><p class="sheet-note">连接本地 stdio 进程或 HTTP 服务，供灵调用其中的工具。</p></div><button class="ic-btn" type="button" data-close="mcp-dialog" aria-label="关闭"><svg class="i"><use href="#i-close"/></svg></button></header>
   <div class="fields">
@@ -235,7 +321,7 @@ try {
  </div>
 </dialog>
 
-<dialog class="sheet" id="skill-dialog" aria-labelledby="skill-dialog-title">
+<dialog class="sheet" id="skill-dialog" data-size="medium" aria-labelledby="skill-dialog-title">
  <form class="sheet-body" id="skill-form">
   <header class="sheet-head"><div><h2 id="skill-dialog-title">新建技能</h2><p class="sheet-note">名称需为英文 slug；项目技能会覆盖同名的个人技能。</p></div><button class="ic-btn" type="button" data-close="skill-dialog" aria-label="关闭"><svg class="i"><use href="#i-close"/></svg></button></header>
   <div class="fields">
@@ -249,21 +335,22 @@ try {
  </form>
 </dialog>
 
-<dialog class="sheet preview-sheet" id="file-preview" aria-labelledby="fp-title">
+<dialog class="sheet preview-sheet" id="file-preview" data-size="large" aria-labelledby="fp-title">
  <header class="fp-head"><div><strong id="fp-title">文件预览</strong><span id="fp-meta"></span></div><button class="ic-btn" type="button" data-close="file-preview" aria-label="关闭预览"><svg class="i"><use href="#i-close"/></svg></button></header>
  <div class="fp-body" id="fp-body"></div>
 </dialog>
 
-<dialog class="sheet plugin-dialog" id="plugin-page-dialog" aria-labelledby="plugin-page-title">
+<dialog class="sheet plug-manager-dialog" id="plugin-manager-dialog" data-size="large" aria-labelledby="plug-detail-title"></dialog>
+<dialog class="sheet plugin-dialog" id="plugin-page-dialog" data-size="large" aria-labelledby="plugin-page-title">
  <header class="sheet-head"><h2 id="plugin-page-title">插件功能页</h2><button class="ic-btn" type="button" data-close="plugin-page-dialog" aria-label="关闭功能页"><svg class="i"><use href="#i-close"/></svg></button></header>
  <div class="plugin-dialog-content" id="plugin-page-body"></div>
 </dialog>
-<dialog class="sheet plugin-dialog plugin-readme-dialog" id="plugin-readme-dialog" aria-labelledby="plugin-readme-title">
+<dialog class="sheet plugin-dialog plugin-readme-dialog" id="plugin-readme-dialog" data-size="medium" aria-labelledby="plugin-readme-title">
  <header class="sheet-head"><h2 id="plugin-readme-title">插件介绍</h2><button class="ic-btn" type="button" data-close="plugin-readme-dialog" aria-label="关闭介绍"><svg class="i"><use href="#i-close"/></svg></button></header>
  <div class="plugin-dialog-content ling-body" id="plugin-readme-body" aria-live="polite"></div>
 </dialog>
 
-<dialog class="sheet tall" id="host-runtime-dialog" aria-labelledby="host-runtime-title">
+<dialog class="sheet" id="host-runtime-dialog" data-size="medium" aria-labelledby="host-runtime-title">
  <div class="sheet-body">
   <header class="sheet-head"><div><h2 id="host-runtime-title">插件运行</h2><p class="sheet-note">宿主能力、独立对话与后台作业。</p></div><button class="ic-btn" type="button" data-close="host-runtime-dialog" aria-label="关闭"><svg class="i"><use href="#i-close"/></svg></button></header>
   <div id="host-runtime-body"></div>
@@ -279,6 +366,7 @@ try {
 <script src="js/api.js"></script>
 <script src="js/dialogs.js"></script>
 <script src="js/chat.js"></script>
+<script src="js/projects.js"></script>
 <script src="js/work.js"></script>
 <script src="js/context.js"></script>
 <script src="js/skills.js"></script>

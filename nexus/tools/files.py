@@ -298,7 +298,16 @@ def edit(context: Any, args: dict[str, Any]) -> dict[str, Any]:
 
 def _walk(root: Path):
     for current, dirs, files in os.walk(root):
-        dirs[:] = [d for d in dirs if d.lower() not in SKIP_DIRS and not d.startswith(".")]
+        safe_dirs = []
+        for name in dirs:
+            if name.lower() in SKIP_DIRS or name.startswith("."):
+                continue
+            try:
+                reject_link((Path(current) / name).lstat())
+            except OSError:
+                continue
+            safe_dirs.append(name)
+        dirs[:] = safe_dirs
         for name in files:
             yield Path(current) / name
 
@@ -356,7 +365,8 @@ def grep(context: Any, args: dict[str, Any]) -> dict[str, Any]:
             reject_link(info)
             if info.st_size > MAX_GREP_FILE_BYTES:
                 continue
-            text = path.read_text(encoding="utf-8", errors="replace")
+            with open_file(path, "read") as handle:
+                text = handle.read().decode("utf-8", errors="replace")
         except (OSError, UnicodeError):
             continue
         scanned += 1

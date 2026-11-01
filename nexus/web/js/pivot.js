@@ -22,8 +22,9 @@
   }
   setTimeout(loadProgressiveFonts, 160);
 
-  const isCool = () => document.documentElement.dataset.palette === 'cool';
-  const isNight = () => document.documentElement.dataset.theme === 'night';
+  let paintingTheme = null, previousBackground = null;
+  const isCool = () => (paintingTheme || document.documentElement.dataset).palette === 'cool';
+  const isNight = () => (paintingTheme || document.documentElement.dataset).theme === 'night';
 
   function themeRGB() {
     const cool = isCool(), night = isNight();
@@ -66,14 +67,14 @@
 
   /* ================================================================ 1. 全场域「枢场」双生动态画布 */
   const canvas = $('#pivot-field');
-  const ctx = canvas ? canvas.getContext('2d') : null;
+  let ctx = canvas ? canvas.getContext('2d') : null;
   let cw = 0, ch = 0, dpr = 1;
   let fieldRAF = 0;
   let lastFieldTime = 0;
   let lusterAngle = 0;
   const waves = [];
-  const starMotes = [];
-  const goldCrystals = [];
+  let starMotes = [];
+  let goldCrystals = [];
   const bgPointer = { x: -9999, y: -9999, active: false, down: false, holdTime: 0, lastTrail: 0 };
 
   const JADE_RING_ROT = -0.20; // ~ -16° 主星环倾角，与中枢浑仪主轴呼应
@@ -113,23 +114,24 @@
 
   function updateHubCenter() {
     hubX = contentCenterX();
-    const stage = $('#orb-stage');
+    const anchor = $('#pivot-grip');
     const viewChat = $('#view-chat');
-    if (stage && viewChat && !viewChat.hidden && !state.items.length && stage.offsetWidth > 0 && stage.offsetHeight > 0) {
-      hubY = layoutCenterY(stage);
+    if (anchor && viewChat && !viewChat.hidden && !state.items.length && anchor.offsetWidth > 0 && anchor.offsetHeight > 0) {
+      hubY = layoutCenterY(anchor);
       if (ch > 0) savedHubOffsetFromMid = hubY - ch * 0.5;
       hubOnHero = state.view === 'chat';
-      return;
+    } else {
+      hubY = Math.max(130, ch * 0.5 + savedHubOffsetFromMid);
+      hubOnHero = false;
     }
-    hubY = Math.max(130, ch * 0.5 + savedHubOffsetFromMid);
-    hubOnHero = false;
+    const core = $('#pivot-core');
+    if (core) { core.style.left = hubX + 'px'; core.style.top = hubY + 'px'; }
   }
 
   function initParticles() {
-    starMotes.length = 0;
     // 星枢：24 颗沿倾斜星轨运转的圆点星辰 + 16 颗散落天幕闪烁的远星
     const starCount = Math.round(Math.max(60, cw * ch / 10000));
-    for (let i = 0; i < starCount; i++) {
+    for (let i = starMotes.length; i < starCount; i++) {
       const orbital = i < Math.round(starCount * .35);
       starMotes.push({
         orbital,
@@ -149,8 +151,8 @@
         ox: 0, oy: 0, moveBoost: 0,
       });
     }
+    starMotes.length = starCount;
 
-    goldCrystals.length = 0;
     // 主环有序，伴随晶粒向外舒展；远处少量晶粒平衡全屏空间。
     const span = Math.min(cw, ch) || 900;
     const BANDS = [
@@ -162,6 +164,7 @@
     for (let band = 0; band < BANDS.length; band++) {
       const b = BANDS[band];
       for (let j = 0; j < b.count; j++, idx++) {
+        if (goldCrystals[idx]) continue;
         const u = (j + 0.5) / b.count;
         const rBase = b.rMin + ((j * 0.618034) % 1) * (b.rMax - b.rMin);
         const tier = idx % 7 === 0 ? 1.22 : (idx % 2 === 0 ? 0.96 : 0.75);
@@ -189,11 +192,14 @@
         });
       }
     }
+    goldCrystals.length = idx;
   }
 
   function resizeField() {
     if (!canvas || !ctx) return;
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const nextDpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (cw === window.innerWidth && ch === window.innerHeight && dpr === nextDpr) return;
+    dpr = nextDpr;
     cw = window.innerWidth;
     ch = window.innerHeight;
     canvas.width = Math.round(cw * dpr);
@@ -730,6 +736,22 @@
       }
     }
 
+    if (previousBackground) {
+      const current = { ctx, starMotes, goldCrystals, lusterAngle };
+      const old = previousBackground;
+      ctx = old.ctx; starMotes = old.stars; goldCrystals = old.gold;
+      paintingTheme = old.theme;
+      lusterAngle = old.angle + dt * .25 * (state.replying ? 1.7 : 1);
+      ctx.clearRect(0, 0, cw, ch);
+      const colors = themeRGB();
+      drawCenterWatermark(centerX, centerY, colors, isCool(), now);
+      if (isCool()) renderStarField(now, dt, centerX, centerY, colors);
+      else renderGoldCrystalRing(now, dt, centerX, centerY, colors);
+      old.angle = lusterAngle;
+      ({ ctx, starMotes, goldCrystals, lusterAngle } = current);
+      paintingTheme = null;
+    }
+
     if (!N.REDUCED && !document.hidden) {
       fieldRAF = requestAnimationFrame(renderFieldFrame);
     } else {
@@ -752,7 +774,7 @@
   }
 
   /* 空白背景自然交互：避开一切按钮、输入框、消息与卡片，只在纯粹画布留白处响应 */
-  const INTERACTIVE_GUARD = 'button, a, input, textarea, select, summary, details, dialog, label, .card, .work-item, .plug-item, .ctx-role, .ctx-sec, .theme-card, .req-card, .composer, .dock, .island, .menu, .usage-pop, .msg, .orb-stage, .chip, .tabs, .seg';
+  const INTERACTIVE_GUARD = 'button, a, input, textarea, select, summary, details, dialog, label, .card, .work-item, .plug-item, .ctx-role, .ctx-sec, .theme-card, .req-card, .composer, .dock, .island, .menu, .usage-pop, .msg, .orb-stage, .orb-anchor, .chip, .tabs, .seg';
 
   document.addEventListener('pointerdown', e => {
     if (e.button !== 0 || N.REDUCED) return;
@@ -817,7 +839,7 @@
     if (spotRAF) return;
     spotRAF = requestAnimationFrame(() => {
       spotRAF = 0;
-      const surface = spotTarget?.closest?.('.card, .work-item, .plug-item, .ctx-role, .theme-card, .req-card, .composer, .dock, .chip');
+      const surface = spotTarget?.closest?.('.card, .work-item, .work-quiet, .plug-item, .ctx-role, .ctx-sec, .theme-card, .req-card, .composer, .dock, .chip, .qrow, .history-undo, .usage-pop, .sheet, .island, .mcp-row, .hui-section, .file, .plug-page');
       if (lastSpotEl && lastSpotEl !== surface) lastSpotEl.style.removeProperty('--spot-on');
       if (!surface) { lastSpotEl = null; return; }
       const r = surface.getBoundingClientRect();
@@ -828,7 +850,7 @@
     });
   }
 
-  /* ================================================================ 3. 首屏「浑仪星枢 / 多面灵玉」三维轨道与长按左键交互 */
+  /* ================================================================ 3. 常驻背景中枢与首页长按交互 */
   let pivotRAF = 0;
   let pivotMountedStage = null;
   const ORBITS = [
@@ -889,13 +911,13 @@
 
   function mountPivot() {
     const stage = $('#orb-stage');
-    const shouldRun = state.view === 'chat' && !state.items.length && !!stage;
+    const shouldRun = !!stage;
     if (!shouldRun) {
       if (pivotMountedStage) stopPivot();
       scheduleHubSync();
       return;
     }
-    if (pivotMountedStage === stage && pivotRAF) {
+    if (pivotMountedStage === stage) {
       scheduleHubSync();
       return;
     }
@@ -933,13 +955,16 @@
 
     if (!stage._pivotBound) {
       stage._pivotBound = true;
-      stage.addEventListener('pointerdown', e => {
-        if (e.button !== 0 || N.REDUCED) return;
+      document.addEventListener('pointerdown', e => {
+        const grip = e.target.closest?.(state.backgroundOnly ? '#orb-stage' : '#pivot-grip');
+        if (!grip || e.button !== 0 || N.REDUCED) return;
         e.stopPropagation();
-        const rect = stage.getBoundingClientRect();
-        pv.originX = rect.left + rect.width / 2 - pv.curX;
-        pv.originY = rect.top + rect.height / 2 - pv.curY;
+        const rect = grip.getBoundingClientRect();
+        pv.originX = rect.left + rect.width / 2;
+        pv.originY = rect.top + rect.height / 2;
         pv.pointerId = e.pointerId;
+        pv.grip = grip;
+        grip.setPointerCapture(e.pointerId);
         pv.holding = true;
         pv.targetX = Math.max(-22, Math.min(22, (e.clientX - pv.originX) * 0.16));
         pv.targetY = Math.max(-18, Math.min(18, (e.clientY - pv.originY) * 0.16));
@@ -949,12 +974,11 @@
           if (!pv.holding) return;
           pv.engaged = true;
           stage.classList.add('is-grasped');
-          try { stage.setPointerCapture(pv.pointerId); } catch (_) {}
           spawnWave(pv.originX, pv.originY, { r0: 28, maxR: 155, strength: 0.8 });
         }, 110);
       });
 
-      stage.addEventListener('pointermove', e => {
+      document.addEventListener('pointermove', e => {
         if (!pv.holding || e.pointerId !== pv.pointerId) return;
         pv.targetX = Math.max(-24, Math.min(24, (e.clientX - pv.originX) * 0.18));
         pv.targetY = Math.max(-20, Math.min(20, (e.clientY - pv.originY) * 0.18));
@@ -970,7 +994,8 @@
         pv.targetX = 0;
         pv.targetY = 0;
         stage.classList.remove('is-grasped');
-        try { stage.releasePointerCapture(pv.pointerId); } catch (_) {}
+        if (pv.grip?.hasPointerCapture(pv.pointerId)) pv.grip.releasePointerCapture(pv.pointerId);
+        pv.grip = null;
         if (wasEngaged && !N.REDUCED) {
           spawnWave(pv.originX, pv.originY, {
             r0: 32,
@@ -982,12 +1007,12 @@
           pulseIsland();
         }
       };
-      stage.addEventListener('pointerup', releaseGrasp);
-      stage.addEventListener('pointercancel', releaseGrasp);
-      stage.addEventListener('lostpointercapture', releaseGrasp);
+      document.addEventListener('pointerup', releaseGrasp);
+      document.addEventListener('pointercancel', releaseGrasp);
+      document.addEventListener('lostpointercapture', releaseGrasp);
     }
 
-    let merAngle = 0;
+    let merAngle = 0, breathePhase = 0, swayPhase = 0, coreScale = 1, coreAngle = 0;
     const renderPivot = now => {
       if (!stage.isConnected) { stopPivot(); scheduleHubSync(); return; }
       const dt = Math.min(0.05, pv.lastT ? (now - pv.lastT) / 1000 : 0.016);
@@ -1016,14 +1041,15 @@
       }
 
       if (coreGroup && !N.REDUCED) {
-        const breathe = 1 + Math.sin(now * (cool ? 0.0024 : 0.0019)) * (cool ? 0.032 : 0.028) + pv.grasp * 0.05;
-        if (cool) {
-          coreGroup.setAttribute('transform', `scale(${breathe.toFixed(4)})`);
-        } else {
-          // 灵玉多面晶核：呼吸之余伴随极轻柔的玉枢微摆，切面生辉
-          const sway = Math.sin(now * 0.0011) * 2.4 + pv.curX * 0.16;
-          coreGroup.setAttribute('transform', `rotate(${sway.toFixed(2)}) scale(${breathe.toFixed(4)})`);
-        }
+        // 累积相位，避免换主题频率时跳帧；缩放与摆角平滑衔接。
+        breathePhase = (breathePhase + dt * (cool ? 2.4 : 1.9)) % (Math.PI * 2);
+        swayPhase = (swayPhase + dt * 1.1) % (Math.PI * 2);
+        const breathe = 1 + Math.sin(breathePhase) * (cool ? 0.032 : 0.028) + pv.grasp * 0.05;
+        const sway = cool ? 0 : Math.sin(swayPhase) * 2.4 + pv.curX * 0.16;
+        const blend = Math.min(1, dt * 8);
+        coreScale += (breathe - coreScale) * blend;
+        coreAngle += (sway - coreAngle) * blend;
+        coreGroup.setAttribute('transform', `rotate(${coreAngle.toFixed(2)}) scale(${coreScale.toFixed(4)})`);
       }
 
       const states = activeSlotStates();
@@ -1056,6 +1082,12 @@
         const parent = inFront ? frontNodes : backNodes;
         if (b.g.parentNode !== parent) parent.appendChild(b.g);
       });
+
+      if (previousBackground) for (const [source, copy] of previousBackground.core) {
+        if (source.hasAttribute('transform')) copy.setAttribute('transform', source.getAttribute('transform'));
+        copy.style.transform = source.style.transform;
+        copy.dataset.state = source.dataset.state || '';
+      }
 
       pivotRAF = N.REDUCED || document.hidden ? 0 : requestAnimationFrame(renderPivot);
     };
@@ -1126,4 +1158,37 @@
     drawStaticOrWake();
   };
   N.emitPulse = emitPulse;
+  N.prepareThemeBackground = () => {
+    const layer = document.createElement('div');
+    layer.className = 'theme-background';
+    layer.setAttribute('aria-hidden', 'true');
+    const body = getComputedStyle(document.body);
+    layer.style.background = body.background;
+    const shadow = layer.attachShadow({ mode: 'open' });
+    const copies = new Map();
+    const properties = ['position', 'inset', 'width', 'height', 'margin', 'display', 'overflow', 'border-radius',
+      'background', 'box-shadow', 'filter', 'opacity', 'mix-blend-mode', 'transform', 'translate',
+      'fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin', 'stop-color', 'stop-opacity'];
+    for (const source of [$('.aura'), $('#pivot-core')]) {
+      const clone = source.cloneNode(true);
+      const originals = [source, ...source.querySelectorAll('*')];
+      const cloned = [clone, ...clone.querySelectorAll('*')];
+      originals.forEach((node, i) => {
+        const copy = cloned[i], style = getComputedStyle(node);
+        for (const property of properties) copy.style.setProperty(property, style.getPropertyValue(property));
+        copies.set(node, copy);
+      });
+      shadow.appendChild(clone);
+    }
+    const oldCanvas = copies.get(canvas);
+    oldCanvas.getContext('2d').drawImage(canvas, 0, 0);
+    oldCanvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+    previousBackground = {
+      ctx: oldCanvas.getContext('2d'), theme: { ...document.documentElement.dataset },
+      stars: starMotes.map(p => ({ ...p })), gold: goldCrystals.map(p => ({ ...p })), angle: lusterAngle,
+      core: [...copies].filter(([node]) => node.matches('.orb-stage, .pv-meridian, .pv-core-group, .pv-plane, .pv-bead')),
+    };
+    document.body.appendChild(layer);
+    return { element: layer, remove() { previousBackground = null; layer.remove(); } };
+  };
 })(window.N);

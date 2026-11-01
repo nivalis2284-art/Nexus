@@ -41,6 +41,9 @@ class Policy:
     def decide(self, tool: str, value: str) -> str:
         action = self.default
         for rule in self.rules:
+            if (tool in ("powershell", "powershell_background") and rule.tool == "*"
+                    and rule.action == ALLOW):
+                continue
             if rule.tool in (tool, "*") and fnmatch.fnmatch(value, rule.pattern):
                 action = rule.action
         if action == ASK and (tool, value) in self.remembered:
@@ -55,7 +58,7 @@ def target(tool: str, arguments: dict) -> str:
     """The value a rule matches against."""
     if tool in ("read_file", "write_file", "edit_file", "apply_patch", "glob", "grep"):
         return str(arguments.get("path") or ".")
-    if tool in ("bash", "bash_background"):
+    if tool in ("bash", "bash_background", "powershell", "powershell_background"):
         return str(arguments.get("command") or "")
     if tool == "read_skill":
         return str(arguments.get("name") or "")
@@ -83,8 +86,17 @@ def default_policy(mode: str = "ask", rules: list[dict] | None = None) -> Policy
         parsed.append(
             Rule(tool=tool, pattern=str(pattern) if pattern else "*", action=action)
         )
+        if tool in ("bash", "bash_background") and action != ALLOW:
+            parsed.append(Rule(
+                tool="powershell" if tool == "bash" else "powershell_background",
+                pattern=str(pattern) if pattern else "*", action=action,
+            ))
     if parsed:
-        return Policy(default=ALLOW, rules=parsed)
+        # Old bash allow patterns assumed shell operators were literal arguments.
+        return Policy(default=ALLOW, rules=[
+            Rule("powershell", "*", ASK), Rule("powershell_background", "*", ASK),
+            *parsed,
+        ])
     return Policy(
         default=ALLOW,
         rules=[Rule(**item) for item in DEFAULT_RULES],
@@ -97,4 +109,6 @@ DEFAULT_RULES = [
     {"tool": "apply_patch", "pattern": "*", "action": ASK},
     {"tool": "bash", "pattern": "*", "action": ASK},
     {"tool": "bash_background", "pattern": "*", "action": ASK},
+    {"tool": "powershell", "pattern": "*", "action": ASK},
+    {"tool": "powershell_background", "pattern": "*", "action": ASK},
 ]

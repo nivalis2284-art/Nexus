@@ -1,0 +1,1 @@
+{"id":"example-tool-skill","name":"工具与技能示例","version":"1.0.0","api_version":1,"entry":"backend.py:create_plugin","capabilities":["示例工具","示例技能"]}

@@ -12,6 +12,7 @@ from typing import Any, Iterator
 
 from ..attachments import message_content
 from ..core.effort import LEVELS
+from ..core.protocol import blocks_to_text
 
 from .models import (
     ACTIVITY_STATES, Evidence, Step, Task, TaskConflict, TaskNotFound,
@@ -1509,7 +1510,7 @@ class TaskStore:
                     data["content_blocks"] = message["content"]
                 cursor = connection.execute(
                     "INSERT INTO task_messages(task_id,kind,text,data_json,created_at) VALUES(?,?,?,?,?)",
-                    (task_id, role, str(message.get("content") or ""),
+                    (task_id, role, blocks_to_text(message.get("content")),
                      json.dumps(data, ensure_ascii=False, default=str), now_iso()),
                 )
                 message["_source_id"] = str(cursor.lastrowid)
@@ -1541,7 +1542,7 @@ class TaskStore:
                 call_id = str(item.get("tool_call_id") or "")
                 pending.pop(call_id, None)
                 out.append({"role": "tool", "tool_call_id": call_id,
-                            "name": item.get("name", ""), "content": item.get("text", "")})
+                            "name": item.get("name", ""), "content": item.get("content_blocks") or item.get("text", "")})
             elif kind == "checkpoint":
                 out.append({"role": "checkpoint", "content": item.get("text", ""),
                             "through": item.get("through")})

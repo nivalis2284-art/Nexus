@@ -91,11 +91,11 @@ def make_manager(tmp_path, *, mcp=None):
     return PluginManager(state, root=root)
 
 
-def plugin_zip(plugin_id="demo-plugin", *, services=None):
+def plugin_zip(plugin_id="demo-plugin", *, services=None, version="1.0"):
     manifest = {
         "id": plugin_id,
         "name": "Temporary demo",
-        "version": "1.0",
+        "version": version,
         "entry": "backend.py:create_plugin",
         "pages": [{"id": "home", "path": "page.js"}],
         "settings_schema": {"theme": {"type": "string"}},
@@ -127,6 +127,35 @@ def wait_until(predicate, timeout=3.0):
             return True
         time.sleep(0.02)
     return False
+
+
+def test_update_waits_for_active_calls_and_preserves_data_and_enabled_state(tmp_path):
+    manager = make_manager(tmp_path)
+    try:
+        manager.import_zip(plugin_zip())
+        item = load_sync(manager, "demo-plugin")
+        manager.configure(item.id, {"theme": "warm"})
+        data = manager.data_dir(item.id) / "saved.txt"
+        data.write_text("kept", encoding="utf-8")
+        conflict = manager.import_zip(plugin_zip(version="2.0"))
+        assert conflict["installed_version"] == "1.0"
+        assert conflict["plugin"]["version"] == "2.0"
+        with manager.lease(item.id):
+            manager.import_zip(plugin_zip(version="2.0"), replace_existing=True)
+            assert item.status == "draining"
+            assert item.manifest["version"] == "1.0"
+        assert wait_until(lambda: item.status == "ready")
+        assert item.manifest["version"] == "2.0"
+        assert item.settings == {"theme": "warm"}
+        assert data.read_text(encoding="utf-8") == "kept"
+        assert len(manager.entries) == 1
+        manager.operate(item.id, "unload")
+        manager.import_zip(plugin_zip(version="3.0"), replace_existing=True)
+        assert item.status == "unloaded" and not item.enabled
+        assert item.manifest["version"] == "3.0"
+        assert data.read_text(encoding="utf-8") == "kept"
+    finally:
+        manager.close()
 
 
 def test_zip_lifecycle_pages_context_tools_cleanup_and_settings_restore(tmp_path):

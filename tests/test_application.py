@@ -1,6 +1,7 @@
 """The same application runs without an HTTP handler or browser."""
 
 import json
+import os
 import threading
 import time
 from http.server import ThreadingHTTPServer
@@ -54,6 +55,8 @@ def test_application_input_result_settings_and_shutdown(tmp_path, monkeypatch):
         else:
             pytest.fail("application did not produce its result")
         assert history_for_model(saved)[-1]["content"] == "application result"
+        projected = app.chat_snapshot()["items"]
+        assert next(item for item in projected if item["role"] == "user")["request_id"] == "direct-input"
         assert len(seen) == 1
         app.save_settings({"permission": "ask"})
         assert config.load().permission == "ask"
@@ -70,7 +73,7 @@ def test_application_input_result_settings_and_shutdown(tmp_path, monkeypatch):
         app.submit_input({"text": "late input", "request_id": "late"})
 
 
-def test_http_binding_failure_closes_created_application(tmp_path, monkeypatch):
+def test_http_binding_failure_leaves_runtime_and_data_unopened(tmp_path, monkeypatch):
     monkeypatch.setattr(web, "STATE", {})
     instances = []
 
@@ -78,13 +81,29 @@ def test_http_binding_failure_closes_created_application(tmp_path, monkeypatch):
         instances.append(web.STATE["application"])
         raise OSError("address in use")
 
-    monkeypatch.setattr(web, "ThreadingHTTPServer", bind)
+    monkeypatch.setattr(web, "LocalHTTPServer", bind)
     with pytest.raises(OSError, match="address in use"):
         web.serve(home=tmp_path / "home", workspace=tmp_path)
     app = instances[0]
     assert app.state["closing"]
-    assert not app.state["ling"]._thread.is_alive()
-    assert not any(worker.is_alive() for worker in app.state["task_controller"]._workers)
+    assert "ling" not in app.state
+    assert "task_controller" not in app.state
+    assert not (tmp_path / "home").exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows socket address reuse")
+@pytest.mark.parametrize("first, second", [
+    (ThreadingHTTPServer, web.LocalHTTPServer),
+    (web.LocalHTTPServer, ThreadingHTTPServer),
+])
+def test_windows_port_cannot_be_shared_with_another_nexus(first, second):
+    server = first(("127.0.0.1", 0), web.Handler)
+    try:
+        with pytest.raises(OSError):
+            duplicate = second(server.server_address, web.Handler)
+            duplicate.server_close()
+    finally:
+        server.server_close()
 
 
 def test_http_start_attaches_actual_port_before_serving(tmp_path, monkeypatch):
@@ -103,7 +122,7 @@ def test_http_start_attaches_actual_port_before_serving(tmp_path, monkeypatch):
         def server_close(self):
             self.closed = True
 
-    monkeypatch.setattr(web, "ThreadingHTTPServer", Server)
+    monkeypatch.setattr(web, "LocalHTTPServer", Server)
     web.serve(home=tmp_path / "home", workspace=tmp_path)
     assert web.STATE["plugins"].closing
 

@@ -7,6 +7,40 @@
   const { $, $$, esc, icon, state } = N;
   const pv = { tab: 'plugins', selected: null, req: null, owner: '', kind: '', plugin_id: '', dialogue_id: '', job_id: '', purpose: '', more: false, dirty: false, busy: false, frame: null, notice: null };
   const KIND_LABEL = { ling: '主交流', task: '工作', subagent: '子代理', chat: '交流' };
+  const managerDialog = $('#plugin-manager-dialog');
+  let managerScrollTop = 0;
+  managerDialog.addEventListener('scroll', e => {
+    if (managerDialog.open && e.target.classList.contains('plug-detail-scroll')) managerScrollTop = e.target.scrollTop;
+  }, true);
+
+  function managerButton(detail, expanded) {
+    const button = $('.plug-expand', detail);
+    if (!button) return;
+    button.innerHTML = icon(expanded ? 'close' : 'expand');
+    button.setAttribute('aria-label', expanded ? '收起插件管理弹窗' : '放大插件管理');
+    button.setAttribute('aria-expanded', String(expanded));
+  }
+  function expandManager() {
+    if (managerDialog.open) { N.closeDialog(managerDialog); return; }
+    const detail = $('.plug-detail', $('#view-plugins'));
+    if (!detail || !plugin()) return;
+    const scroll = $('.plug-detail-scroll', detail), top = scroll.scrollTop;
+    managerScrollTop = top;
+    managerDialog.replaceChildren(detail);
+    managerButton(detail, true);
+    N.openDialog(managerDialog);
+    scroll.scrollTop = top;
+  }
+  managerDialog.addEventListener('close', () => {
+    const detail = $('.plug-detail', managerDialog);
+    const slot = $('#plug-detail-slot');
+    if (!detail || !slot) return;
+    const scroll = $('.plug-detail-scroll', detail), top = managerScrollTop;
+    slot.appendChild(detail);
+    managerButton(detail, false);
+    scroll.scrollTop = top;
+    if (state.view === 'plugins') $('.plug-expand', detail)?.focus({ preventScroll: true });
+  });
 
   function plugin() { return state.plugins.find(p => p.id === pv.selected) || state.plugins[0]; }
   function statusOf(p) {
@@ -70,7 +104,12 @@
     if (!pv.selected || !state.plugins.some(p => p.id === pv.selected)) pv.selected = state.plugins[0]?.id || null;
     const view = $('#view-plugins');
     const keep = view.scrollTop;
+    const ink = view.querySelector('.tabs .tab-ink');
     const p = plugin();
+    const currentDetail = $('.plug-detail');
+    const samePlugin = !!currentDetail && currentDetail.dataset.pluginId === p?.id;
+    const detailTop = samePlugin ? $('.plug-detail-scroll', currentDetail)?.scrollTop || 0 : 0;
+    const draft = samePlugin && pv.dirty ? $('#plug-settings', currentDetail) : null;
     if (pv.frame) {
       const owner = state.plugins.find(item => item.id === pv.frame.pluginId);
       if (!owner || (pv.frame.wasReady && owner.status !== 'ready')) closePage();
@@ -78,7 +117,7 @@
     const next = document.createElement('div');
     next.innerHTML = `<div class="page plugins-page">
       <header class="page-head" data-s>
-        <div><h1>插件管理</h1><p>查看插件、配置与请求记录。导入或替换版本后，新插件默认不启用。</p></div>
+        <div><h1>插件管理</h1><p>查看插件、配置与请求记录。新导入的插件默认不启用，更新时保留原启用状态。</p></div>
         <span class="pill mono" title="${esc(state.pluginRoot || '')}">${esc(N.shortPath(state.pluginRoot || '插件目录'))}</span>
       </header>
       <div class="tabs" data-s role="tablist"><span class="tab-ink" aria-hidden="true"></span>
@@ -87,6 +126,21 @@
       <div class="plug-pane">${pv.tab === 'plugins' ? pluginsPane(p) : requestsPane()}</div>
     </div>`;
     view.replaceChildren(...next.childNodes);
+    const detail = $('.plug-detail', view);
+    if (draft) $('#plug-settings', detail)?.replaceWith(draft);
+    if (managerDialog.open) {
+      if (p && pv.tab === 'plugins') {
+        managerDialog.replaceChildren(detail);
+        managerButton(detail, true);
+      } else {
+        managerDialog.replaceChildren();
+        N.closeDialog(managerDialog);
+      }
+    }
+    const detailScroll = detail && $('.plug-detail-scroll', detail);
+    if (detailScroll) detailScroll.scrollTop = detailTop;
+    if (managerDialog.open) managerScrollTop = detailTop;
+    if (ink) view.querySelector('.tabs .tab-ink').replaceWith(ink);
     requestAnimationFrame(() => {
       const tabs = $('.tabs', view);
       if (tabs) N.moveInk($('.tab-ink', tabs), $('button.active', tabs), 'x', !pv.tabSlide);
@@ -95,7 +149,7 @@
     view.scrollTop = keep;
     if (pv.animate) {
       pv.animate = false;
-      N.cascade?.($('.plug-pane', view), 24, 320);
+      N.cascade?.($('.plug-pane', view));
     }
     const pending = (state.plugins || []).find(x => BUSY.includes(x.status));
     if (pending) watchPlugin(pending.id);
@@ -123,43 +177,49 @@
           </button>`;
         }).join('') : '<p class="plug-empty-line">暂无插件。</p>'}
       </div>
-      ${detailPane(p)}
+      <div id="plug-detail-slot">${detailPane(p)}</div>
     </div>`;
   }
 
   function detailPane(p) {
     if (!p) return `<div class="card plug-detail" data-s><p class="plug-empty-line">选择一个插件查看详情。</p></div>`;
-    const st = statusOf(p);
     const draining = p.status === 'draining' || p.status === 'closing';
     const loading = p.status === 'loading';
     const caps = p.capabilities || [];
     const pages = p.pages || [];
     const props = Object.keys(p.settings_schema?.properties || {});
-    return `<div class="card plug-detail" data-s>
+    return `<div class="card plug-detail" data-plugin-id="${esc(p.id)}" data-s>
       <div class="plug-detail-head" data-s>
         <div style="flex:1;min-width:0">
-          <div class="plug-title-row"><h2>${esc(p.name)}</h2><span class="pstate ${st.tone}">${st.label}</span></div>
+          <div class="plug-title-row"><h2 id="plug-detail-title">${esc(p.name)}</h2></div>
           <div class="plug-version">v${esc(p.version || '未声明版本')} · ${esc(p.id)}</div>
-          <p class="plug-desc">${esc(p.description || '此插件没有填写简介。')}</p>
         </div>
+        <button type="button" class="ic-btn plug-expand" data-act="plug-expand" aria-label="放大插件管理" aria-expanded="false" aria-haspopup="dialog">${icon('expand')}</button>
       </div>
+      <div class="plug-detail-scroll" tabindex="0" role="region" aria-label="插件管理内容">
+      <p class="plug-desc">${esc(p.description || '此插件没有填写简介。')}</p>
       ${p.progress ? `<div class="plug-progress" data-s>${esc(p.progress)}</div>` : ''}
       ${p.error ? `<div class="plug-error" data-s>插件错误：${esc(p.error)}</div>` : ''}
-      <div class="plug-meta" data-s>
+      <div class="plug-status-row" data-s>
+        <div class="plug-meta">
         <span>在途调用 ${Number(p.active_calls || 0)}</span>
         <span>运行态 ${esc(p.status || '—')}</span>
         ${caps.length ? `<span>能力 ${caps.length} 项</span>` : ''}
+        </div>
+        <div class="plug-enable"><span>启用插件</span><button type="button" class="switch" role="switch" aria-label="启用 ${esc(p.name)}" aria-checked="${!!p.enabled || loading}" aria-busy="${pv.busy || draining || loading}" data-act="plug-op" data-op="${p.enabled || loading ? 'unload' : 'load'}" data-id="${esc(p.id)}" ${pv.busy || draining ? 'disabled' : ''}></button></div>
       </div>
       <div class="plug-actions" data-s>
-        ${draining ? '<span class="note">插件正在收尾；页面会自动刷新状态，此时不能重复下发操作。</span>' : loading
-          ? `<button class="btn ghost sm" data-act="plug-op" data-op="unload" data-id="${esc(p.id)}">停用</button>`
-          : p.enabled
-            ? `<button class="btn ghost sm" data-act="plug-op" data-op="unload" data-id="${esc(p.id)}">停用</button>
-               <button class="btn ghost sm" data-act="plug-op" data-op="restart" data-id="${esc(p.id)}">重载</button>
-               <button class="btn ghost sm" data-act="plug-op" data-op="stop" data-id="${esc(p.id)}">停止在途</button>`
-            : `<button class="btn solid sm" data-act="plug-op" data-op="load" data-id="${esc(p.id)}">加载</button>`}
-        <button class="btn ghost sm danger" data-act="plug-op" data-op="uninstall" data-id="${esc(p.id)}" ${draining || loading ? 'disabled' : ''}>卸载</button>
-        <button class="btn ghost sm" data-act="plug-readme" data-id="${esc(p.id)}">查看介绍</button>
+        ${draining ? '<span class="note">插件正在收尾；页面会自动刷新状态，此时不能重复下发操作。</span>' : ''}
+        <div class="plug-action-row">
+          ${!draining && !loading && p.enabled ? `<div class="plug-action-group">
+               <button class="btn ghost sm" data-act="plug-op" data-op="restart" data-id="${esc(p.id)}" ${pv.busy ? 'disabled' : ''}>重载</button>
+               <button class="btn ghost sm" data-act="plug-op" data-op="stop" data-id="${esc(p.id)}">停止在途</button>
+             </div>` : ''}
+          <div class="plug-action-group plug-action-secondary">
+            <button class="btn ghost sm" data-act="plug-readme" data-id="${esc(p.id)}">查看介绍</button>
+            <button class="btn ghost sm danger" data-act="plug-op" data-op="uninstall" data-id="${esc(p.id)}" ${draining || loading ? 'disabled' : ''}>卸载</button>
+          </div>
+        </div>
         ${pv.busy ? '<span class="note">正在处理…</span>' : ''}
       </div>
 
@@ -180,6 +240,7 @@
           ${props.map(key => fieldHTML(p, key, p.settings_schema.properties[key])).join('')}
           <div class="plug-settings-foot"><span class="status" id="plug-settings-status" hidden></span><button class="btn solid sm" data-act="plug-save" data-id="${esc(p.id)}">保存设置</button></div>
         </div>` : '<p class="plug-empty-line">此插件没有声明可生成的设置项。</p>'}
+      </div>
       </div>
     </div>`;
   }
@@ -401,7 +462,7 @@
     tmp.innerHTML = detailPane(plugin());
     const fresh = tmp.firstElementChild;
     current.replaceWith(fresh);
-    N.cascade?.(fresh, 26, 340);
+    N.cascade?.(fresh);
   }
   async function op(id, action) {
     const p = state.plugins.find(x => x.id === id);
@@ -477,30 +538,30 @@
   function upload() { $('#plug-file')?.click(); }
   function handleFile(file) {
     if (!file) return;
-    const conflict = state.plugins.find(p => file.name.toLowerCase().includes(String(p.id).toLowerCase()));
-    if (conflict) {
-      pv.notice = { text: `「${file.name}」可能与已登记的 ${conflict.name} 冲突。替换后默认不启用。`, action: 'plug-replace', label: '替换版本' };
-      pv._pendingFile = { file };
-      renderPlugins();
-      return;
-    }
     importPlugin(file, false);
   }
-  async function importPlugin(file, replace) {
+  async function importPlugin(file, replace, pluginId = '') {
     pv.busy = true; renderPlugins();
     try {
       const result = await N.api.importPlugin(file, replace);
       await N.sync.pluginsOnly();
       pv.busy = false;
       if (result?.conflict) {
-        pv.notice = { text: `插件「${result.conflict}」已存在。替换版本后默认不启用。`, action: 'plug-replace', label: '替换版本' };
-        pv._pendingFile = { file };
         renderPlugins();
+        const plugin = result.plugin || {};
+        const ok = await N.confirmEdit({
+          title: '更新插件',
+          description: `「${plugin.name || plugin.id}」已安装。当前版本：${result.installed_version || '未标明'}；待安装版本：${plugin.version || '未标明'}。更新时保留设置和数据，并恢复原启用状态。`,
+          submitLabel: '更新插件',
+        });
+        if (ok) await importPlugin(file, true, plugin.id);
         return;
       }
       if (result?.id) pv.selected = result.id;
-      pv.notice = { text: replace ? '已替换版本；插件默认不启用。' : `已导入「${file.name}」；插件默认不启用。` };
-      renderPlugins(); N.notify('插件包已导入', 'jade');
+      const failed = replace && result?.plugins?.find(p => p.id === pluginId && p.status === 'error' && p.error);
+      if (failed) throw new Error(failed.error);
+      pv.notice = { text: replace ? '更新已开始，插件将按原启用状态恢复。' : `已导入「${file.name}」；插件默认不启用。` };
+      renderPlugins(); N.notify(replace ? '插件更新已开始' : '插件包已导入', 'jade');
     } catch (error) {
       pv.busy = false;
       renderPlugins();
@@ -554,21 +615,14 @@
     if (act === 'plug-tab') {
       if (pv.tab === t.dataset.k) return;
       closePage();
-      const prevBtn = $('.tabs button.active', $('#view-plugins'));
-      const prevInk = $('.tabs .tab-ink', $('#view-plugins'));
       pv.tab = t.dataset.k;
       pv.tabSlide = true;
       renderPlugins();
-      const nextInk = $('.tabs .tab-ink', $('#view-plugins'));
-      if (prevInk && nextInk && prevBtn) {
-        nextInk._pos = prevInk._pos;
-        nextInk._size = prevInk._size;
-        nextInk._axis = 'x';
-      }
-      N.stagger?.($('.plug-pane'), 26);
+      N.stagger?.($('.plug-pane'));
       return;
     }
     if (act === 'plug-select') return selectPlugin(t.dataset.id);
+    if (act === 'plug-expand') return expandManager();
     if (act === 'plug-op') {
       if (t.dataset.op === 'uninstall') return uninstall(t.dataset.id);
       return op(t.dataset.id, t.dataset.op);
@@ -587,11 +641,6 @@
     }
     if (act === 'plug-scan') return scan();
     if (act === 'plug-upload') return upload();
-    if (act === 'plug-replace') {
-      const pending = pv._pendingFile;
-      if (pending) importPlugin(pending.file, true);
-      return;
-    }
     if (act === 'plug-save') return saveSettings(t.dataset.id);
     if (act === 'req-open') return openRequest(t.dataset.id);
     if (act === 'req-more') {
@@ -622,6 +671,7 @@
   N.renderPlugins = renderPlugins;
   N.closePluginPage = () => {
     closePage();
+    N.closeDialog(managerDialog);
     N.closeDialog($('#plugin-readme-dialog'));
   };
 })(window.N);

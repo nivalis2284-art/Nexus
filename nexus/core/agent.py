@@ -654,6 +654,10 @@ class Agent:
                             "ok": outcome.ok,
                             "error": outcome.error_code,
                         }
+                    if outcome.ok and outcome.data.get("image"):
+                        tool_message["content"] = [
+                            {"type": "text", "text": outcome.content}, outcome.data["image"]
+                        ]
                     if outcome.data.get("subagent"):
                         tool_message["details"] = outcome.data
                     self._record(messages, tool_message)

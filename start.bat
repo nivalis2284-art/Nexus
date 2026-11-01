@@ -29,7 +29,7 @@ echo [start] Nexus is starting. The browser will open shortly.
 echo.
 echo   Keep this window open. Close it to stop the agent.
 echo.
-"%PY%" -m nexus --workspace .
+"%PY%" -m nexus
 set "RC=%ERRORLEVEL%"
 if "%RC%"=="0" exit /b 0
 echo.

@@ -83,21 +83,8 @@ def _instruction_body(candidate: Path, size: int) -> str:
 
 
 def _instruction_directories(root: Path, paths: Iterable[str | Path]) -> list[Path]:
-    """The root's ancestor chain, the root, then any touched descendant directory.
-
-    The ancestor chain is kept because a global instruction file may live above
-    the workspace. Touched paths only add directories *inside* the workspace, so
-    an unrelated sibling is never read.
-    """
-    chain: list[Path] = []
-    current = root
-    while True:
-        chain.append(current)
-        parent = current.parent
-        if parent == current:
-            break
-        current = parent
-    directories = list(reversed(chain))
+    """The workspace root and any touched descendant directories."""
+    directories = [root]
     descendants: set[Path] = set()
     for raw in paths:
         try:
@@ -136,10 +123,8 @@ def load_instructions(
 ) -> str:
     """Collect labeled instruction files for this workspace and touched paths.
 
-    The chain from the filesystem root down to the workspace root is always read,
-    so a global instruction file above the workspace still applies; touched paths
-    add their own directories inside the workspace. Large files retain both ends
-    with a visible notice instead of disappearing from the prompt.
+    Only the workspace root and directories of touched paths inside it are read.
+    Large files retain both ends with a visible notice instead of disappearing.
     """
     root = Path(root).expanduser().resolve()
     sections: list[str] = []

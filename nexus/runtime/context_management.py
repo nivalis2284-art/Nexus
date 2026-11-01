@@ -20,7 +20,7 @@ from .history import effective_checkpoint, history_version
 ROLE_TITLES = {"main": "主交流", "work": "工作", "subagent": "子代理"}
 SECTION_TITLES = {"environment": "运行环境", "priority": "指令来源与优先级",
                   "project": "项目指令", "skills": "可用技能", "interaction": "当前交流与工作状态",
-                  "task": "工作状态", "permission": "有效权限", "tools": "本轮可用工具"}
+                  "task": "工作状态", "permission": "有效权限", "tools": "当前可用工具"}
 
 
 def _owner_items(home) -> list[str]:

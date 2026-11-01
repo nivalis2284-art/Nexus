@@ -43,6 +43,35 @@ def test_two_models_keep_independent_values_after_reload(tmp_path: Path):
     assert provider.models[1]["temperature"] == 0.2
 
 
+def test_image_capability_is_persisted_per_model_and_used_by_profile(tmp_path: Path):
+    store = ConfigStore(tmp_path)
+    store.ensure()
+    provider = _provider(store)
+    models = provider.models
+    models[0]["capabilities"]["images"] = True
+    store.update_provider(provider.id, {"models": models})
+    store.select(provider.id, "small")
+    assert ConfigStore(tmp_path).load().profile.capabilities.images is True
+    store.select(provider.id, "large")
+    assert ConfigStore(tmp_path).load().profile.capabilities.images is False
+
+
+def test_max_output_setting_is_saved_and_used_for_responses(tmp_path: Path):
+    from nexus.core.protocol import request_body
+    store = ConfigStore(tmp_path)
+    store.ensure()
+    provider = _provider(store)
+    models = provider.models
+    models[0]["max_output_tokens"] = 16384
+    store.update_provider(provider.id, {"family": "openai_responses", "models": models})
+    store.select(provider.id, "small")
+    settings = ConfigStore(tmp_path).load()
+    assert request_body(settings.profile, "system", [{"role": "user", "content": "hi"}], [])["max_output_tokens"] == 16384
+    models[0]["max_output_tokens"] = 0
+    with pytest.raises(ValueError, match="max_output_tokens"):
+        store.update_provider(provider.id, {"models": models})
+
+
 def test_rename_preserves_other_model_fields(tmp_path: Path):
     store = ConfigStore(tmp_path)
     store.ensure()

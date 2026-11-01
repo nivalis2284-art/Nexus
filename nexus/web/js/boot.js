@@ -14,9 +14,9 @@
   if (!Array.isArray(state.works)) state.works = [];
   if (!Array.isArray(state.queue)) state.queue = [];
 
-  document.documentElement.dataset.theme = state.theme === 'night' ? 'night' : 'day';
+  document.documentElement.dataset.theme = state.theme === 'day' ? 'day' : 'night';
   if (state.palette === 'blue') state.palette = 'cool';
-  else if (!['jade', 'cool'].includes(state.palette)) state.palette = 'jade';
+  else if (!['jade', 'cool'].includes(state.palette)) state.palette = 'cool';
   document.documentElement.dataset.palette = state.palette;
   N.setMotion?.(N.MOTION_ALIAS?.[state.motion] || state.motion || '1', true);
   N.refreshScene?.();
@@ -36,11 +36,11 @@
   $$('.view').forEach(v => { v.hidden = v.id !== 'view-' + view; });
   $$('.dock-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
   N.markEnter?.(view);
-  N.renderView(view);
   N.syncDock(true);
   N.refreshIsland();
 
   function paint() {
+    if (state.view === 'chat') N.takeEnter?.('chat');
     N.renderChat(true);
     N.reqSig?.();
     N.renderRequests();
@@ -59,6 +59,8 @@
       const perm = document.querySelector('.perm');
       if (perm) N.syncSettingsUi?.(true);
       if (state.view === 'chat') N.scrollEnd?.(false);
+      if (state.view === 'chat') N.enterChat?.();
+      else N.stagger?.($('#view-' + state.view));
     });
   }
 

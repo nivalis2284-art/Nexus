@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -20,6 +21,7 @@ from ..application import (Application, MAX_IMAGE_BYTES, MAX_IMAGES_PER_TURN, AL
 from ..attachments import AttachmentStore
 from ..core import effort as reasoning
 from ..core.config import ConfigStore
+from ..projects import snapshot as project_snapshot
 from ..ling import LingInbox
 from ..mcp import MCPError, MCPRegistry
 from ..runtime.connections import start_mcp
@@ -36,6 +38,16 @@ MAX_REQUEST_BYTES = MAX_IMAGES_PER_TURN * ((MAX_IMAGE_BYTES + 2) // 3 * 4) + 4_0
 
 
 STATE: dict[str, Any] = {}
+
+
+class LocalHTTPServer(ThreadingHTTPServer):
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self):
+        # Windows address reuse lets an old Nexus keep accepting new requests.
+        if os.name == "nt":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 def _task_http() -> TaskHTTP:
@@ -434,6 +446,8 @@ class Handler(BaseHTTPRequestHandler):
                 return _json(self, 200, mcp_api.command(STATE, unquote(pieces[4]), pieces[5]))
             if path == "/api/ling/input":
                 return _json(self, 202, _application().submit_input(body))
+            if path == "/api/ling/dismiss-input":
+                return _json(self, 200, _ling().dismiss_input(body.get("input_id")))
             if path == "/api/ling/resume":
                 return _json(self, 200, _ling().resume())
             if path == "/api/ling/stop":
@@ -461,6 +475,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self._settings(body)
             if path == "/api/workspace":
                 return self._workspace(body)
+            if path == "/api/projects":
+                try:
+                    _application().project_command(body)
+                except TaskConflict as error:
+                    return _json(self, 409, {"error": str(error)})
+                return _json(self, 200, self._state())
+            if path == "/api/projects/choose-folder":
+                from ..folder_picker import choose
+
+                return _json(self, 200, choose(STATE["store"].load().workspace))
         except (ValueError, MCPError) as error:
             return _task_error(self, error)
         except OSError as error:
@@ -606,6 +630,7 @@ class Handler(BaseHTTPRequestHandler):
             "context_window": settings.context_window,
             "context_limit": settings.context_limit,
             "workspace": settings.workspace,
+            **project_snapshot(STATE["store"]),
             "sessions": [],
             "thinking_note": "思考内容仅用于展示，不回传给模型。",
         }
@@ -663,11 +688,11 @@ def serve(*, home: Path | None = None, port: int = 8766, workspace: Path | None 
         previous.close()
     STATE.clear()
     app = Application(STATE)
-    app.start(home=home, workspace=workspace)
     server = None
     try:
-        server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+        server = LocalHTTPServer(("127.0.0.1", port), Handler)
         server.daemon_threads = True
+        app.start(home=home, workspace=workspace)
         actual = server.server_address[1]
         app.attach_http(f"http://127.0.0.1:{actual}")
         print(f"Nexus: http://127.0.0.1:{actual}")
@@ -692,8 +717,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     home = Path(args.home).expanduser() if args.home else None
-    settings = ConfigStore(home).ensure()
-    target = Path(args.workspace or settings.workspace)
+    target = Path(args.workspace) if args.workspace else None
     if not args.no_browser:
         import webbrowser
 

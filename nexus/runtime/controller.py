@@ -36,6 +36,8 @@ def project_key(workspace: str) -> str:
             cwd=root,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=3,
         )
         if result.returncode == 0:

@@ -85,7 +85,7 @@ def test_parent_and_two_children_overlap_and_writers_do_not_deadlock(tmp_path, m
             assert (tmp_path / (name + ".txt")).read_text() == name
         results = [m for m in store.messages(parent.id) if "Subagent observation" in m["text"]]
         assert len(results) == 2
-        assert not controller.owns_write(parent.id)
+        until(lambda: not controller.owns_write(parent.id))
     finally:
         controller.close()
 

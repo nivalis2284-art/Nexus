@@ -1,0 +1,1 @@
+{"id":"example-host-page","name":"宿主页面示例","version":"1.0.0","api_version":1,"entry":"backend.py:create_plugin","requires_host":{"ui":1},"pages":[{"id":"main","title":"示例页面","renderer":"host","ui_version":1,"action":"ui"}]}

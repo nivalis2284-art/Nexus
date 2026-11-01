@@ -1,8 +1,11 @@
 """Concurrency, write ownership and stop semantics of the converged runtime."""
+import os
+import shutil
+import subprocess
 import threading
 import time
 import pytest
-from nexus.runtime.controller import TaskController, RunFnResult
+from nexus.runtime.controller import TaskController, RunFnResult, project_key
 from nexus.task import TaskStore, TaskConflict
 
 
@@ -13,6 +16,31 @@ def until(fn):
             return
         time.sleep(.01)
     assert fn()
+
+
+def test_chinese_git_workspace_queues_and_shares_project_write_lock(tmp_path):
+    git = shutil.which("git")
+    if git is None:
+        pytest.skip("Git is unavailable")
+    root = tmp_path / "中"
+    root.mkdir()
+    subprocess.run([git, "init", "-q", str(root)], check=True, capture_output=True)
+    child = root / "nested"
+    child.mkdir()
+    assert project_key(str(root)) == os.path.normcase(str(root.resolve()))
+    assert project_key(str(child)) == project_key(str(root))
+    store = TaskStore(tmp_path / "tasks.db")
+    controller = TaskController(store)
+    task = store.create(title="work", goal="work", workspace=str(child))
+    try:
+        controller.submit(task.id, request_id="start")
+        assert task.id in controller.queued_ids()
+        controller.acquire_write("first", str(root), threading.Event())
+        with pytest.raises(TaskConflict, match="project is being modified"):
+            controller.acquire_write("second", str(child), threading.Event(), wait=False)
+    finally:
+        controller.release_write("first")
+        controller.close()
 
 
 def test_three_readers_fourth_queues_and_pause_is_isolated(tmp_path):

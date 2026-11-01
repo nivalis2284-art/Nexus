@@ -93,4 +93,4 @@ SDK 1.1.0 新增宿主渲染页面。插件提供结构、数据与操作，Nexu
 
 页面声明 `view.json` 和页面控制器放在插件自己的子目录。控制器填入动态数据并处理操作。
 
-运行 `python plugin-dev/build.py <插件目录名>`，在该插件自己的目录生成 ZIP。Node 插件要求已有 Node.js 22+。历史验证示例保留在 `mobile-bridge/examples/`，不作为本目录当前交付的插件。
+运行 `python <SDK路径>/build.py <插件目录路径>`，在插件目录生成 ZIP。Node 插件要求已有 Node.js 22+。参见 [宿主页面示例](examples/host-page/README.md)。

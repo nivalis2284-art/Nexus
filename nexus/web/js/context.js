@@ -21,7 +21,7 @@
     const d = state.contextData;
     const counts = { system: (d.owner_instructions || []).length + (d.roles || []).length + (d.sections || []).length, history: (d.turns || []).length };
     return `<div class="tabs" data-s role="tablist"><span class="tab-ink" aria-hidden="true"></span>
-      ${[['system', '系统指令'], ['history', '历史上下文']].map(([k, l]) => `<button role="tab" aria-selected="${ctx.tab === k}" class="${ctx.tab === k ? 'active' : ''}" data-act="ctx-tab" data-k="${k}">${l}<span class="tab-count">${counts[k]} ${k === 'system' ? '项' : '条'}</span></button>`).join('')}
+      ${[['system', '系统指令'], ['history', '历史上下文']].map(([k, l]) => `<button role="tab" aria-selected="${ctx.tab === k}" class="${ctx.tab === k ? 'active' : ''}" data-act="ctx-tab" data-k="${k}">${l}<span class="tab-count">${counts[k]} ${k === 'system' ? '项' : '轮'}</span></button>`).join('')}
     </div>`;
   }
 
@@ -53,13 +53,14 @@
         </div>
       </section>
 
-      <div class="sec-h" data-s><h3>本次自动组装的信息</h3><span>由当前环境与运行状态提供 · 只读</span></div>
+      <div class="sec-h" data-s><h3>当前上下文预览</h3><span>只读 · 实际请求可能随访问路径和插件变化</span></div>
       <div class="ctx-sections">
         ${sections.map((s, i) => `<details class="ctx-sec" data-s ${i === 0 ? 'open' : ''}>
           <summary><i class="dot"></i>${esc(s.title)}<span class="lock">只读</span>${icon('chev', 'i')}</summary>
           <div class="body">${esc(s.text)}</div>
         </details>`).join('')}
       </div>
+      <p class="ctx-hint">查看实际发送的内容，请前往「插件管理 → 请求记录」。</p>
     </div>`;
   }
 
@@ -104,7 +105,7 @@
             </article>`;
           }).join('') : '<p class="ctx-hint">没有未压缩的会话消息。</p>'}
         </div>
-        <p class="ctx-hint">删除一轮会连同这一轮的思考与工具记录一起移除；会话尚未继续时，可撤销最近一次历史修改。</p>
+        <p class="ctx-hint">工具结果和工作通知也可能进入上下文；完整请求可在「插件管理 → 请求记录」查看。删除一轮会连同这一轮的思考与工具记录一起移除；会话尚未继续时，可撤销最近一次历史修改。</p>
       </section>
     </div>`;
   }
@@ -135,15 +136,16 @@
   function growMeter(view, pct) {
     if (N.REDUCED) return;
     $$('.ctx-meter i', view).forEach((n, i) => N.anim(n, [{ transform: 'scaleX(0)' }, { transform: 'none' }],
-      { duration: N.DUR.enter, delay: i * 35, easing: N.SP.soft.e, fill: 'backwards' }));
+      { duration: N.DUR.enter, delay: i * N.MOTION.stagger, easing: N.EASE_OUT, fill: 'backwards' }));
     $$('.ctx-legend span', view).forEach((n, i) => N.anim(n, [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.move, delay: 80 + i * 35, easing: N.EASE_OUT, fill: 'backwards' }));
+      { duration: N.DUR.enter, delay: (i + 2) * N.MOTION.stagger, easing: N.EASE_OUT, fill: 'backwards' }));
   }
 
   function renderContext() {
     const view = $('#view-context');
     const entering = N.takeEnter?.('context');
     const keep = view.scrollTop;
+    const ink = view.querySelector('.tabs .tab-ink');
     const openSecs = $$('.ctx-sec', view).map(d => d.open);
     const c = state.context;
     const used = (c.system || 0) + (c.tools || 0) + (c.messages || 0);
@@ -160,7 +162,7 @@
       <section class="card ctx-overview" data-s>
         <div class="ctx-ov-top">
           <div class="ctx-big"><strong${pct === null ? ' class="unknown"' : ''}>${pct === null ? '—' : pct}</strong>${pct === null ? '' : '<small>%</small>'}</div>
-          <div class="ctx-ov-main"><p>当前请求已用上下文<br>按本轮运行条件自动组装</p>
+          <div class="ctx-ov-main"><p>请求上下文估算<br>随模型请求更新</p>
             <span class="ctx-state ${locked() ? 'locked' : ''}"><i></i>${locked() ? '灵正在处理，历史修改需先停止' : '灵当前空闲，可调整后续请求参考的上下文'}</span></div>
           <span class="ctx-window">模型窗口 ${N.fmtNum(c.window)} tok</span>
         </div>
@@ -178,6 +180,7 @@
       ${tabsHTML()}
       ${ctx.tab === 'system' ? systemPanel() : historyPanel()}
     </div>`;
+    if (ink) view.querySelector('.tabs .tab-ink').replaceWith(ink);
     $$('.ctx-sec', view).forEach((d, i) => {
       if (openSecs[i] !== undefined) d.open = openSecs[i];
     });
@@ -385,22 +388,13 @@
     if (!act?.startsWith('ctx-') && !['add-rule', 'edit-rule', 'del-rule', 'edit-role', 'edit-summary', 'back-chat'].includes(act)) return;
     if (act === 'ctx-tab') {
       if (ctx.tab === t.dataset.k) return;
-      const prevInk = $('#view-context .tabs .tab-ink');
-      const keepPos = prevInk?._pos;
-      const keepSize = prevInk?._size;
       ctx.tab = t.dataset.k;
       const oldPanel = $('.ctx-panel');
       const swap = () => {
         ctx.tabSlide = true;
         renderContext();
-        const nextInk = $('#view-context .tabs .tab-ink');
-        if (nextInk && keepPos != null) {
-          nextInk._pos = keepPos;
-          nextInk._size = keepSize;
-          nextInk._axis = 'x';
-        }
         const panel = $('.ctx-panel');
-        if (panel) N.stagger(panel, 24);
+        if (panel) N.stagger(panel);
       };
       if (oldPanel && !N.REDUCED) {
         N.anim(oldPanel, [{ opacity: 1 }, { opacity: 0, transform: 'translateY(-4px)' }], { duration: N.DUR.fast, easing: 'ease-in' }).onfinish = swap;

@@ -1,0 +1,11 @@
+{
+  "id": "browser-control",
+  "name": "浏览器控制",
+  "version": "0.1.0",
+  "api_version": 1,
+  "description": "在可见的 Edge 浏览器中浏览、操作页面并查看截图。",
+  "entry": "backend.py:create_plugin",
+  "capabilities": ["浏览器操作", "页面截图"],
+  "dependencies": ["mcp>=2.3,<3", "playwright>=1.50,<2"],
+  "services": [{"name": "worker", "command": "{python}", "args": ["{plugin}/worker.py", "{data}"], "model_tools": []}]
+}

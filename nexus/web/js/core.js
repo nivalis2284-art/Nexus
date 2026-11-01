@@ -28,16 +28,13 @@ window.N = window.N || {};
   const MOTION_ALIAS = { fast: '0.5', normal: '0.75', slow: '1' };
   const motionKey = id => (MOTION_ALIAS[id] || (MOTION_SCALES[id] ? id : '1'));
   let motionId = '1';
-  /* 主题性格：暖主题慢半拍，冷主题快半拍。由 --temper 提供，读一次缓存。 */
-  let temper = 1;
-  function readTemper() {
-    const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--temper'));
-    temper = Number.isFinite(v) && v > 0 ? v : 1;
-    return temper;
-  }
-  const motionScale = () => (MOTION_SCALES[motionId] || 1) * temper;
+  const motionScale = () => MOTION_SCALES[motionId] || 1;
   /* 统一时长阶梯：微交互 / 小元素 / 卡片与折叠 / 页面与弹窗 */
-  const DUR = { fast: 96, micro: 160, base: 220, move: 320, enter: 480 };
+  const tokenStyle = getComputedStyle(document.documentElement);
+  const numberToken = name => parseFloat(tokenStyle.getPropertyValue(name));
+  const DUR = Object.fromEntries(['fast', 'micro', 'base', 'move', 'enter'].map(name => [name, numberToken('--duration-' + name)]));
+  const MOTION = { stagger: numberToken('--enter-stagger'), limit: numberToken('--enter-limit'),
+    offset: numberToken('--enter-offset'), theme: numberToken('--duration-theme') };
   rmq.addEventListener?.('change', e => { REDUCED = e.matches; buildSprings(); });
 
   /* ---------------------------------------------------------------- 弹簧 */
@@ -60,24 +57,13 @@ window.N = window.N || {};
   }
   const SP = {};
   function buildSprings() {
-    readTemper();
-    const isCool = document.documentElement?.dataset?.palette === 'cool';
-    const base = isCool ? {
-      /* 星枢：轻盈灵动，弹性清脆，带有灵巧微过冲 */
+    const base = {
       bouncy: spring({ stiffness: 400, damping: 18 }),
       snappy: spring({ stiffness: 530, damping: 27 }),
       soft: spring({ stiffness: 230, damping: 20 }),
       island: spring({ stiffness: 410, damping: 24 }),
       pop: spring({ stiffness: 590, damping: 25 }),
       settle: spring({ stiffness: 490, damping: 23 }),
-    } : {
-      /* 灵玉：温润柔韧，如流水绕玉，平滑舒展而不死板 */
-      bouncy: spring({ stiffness: 310, damping: 22 }),
-      snappy: spring({ stiffness: 430, damping: 28 }),
-      soft: spring({ stiffness: 195, damping: 21 }),
-      island: spring({ stiffness: 340, damping: 26 }),
-      pop: spring({ stiffness: 470, damping: 28 }),
-      settle: spring({ stiffness: 380, damping: 26 }),
     };
     for (const k in base) SP[k] = { e: base[k].e, d: base[k].d };
     if (REDUCED) for (const k in SP) SP[k] = { e: 'ease', d: 1 };
@@ -101,6 +87,20 @@ window.N = window.N || {};
     return el.animate(kf, { ...o, duration: (o.duration || 0) * s, delay: (o.delay || 0) * s });
   };
 
+  function enterItems(elements, viewport) {
+    if (REDUCED) return;
+    const bounds = viewport.getBoundingClientRect();
+    const visible = elements.filter(el => {
+      const rect = el.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 && rect.bottom > bounds.top && rect.top < bounds.bottom;
+    }).slice(0, MOTION.limit);
+    visible.forEach((el, i) => {
+      el._enterMotion?.cancel();
+      el._enterMotion = anim(el, [{ opacity: 0, transform: `translateY(${MOTION.offset}px)` }, { opacity: 1, transform: 'none' }],
+        { duration: DUR.enter, delay: i * MOTION.stagger, easing: EASE_OUT, fill: 'backwards' });
+    });
+  }
+
   /* 液态指示器：克制平滑滑移，避免分段过冲弹簧在宽高上引发边缘抖动 */
   function moveInk(ink, target, axis = 'x', instant = false) {
     if (!ink || !target) return;
@@ -111,6 +111,7 @@ window.N = window.N || {};
     const size = axis === 'x' ? target.offsetWidth : target.offsetHeight;
     if (!size) return;
     const previousAxis = ink._axis;
+    if (previousAxis === axis && ink.style.transform === `${P}(${pos}px)` && ink.style[S] === size + 'px') return;
     const current = getComputedStyle(ink);
     const matrix = current.transform === 'none' ? null : new DOMMatrixReadOnly(current.transform);
     const p0 = previousAxis === axis ? (matrix ? (axis === 'x' ? matrix.m41 : matrix.m42) : 0) : null;
@@ -241,21 +242,24 @@ window.N = window.N || {};
       FORBID_ATTR: ['style'],
     });
   }
-  function decorate(root) {
-    $$('a[data-file]', root).forEach(a => {
+  function decorate(root, { highlight = true } = {}) {
+    [...(root.matches?.('a[data-file]') ? [root] : []), ...$$('a[data-file]', root)].forEach(a => {
+      if (a._fileBound) return;
+      a._fileBound = true;
       a.addEventListener('click', e => {
         e.preventDefault();
         N.openFile(a.dataset.file);
       });
     });
-    $$('pre', root).forEach(pre => {
-      if (pre.closest('.code-block')) return;
+    [...(root.matches?.('pre') ? [root] : []), ...$$('pre', root)].forEach(pre => {
       const code = pre.querySelector('code');
       if (!code) return;
       const lang = [...code.classList].find(c => c.startsWith('language-'))?.slice(9) || '';
-      if (lang && typeof hljs !== 'undefined' && hljs.getLanguage(lang)) {
+      if (highlight && !code.dataset.highlighted && lang && typeof hljs !== 'undefined' && hljs.getLanguage(lang)) {
         try { hljs.highlightElement(code); } catch (_) {}
       }
+      const existing = pre.closest('.code-block');
+      if (existing) { $('.code-lang', existing).textContent = lang || '代码'; return; }
       const block = document.createElement('div');
       block.className = 'code-block';
       block.innerHTML = `<div class="code-head"><span class="code-lang">${esc(lang || '代码')}</span><button type="button" class="code-copy">复制</button></div>`;
@@ -328,8 +332,8 @@ window.N = window.N || {};
     return {
       version: 2,
       view: 'chat',
-      theme: 'day',
-      palette: 'jade',
+      theme: 'night',
+      palette: 'cool',
       motion: '1',
       scene: 'conversation',
       target: null,
@@ -357,6 +361,7 @@ window.N = window.N || {};
       instructions: '',
       permission: 'ask',
       workspace: '',
+      projects: [], project: null, defaultProject: null,
       contextWindow: 0,
       mcp: [], skills: [], plugins: [], modelRequests: [],
       pluginRoot: '', pluginError: '',
@@ -398,6 +403,7 @@ window.N = window.N || {};
   N.$ = $; N.$$ = $$; N.esc = esc; N.icon = icon; N.wait = wait; N.uid = uid;
   N.clone = clone; N.clamp = clamp; N.EASE_OUT = EASE_OUT;
   N.SP = SP; N.anim = anim; N.moveInk = moveInk; N.rebuildSprings = buildSprings;
+  N.MOTION = MOTION; N.enterItems = enterItems;
   N.motionScale = motionScale; N.setMotionScale = setMotionScale; N.MOTION_SCALES = MOTION_SCALES;
   N.MOTION_LEVELS = MOTION_LEVELS; N.MOTION_LABELS = MOTION_LABELS; N.MOTION_ALIAS = MOTION_ALIAS; N.DUR = DUR;
   N.THEMES = THEMES;

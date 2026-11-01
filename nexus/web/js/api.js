@@ -118,7 +118,8 @@
       const role = raw.role;
       if (role === 'user') {
         out.push({
-          key: itemKey(raw, 'u'), role: 'user', text: raw.text || '',
+          key: raw.request_id ? 'u:' + raw.request_id : itemKey(raw, 'u'), role: 'user', text: raw.text || '',
+          requestId: raw.request_id,
           at: clock(raw.at), images: (raw.images || []).map(imageUrl).filter(Boolean),
           attachments: (raw.attachments || []).map(item => attachmentView(item)).filter(Boolean),
           index: raw.index, message_id: raw.message_id, compressed: !!raw.compressed,
@@ -264,7 +265,23 @@
 
   /* ---------------------------------------------------------------- 组装 */
   function compose() {
-    state.items = [...(state.baseItems || []), ...(state.pending || []), ...(state.liveItems || [])];
+    const items = new Map();
+    for (const item of [...(state.baseItems || []), ...(state.handoffItems || []), ...(state.liveItems || [])]) {
+      items.set(item.key, item);
+    }
+    const ordered = [...items.values()];
+    // 排队输入留在当前回复之后，首发输入仍在自己的回复之前。
+    for (const item of state.pending || []) {
+      if (items.has(item.key)) continue;
+      let at = ordered.length;
+      if (!item.duringReply && item.afterKey !== undefined) {
+        const anchor = ordered.findIndex(i => i.key === item.afterKey);
+        at = item.afterKey === null ? 0 : anchor < 0 ? ordered.length : anchor + 1;
+      }
+      ordered.splice(at, 0, item);
+      items.set(item.key, item);
+    }
+    state.items = ordered;
   }
 
   const sync = {
@@ -278,6 +295,11 @@
       state.effort = value.effort || { levels: [], labels: {}, current: '', mapping: null };
       state.permission = value.permission || 'ask';
       state.workspace = value.workspace || '';
+      state.projects = value.projects || [];
+      state.project = value.project || null;
+      state.defaultProject = value.default_project || null;
+      N.renderProjectButton?.();
+      N.renderProjects?.();
       state.contextWindow = value.context_window || 0;
       state.profile = value.profile || null;
       state.maxSteps = value.max_steps || null;
@@ -295,6 +317,7 @@
       }
       if (value.session_id) state.sessionId = value.session_id;
       state.baseItems = mapItems((value.items || []).filter(item => !item.live));
+      state.handoffItems = [];
       state.liveItems = liveItems(value.live);
       state.live = value.live || {};
       state.liveRevision = Number(value.live_revision || 0);
@@ -327,8 +350,8 @@
 
       /* 后端已收录的乐观消息不再重复显示 */
       if (state.pending?.length) {
-        const texts = new Set(state.baseItems.filter(i => i.role === 'user').map(i => i.text));
-        state.pending = state.pending.filter(p => !texts.has(p.text));
+        const ids = new Set(state.baseItems.filter(i => i.role === 'user').map(i => i.requestId).filter(Boolean));
+        state.pending = state.pending.filter(p => !ids.has(p.requestId));
       }
       compose();
     },
@@ -500,11 +523,20 @@
   let source = null;
   let taskTimer = 0;
   let lingTimer = 0;
-  let finalizePending = false;
+  let livePaint = 0;
+  function paintLive() {
+    if (livePaint) return;
+    livePaint = requestAnimationFrame(() => {
+      livePaint = 0;
+      if (!state.backgroundOnly) N.renderChat?.();
+    });
+  }
 
-  function finalizeLast() {
-    const last = [...(state.items || [])].reverse().find(i => i.role === 'assistant' && !i.live);
-    if (last) N.finalizeAssistant?.(last);
+  function retainLive(next = []) {
+    const keys = new Set(next.map(i => i.key));
+    const retained = new Map((state.handoffItems || []).map(i => [i.key, i]));
+    for (const item of state.liveItems || []) if (!keys.has(item.key)) retained.set(item.key, { ...item, live: false });
+    state.handoffItems = [...retained.values()];
   }
 
   function scheduleLing(delay = 120) {
@@ -512,8 +544,7 @@
     lingTimer = setTimeout(async () => {
       try {
         await sync.chatOnly();
-        N.renderChat?.();
-        if (finalizePending) { finalizePending = false; finalizeLast(); }
+        if (!state.backgroundOnly) N.renderChat?.();
         N.renderRequests?.();
         N.renderQueue?.();
         N.updateStats?.();
@@ -539,20 +570,12 @@
   }
 
   function applyLive(event) {
-    const before = (state.liveItems || []).map(i => i.key).join('|');
     state.live = event.live && typeof event.live === 'object' ? event.live : {};
-    state.liveItems = liveItems(state.live);
+    const next = liveItems(state.live);
+    retainLive(next);
+    state.liveItems = next;
     compose();
-    const after = state.liveItems.map(i => i.key).join('|');
-    if (before === after) {
-      const item = state.liveItems.find(i => i.role === 'assistant');
-      if (item) N.patchLive?.(item);
-      else N.renderChat?.();
-      if (state.live.context) { state.context = state.live.context; N.updateStats?.(); }
-      return;
-    }
-    N.renderChat?.();
-    N.refreshIsland?.();
+    paintLive();
   }
 
   function onEvent(event) {
@@ -564,11 +587,12 @@
       state.liveRevision = event.revision;
       const type = event.type;
       if (type === 'delta' || type === 'thinking' || type === 'tool_start' || type === 'tool_result') {
+        const wasReplying = state.replying;
         state.running = true;
         state.replying = true;
         applyLive(event);
-        N.updateSend?.();
-        N.renderStatus?.();
+        if (!wasReplying) { N.updateSend?.(); N.renderStatus?.(); }
+        if (type === 'tool_start' || type === 'tool_result') scheduleLing(30);
         return;
       }
       if (type === 'context') {
@@ -577,16 +601,23 @@
       }
       if (type === 'error') {
         const message = String(event.message || '模型运行失败');
-        state.baseItems = [...(state.baseItems || []), { key: 'n:err:' + Date.now(), role: 'notice', text: message, at: N.nowHM() }];
+        retainLive();
+        state.handoffItems.push({ key: 'n:err:' + event.revision, role: 'notice', text: message, at: N.nowHM() });
         state.liveItems = [];
+        state.running = false; state.replying = false;
         compose();
-        N.renderChat?.();
+        paintLive();
+        N.updateSend?.(); N.renderStatus?.();
+        scheduleLing(30);
         N.notify?.(message, 'cinnabar');
         return;
       }
       if (type === 'done' || type === 'refresh') {
         /* 保持最后一帧流式内容在屏，等 /api/ling 快照返回后原子替换，杜绝空窗期整段闪断消失 */
-        if (type === 'done') { state.running = false; state.replying = false; finalizePending = true; }
+        if (type === 'done' || event.clear) {
+          retainLive(); state.liveItems = []; compose(); paintLive();
+        }
+        if (type === 'done') { state.running = false; state.replying = false; }
         N.updateSend?.();
         N.renderStatus?.();
         scheduleLing(30);
@@ -646,6 +677,7 @@
       ...(options.taskId ? { task_id: options.taskId } : {}),
     }),
     stop: () => post('/api/ling/stop'),
+    dismissInput: inputId => post('/api/ling/dismiss-input', { input_id: inputId }),
     resume: () => post('/api/ling/resume'),
     pauseAll: () => post('/api/ling/pause-all'),
     history: body => post('/api/ling/history', body),
@@ -666,6 +698,8 @@
     deleteProvider: id => del('/api/providers/' + encodeURIComponent(id)),
     settings: body => post('/api/settings', body),
     workspace: workspace => post('/api/workspace', { workspace }),
+    projectCommand: body => post('/api/projects', body),
+    chooseProjectFolder: () => request('/api/projects/choose-folder', { method: 'POST', body: {}, timeout: 0 }),
 
     saveSkill: body => post('/api/skills', body),
     deleteSkill: body => post('/api/skills/delete', body),

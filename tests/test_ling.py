@@ -92,6 +92,28 @@ def mock_model(monkeypatch, handler):
     monkeypatch.setattr(loop, "_client", lambda: real(transport=httpx.MockTransport(reply)))
 
 
+def test_dismiss_failed_input_preserves_record_and_hides_it_after_refresh(live):
+    client, state, _, _ = live
+    session_id = client.get("/api/ling").json()["session_id"]
+    with state["tasks"]._lock, state["tasks"]._transaction() as db:
+        failed = db.execute("INSERT INTO ling_inbox(request_id,session_id,text,data_json,status,error,created_at) VALUES(?,?,?,?,?,?,?)",
+                            ("failed-request", session_id, "previous message", "{}", "failed", "request failed", "2026-01-01")).lastrowid
+        pending = db.execute("INSERT INTO ling_inbox(request_id,session_id,text,data_json,status,error,created_at) VALUES(?,?,?,?,?,?,?)",
+                             ("held-request", session_id, "waiting", "{}", "held", "", "2026-01-01")).lastrowid
+    before = client.get("/api/ling").json()
+    assert any(row["id"] == failed for row in before["inputs"])
+    assert client.post("/api/ling/dismiss-input", json={"input_id": pending}).status_code == 400
+    assert client.post("/api/ling/dismiss-input", json={"input_id": failed}).json() == {"dismissed": True}
+    assert client.post("/api/ling/dismiss-input", json={"input_id": failed}).json() == {"dismissed": True}
+    after = client.get("/api/ling").json()
+    assert all(row["id"] != failed for row in after["inputs"])
+    assert any(row["id"] == pending for row in after["inputs"])
+    with state["tasks"]._connect() as db:
+        row = db.execute("SELECT text,status,error FROM ling_inbox WHERE id=?", (failed,)).fetchone()
+        assert tuple(row) == ("previous message", "failed", "request failed")
+        assert db.execute("SELECT 1 FROM ling_inbox_dismissed WHERE input_id=?", (failed,)).fetchone()
+
+
 def test_ling_delegates_then_converses_and_queries_running_work(live, monkeypatch):
     client, state, started, release = live
     seen = []

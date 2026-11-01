@@ -206,6 +206,31 @@ def test_unfinished_model_stop_is_a_visible_task_pause(tmp_path, monkeypatch):
     assert tasks.get(item.id).state != "completed"
 
 
+def test_responses_output_limit_explains_task_pause(tmp_path, monkeypatch):
+    config, provider_id = configure(tmp_path)
+    config.update_provider(provider_id, {"family": "openai_responses"})
+    tasks = TaskStore(tmp_path / "tasks.sqlite3")
+    item = tasks.create(title="stopped", goal="finish", workspace=str(tmp_path),
+                        provider_id=provider_id, model_id="fake")
+    tasks.command(item.id, "running", request_id="limit-test")
+    tasks.begin_run(item.id)
+    event = {"type": "response.incomplete", "response": {"id": "resp", "status": "incomplete",
+             "incomplete_details": {"reason": "max_output_tokens"}, "output": []}}
+    call = {"type": "response.output_item.done", "output_index": 0, "item": {
+        "type": "function_call", "id": "item", "call_id": "call", "name": "write_file",
+        "arguments": json.dumps({"path": "incomplete.txt", "content": "unexpected"}), "status": "completed"}}
+    import nexus.core.agent as module
+    monkeypatch.setattr(module, "_client", lambda: httpx.AsyncClient(transport=httpx.MockTransport(
+        lambda request: httpx.Response(200, headers={"content-type": "text/event-stream"},
+                                       text="data: " + json.dumps(call) + "\n\ndata: " + json.dumps(event) + "\n\n")
+    )))
+    result = TaskAssembler(tasks, config)(tasks.get(item.id), threading.Event())
+    assert result.status == "paused" and result.wait_reason == "model_error"
+    assert any("最大 token 上限" in message["text"] for message in tasks.messages(item.id))
+    assert tasks.get(item.id).state != "completed"
+    assert not (tmp_path / "incomplete.txt").exists()
+
+
 def test_resumed_turn_does_not_duplicate_saved_history(tmp_path, monkeypatch):
     config, provider_id = configure(tmp_path)
     tasks = TaskStore(tmp_path / "tasks.sqlite3")

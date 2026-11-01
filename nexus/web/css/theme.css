@@ -1,8 +1,8 @@
 /* ==========================================================================
    灵 · 枢 — 四象主题系统（灵玉 / 星枢 × 白昼 / 黑夜）
-   1. 「灵玉」(jade) — 温润沉稳：羊脂墨玉、中枢鎏金晶环、圆融玉器几何、金玉追光与柔韧回弹
-   2. 「星枢」(cool) — 轻盈灵动：群星层叠、寒星轨芒、液态胶囊张力、棱镜折射与清脆弹簧
-   全站统一采用「星枢」字体层级（主标题衬线 + 全局与阅读正文清隽无衬线 + 精密等宽）。
+   1. 「灵玉」(jade) — 羊脂墨玉、中枢鎏金晶环与金玉追光
+   2. 「星枢」(cool) — 群星层叠、寒星轨芒与棱镜折射
+   全站共用 tokens.css 的圆角、间距、字号与动效节奏；主题只决定颜色、材质和背景。
    ========================================================================== */
 
 :root {
@@ -15,6 +15,23 @@ html[data-motion="0.75"], html[data-motion="normal"] { --motion: .84; }
 html[data-motion="1"] { --motion: 1; }
 html[data-motion="1.25"] { --motion: 1.16; }
 html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
+
+/* 前景截图与实时背景共用柔边波纹，背景不参与静态捕获。 */
+@property --theme-reveal-radius { syntax: '<length>'; inherits: false; initial-value: -24px; }
+.is-theme-transitioning { view-transition-name: none; }
+::view-transition-old(*), ::view-transition-new(*) { animation: none; mix-blend-mode: normal; }
+::view-transition-new(*) {
+  mask-image: radial-gradient(circle at var(--theme-reveal-x, 50%) var(--theme-reveal-y, 42px),
+    #000 max(0px, calc(var(--theme-reveal-radius) - 24px)),
+    transparent max(0px, calc(var(--theme-reveal-radius) + 24px)));
+}
+::view-transition-old(*), .theme-background {
+  mask-image: radial-gradient(circle at var(--theme-reveal-x, 50%) var(--theme-reveal-y, 42px),
+    transparent max(0px, calc(var(--theme-reveal-radius) - 24px)),
+    #000 max(0px, calc(var(--theme-reveal-radius) + 24px)));
+}
+.theme-background { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+:root:active-view-transition, :root:active-view-transition * { transition: none !important; }
 
 /* ---------------------------------------------------------------- 语义色 */
 :root {
@@ -40,8 +57,8 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   /* 白昼：压深温润青白石底，衬托羊脂白玉卡片与中枢鎏金晶环 */
   --paper: #dfe5df;
   --paper-2: #ced7cf;
-  --card: rgba(252, 251, 247, .9);
-  --card-glass: rgba(252, 251, 247, .85);
+  --card: #fcfbf7;
+  --card-glass: var(--card);
   --raised: #edf2ed;
   --spec-top: rgba(255, 255, 255, .96);
   --ink: #131c19;
@@ -52,7 +69,7 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   --line-2: rgba(12, 44, 35, .22);
   --ink-glass: rgba(12, 44, 35, .065);
 
-  --island: rgba(14, 22, 19, .94);
+  --island: #0e1613;
   --island-2: #1c2924;
   --island-3: #283832;
   --i-ink: #f3f7f4;
@@ -73,17 +90,8 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   /* 统一星枢字体层级 + 圆融玉器几何 */
   --font-display: var(--font-serif);
   --font-reading: var(--font-sans);
-  --temper: .96;
+
   --track: -.024em;
-  --r-card: 20px;
-  --r-composer: 24px;
-  --r-ctrl: 13px;
-  --r-btn: 999px;
-  --r-sheet: 24px;
-  --r-rail: 999px;
-  --r-island-compact: 999px;
-  --r-island-open: 24px;
-  --r-bubble: 22px 22px 6px 22px;
 
   /* 羊脂玉浮雕光影 */
   --sh-1: 0 2px 6px rgba(8, 32, 26, .06), 0 12px 28px -14px rgba(8, 38, 30, .16);
@@ -101,9 +109,9 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   /* 黑夜：深邃墨玉底 + 莹润翠玉流萤 */
   --paper: #08110e;
   --paper-2: #111f1a;
-  --card: rgba(16, 28, 24, .78);
-  --card-glass: rgba(14, 25, 21, .74);
-  --raised: rgba(23, 38, 33, .84);
+  --card: #101c18;
+  --card-glass: var(--card);
+  --raised: #172621;
   --spec-top: rgba(136, 247, 222, .25);
   --ink: #ecf4f0;
   --ink-2: #aec2b9;
@@ -114,9 +122,9 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   --ink-glass: rgba(126, 240, 212, .07);
   --seg-ink: #1e312b;
 
-  --island: rgba(5, 11, 9, .9);
-  --island-2: rgba(16, 27, 23, .92);
-  --island-3: rgba(25, 41, 35, .94);
+  --island: #050b09;
+  --island-2: #101b17;
+  --island-3: #192923;
 
   --jade: #28d8b2;
   --jade-hi: #88f7de;
@@ -146,16 +154,6 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
 [data-palette="jade"] .aura i { opacity: .3; filter: blur(96px); }
 [data-theme="night"][data-palette="jade"] .aura i { opacity: .24; }
 
-[data-palette="jade"] .msg-ling .ling-body {
-  padding-left: 14px;
-  border-left: 2px solid color-mix(in srgb, var(--jade) 32%, var(--line-2));
-}
-[data-palette="jade"] .kicker-seal {
-  border-radius: 7px;
-  background: linear-gradient(135deg, var(--jade), var(--jade-deep));
-  color: var(--on-primary);
-  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--jade) 55%, transparent);
-}
 [data-palette="jade"] .msg-user .bubble {
   background: linear-gradient(135deg, var(--jade-deep), var(--jade));
   color: #fff;
@@ -173,8 +171,8 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   /* 白昼：拉开晴空蓝灰雾底与高透白晶卡片的明度差，强化星芒可见度 */
   --paper: #dce6f6;
   --paper-2: #cad7ef;
-  --card: rgba(255, 255, 255, .86);
-  --card-glass: rgba(255, 255, 255, .82);
+  --card: #fff;
+  --card-glass: var(--card);
   --raised: #edf3fc;
   --spec-top: rgba(255, 255, 255, .96);
   --ink: #0f1626;
@@ -185,9 +183,9 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   --line-2: rgba(22, 44, 98, .22);
   --ink-glass: rgba(22, 44, 98, .065);
 
-  --island: rgba(12, 17, 30, .92);
-  --island-2: rgba(25, 33, 52, .9);
-  --island-3: rgba(38, 48, 72, .92);
+  --island: #0c111e;
+  --island-2: #192134;
+  --island-3: #263048;
   --i-ink: #f4f7fd;
   --i-ink-2: rgba(244, 247, 253, .66);
   --i-ink-3: rgba(244, 247, 253, .42);
@@ -207,17 +205,8 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   /* 清隽混排与液态张力几何 */
   --font-display: var(--font-serif);
   --font-reading: var(--font-sans);
-  --temper: .84;
+
   --track: -.024em;
-  --r-card: 22px;
-  --r-composer: 26px;
-  --r-ctrl: 14px;
-  --r-btn: 999px;
-  --r-sheet: 26px;
-  --r-rail: 999px;
-  --r-island-compact: 999px;
-  --r-island-open: 26px;
-  --r-bubble: 24px 24px 8px 24px;
 
   --sh-1: 0 2px 6px rgba(16, 30, 68, .06), 0 14px 32px -14px rgba(22, 44, 104, .18);
   --sh-2: 0 4px 14px rgba(16, 30, 68, .08), 0 26px 56px -20px rgba(22, 44, 104, .26);
@@ -233,9 +222,9 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
 [data-theme="night"][data-palette="cool"] {
   --paper: #080c16;
   --paper-2: #101728;
-  --card: rgba(19, 26, 44, .74);
-  --card-glass: rgba(17, 23, 39, .7);
-  --raised: rgba(27, 36, 58, .8);
+  --card: #131a2c;
+  --card-glass: var(--card);
+  --raised: #1b243a;
   --spec-top: rgba(255, 255, 255, .14);
   --ink: #eef2fc;
   --ink-2: #b2bdd4;
@@ -246,9 +235,9 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   --ink-glass: rgba(168, 194, 255, .07);
   --seg-ink: #232d45;
 
-  --island: rgba(6, 9, 17, .9);
-  --island-2: rgba(19, 25, 40, .92);
-  --island-3: rgba(31, 39, 58, .94);
+  --island: #060911;
+  --island-2: #131928;
+  --island-3: #1f273a;
 
   --jade: #82a8ff;
   --jade-hi: #bfd3ff;
@@ -277,12 +266,6 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
 [data-palette="cool"] .aura i { opacity: .34; filter: blur(92px); }
 [data-theme="night"][data-palette="cool"] .aura i { opacity: .28; }
 
-[data-palette="cool"] .kicker-seal {
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--jade), var(--cinnabar));
-  box-shadow: 0 0 12px -2px var(--jade);
-}
-
 [data-palette="cool"] .msg-user .bubble {
   background: linear-gradient(135deg, var(--jade), color-mix(in srgb, var(--jade) 66%, var(--cinnabar)));
   color: var(--on-primary);
@@ -290,7 +273,7 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
 }
 
 /* ==========================================================================
-   共享温润玉晶毛玻璃 & 双境流光追光边（灵玉温润流光 / 星枢棱镜折射）
+   共享实色器物表面 & 双境流光追光边（灵玉温润流光 / 星枢棱镜折射）
    ========================================================================== */
 .card,
 .work-item,
@@ -307,14 +290,21 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
 .usage-pop,
 .sheet,
 .island {
-  backdrop-filter: blur(16px) saturate(1.12);
-  -webkit-backdrop-filter: blur(16px) saturate(1.12);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .work-item,
 .plug-item,
 .ctx-role,
-.ctx-sec {
+.ctx-sec,
+.work-quiet,
+.qrow,
+.history-undo,
+.mcp-row,
+.hui-section,
+.file,
+.plug-page {
   position: relative;
 }
 
@@ -335,19 +325,19 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
   transform: translateY(-2px);
 }
 
-/* 两境共用实际边框，避免页面缩放时 padding 遮罩的左右宽度取整不同。 */
-.card::after,
-.work-item::after,
-.plug-item::after,
-.ctx-role::after,
-.theme-card::after,
-.req-card::after,
-.composer::after,
-.dock::after,
-.chip::after {
+/* 每个追光表面独立保存光源，防止嵌套卡片继承父卡片的坐标。 */
+:is(.card, .work-item, .work-quiet, .plug-item, .ctx-role, .ctx-sec, .theme-card, .req-card, .composer, .dock, .chip, .qrow, .history-undo, .usage-pop, .sheet, .island, .mcp-row, .hui-section, .file, .plug-page) {
+  --spot-on: 0;
+  --mx: -240px;
+  --my: -240px;
+}
+
+/* 原生边框区域统一绘制圆角与直边；2px 避免细线取整后圆角显薄。 */
+:is(.card, .work-item, .work-quiet, .plug-item, .ctx-role, .theme-card, .req-card, .composer, .dock, .chip, .qrow, .history-undo, .usage-pop, .sheet, .island, .mcp-row, .hui-section, .file, .plug-page)::after,
+.ctx-sec > summary::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit;
   padding: 0;
-  border: 1.5px solid transparent;
+  border: 2px solid transparent;
   pointer-events: none;
   opacity: var(--spot-on, 0);
   transition: opacity var(--d-2);
@@ -357,46 +347,31 @@ html[data-motion="1.5"], html[data-motion="slow"] { --motion: 1.32; }
     transparent 74%);
   /* 渐变覆盖完整边框且不平铺，否则边缘会取到对侧的光。 */
   background-origin: border-box;
+  background-clip: border-area;
   background-repeat: no-repeat;
-  -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0) border-box;
-  mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0) border-box;
-  mask-composite: exclude;
 }
-[data-palette="cool"] .card::after,
-[data-palette="cool"] .work-item::after,
-[data-palette="cool"] .plug-item::after,
-[data-palette="cool"] .ctx-role::after,
-[data-palette="cool"] .theme-card::after,
-[data-palette="cool"] .req-card::after,
-[data-palette="cool"] .composer::after,
-[data-palette="cool"] .dock::after,
-[data-palette="cool"] .chip::after {
+[data-palette="cool"] :is(.card, .work-item, .work-quiet, .plug-item, .ctx-role, .theme-card, .req-card, .composer, .dock, .chip, .qrow, .history-undo, .usage-pop, .sheet, .island, .mcp-row, .hui-section, .file, .plug-page)::after,
+[data-palette="cool"] .ctx-sec > summary::after {
   background-image: radial-gradient(215px circle at var(--mx, -240px) var(--my, -240px),
     color-mix(in srgb, var(--jade) 54%, var(--cinnabar)), transparent 72%);
 }
 
 /* 状态语言：灵玉用温润朱印章，星枢用星紫呼吸脉冲环 */
-[data-palette="cool"] .req-seal,
 [data-palette="cool"] .seal {
   position: relative; border-radius: 999px; background: transparent;
   color: transparent; font-size: 0; transform: none; animation: none;
   box-shadow: inset 0 0 0 1.5px var(--cinnabar);
 }
 [data-palette="cool"] .seal { width: 40px; height: 40px; }
-[data-palette="cool"] .req-seal::before,
 [data-palette="cool"] .seal::before {
   content: ""; position: absolute; inset: 0; margin: auto;
   width: 6px; height: 6px; border-radius: 50%; background: var(--cinnabar);
 }
-[data-palette="cool"] .req-seal::after,
 [data-palette="cool"] .seal::after {
   content: ""; position: absolute; inset: -4px; border-radius: 999px;
   border: 1px solid var(--cinnabar); opacity: 0;
   animation: ring-out 2.6s ease-out infinite;
 }
-[data-palette="cool"] .req-card.work .req-seal { background: transparent; box-shadow: inset 0 0 0 1.5px var(--jade); }
-[data-palette="cool"] .req-card.work .req-seal::before { background: var(--jade); }
-[data-palette="cool"] .req-card.work .req-seal::after { border-color: var(--jade); }
 [data-palette="cool"] .decide::before {
   background: linear-gradient(180deg, transparent, var(--cinnabar) 28%, var(--cinnabar) 72%, transparent);
 }
@@ -431,8 +406,7 @@ body[data-mood="waiting"],
 
 /* 彩色面上的文字跟随主题明度 */
 .send.ready { color: var(--on-primary); }
-.seal, .req-seal, .req-allow, .opt .tick { color: var(--on-accent); }
-.req-card.work .req-seal { color: var(--on-primary); }
+.seal, .req-allow, .opt .tick { color: var(--on-accent); }
 .summary-card::before, .ctx-summary::before { color: var(--on-primary); }
 .theme-check { color: var(--on-primary); }
 .skill .glyph { color: var(--on-primary); }
@@ -474,71 +448,50 @@ body[data-mood="waiting"],
 [data-palette="jade"] .orb-mini::before { content: none; }
 .model-dot { background: conic-gradient(var(--jade), var(--cinnabar), var(--jade)); }
 
-/* ---------------------------------------------------------------- 设置页：灵玉 / 星枢 双境样张卡 */
-.ui-row { display: flex; align-items: center; gap: 18px; padding: 14px 0; }
+/* ---------------------------------------------------------------- 设置页：界面偏好与主题色盘 */
+.ui-row { display: flex; align-items: center; gap: var(--space-5); padding: var(--space-4) 0; }
 .ui-row + .ui-row { box-shadow: 0 -1px 0 var(--line); }
 .ui-row > div:first-child { flex: 1; min-width: 0; }
-.ui-row b { display: block; font-size: 15px; font-weight: 500; }
-.ui-row small { display: block; font-size: 13px; color: var(--ink-3); line-height: 1.55; margin-top: 2px; }
-.ui-controls { display: flex; align-items: center; gap: 10px; flex: none; }
-.ui-seg { padding: 4px; border-radius: 999px; }
-.ui-seg button { height: 28px; padding: 0 14px; border-radius: 999px; font-size: 13px; }
-.ui-seg .seg-ink { top: 4px; height: calc(100% - 8px); border-radius: 999px; }
+.ui-row b { display: block; font-size: var(--text-ui); font-weight: 500; }
+.ui-row small { display: block; font-size: var(--text-caption); color: var(--ink-3); line-height: 1.55; margin-top: 2px; }
+.ui-controls { display: flex; align-items: center; gap: var(--space-3); flex: none; }
+.ui-seg { padding: var(--space-1); border-radius: var(--r-pill); }
+.ui-seg button { height: 28px; padding: 0 var(--space-4); border-radius: var(--r-pill); font-size: var(--text-ui); }
+.ui-seg .seg-ink { top: 4px; height: calc(100% - 8px); border-radius: var(--r-pill); }
 .motion-demo { display: flex; align-items: center; gap: 5px; width: 34px; height: 24px; }
-.ui-controls .motion-play { height: 28px; padding: 0 12px; font-size: 12px; border-radius: 999px; }
+.ui-controls .motion-play { height: 28px; padding: 0 var(--space-3); font-size: var(--text-caption); border-radius: var(--r-pill); }
 .motion-demo i { width: 8px; height: 8px; border-radius: 50%; background: var(--jade); opacity: .45; }
 .motion-demo i:nth-child(2) { background: var(--cinnabar); }
 
-.theme-picker { margin-top: 14px; padding-top: 14px; box-shadow: 0 -1px 0 var(--line); }
-.theme-copy b { display: block; font-size: 15px; font-weight: 500; }
-.theme-copy small { display: block; font-size: 13px; color: var(--ink-3); line-height: 1.55; margin-top: 2px; }
-.theme-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.theme-picker { margin-top: var(--space-4); padding-top: var(--space-4); box-shadow: 0 -1px 0 var(--line); }
+.theme-copy b { display: block; font-size: var(--text-ui); font-weight: 500; }
+.theme-copy small { display: block; font-size: var(--text-caption); color: var(--ink-3); line-height: 1.55; margin-top: 2px; }
+.theme-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin-top: var(--space-3); }
 .theme-card {
-  position: relative; text-align: left; padding: 15px 16px; border-radius: 20px;
+  position: relative; display: flex; align-items: center; gap: var(--space-3);
+  min-height: 56px; text-align: left; padding: var(--space-3) var(--space-4); border-radius: var(--r-ctrl);
   background: var(--raised); box-shadow: inset 0 0 0 1px var(--line);
   transition: transform var(--d-2) var(--sp-settle), box-shadow var(--d-2), background var(--d-2);
 }
 .theme-card:hover { transform: translateY(-2px); background: var(--card); box-shadow: var(--sh-1), inset 0 0 0 1px var(--line-2); }
 .theme-card.is-active { background: var(--card); box-shadow: inset 0 0 0 1.8px var(--jade), var(--sh-1); }
 
-.theme-specimen { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.spec-glyph {
-  width: 34px; height: 34px; flex: none; display: grid; place-items: center;
-  border-radius: 12px; font: 600 15.5px/1 var(--font-sans);
-}
-.theme-jade .spec-glyph {
-  background: rgba(7, 140, 112, .14); color: #056953;
-  box-shadow: inset 0 0 0 1px rgba(217, 148, 22, .38);
-}
-[data-theme="night"] .theme-jade .spec-glyph { color: #f7cf68; background: rgba(245, 184, 61, .15); }
-.theme-cool .spec-glyph {
-  border-radius: 50%; background: rgba(53, 104, 240, .14); color: #3568f0;
-  box-shadow: inset 0 0 0 1px rgba(133, 92, 242, .34);
-}
-[data-theme="night"] .theme-cool .spec-glyph { color: #96b5ff; background: rgba(130, 168, 255, .16); }
+.theme-swatches { display: flex; align-items: center; gap: var(--space-1); flex: none; }
+.theme-swatches i { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08); }
 
-.theme-pair { display: flex; flex: 1; height: 20px; border-radius: 999px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08); }
-.theme-pair i { flex: 1; }
-.theme-pair i + i { margin-left: 2px; }
-.spec-tag {
-  flex: none; font: 500 11px/1 var(--font-sans); padding: 5px 9px;
-  color: var(--ink-2); background: var(--paper-2); border-radius: 999px;
-}
-
-.theme-name { display: block; font: 600 15.5px/1.3 var(--font-sans); color: var(--ink); }
-.theme-sub { display: block; font-size: 12.5px; color: var(--ink-3); margin-top: 3px; padding-right: 26px; line-height: 1.45; }
+.theme-name { display: block; font: 600 var(--text-body)/1.3 var(--font-sans); color: var(--ink); }
 .theme-check {
-  position: absolute; right: 13px; bottom: 13px; width: 21px; height: 21px; border-radius: 50%;
+  margin-left: auto; flex: none; width: 18px; height: 18px; border-radius: 50%;
   display: grid; place-items: center; background: var(--jade);
   opacity: 0; transform: scale(.6); transition: opacity var(--d-2), transform var(--d-2) var(--sp-bouncy);
 }
 .theme-card.is-active .theme-check { opacity: 1; transform: none; }
 
 @media (max-width: 760px) {
-  .ui-row { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .ui-row { flex-direction: column; align-items: flex-start; gap: var(--space-3); }
   .ui-controls { width: 100%; justify-content: space-between; }
   .theme-grid { grid-template-columns: 1fr; }
-  .theme-picker { margin-top: 12px; }
+  .theme-picker { margin-top: var(--space-3); }
 }
 
 /* ---------------------------------------------------------------- 微反馈细节 */
@@ -547,16 +500,9 @@ body[data-mood="waiting"],
   border-radius: 50%; border: 1.5px solid var(--jade); pointer-events: none;
 }
 
-@supports selector(details::details-content) {
-  details::details-content {
-    transition: block-size var(--d-3) var(--ease-out),
-      content-visibility var(--d-3) allow-discrete;
-  }
-}
-
 .msg.is-new { position: relative; }
 .msg.is-new::before {
-  content: ""; position: absolute; left: -12px; top: 4px; bottom: 4px; width: 2px; border-radius: 2px;
+  content: ""; position: absolute; left: -12px; top: 4px; bottom: 4px; width: 2px; border-radius: var(--r-inline);
   background: var(--jade); animation: new-rule calc(1.8s * var(--motion)) var(--ease-out) forwards;
 }
 @keyframes new-rule {
@@ -578,23 +524,8 @@ body[data-mood="waiting"],
 }
 
 /* 层次与双境样本：外层承托，内层资料嵌入，浮层独立抬升。 */
-.ctx-role, .ctx-sec, .plug-item { backdrop-filter: none; -webkit-backdrop-filter: none; }
 .ctx-role { background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); }
 .ctx-card .ctx-owner { border-radius: var(--r-ctrl); box-shadow: none; }
-.theme-scene { position: relative; flex: 1; height: 48px; overflow: hidden; border-radius: 12px; }
-.theme-jade .theme-scene { background: #dce9df; }
-.theme-cool .theme-scene { background: #10182d; }
-.spec-orbit { position: absolute; left: 50%; top: 50%; width: 96px; height: 30px; border: 1px solid #b58a36; border-radius: 50%; transform: translate(-50%, -50%) rotate(-18deg); }
-.spec-core { position: absolute; left: 50%; top: 50%; width: 24px; height: 30px; border-radius: 35% 42% 34% 40%; transform: translate(-50%, -50%) rotate(-14deg); background: radial-gradient(circle at 25% 20%, #d7f5df, #47b68f 35%, #08654e 88%); box-shadow: inset 1px 1px 2px #e2ffe5; }
-.theme-cool .spec-core { width: 20px; height: 20px; border-radius: 50%; background: radial-gradient(circle at 28% 24%, #f0f5ff, #8cafff 32%, #3568d6 85%); }
-.theme-cool .spec-orbit { border-color: #7897dc; height: 27px; }
-.theme-jade .spec-stars { position: absolute; width: 3px; height: 3px; border-radius: 1px; background: #9b6d20; left: 50%; top: 50%; box-shadow: -40px 10px #b28a37, -33px 9px #c59b4a, -25px 8px #a97b2e, 25px -8px #bc8a35, 33px -9px #a27728, 40px -10px #c49a47; }
-.theme-cool .spec-stars { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #e1eaff; left: 20%; top: 23%; box-shadow: 25px 19px #94abeb, 65px -4px #d9dfff, 92px 21px #c1cbf5, 116px 4px #91adee, -12px 27px #aaa8ee; }
-.theme-card:hover .spec-orbit, .theme-card:focus-visible .spec-orbit { animation: specimen-orbit 3s ease-in-out infinite alternate; }
-@keyframes specimen-orbit { to { transform: translate(-50%, -50%) rotate(-6deg); } }
-
-.theme-jade .spec-core { width: 30px; height: 36px; border-radius: 0; background: url("../assets/jade-core.webp") center / contain no-repeat; box-shadow: none; }
-
 /* 墨玉黑夜：环线与近处器物边缘有可辨认的透光。 */
 [data-theme="night"][data-palette="jade"] .pv-rim,
 [data-theme="night"][data-palette="jade"] .pv-jade-vernier { stroke: rgba(126, 240, 212, .5); filter: drop-shadow(0 0 2px rgba(78, 220, 175, .3)); }
