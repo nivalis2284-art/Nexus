@@ -54,8 +54,8 @@
     if (!dots.length) return;
     dots.forEach((d, i) => {
       d.getAnimations().forEach(a => a.cancel());
-      N.anim(d, [{ opacity: .15, transform: 'translateX(-12px) scale(.6)' }, { opacity: 1, transform: 'none' }],
-        { duration: N.DUR.enter, delay: i * 90, easing: N.SP.bouncy.e });
+      N.anim(d, [{ opacity: .15, transform: 'translateX(-16px) scale(.99)' }, { opacity: 1, transform: 'none' }],
+        { duration: N.DUR.enter, delay: i * N.MOTION.stagger, easing: N.EASE_ENTER });
     });
   }
 
@@ -202,9 +202,7 @@
     hookSnapshot = [];
     $('#hooks-list').innerHTML = '<p class="mcp-empty">正在读取钩子…</p>';
     $('#hooks-error').textContent = '';
-    dlg.showModal();
-    N.anim(dlg, [{ opacity: 0, transform: 'translateY(24px) scale(.92)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.enter, easing: N.EASE_OUT });
+    N.openDialog(dlg);
     await refreshHooks();
     N.stagger?.($('#hooks-list'));
   }
@@ -261,10 +259,8 @@
     $('#p-delete').hidden = !provider;
     renderProviderModels();
     const dlg = $('#provider-dialog');
-    dlg.showModal();
+    N.openDialog(dlg);
     setTimeout(() => $('#p-name').focus(), 40);
-    N.anim(dlg, [{ opacity: 0, transform: 'translateY(24px) scale(.92)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.enter, easing: N.EASE_OUT });
   }
   function addModel() {
     const id = $('#p-model-new').value.trim();
@@ -388,9 +384,7 @@
     $('#mcp-error').textContent = '';
     syncTransport(); syncTokenClear();
     const dlg = $('#mcp-dialog');
-    dlg.showModal();
-    N.anim(dlg, [{ opacity: 0, transform: 'translateY(24px) scale(.92)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.enter, easing: N.EASE_OUT });
+    N.openDialog(dlg);
   }
   async function saveMcp() {
     const err = $('#mcp-error');

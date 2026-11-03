@@ -285,13 +285,13 @@
           node._huiField = f;
           this.fields.set(f.name, { node: f, element: node });
         }
-        if (fresh && spec.animate && !N.REDUCED) N.anim(node, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: N.DUR.base, easing: N.SP.soft.e });
+        if (fresh && spec.animate && !N.REDUCED) N.anim(node, [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], { duration: N.DUR.content, easing: N.EASE_ENTER });
       }
       for (const node of existing.values()) {
         if (node._huiAnimate && !N.REDUCED) {
           node.dataset.huiLeaving = 'true'; node.inert = true;
           node.getAnimations().forEach(a => a.cancel());
-          const animation = N.anim(node, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-4px)' }], { duration: N.DUR.micro, easing: N.EASE_OUT });
+          const animation = N.anim(node, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-8px)' }], { duration: N.DUR.micro, easing: N.EASE_EXIT });
           animation.onfinish = () => node.remove();
         } else node.remove();
       }

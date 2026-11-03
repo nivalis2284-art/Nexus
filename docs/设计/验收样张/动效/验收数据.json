@@ -1,0 +1,819 @@
+{
+  "work": [
+    {
+      "name": "",
+      "delay": 0,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "work-head-actions",
+      "delay": 40,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "work-group-h static",
+      "delay": 70,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "work-item",
+      "delay": 140,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(24px) scale(0.99)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "work-item",
+      "delay": 180,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(24px) scale(0.99)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "work-item",
+      "delay": 220,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(24px) scale(0.99)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "work-group-h",
+      "delay": 210,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "work-item",
+      "delay": 280,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(24px) scale(0.99)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "work-group-h",
+      "delay": 280,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "work-item",
+      "delay": 280,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(24px) scale(0.99)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    }
+  ],
+  "context": [
+    {
+      "name": "",
+      "delay": 0,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "ctx-head-acts",
+      "delay": 40,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "card ctx-overview",
+      "delay": 70,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(24px) scale(0.99)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "tabs",
+      "delay": 140,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "card ctx-card",
+      "delay": 210,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(24px) scale(0.99)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "card ctx-card",
+      "delay": 280,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(24px) scale(0.99)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    }
+  ],
+  "skills": [
+    {
+      "name": "",
+      "delay": 0,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "row",
+      "delay": 40,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "skills-toolbar",
+      "delay": 70,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "card lift skill is-shadowed",
+      "delay": 140,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(24px) scale(0.99)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "card lift skill",
+      "delay": 180,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(24px) scale(0.99)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "card lift skill",
+      "delay": 220,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(24px) scale(0.99)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "foot-note",
+      "delay": 210,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    }
+  ],
+  "plugins": [
+    {
+      "name": "",
+      "delay": 0,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "pill mono",
+      "delay": 40,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "tabs",
+      "delay": 70,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "plug-toolbar",
+      "delay": 140,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "plug-note",
+      "delay": 210,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "plug-list",
+      "delay": 280,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "card plug-detail",
+      "delay": 280,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(24px) scale(0.99)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "name": "",
+      "delay": 0,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "pill",
+      "delay": 40,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "card set-sec",
+      "delay": 70,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(24px) scale(0.99)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "card set-sec",
+      "delay": 140,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(24px) scale(0.99)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "card set-sec",
+      "delay": 210,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(24px) scale(0.99)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    }
+  ],
+  "chat": [
+    {
+      "name": "req-card work",
+      "delay": 0,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "msg msg-ling",
+      "delay": 70,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    },
+    {
+      "name": "composer-wrap",
+      "delay": 140,
+      "direction": "normal",
+      "duration": 560,
+      "easing": "cubic-bezier(0.22, 0, 0.2, 1)",
+      "endDelay": 0,
+      "fill": "backwards",
+      "iterationStart": 0,
+      "iterations": 1,
+      "frames": [
+        {
+          "transform": "translateY(16px) scale(1)",
+          "filter": null
+        },
+        {
+          "transform": "none",
+          "filter": null
+        }
+      ]
+    }
+  ],
+  "curve": [
+    24,
+    13.6744,
+    4.53644,
+    0.918135,
+    0
+  ]
+}

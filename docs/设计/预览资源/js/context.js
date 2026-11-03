@@ -136,9 +136,9 @@
   function growMeter(view, pct) {
     if (N.REDUCED) return;
     $$('.ctx-meter i', view).forEach((n, i) => N.anim(n, [{ transform: 'scaleX(0)' }, { transform: 'none' }],
-      { duration: N.DUR.enter, delay: i * N.MOTION.stagger, easing: N.EASE_OUT, fill: 'backwards' }));
+      { duration: N.DUR.enter, delay: i * N.MOTION.stagger, easing: N.EASE_MOVE, fill: 'backwards' }));
     $$('.ctx-legend span', view).forEach((n, i) => N.anim(n, [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.enter, delay: (i + 2) * N.MOTION.stagger, easing: N.EASE_OUT, fill: 'backwards' }));
+      { duration: N.DUR.enter, delay: (i + 2) * N.MOTION.stagger, easing: N.EASE_ENTER, fill: 'backwards' }));
   }
 
   function renderContext() {
@@ -188,6 +188,7 @@
     maybeSync();
     if (entering) {
       ctx.enteredAt = Date.now();
+      if (pct !== null) N.countUp($('.ctx-big strong', view), pct, N.DUR.enter * N.motionScale());
       growMeter(view, pct);
       setTimeout(() => {
         const tabs = $('.tabs', view);
@@ -269,7 +270,7 @@
     const row = $(`.ctx-owner-row[data-i="${i}"]`);
     if (row && !N.REDUCED) {
       await N.anim(row, [{ opacity: 1, height: row.offsetHeight + 'px' }, { opacity: 0, height: '0px', transform: 'scale(.98)' }],
-        { duration: N.DUR.base, easing: 'ease-in', fill: 'forwards' }).finished;
+        { duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' }).finished;
     }
     const items = list.slice();
     items.splice(i, 1);
@@ -332,7 +333,7 @@
     if (rows.length && !N.REDUCED) {
       await Promise.all(rows.map((row, k) => N.anim(row,
         [{ opacity: 1, height: row.offsetHeight + 'px' }, { opacity: 0, height: '0px', transform: 'scale(.97)' }],
-        { duration: N.DUR.base, delay: k * 18, easing: 'ease-in', fill: 'forwards' }).finished));
+        { duration: N.DUR.micro, delay: Math.min(k * 20, 60), easing: N.EASE_EXIT, fill: 'forwards' }).finished));
     }
     try {
       await N.api.history({ operation: 'delete', version: state.contextData.version, indices });
@@ -390,14 +391,16 @@
       if (ctx.tab === t.dataset.k) return;
       ctx.tab = t.dataset.k;
       const oldPanel = $('.ctx-panel');
+      const selected = ctx.tab;
       const swap = () => {
+        if (ctx.tab !== selected) return;
         ctx.tabSlide = true;
         renderContext();
         const panel = $('.ctx-panel');
-        if (panel) N.stagger(panel);
+        if (panel) N.cascade(panel);
       };
       if (oldPanel && !N.REDUCED) {
-        N.anim(oldPanel, [{ opacity: 1 }, { opacity: 0, transform: 'translateY(-4px)' }], { duration: N.DUR.fast, easing: 'ease-in' }).onfinish = swap;
+        Promise.all(N.exitItems([...oldPanel.children], $('#view-context')).map(a => a.finished)).then(swap, () => {});
       } else swap();
       return;
     }

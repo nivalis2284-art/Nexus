@@ -19,7 +19,7 @@ window.Preview = { timers: new Set(), scenario: 'conversation', failNext: false,
 | 动效 | 检查中 | 统一时序 |
 
 \`\`\`js
-const duration = N.DUR.enter; // 240ms
+const duration = N.DUR.enter; // 560ms
 N.enterItems(cards, viewport);
 \`\`\`
 

@@ -72,9 +72,7 @@
     $('#skill-save').hidden = !!readonly;
     $('#skill-save').textContent = '保存技能';
     $('#skill-save').disabled = false;
-    dlg.showModal();
-    N.anim(dlg, [{ opacity: 0, transform: 'translateY(24px) scale(.92)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.enter, easing: N.EASE_OUT });
+    N.openDialog(dlg);
     if (!readonly) $('#skill-name').focus();
   }
   function closeEditor() {
@@ -131,7 +129,7 @@
     const card = $$('#view-skills .skill')[i];
     if (card && !N.REDUCED) {
       await N.anim(card, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.94) translateY(-4px)' }],
-        { duration: N.DUR.base, easing: 'ease-in', fill: 'forwards' }).finished;
+        { duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' }).finished;
     }
     try {
       await N.api.deleteSkill({ source: s.source, path: s.path });

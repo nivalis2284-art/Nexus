@@ -11,16 +11,16 @@
 | `--ink-glass` | `rgba(255, 255, 255, .07)` | `[data-theme="night"]` | 预览资源/css/app.css:14 |
 | `--s` | `40px` | `.work-empty .orb-mini` | 预览资源/css/app.css:374 |
 | `--s` | `15px` | `.isl-thread .ling-head .orb-mini` | 预览资源/css/app.css:418 |
-| `--s` | `18px` | `.req-head .req-orb` | 预览资源/css/app.css:1076 |
-| `--ink` | `var(--i-ink)` | `.isl-thread` | 预览资源/css/app.css:1145 |
-| `--ink-2` | `var(--i-ink-2)` | `.isl-thread` | 预览资源/css/app.css:1145 |
-| `--ink-3` | `var(--i-ink-2)` | `.isl-thread` | 预览资源/css/app.css:1145 |
-| `--ink-4` | `var(--i-ink-3)` | `.isl-thread` | 预览资源/css/app.css:1145 |
-| `--jade-ink` | `var(--jade-hi)` | `.isl-thread` | 预览资源/css/app.css:1145 |
-| `--raised` | `var(--island-2)` | `.isl-thread` | 预览资源/css/app.css:1145 |
-| `--paper-2` | `var(--island-3)` | `.isl-thread` | 预览资源/css/app.css:1145 |
-| `--line` | `var(--i-line)` | `.isl-thread` | 预览资源/css/app.css:1145 |
-| `--line-2` | `var(--i-line)` | `.isl-thread` | 预览资源/css/app.css:1145 |
+| `--s` | `18px` | `.req-head .req-orb` | 预览资源/css/app.css:1078 |
+| `--ink` | `var(--i-ink)` | `.isl-thread` | 预览资源/css/app.css:1147 |
+| `--ink-2` | `var(--i-ink-2)` | `.isl-thread` | 预览资源/css/app.css:1147 |
+| `--ink-3` | `var(--i-ink-2)` | `.isl-thread` | 预览资源/css/app.css:1147 |
+| `--ink-4` | `var(--i-ink-3)` | `.isl-thread` | 预览资源/css/app.css:1147 |
+| `--jade-ink` | `var(--jade-hi)` | `.isl-thread` | 预览资源/css/app.css:1147 |
+| `--raised` | `var(--island-2)` | `.isl-thread` | 预览资源/css/app.css:1147 |
+| `--paper-2` | `var(--island-3)` | `.isl-thread` | 预览资源/css/app.css:1147 |
+| `--line` | `var(--i-line)` | `.isl-thread` | 预览资源/css/app.css:1147 |
+| `--line-2` | `var(--i-line)` | `.isl-thread` | 预览资源/css/app.css:1147 |
 | `--paper` | `#f4f1ea` | `:root` | 预览资源/css/ling.css:12 |
 | `--paper-2` | `#eae5db` | `:root` | 预览资源/css/ling.css:13 |
 | `--card` | `#fbfaf6` | `:root` | 预览资源/css/ling.css:14 |
@@ -393,27 +393,36 @@
 | `--dialog-height-large` | `88dvh` | `:root` | 预览资源/css/tokens.css:24 |
 | `--dialog-gutter` | `16px` | `:root` | 预览资源/css/tokens.css:25 |
 | `--duration-fast` | `96ms` | `:root` | 预览资源/css/tokens.css:26 |
-| `--duration-micro` | `120ms` | `:root` | 预览资源/css/tokens.css:26 |
-| `--duration-base` | `200ms` | `:root` | 预览资源/css/tokens.css:26 |
-| `--duration-move` | `240ms` | `:root` | 预览资源/css/tokens.css:27 |
-| `--duration-enter` | `240ms` | `:root` | 预览资源/css/tokens.css:27 |
-| `--duration-fade` | `220ms` | `:root` | 预览资源/css/tokens.css:28 |
-| `--duration-text` | `140ms` | `:root` | 预览资源/css/tokens.css:28 |
+| `--duration-micro` | `160ms` | `:root` | 预览资源/css/tokens.css:26 |
+| `--duration-base` | `240ms` | `:root` | 预览资源/css/tokens.css:26 |
+| `--duration-content` | `420ms` | `:root` | 预览资源/css/tokens.css:27 |
+| `--duration-move` | `560ms` | `:root` | 预览资源/css/tokens.css:27 |
+| `--duration-enter` | `560ms` | `:root` | 预览资源/css/tokens.css:27 |
+| `--duration-exit` | `220ms` | `:root` | 预览资源/css/tokens.css:28 |
+| `--duration-fade` | `320ms` | `:root` | 预览资源/css/tokens.css:28 |
+| `--duration-text` | `200ms` | `:root` | 预览资源/css/tokens.css:28 |
 | `--duration-theme` | `850ms` | `:root` | 预览资源/css/tokens.css:28 |
-| `--enter-stagger` | `24ms` | `:root` | 预览资源/css/tokens.css:29 |
-| `--enter-limit` | `8` | `:root` | 预览资源/css/tokens.css:29 |
-| `--enter-offset` | `8px` | `:root` | 预览资源/css/tokens.css:29 |
-| `--temper` | `1` | `:root` | 预览资源/css/tokens.css:30 |
-| `--d-0` | `calc(var(--duration-fast) * var(--motion))` | `:root` | 预览资源/css/tokens.css:31 |
-| `--d-1` | `calc(var(--duration-micro) * var(--motion))` | `:root` | 预览资源/css/tokens.css:32 |
-| `--d-2` | `calc(var(--duration-base) * var(--motion))` | `:root` | 预览资源/css/tokens.css:33 |
-| `--d-3` | `calc(var(--duration-move) * var(--motion))` | `:root` | 预览资源/css/tokens.css:34 |
-| `--d-4` | `calc(var(--duration-enter) * var(--motion))` | `:root` | 预览资源/css/tokens.css:35 |
-| `--card-padding` | `var(--space-4)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:39 |
-| `--card-gap` | `var(--space-4)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:39 |
-| `--group-gap` | `var(--space-6)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:40 |
-| `--inner-gap` | `var(--space-3)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:40 |
-| `--page-gutter` | `var(--space-4)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:41 |
-| `--page-top` | `var(--space-20)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:41 |
-| `--page-bottom` | `var(--space-16)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:42 |
-| `--text-page` | `24px` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:42 |
+| `--ease-enter` | `cubic-bezier(.22,0,.2,1)` | `:root` | 预览资源/css/tokens.css:29 |
+| `--ease-move` | `cubic-bezier(.4,0,.2,1)` | `:root` | 预览资源/css/tokens.css:30 |
+| `--ease-exit` | `cubic-bezier(.4,0,1,1)` | `:root` | 预览资源/css/tokens.css:31 |
+| `--enter-stagger` | `70ms` | `:root` | 预览资源/css/tokens.css:32 |
+| `--content-stagger` | `40ms` | `:root` | 预览资源/css/tokens.css:32 |
+| `--content-window` | `160ms` | `:root` | 预览资源/css/tokens.css:32 |
+| `--enter-window` | `280ms` | `:root` | 预览资源/css/tokens.css:33 |
+| `--enter-offset` | `24px` | `:root` | 预览资源/css/tokens.css:33 |
+| `--content-offset` | `16px` | `:root` | 预览资源/css/tokens.css:33 |
+| `--float-offset` | `12px` | `:root` | 预览资源/css/tokens.css:33 |
+| `--temper` | `1` | `:root` | 预览资源/css/tokens.css:34 |
+| `--d-0` | `calc(var(--duration-fast) * var(--motion))` | `:root` | 预览资源/css/tokens.css:35 |
+| `--d-1` | `calc(var(--duration-micro) * var(--motion))` | `:root` | 预览资源/css/tokens.css:36 |
+| `--d-2` | `calc(var(--duration-base) * var(--motion))` | `:root` | 预览资源/css/tokens.css:37 |
+| `--d-3` | `calc(var(--duration-move) * var(--motion))` | `:root` | 预览资源/css/tokens.css:38 |
+| `--d-4` | `calc(var(--duration-enter) * var(--motion))` | `:root` | 预览资源/css/tokens.css:39 |
+| `--card-padding` | `var(--space-4)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:43 |
+| `--card-gap` | `var(--space-4)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:43 |
+| `--group-gap` | `var(--space-6)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:44 |
+| `--inner-gap` | `var(--space-3)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:44 |
+| `--page-gutter` | `var(--space-4)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:45 |
+| `--page-top` | `var(--space-20)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:45 |
+| `--page-bottom` | `var(--space-16)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:46 |
+| `--text-page` | `24px` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:46 |

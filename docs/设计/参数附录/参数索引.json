@@ -1304,7 +1304,7 @@
     },
     {
       "name": "animation",
-      "value": "q-in calc(.36s * var(--motion)) var(--ease-out) both",
+      "value": "q-in calc(var(--duration-content) * var(--motion)) var(--ease-enter) both",
       "selector": ".qrow",
       "file": "预览资源/css/app.css",
       "line": 106
@@ -1318,7 +1318,7 @@
     },
     {
       "name": "transform",
-      "value": "translateY(-6px)",
+      "value": "translateY(-16px)",
       "selector": "@keyframes q-in → from",
       "file": "预览资源/css/app.css",
       "line": 108
@@ -1794,7 +1794,7 @@
     },
     {
       "name": "animation",
-      "value": "req-in calc(.5s * var(--motion)) var(--sp-bouncy) both",
+      "value": "req-in calc(var(--duration-enter) * var(--motion)) var(--ease-enter) both",
       "selector": ".req-card",
       "file": "预览资源/css/app.css",
       "line": 129
@@ -1808,7 +1808,7 @@
     },
     {
       "name": "transform",
-      "value": "translateY(-8px)",
+      "value": "translateY(-24px) scale(.99)",
       "selector": "@keyframes req-in → from",
       "file": "预览资源/css/app.css",
       "line": 131
@@ -1850,7 +1850,7 @@
     },
     {
       "name": "animation",
-      "value": "req-out calc(.32s * var(--motion)) var(--ease-in) forwards",
+      "value": "req-out calc(var(--duration-exit) * var(--motion)) var(--ease-exit) forwards",
       "selector": ".req-card.resolving",
       "file": "预览资源/css/app.css",
       "line": 133
@@ -4790,7 +4790,7 @@
     },
     {
       "name": "animation",
-      "value": "file-in calc(.4s * var(--motion)) var(--sp-bouncy) both",
+      "value": "file-in calc(var(--duration-content) * var(--motion)) var(--ease-enter) both",
       "selector": ".files .file",
       "file": "预览资源/css/app.css",
       "line": 285
@@ -4804,7 +4804,7 @@
     },
     {
       "name": "transform",
-      "value": "scale(.7)",
+      "value": "translateY(16px) scale(.99)",
       "selector": "@keyframes file-in → from",
       "file": "预览资源/css/app.css",
       "line": 286
@@ -5602,7 +5602,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-3) var(--sp-settle), box-shadow var(--d-3), background var(--d-2)",
+      "value": "transform var(--d-3) var(--sp-settle), box-shadow var(--d-2), background var(--d-2)",
       "selector": ".work-item",
       "file": "预览资源/css/app.css",
       "line": 341
@@ -15745,7 +15745,7 @@
     },
     {
       "name": "animation",
-      "value": "panel-in calc(.4s * var(--motion)) var(--ease-out) both",
+      "value": "none",
       "selector": ".ctx-panel",
       "file": "预览资源/css/app.css",
       "line": 856
@@ -16298,7 +16298,7 @@
     },
     {
       "name": "transition",
-      "value": "opacity var(--d-3) var(--ease-out)",
+      "value": "opacity calc(var(--duration-exit) * var(--motion)) var(--ease-move)",
       "selector": ".island-scrim",
       "file": "预览资源/css/app.css",
       "line": 926
@@ -16704,7 +16704,7 @@
     },
     {
       "name": "animation",
-      "value": "tok-in calc(var(--duration-text) * var(--motion)) var(--ease-out) both",
+      "value": "tok-in calc(var(--duration-text) * var(--motion)) var(--ease-enter) both",
       "selector": ".tok-stream",
       "file": "预览资源/css/app.css",
       "line": 987
@@ -16844,7 +16844,7 @@
     },
     {
       "name": "transition",
-      "value": "opacity calc(var(--duration-fade) * var(--motion)) var(--ease-out), visibility 0s",
+      "value": "opacity calc(var(--duration-fade) * var(--motion)) var(--ease-move), visibility 0s",
       "selector": ".stage, .island, .toast, .usage-pop, .menu-btn, .island-scrim",
       "file": "预览资源/css/app.css",
       "line": 997
@@ -16872,7 +16872,7 @@
     },
     {
       "name": "transition",
-      "value": "opacity calc(var(--duration-fade) * var(--motion)) var(--ease-out), visibility 0s calc(var(--duration-fade) * var(--motion))",
+      "value": "opacity calc(var(--duration-fade) * var(--motion)) var(--ease-move), visibility 0s calc(var(--duration-fade) * var(--motion))",
       "selector": "body.background-only :is(.stage, .island, .toast, .usage-pop, .menu-btn, .island-scrim)",
       "file": "预览资源/css/app.css",
       "line": 1001
@@ -17026,7 +17026,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-2) var(--ease-out), box-shadow var(--d-3) var(--ease-out)",
+      "value": "transform var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move)",
       "selector": ".lift",
       "file": "预览资源/css/app.css",
       "line": 1024
@@ -17047,14 +17047,14 @@
     },
     {
       "name": "transition-duration",
-      "value": ".12s",
+      "value": "var(--d-0)",
       "selector": ".lift:active",
       "file": "预览资源/css/app.css",
       "line": 1026
     },
     {
       "name": "transition",
-      "value": "box-shadow var(--d-3) var(--ease-out), transform var(--d-2) var(--ease-out)",
+      "value": "box-shadow var(--d-2) var(--ease-move), transform var(--d-2) var(--ease-move)",
       "selector": ".composer",
       "file": "预览资源/css/app.css",
       "line": 1027
@@ -17068,7 +17068,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-1) var(--ease-out), background var(--d-2), opacity var(--d-2)",
+      "value": "transform var(--d-2) var(--sp-settle), background var(--d-2) var(--ease-move), opacity var(--d-2) var(--ease-move)",
       "selector": ".send",
       "file": "预览资源/css/app.css",
       "line": 1029
@@ -17089,7 +17089,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-1) var(--ease-out), background var(--d-2), box-shadow var(--d-2)",
+      "value": "transform var(--d-2) var(--sp-settle), background var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move)",
       "selector": ".btn",
       "file": "预览资源/css/app.css",
       "line": 1032
@@ -17103,7 +17103,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-2) var(--ease-out), box-shadow var(--d-3), background var(--d-3)",
+      "value": "transform var(--d-2) var(--sp-settle), box-shadow var(--d-2) var(--ease-move), background var(--d-2) var(--ease-move)",
       "selector": ".chip",
       "file": "预览资源/css/app.css",
       "line": 1034
@@ -17117,7 +17117,7 @@
     },
     {
       "name": "transition",
-      "value": "color var(--d-1) var(--ease-out), transform var(--d-2) var(--ease-out)",
+      "value": "color var(--d-2) var(--ease-move), transform var(--d-2) var(--sp-settle)",
       "selector": ".dock-btn",
       "file": "预览资源/css/app.css",
       "line": 1036
@@ -17131,1228 +17131,1242 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-2) var(--ease-out), box-shadow var(--d-3)",
+      "value": "transform var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move)",
       "selector": ".work-item",
       "file": "预览资源/css/app.css",
       "line": 1038
     },
     {
       "name": "transition",
-      "value": "transform var(--d-2) var(--ease-out), box-shadow var(--d-2), background var(--d-2)",
+      "value": "transform var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move), background var(--d-2) var(--ease-move)",
       "selector": ".plug-item",
       "file": "预览资源/css/app.css",
       "line": 1039
     },
     {
       "name": "transition",
-      "value": "transform var(--d-2) var(--ease-out), box-shadow var(--d-3)",
+      "value": "transform var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move)",
       "selector": ".skill",
       "file": "预览资源/css/app.css",
       "line": 1040
     },
     {
       "name": "transition",
-      "value": "background-color var(--d-4) var(--ease-out), color var(--d-4) var(--ease-out),\n    --aura-a 1.2s var(--ease-out), --aura-b 1.2s var(--ease-out), --aura-c 1.2s var(--ease-out)",
+      "value": "left var(--d-2) var(--sp-settle), width var(--d-2) var(--ease-move)",
+      "selector": ".switch::after",
+      "file": "预览资源/css/app.css",
+      "line": 1041
+    },
+    {
+      "name": "transition-duration",
+      "value": "var(--d-0)",
+      "selector": ".send:active, .btn:active, .chip:active, .dock-btn:active",
+      "file": "预览资源/css/app.css",
+      "line": 1042
+    },
+    {
+      "name": "transition",
+      "value": "background-color var(--d-2) var(--ease-move), color var(--d-2) var(--ease-move),\n    --aura-a 1.2s var(--ease-out), --aura-b 1.2s var(--ease-out), --aura-c 1.2s var(--ease-out)",
       "selector": "body",
       "file": "预览资源/css/app.css",
-      "line": 1044
+      "line": 1046
     },
     {
       "name": "scrollbar-color",
       "value": "rgba(255,255,255,.16) transparent",
       "selector": "[data-theme=\"night\"] .conversation",
       "file": "预览资源/css/app.css",
-      "line": 1049
+      "line": 1051
     },
     {
       "name": "display",
       "value": "inline-flex",
       "selector": ".phase .tw",
       "file": "预览资源/css/app.css",
-      "line": 1052
+      "line": 1054
     },
     {
       "name": "align-items",
       "value": "center",
       "selector": ".phase .tw",
       "file": "预览资源/css/app.css",
-      "line": 1052
+      "line": 1054
     },
     {
       "name": "justify-content",
       "value": "center",
       "selector": ".phase .tw",
       "file": "预览资源/css/app.css",
-      "line": 1052
+      "line": 1054
     },
     {
       "name": "width",
       "value": "12px",
       "selector": ".phase .tw",
       "file": "预览资源/css/app.css",
-      "line": 1052
+      "line": 1054
     },
     {
       "name": "height",
       "value": "12px",
       "selector": ".phase .tw",
       "file": "预览资源/css/app.css",
-      "line": 1052
+      "line": 1054
     },
     {
       "name": "color",
       "value": "var(--ink-3)",
       "selector": ".phase .tw",
       "file": "预览资源/css/app.css",
-      "line": 1052
+      "line": 1054
     },
     {
       "name": "width",
       "value": "11px",
       "selector": ".phase .tw .i",
       "file": "预览资源/css/app.css",
-      "line": 1053
+      "line": 1055
     },
     {
       "name": "height",
       "value": "11px",
       "selector": ".phase .tw .i",
       "file": "预览资源/css/app.css",
-      "line": 1053
+      "line": 1055
     },
     {
       "name": "transform",
       "value": "rotate(90deg)",
       "selector": ".phase[open] .tw",
       "file": "预览资源/css/app.css",
-      "line": 1054
+      "line": 1056
     },
     {
       "name": "width",
       "value": "13px",
       "selector": ".step .sicon .i",
       "file": "预览资源/css/app.css",
-      "line": 1055
+      "line": 1057
     },
     {
       "name": "height",
       "value": "13px",
       "selector": ".step .sicon .i",
       "file": "预览资源/css/app.css",
-      "line": 1055
+      "line": 1057
     },
     {
       "name": "width",
       "value": "34px",
       "selector": ".phase .live-dots",
       "file": "预览资源/css/app.css",
-      "line": 1056
+      "line": 1058
     },
     {
       "name": "height",
       "value": "16px",
       "selector": ".phase .live-dots",
       "file": "预览资源/css/app.css",
-      "line": 1056
+      "line": 1058
     },
     {
       "name": "top",
       "value": "4px",
       "selector": ".phase .live-dots i",
       "file": "预览资源/css/app.css",
-      "line": 1057
+      "line": 1059
     },
     {
       "name": "width",
       "value": "8px",
       "selector": ".phase .live-dots i",
       "file": "预览资源/css/app.css",
-      "line": 1057
+      "line": 1059
     },
     {
       "name": "height",
       "value": "8px",
       "selector": ".phase .live-dots i",
       "file": "预览资源/css/app.css",
-      "line": 1057
+      "line": 1059
     },
     {
       "name": "box-shadow",
       "value": "0 0 6px color-mix(in srgb, var(--jade) 42%, transparent)",
       "selector": ".phase .live-dots i",
       "file": "预览资源/css/app.css",
-      "line": 1057
+      "line": 1059
     },
     {
       "name": "left",
       "value": "3px",
       "selector": ".phase .live-dots i:nth-child(1)",
       "file": "预览资源/css/app.css",
-      "line": 1058
+      "line": 1060
     },
     {
       "name": "left",
       "value": "12px",
       "selector": ".phase .live-dots i:nth-child(2)",
       "file": "预览资源/css/app.css",
-      "line": 1059
+      "line": 1061
     },
     {
       "name": "left",
       "value": "21px",
       "selector": ".phase .live-dots i:nth-child(3)",
       "file": "预览资源/css/app.css",
-      "line": 1060
+      "line": 1062
     },
     {
       "name": "interpolate-size",
       "value": "allow-keywords",
       "selector": ":root",
       "file": "预览资源/css/app.css",
-      "line": 1063
+      "line": 1065
     },
     {
       "name": "block-size",
       "value": "0",
       "selector": "@supports selector(details::details-content) → details::details-content",
       "file": "预览资源/css/app.css",
-      "line": 1066
+      "line": 1068
     },
     {
       "name": "overflow",
       "value": "hidden",
       "selector": "@supports selector(details::details-content) → details::details-content",
       "file": "预览资源/css/app.css",
-      "line": 1067
+      "line": 1069
     },
     {
       "name": "transition",
-      "value": "block-size var(--d-3) var(--ease-out), content-visibility var(--d-3) allow-discrete",
+      "value": "block-size var(--d-3) var(--ease-move), content-visibility var(--d-3) allow-discrete",
       "selector": "@supports selector(details::details-content) → details::details-content",
       "file": "预览资源/css/app.css",
-      "line": 1068
+      "line": 1070
     },
     {
       "name": "block-size",
       "value": "auto",
       "selector": "@supports selector(details::details-content) → details[open]::details-content",
       "file": "预览资源/css/app.css",
-      "line": 1070
+      "line": 1072
     },
     {
       "name": "transition",
       "value": "none",
       "selector": "@supports selector(details::details-content) → @media (prefers-reduced-motion: reduce) → details::details-content",
       "file": "预览资源/css/app.css",
-      "line": 1072
+      "line": 1074
     },
     {
       "name": "--s",
       "value": "18px",
       "selector": ".req-head .req-orb",
       "file": "预览资源/css/app.css",
-      "line": 1076
+      "line": 1078
     },
     {
       "name": "margin-right",
       "value": "2px",
       "selector": ".req-head .req-orb",
       "file": "预览资源/css/app.css",
-      "line": 1076
+      "line": 1078
     },
     {
       "name": "margin-top",
       "value": "var(--space-4)",
       "selector": ".ling-body .spine",
       "file": "预览资源/css/app.css",
-      "line": 1079
+      "line": 1081
     },
     {
       "name": "padding",
       "value": "var(--space-2) 0",
       "selector": ".ling-body .spine li",
       "file": "预览资源/css/app.css",
-      "line": 1080
+      "line": 1082
     },
     {
       "name": "margin-top",
       "value": "var(--space-4)",
       "selector": ".ling-body .dispatch",
       "file": "预览资源/css/app.css",
-      "line": 1081
+      "line": 1083
     },
     {
       "name": "margin-top",
       "value": "var(--space-4)",
       "selector": ".ling-body .result",
       "file": "预览资源/css/app.css",
-      "line": 1082
+      "line": 1084
     },
     {
       "name": "filter",
       "value": "url(#goo-soft)",
       "selector": ".phase .live-dots",
       "file": "预览资源/css/app.css",
-      "line": 1083
+      "line": 1085
     },
     {
       "name": "overflow",
       "value": "hidden",
       "selector": ".work-item",
       "file": "预览资源/css/app.css",
-      "line": 1086
+      "line": 1088
     },
     {
       "name": "min-width",
       "value": "0",
       "selector": ".work-item > span:nth-child(2)",
       "file": "预览资源/css/app.css",
-      "line": 1087
+      "line": 1089
     },
     {
       "name": "flex-wrap",
       "value": "wrap",
       "selector": ".work-item .wtitle",
       "file": "预览资源/css/app.css",
-      "line": 1088
+      "line": 1090
     },
     {
       "name": "row-gap",
       "value": "var(--space-1)",
       "selector": ".work-item .wtitle",
       "file": "预览资源/css/app.css",
-      "line": 1088
+      "line": 1090
     },
     {
       "name": "max-width",
       "value": "100%",
       "selector": ".work-item .wsub",
       "file": "预览资源/css/app.css",
-      "line": 1089
+      "line": 1091
     },
     {
       "name": "flex-wrap",
       "value": "wrap",
       "selector": ".work-item .wmeta",
       "file": "预览资源/css/app.css",
-      "line": 1090
+      "line": 1092
     },
     {
       "name": "gap",
       "value": "var(--space-1) var(--space-3)",
       "selector": ".work-item .wmeta",
       "file": "预览资源/css/app.css",
-      "line": 1090
+      "line": 1092
     },
     {
       "name": "max-width",
       "value": "100%",
       "selector": ".work-item .wmeta .mono",
       "file": "预览资源/css/app.css",
-      "line": 1091
+      "line": 1093
     },
     {
       "name": "overflow",
       "value": "hidden",
       "selector": ".work-item .wmeta .mono",
       "file": "预览资源/css/app.css",
-      "line": 1091
+      "line": 1093
     },
     {
       "name": "text-overflow",
       "value": "ellipsis",
       "selector": ".work-item .wmeta .mono",
       "file": "预览资源/css/app.css",
-      "line": 1091
+      "line": 1093
     },
     {
       "name": "white-space",
       "value": "nowrap",
       "selector": ".work-item .wmeta .mono",
       "file": "预览资源/css/app.css",
-      "line": 1091
+      "line": 1093
     },
     {
       "name": "grid-column",
       "value": "span 1",
       "selector": ".isl-meta div:nth-child(3)",
       "file": "预览资源/css/app.css",
-      "line": 1092
+      "line": 1094
     },
     {
       "name": "grid-column",
       "value": "span 2",
       "selector": "@media (max-width: 760px) → .isl-meta div:nth-child(3)",
       "file": "预览资源/css/app.css",
-      "line": 1094
+      "line": 1096
     },
     {
       "name": "max-width",
       "value": "42%",
       "selector": "@media (max-width: 760px) → .provider-row .pinfo",
       "file": "预览资源/css/app.css",
-      "line": 1095
+      "line": 1097
     },
     {
       "name": "display",
       "value": "block",
       "selector": ".work-item .wsub",
       "file": "预览资源/css/app.css",
-      "line": 1097
+      "line": 1099
     },
     {
       "name": "min-height",
       "value": "0",
       "selector": ".sheet textarea",
       "file": "预览资源/css/app.css",
-      "line": 1100
+      "line": 1102
     },
     {
       "name": "min-height",
       "value": "160px",
       "selector": "#editor-text",
       "file": "预览资源/css/app.css",
-      "line": 1101
+      "line": 1103
     },
     {
       "name": "min-height",
       "value": "84px",
       "selector": "#skill-description",
       "file": "预览资源/css/app.css",
-      "line": 1102
+      "line": 1104
     },
     {
       "name": "min-height",
       "value": "190px",
       "selector": "#skill-body",
       "file": "预览资源/css/app.css",
-      "line": 1103
+      "line": 1105
     },
     {
       "name": "min-width",
       "value": "0",
       "selector": ".phase, .phase .pbody, .step",
       "file": "预览资源/css/app.css",
-      "line": 1106
+      "line": 1108
     },
     {
       "name": "max-width",
       "value": "100%",
       "selector": ".phase, .phase .pbody, .step",
       "file": "预览资源/css/app.css",
-      "line": 1106
+      "line": 1108
     },
     {
       "name": "min-width",
       "value": "0",
       "selector": ".step > summary",
       "file": "预览资源/css/app.css",
-      "line": 1107
+      "line": 1109
     },
     {
       "name": "overflow",
       "value": "hidden",
       "selector": ".step > summary",
       "file": "预览资源/css/app.css",
-      "line": 1107
+      "line": 1109
     },
     {
       "name": "min-width",
       "value": "0",
       "selector": ".step .stitle",
       "file": "预览资源/css/app.css",
-      "line": 1108
+      "line": 1110
     },
     {
       "name": "overflow",
       "value": "hidden",
       "selector": ".step .stitle",
       "file": "预览资源/css/app.css",
-      "line": 1108
+      "line": 1110
     },
     {
       "name": "text-overflow",
       "value": "ellipsis",
       "selector": ".step .stitle",
       "file": "预览资源/css/app.css",
-      "line": 1108
+      "line": 1110
     },
     {
       "name": "white-space",
       "value": "nowrap",
       "selector": ".step .stitle",
       "file": "预览资源/css/app.css",
-      "line": 1108
+      "line": 1110
     },
     {
       "name": "flex",
       "value": "1 1 auto",
       "selector": ".step .sargs",
       "file": "预览资源/css/app.css",
-      "line": 1109
+      "line": 1111
     },
     {
       "name": "min-width",
       "value": "0",
       "selector": ".step .sargs",
       "file": "预览资源/css/app.css",
-      "line": 1109
+      "line": 1111
     },
     {
       "name": "flex",
       "value": "0 1 auto",
       "selector": ".step .spreview",
       "file": "预览资源/css/app.css",
-      "line": 1110
+      "line": 1112
     },
     {
       "name": "min-width",
       "value": "0",
       "selector": ".step .spreview",
       "file": "预览资源/css/app.css",
-      "line": 1110
+      "line": 1112
     },
     {
       "name": "overflow-wrap",
       "value": "anywhere",
       "selector": ".thought-text",
       "file": "预览资源/css/app.css",
-      "line": 1111
+      "line": 1113
     },
     {
       "name": "display",
       "value": "none",
       "selector": "@media (max-width: 760px) → .step .spreview",
       "file": "预览资源/css/app.css",
-      "line": 1113
+      "line": 1115
     },
     {
       "name": "max-width",
       "value": "60%",
       "selector": "@media (max-width: 760px) → .step .sargs",
       "file": "预览资源/css/app.css",
-      "line": 1114
+      "line": 1116
     },
     {
       "name": "background",
       "value": "var(--jade-soft)",
       "selector": ".work-item .pill.state-running, .work-item .pill.state-completed",
       "file": "预览资源/css/app.css",
-      "line": 1118
+      "line": 1120
     },
     {
       "name": "color",
       "value": "var(--jade-ink)",
       "selector": ".work-item .pill.state-running, .work-item .pill.state-completed",
       "file": "预览资源/css/app.css",
-      "line": 1118
+      "line": 1120
     },
     {
       "name": "background",
       "value": "var(--cinnabar-soft)",
       "selector": ".work-item .pill.state-waiting_user",
       "file": "预览资源/css/app.css",
-      "line": 1119
+      "line": 1121
     },
     {
       "name": "color",
       "value": "var(--cinnabar-deep)",
       "selector": ".work-item .pill.state-waiting_user",
       "file": "预览资源/css/app.css",
-      "line": 1119
+      "line": 1121
     },
     {
       "name": "background",
       "value": "var(--ink-glass)",
       "selector": ".work-item .pill.state-paused, .work-item .pill.state-cancelled",
       "file": "预览资源/css/app.css",
-      "line": 1120
+      "line": 1122
     },
     {
       "name": "color",
       "value": "var(--ink-3)",
       "selector": ".work-item .pill.state-paused, .work-item .pill.state-cancelled",
       "file": "预览资源/css/app.css",
-      "line": 1120
+      "line": 1122
     },
     {
       "name": "background",
       "value": "var(--paper-2)",
       "selector": ".work-item .pill.state-queued, .work-item .pill.state-pending",
       "file": "预览资源/css/app.css",
-      "line": 1121
+      "line": 1123
     },
     {
       "name": "color",
       "value": "var(--ink-2)",
       "selector": ".work-item .pill.state-queued, .work-item .pill.state-pending",
       "file": "预览资源/css/app.css",
-      "line": 1121
+      "line": 1123
     },
     {
       "name": "animation",
-      "value": "dock-in calc(.38s * var(--motion)) var(--sp-bouncy) both",
+      "value": "dock-in calc(var(--duration-base) * var(--motion)) var(--ease-enter) both",
       "selector": ".dock-btn.active .i",
       "file": "预览资源/css/app.css",
-      "line": 1124
+      "line": 1126
     },
     {
       "name": "transform",
       "value": "scale(.82)",
       "selector": "@keyframes dock-in → 0%",
       "file": "预览资源/css/app.css",
-      "line": 1126
+      "line": 1128
     },
     {
       "name": "transform",
-      "value": "scale(1.1)",
-      "selector": "@keyframes dock-in → 55%",
+      "value": "scale(1.025)",
+      "selector": "@keyframes dock-in → 65%",
       "file": "预览资源/css/app.css",
-      "line": 1127
+      "line": 1129
     },
     {
       "name": "transform",
       "value": "scale(1)",
       "selector": "@keyframes dock-in → 100%",
       "file": "预览资源/css/app.css",
-      "line": 1128
+      "line": 1130
     },
     {
       "name": "display",
       "value": "grid",
       "selector": ".host-runtime-sections",
       "file": "预览资源/css/app.css",
-      "line": 1132
+      "line": 1134
     },
     {
       "name": "gap",
       "value": "var(--space-5)",
       "selector": ".host-runtime-sections",
       "file": "预览资源/css/app.css",
-      "line": 1132
+      "line": 1134
     },
     {
       "name": "min-width",
       "value": "0",
       "selector": ".host-runtime-sections",
       "file": "预览资源/css/app.css",
-      "line": 1132
+      "line": 1134
     },
     {
       "name": "border-top",
       "value": "1px solid var(--line)",
       "selector": ".host-runtime-row",
       "file": "预览资源/css/app.css",
-      "line": 1133
+      "line": 1135
     },
     {
       "name": "padding",
       "value": "var(--space-3) 0",
       "selector": ".host-runtime-row",
       "file": "预览资源/css/app.css",
-      "line": 1133
+      "line": 1135
     },
     {
       "name": "white-space",
       "value": "pre-wrap",
       "selector": ".host-runtime-json",
       "file": "预览资源/css/app.css",
-      "line": 1134
+      "line": 1136
     },
     {
       "name": "overflow-wrap",
       "value": "anywhere",
       "selector": ".host-runtime-json",
       "file": "预览资源/css/app.css",
-      "line": 1134
+      "line": 1136
     },
     {
       "name": "max-height",
       "value": "320px",
       "selector": ".host-runtime-json",
       "file": "预览资源/css/app.css",
-      "line": 1134
+      "line": 1136
     },
     {
       "name": "overflow",
       "value": "auto",
       "selector": ".host-runtime-json",
       "file": "预览资源/css/app.css",
-      "line": 1134
+      "line": 1136
     },
     {
       "name": "padding",
       "value": "var(--space-3)",
       "selector": ".host-runtime-json",
       "file": "预览资源/css/app.css",
-      "line": 1134
+      "line": 1136
     },
     {
       "name": "border-radius",
       "value": "var(--r-ctrl)",
       "selector": ".host-runtime-json",
       "file": "预览资源/css/app.css",
-      "line": 1134
+      "line": 1136
     },
     {
       "name": "background",
       "value": "var(--raised)",
       "selector": ".host-runtime-json",
       "file": "预览资源/css/app.css",
-      "line": 1134
+      "line": 1136
     },
     {
       "name": "font",
       "value": "var(--text-caption)/1.7 var(--mono)",
       "selector": ".host-runtime-json",
       "file": "预览资源/css/app.css",
-      "line": 1134
+      "line": 1136
     },
     {
       "name": "color",
       "value": "var(--ink-2)",
       "selector": ".host-runtime-json",
       "file": "预览资源/css/app.css",
-      "line": 1134
+      "line": 1136
     },
     {
       "name": "scrollbar-gutter",
       "value": "stable both-edges",
       "selector": ".conversation",
       "file": "预览资源/css/app.css",
-      "line": 1137
+      "line": 1139
     },
     {
       "name": "isolation",
       "value": "isolate",
       "selector": ".conversation:not(:has(.hero)) .thread",
       "file": "预览资源/css/app.css",
-      "line": 1138
+      "line": 1140
     },
     {
       "name": "content",
       "value": "\"\"",
       "selector": ".view-chat:not(.is-empty) .thread::before",
       "file": "预览资源/css/app.css",
-      "line": 1139
+      "line": 1141
     },
     {
       "name": "position",
       "value": "fixed",
       "selector": ".view-chat:not(.is-empty) .thread::before",
       "file": "预览资源/css/app.css",
-      "line": 1139
+      "line": 1141
     },
     {
       "name": "inset",
       "value": "68px max(0px, calc((100vw - 820px) / 2)) 150px",
       "selector": ".view-chat:not(.is-empty) .thread::before",
       "file": "预览资源/css/app.css",
-      "line": 1139
+      "line": 1141
     },
     {
       "name": "z-index",
       "value": "-1",
       "selector": ".view-chat:not(.is-empty) .thread::before",
       "file": "预览资源/css/app.css",
-      "line": 1139
+      "line": 1141
     },
     {
       "name": "pointer-events",
       "value": "none",
       "selector": ".view-chat:not(.is-empty) .thread::before",
       "file": "预览资源/css/app.css",
-      "line": 1139
+      "line": 1141
     },
     {
       "name": "background",
       "value": "radial-gradient(ellipse, var(--paper) 25%, transparent 72%)",
       "selector": ".view-chat:not(.is-empty) .thread::before",
       "file": "预览资源/css/app.css",
-      "line": 1139
+      "line": 1141
     },
     {
       "name": "opacity",
       "value": ".84",
       "selector": ".view-chat:not(.is-empty) .thread::before",
       "file": "预览资源/css/app.css",
-      "line": 1139
+      "line": 1141
     },
     {
       "name": "justify-content",
       "value": "center",
       "selector": ".btn",
       "file": "预览资源/css/app.css",
-      "line": 1140
+      "line": 1142
     },
     {
       "name": "display",
       "value": "flex",
       "selector": ".ctx-composition-label",
       "file": "预览资源/css/app.css",
-      "line": 1141
+      "line": 1143
     },
     {
       "name": "justify-content",
       "value": "space-between",
       "selector": ".ctx-composition-label",
       "file": "预览资源/css/app.css",
-      "line": 1141
+      "line": 1143
     },
     {
       "name": "gap",
       "value": "var(--space-3)",
       "selector": ".ctx-composition-label",
       "file": "预览资源/css/app.css",
-      "line": 1141
+      "line": 1143
     },
     {
       "name": "margin-top",
       "value": "var(--space-5)",
       "selector": ".ctx-composition-label",
       "file": "预览资源/css/app.css",
-      "line": 1141
+      "line": 1143
     },
     {
       "name": "padding-top",
       "value": "var(--space-4)",
       "selector": ".ctx-composition-label",
       "file": "预览资源/css/app.css",
-      "line": 1141
+      "line": 1143
     },
     {
       "name": "border-top",
       "value": "1px solid var(--line)",
       "selector": ".ctx-composition-label",
       "file": "预览资源/css/app.css",
-      "line": 1141
+      "line": 1143
     },
     {
       "name": "font-size",
       "value": "var(--text-caption)",
       "selector": ".ctx-composition-label",
       "file": "预览资源/css/app.css",
-      "line": 1141
+      "line": 1143
     },
     {
       "name": "color",
       "value": "var(--ink-2)",
       "selector": ".ctx-composition-label",
       "file": "预览资源/css/app.css",
-      "line": 1141
+      "line": 1143
     },
     {
       "name": "color",
       "value": "var(--ink-3)",
       "selector": ".ctx-composition-label span",
       "file": "预览资源/css/app.css",
-      "line": 1142
+      "line": 1144
     },
     {
       "name": "margin-top",
       "value": "var(--space-2)",
       "selector": ".ctx-composition-label + .ctx-meter",
       "file": "预览资源/css/app.css",
-      "line": 1143
+      "line": 1145
     },
     {
       "name": "margin-left",
       "value": "var(--space-3)",
       "selector": ".setting-scope",
       "file": "预览资源/css/app.css",
-      "line": 1144
+      "line": 1146
     },
     {
       "name": "font-size",
       "value": "var(--text-caption)",
       "selector": ".setting-scope",
       "file": "预览资源/css/app.css",
-      "line": 1144
+      "line": 1146
     },
     {
       "name": "font-weight",
       "value": "400",
       "selector": ".setting-scope",
       "file": "预览资源/css/app.css",
-      "line": 1144
+      "line": 1146
     },
     {
       "name": "color",
       "value": "var(--jade-ink)",
       "selector": ".setting-scope",
       "file": "预览资源/css/app.css",
-      "line": 1144
+      "line": 1146
     },
     {
       "name": "--ink",
       "value": "var(--i-ink)",
       "selector": ".isl-thread",
       "file": "预览资源/css/app.css",
-      "line": 1145
+      "line": 1147
     },
     {
       "name": "--ink-2",
       "value": "var(--i-ink-2)",
       "selector": ".isl-thread",
       "file": "预览资源/css/app.css",
-      "line": 1145
+      "line": 1147
     },
     {
       "name": "--ink-3",
       "value": "var(--i-ink-2)",
       "selector": ".isl-thread",
       "file": "预览资源/css/app.css",
-      "line": 1145
+      "line": 1147
     },
     {
       "name": "--ink-4",
       "value": "var(--i-ink-3)",
       "selector": ".isl-thread",
       "file": "预览资源/css/app.css",
-      "line": 1145
+      "line": 1147
     },
     {
       "name": "--jade-ink",
       "value": "var(--jade-hi)",
       "selector": ".isl-thread",
       "file": "预览资源/css/app.css",
-      "line": 1145
+      "line": 1147
     },
     {
       "name": "--raised",
       "value": "var(--island-2)",
       "selector": ".isl-thread",
       "file": "预览资源/css/app.css",
-      "line": 1145
+      "line": 1147
     },
     {
       "name": "--paper-2",
       "value": "var(--island-3)",
       "selector": ".isl-thread",
       "file": "预览资源/css/app.css",
-      "line": 1145
+      "line": 1147
     },
     {
       "name": "--line",
       "value": "var(--i-line)",
       "selector": ".isl-thread",
       "file": "预览资源/css/app.css",
-      "line": 1145
+      "line": 1147
     },
     {
       "name": "--line-2",
       "value": "var(--i-line)",
       "selector": ".isl-thread",
       "file": "预览资源/css/app.css",
-      "line": 1145
+      "line": 1147
     },
     {
       "name": "color",
       "value": "var(--i-ink)",
       "selector": ".isl-thread .md",
       "file": "预览资源/css/app.css",
-      "line": 1146
+      "line": 1148
     },
     {
       "name": "padding-bottom",
       "value": "var(--space-4)",
       "selector": ".plug-actions",
       "file": "预览资源/css/app.css",
-      "line": 1147
+      "line": 1149
     },
     {
       "name": "border-bottom",
       "value": "1px solid var(--line)",
       "selector": ".plug-actions",
       "file": "预览资源/css/app.css",
-      "line": 1147
+      "line": 1149
     },
     {
       "name": "background",
       "value": "transparent",
       "selector": ".plug-actions [data-op=\"uninstall\"]",
       "file": "预览资源/css/app.css",
-      "line": 1148
+      "line": 1150
     },
     {
       "name": "box-shadow",
       "value": "inset 0 0 0 1px color-mix(in srgb, var(--danger) 24%, transparent)",
       "selector": ".plug-actions [data-op=\"uninstall\"]",
       "file": "预览资源/css/app.css",
-      "line": 1148
+      "line": 1150
     },
     {
       "name": "background",
       "value": "transparent",
       "selector": ".plug-actions [data-act=\"plug-readme\"]",
       "file": "预览资源/css/app.css",
-      "line": 1149
+      "line": 1151
     },
     {
       "name": "margin-bottom",
       "value": "var(--space-2)",
       "selector": ".plug-toolbar",
       "file": "预览资源/css/app.css",
-      "line": 1150
+      "line": 1152
     },
     {
       "name": "margin-top",
       "value": "var(--space-2)",
       "selector": ".plug-note",
       "file": "预览资源/css/app.css",
-      "line": 1151
+      "line": 1153
     },
     {
       "name": "margin-bottom",
       "value": "var(--space-3)",
       "selector": ".plug-note",
       "file": "预览资源/css/app.css",
-      "line": 1151
+      "line": 1153
     },
     {
       "name": "background",
       "value": "var(--raised)",
       "selector": ".skill .glyph",
       "file": "预览资源/css/app.css",
-      "line": 1152
+      "line": 1154
     },
     {
       "name": "color",
       "value": "var(--jade-ink)",
       "selector": ".skill .glyph",
       "file": "预览资源/css/app.css",
-      "line": 1152
+      "line": 1154
     },
     {
       "name": "box-shadow",
       "value": "inset 0 0 0 1px var(--line)",
       "selector": ".skill .glyph",
       "file": "预览资源/css/app.css",
-      "line": 1152
+      "line": 1154
     },
     {
       "name": "grid-column",
       "value": "1 / -1",
       "selector": ".skill-empty",
       "file": "预览资源/css/app.css",
-      "line": 1153
+      "line": 1155
     },
     {
       "name": "padding",
       "value": "var(--card-padding)",
       "selector": ".skill-empty",
       "file": "预览资源/css/app.css",
-      "line": 1153
+      "line": 1155
     },
     {
       "name": "min-height",
       "value": "150px",
       "selector": ".skill-empty",
       "file": "预览资源/css/app.css",
-      "line": 1153
+      "line": 1155
     },
     {
       "name": "display",
       "value": "flex",
       "selector": ".skill-empty",
       "file": "预览资源/css/app.css",
-      "line": 1153
+      "line": 1155
     },
     {
       "name": "flex-direction",
       "value": "column",
       "selector": ".skill-empty",
       "file": "预览资源/css/app.css",
-      "line": 1153
+      "line": 1155
     },
     {
       "name": "align-items",
       "value": "flex-start",
       "selector": ".skill-empty",
       "file": "预览资源/css/app.css",
-      "line": 1153
+      "line": 1155
     },
     {
       "name": "gap",
       "value": "var(--space-3)",
       "selector": ".skill-empty",
       "file": "预览资源/css/app.css",
-      "line": 1153
+      "line": 1155
     },
     {
       "name": "background",
       "value": "var(--card)",
       "selector": ".skill-empty",
       "file": "预览资源/css/app.css",
-      "line": 1153
+      "line": 1155
     },
     {
       "name": "border-radius",
       "value": "var(--r-card)",
       "selector": ".skill-empty",
       "file": "预览资源/css/app.css",
-      "line": 1153
+      "line": 1155
     },
     {
       "name": "font",
       "value": "600 var(--text-title) var(--font-display)",
       "selector": ".skill-empty h2",
       "file": "预览资源/css/app.css",
-      "line": 1154
+      "line": 1156
     },
     {
       "name": "color",
       "value": "var(--ink-2)",
       "selector": ".skill-empty p",
       "file": "预览资源/css/app.css",
-      "line": 1155
+      "line": 1157
     },
     {
       "name": "flex-wrap",
       "value": "wrap",
       "selector": "@media (max-width: 1000px) and (min-width: 761px) → .ui-row",
       "file": "预览资源/css/app.css",
-      "line": 1157
+      "line": 1159
     },
     {
       "name": "margin-left",
       "value": "auto",
       "selector": "@media (max-width: 1000px) and (min-width: 761px) → .ui-controls",
       "file": "预览资源/css/app.css",
-      "line": 1158
+      "line": 1160
     },
     {
       "name": "grid-template-columns",
       "value": "minmax(0, 1fr)",
       "selector": "@media (max-width: 760px) → .sheet .fields",
       "file": "预览资源/css/app.css",
-      "line": 1161
+      "line": 1163
     },
     {
       "name": "grid-column",
       "value": "auto",
       "selector": "@media (max-width: 760px) → .sheet .span-2",
       "file": "预览资源/css/app.css",
-      "line": 1162
+      "line": 1164
     },
     {
       "name": "grid-template-columns",
       "value": "repeat(2, minmax(0, 1fr))",
       "selector": "@media (max-width: 760px) → .model-row",
       "file": "预览资源/css/app.css",
-      "line": 1163
+      "line": 1165
     },
     {
       "name": "grid-column",
       "value": "1 / -1",
       "selector": "@media (max-width: 760px) → .model-row .model-name",
       "file": "预览资源/css/app.css",
-      "line": 1164
+      "line": 1166
     },
     {
       "name": "justify-self",
       "value": "end",
       "selector": "@media (max-width: 760px) → .model-row .rm",
       "file": "预览资源/css/app.css",
-      "line": 1165
+      "line": 1167
     },
     {
       "name": "min-width",
       "value": "0",
       "selector": "@media (max-width: 760px) → .model-row > *",
       "file": "预览资源/css/app.css",
-      "line": 1166
+      "line": 1168
     },
     {
       "name": "top",
       "value": "0",
       "selector": "@media (max-width: 760px) → .perm .tab-ink",
       "file": "预览资源/css/app.css",
-      "line": 1167
+      "line": 1169
     },
     {
       "name": "left",
       "value": "4px",
       "selector": "@media (max-width: 760px) → .perm .tab-ink",
       "file": "预览资源/css/app.css",
-      "line": 1167
+      "line": 1169
     },
     {
       "name": "width",
       "value": "calc(100% - 8px)",
       "selector": "@media (max-width: 760px) → .perm .tab-ink",
       "file": "预览资源/css/app.css",
-      "line": 1167
+      "line": 1169
     },
     {
       "name": "flex-wrap",
       "value": "wrap",
       "selector": "@media (max-width: 760px) → .plug-toolbar",
       "file": "预览资源/css/app.css",
-      "line": 1168
+      "line": 1170
     },
     {
       "name": "justify-content",
       "value": "flex-start",
       "selector": "@media (max-width: 760px) → .plug-toolbar",
       "file": "预览资源/css/app.css",
-      "line": 1168
+      "line": 1170
     },
     {
       "name": "flex-basis",
       "value": "100%",
       "selector": "@media (max-width: 760px) → .plug-toolbar .count",
       "file": "预览资源/css/app.css",
-      "line": 1169
+      "line": 1171
     },
     {
       "name": "grid-auto-columns",
       "value": "minmax(210px, 1fr)",
       "selector": "@media (max-width: 760px) → .plug-list",
       "file": "预览资源/css/app.css",
-      "line": 1170
+      "line": 1172
     },
     {
       "name": "gap",
       "value": "var(--space-2)",
       "selector": "@media (max-width: 760px) → .ui-controls",
       "file": "预览资源/css/app.css",
-      "line": 1171
+      "line": 1173
     },
     {
       "name": "min-width",
       "value": "0",
       "selector": "@media (max-width: 760px) → .motion-slider",
       "file": "预览资源/css/app.css",
-      "line": 1172
+      "line": 1174
     },
     {
       "name": "flex",
       "value": "1",
       "selector": "@media (max-width: 760px) → .motion-slider",
       "file": "预览资源/css/app.css",
-      "line": 1172
+      "line": 1174
     },
     {
       "name": "display",
       "value": "none",
       "selector": "@media (max-width: 760px) → .motion-demo",
       "file": "预览资源/css/app.css",
-      "line": 1173
+      "line": 1175
     },
     {
       "name": "left",
       "value": "0",
       "selector": "@media (max-width: 760px) → .view-chat:not(.is-empty) .thread::before",
       "file": "预览资源/css/app.css",
-      "line": 1174
+      "line": 1176
     },
     {
       "name": "right",
       "value": "0",
       "selector": "@media (max-width: 760px) → .view-chat:not(.is-empty) .thread::before",
       "file": "预览资源/css/app.css",
-      "line": 1174
+      "line": 1176
     },
     {
       "name": "syntax",
@@ -18972,7 +18986,7 @@
     },
     {
       "name": "transition",
-      "value": "background-color var(--d-4) var(--ease-out), color var(--d-4) var(--ease-out)",
+      "value": "background-color var(--d-2) var(--ease-move), color var(--d-2) var(--ease-move)",
       "selector": "body",
       "file": "预览资源/css/ling.css",
       "line": 108
@@ -20022,7 +20036,7 @@
     },
     {
       "name": "transition",
-      "value": "color var(--d-3)",
+      "value": "color var(--d-2)",
       "selector": ".isl-status",
       "file": "预览资源/css/ling.css",
       "line": 187
@@ -20134,7 +20148,7 @@
     },
     {
       "name": "transition",
-      "value": "background var(--d-2), transform var(--d-3) var(--sp-settle)",
+      "value": "background var(--d-2), transform var(--d-2) var(--sp-settle)",
       "selector": ".slot",
       "file": "预览资源/css/ling.css",
       "line": 195
@@ -20183,7 +20197,7 @@
     },
     {
       "name": "transition",
-      "value": "width var(--d-3) var(--sp-settle), height var(--d-3) var(--sp-settle), background var(--d-4), box-shadow var(--d-4)",
+      "value": "width var(--d-2) var(--sp-settle), height var(--d-2) var(--sp-settle), background var(--d-2), box-shadow var(--d-2)",
       "selector": ".slot .core",
       "file": "预览资源/css/ling.css",
       "line": 201
@@ -20225,7 +20239,7 @@
     },
     {
       "name": "transition",
-      "value": "opacity var(--d-3)",
+      "value": "opacity var(--d-2)",
       "selector": ".slot::before, .slot::after",
       "file": "预览资源/css/ling.css",
       "line": 203
@@ -20680,7 +20694,7 @@
     },
     {
       "name": "transition",
-      "value": "background var(--d-2), color var(--d-2), transform var(--d-3) var(--sp-settle)",
+      "value": "background var(--d-2), color var(--d-2), transform var(--d-2) var(--sp-settle)",
       "selector": ".isl-ibtn",
       "file": "预览资源/css/ling.css",
       "line": 234
@@ -20911,7 +20925,7 @@
     },
     {
       "name": "transition",
-      "value": "background var(--d-2), transform var(--d-3) var(--sp-settle)",
+      "value": "background var(--d-2), transform var(--d-2) var(--sp-settle)",
       "selector": ".wrow",
       "file": "预览资源/css/ling.css",
       "line": 249
@@ -22136,7 +22150,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-3) var(--sp-settle), background var(--d-2), box-shadow var(--d-2)",
+      "value": "transform var(--d-2) var(--sp-settle), background var(--d-2), box-shadow var(--d-2)",
       "selector": ".ibtn-solid, .ibtn-soft",
       "file": "预览资源/css/ling.css",
       "line": 307
@@ -22283,7 +22297,7 @@
     },
     {
       "name": "transition",
-      "value": "background var(--d-3), box-shadow var(--d-3)",
+      "value": "background var(--d-2), box-shadow var(--d-2)",
       "selector": ".dock",
       "file": "预览资源/css/ling.css",
       "line": 323
@@ -22458,7 +22472,7 @@
     },
     {
       "name": "transition",
-      "value": "color var(--d-2), background var(--d-2), transform var(--d-3) var(--sp-settle)",
+      "value": "color var(--d-2), background var(--d-2), transform var(--d-2) var(--sp-settle)",
       "selector": ".dock-btn, .rail-ctl",
       "file": "预览资源/css/ling.css",
       "line": 336
@@ -22619,7 +22633,7 @@
     },
     {
       "name": "transition",
-      "value": "opacity var(--d-1), transform var(--sp-snappy-d) var(--sp-snappy)",
+      "value": "opacity var(--d-1), transform var(--d-2) var(--sp-snappy)",
       "selector": ".dock-btn::after, .rail-ctl::after",
       "file": "预览资源/css/ling.css",
       "line": 348
@@ -22969,7 +22983,7 @@
     },
     {
       "name": "transition",
-      "value": "color var(--d-3)",
+      "value": "color var(--d-2)",
       "selector": ".seg button",
       "file": "预览资源/css/ling.css",
       "line": 374
@@ -23123,7 +23137,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-3) var(--sp-settle), opacity var(--d-3)",
+      "value": "transform var(--d-3) var(--sp-settle), opacity var(--d-2)",
       "selector": ".pc-theme .i",
       "file": "预览资源/css/ling.css",
       "line": 380
@@ -23487,7 +23501,7 @@
     },
     {
       "name": "transition",
-      "value": "border-radius var(--d-3), background var(--d-3)",
+      "value": "border-radius var(--d-3), background var(--d-2)",
       "selector": ".bubble",
       "file": "预览资源/css/ling.css",
       "line": 408
@@ -23893,7 +23907,7 @@
     },
     {
       "name": "transition",
-      "value": "opacity var(--d-2), transform var(--sp-snappy-d) var(--sp-snappy)",
+      "value": "opacity var(--d-2), transform var(--d-2) var(--sp-snappy)",
       "selector": ".msg-tools",
       "file": "预览资源/css/ling.css",
       "line": 428
@@ -24012,7 +24026,7 @@
     },
     {
       "name": "transition",
-      "value": "background var(--d-2), color var(--d-2), transform var(--d-3) var(--sp-settle)",
+      "value": "background var(--d-2), color var(--d-2), transform var(--d-2) var(--sp-settle)",
       "selector": ".msg-tools button, .user-meta button",
       "file": "预览资源/css/ling.css",
       "line": 433
@@ -24397,7 +24411,7 @@
     },
     {
       "name": "transition",
-      "value": "background-color var(--d-4)",
+      "value": "background-color var(--d-2)",
       "selector": ".spine .n",
       "file": "预览资源/css/ling.css",
       "line": 451
@@ -24495,7 +24509,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-3) var(--sp-settle), box-shadow var(--d-3) var(--ease-out)",
+      "value": "transform var(--d-3) var(--sp-settle), box-shadow var(--d-2) var(--ease-move)",
       "selector": ".lift",
       "file": "预览资源/css/ling.css",
       "line": 457
@@ -24698,7 +24712,7 @@
     },
     {
       "name": "transition",
-      "value": "color var(--d-2), gap var(--d-3) var(--sp-settle)",
+      "value": "color var(--d-2), gap var(--d-2) var(--sp-settle)",
       "selector": ".artifact-head .meta",
       "file": "预览资源/css/ling.css",
       "line": 465
@@ -25244,7 +25258,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-3) var(--sp-settle)",
+      "value": "transform var(--d-2) var(--sp-settle)",
       "selector": ".dispatch .i",
       "file": "预览资源/css/ling.css",
       "line": 482
@@ -25545,7 +25559,7 @@
     },
     {
       "name": "transition",
-      "value": "box-shadow var(--d-2), background var(--d-2), transform var(--d-3) var(--sp-settle), opacity var(--d-3), filter var(--d-3)",
+      "value": "box-shadow var(--d-2), background var(--d-2), transform var(--d-3) var(--sp-settle), opacity var(--d-2), filter var(--d-3)",
       "selector": ".opt",
       "file": "预览资源/css/ling.css",
       "line": 501
@@ -25776,7 +25790,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-3) var(--sp-settle)",
+      "value": "transform var(--d-2) var(--sp-settle)",
       "selector": ".opt .tick",
       "file": "预览资源/css/ling.css",
       "line": 511
@@ -26084,7 +26098,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-3) var(--sp-settle), color var(--d-2)",
+      "value": "transform var(--d-2) var(--sp-settle), color var(--d-2)",
       "selector": ".result .go",
       "file": "预览资源/css/ling.css",
       "line": 527
@@ -26546,7 +26560,7 @@
     },
     {
       "name": "transition",
-      "value": "stroke var(--d-3), opacity var(--d-3)",
+      "value": "stroke var(--d-3), opacity var(--d-2)",
       "selector": ".pv-ticks line",
       "file": "预览资源/css/ling.css",
       "line": 551
@@ -26602,7 +26616,7 @@
     },
     {
       "name": "transition",
-      "value": "stroke var(--d-3), opacity var(--d-3)",
+      "value": "stroke var(--d-3), opacity var(--d-2)",
       "selector": ".pv-arc",
       "file": "预览资源/css/ling.css",
       "line": 555
@@ -27071,7 +27085,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-3) var(--sp-settle), box-shadow var(--d-3), background var(--d-3), border-radius var(--d-3)",
+      "value": "transform var(--d-3) var(--sp-settle), box-shadow var(--d-2), background var(--d-2), border-radius var(--d-3)",
       "selector": ".chip",
       "file": "预览资源/css/ling.css",
       "line": 594
@@ -27309,7 +27323,7 @@
     },
     {
       "name": "transition",
-      "value": "box-shadow var(--d-4) var(--ease-out), transform var(--d-3) var(--sp-settle), border-radius var(--d-3)",
+      "value": "box-shadow var(--d-2) var(--ease-move), transform var(--d-3) var(--sp-settle), border-radius var(--d-3)",
       "selector": ".composer",
       "file": "预览资源/css/ling.css",
       "line": 616
@@ -27477,7 +27491,7 @@
     },
     {
       "name": "transition",
-      "value": "color var(--d-3)",
+      "value": "color var(--d-2)",
       "selector": ".target",
       "file": "预览资源/css/ling.css",
       "line": 626
@@ -27694,7 +27708,7 @@
     },
     {
       "name": "transition",
-      "value": "color var(--d-3)",
+      "value": "color var(--d-2)",
       "selector": ".composer textarea::placeholder",
       "file": "预览资源/css/ling.css",
       "line": 640
@@ -27799,7 +27813,7 @@
     },
     {
       "name": "transition",
-      "value": "background var(--d-2), transform var(--d-3) var(--sp-settle)",
+      "value": "background var(--d-2), transform var(--d-2) var(--sp-settle)",
       "selector": ".c-btn",
       "file": "预览资源/css/ling.css",
       "line": 643
@@ -27883,7 +27897,7 @@
     },
     {
       "name": "transition",
-      "value": "background var(--d-2), transform var(--d-3) var(--sp-settle), border-radius var(--d-3)",
+      "value": "background var(--d-2), transform var(--d-2) var(--sp-settle), border-radius var(--d-2)",
       "selector": ".c-pill",
       "file": "预览资源/css/ling.css",
       "line": 646
@@ -27995,7 +28009,7 @@
     },
     {
       "name": "transition",
-      "value": "background var(--d-2), opacity var(--d-2), height var(--d-3) var(--sp-settle)",
+      "value": "background var(--d-2), opacity var(--d-2), height var(--d-2) var(--sp-settle)",
       "selector": ".bars i",
       "file": "预览资源/css/ling.css",
       "line": 651
@@ -28254,7 +28268,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-3) var(--sp-settle), background var(--d-3), opacity var(--d-3)",
+      "value": "transform var(--d-3) var(--sp-settle), background var(--d-2), opacity var(--d-2)",
       "selector": ".send",
       "file": "预览资源/css/ling.css",
       "line": 673
@@ -28268,7 +28282,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-3) var(--sp-settle), opacity var(--d-2)",
+      "value": "transform var(--d-2) var(--sp-settle), opacity var(--d-2)",
       "selector": ".send .i",
       "file": "预览资源/css/ling.css",
       "line": 675
@@ -28436,7 +28450,7 @@
     },
     {
       "name": "transition",
-      "value": "opacity var(--d-3)",
+      "value": "opacity var(--d-2)",
       "selector": ".send-ring",
       "file": "预览资源/css/ling.css",
       "line": 686
@@ -28723,7 +28737,7 @@
     },
     {
       "name": "transition",
-      "value": "opacity var(--d-4)",
+      "value": "opacity var(--d-2)",
       "selector": ".composer-hint",
       "file": "预览资源/css/ling.css",
       "line": 696
@@ -29752,7 +29766,7 @@
     },
     {
       "name": "transition",
-      "value": "color var(--d-3)",
+      "value": "color var(--d-2)",
       "selector": ".tabs button",
       "file": "预览资源/css/ling.css",
       "line": 745
@@ -29955,7 +29969,7 @@
     },
     {
       "name": "transition",
-      "value": "background var(--d-2), color var(--d-2), transform var(--d-3) var(--sp-settle)",
+      "value": "background var(--d-2), color var(--d-2), transform var(--d-2) var(--sp-settle)",
       "selector": ".ic-btn",
       "file": "预览资源/css/ling.css",
       "line": 755
@@ -30830,7 +30844,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-3) var(--sp-settle), background var(--d-2)",
+      "value": "transform var(--d-2) var(--sp-settle), background var(--d-2)",
       "selector": ".skill.new .plus",
       "file": "预览资源/css/ling.css",
       "line": 788
@@ -31033,7 +31047,7 @@
     },
     {
       "name": "transition",
-      "value": "background var(--d-3)",
+      "value": "background var(--d-2)",
       "selector": ".plug .stat i",
       "file": "预览资源/css/ling.css",
       "line": 796
@@ -31138,7 +31152,7 @@
     },
     {
       "name": "transition",
-      "value": "background var(--d-3) var(--ease-out)",
+      "value": "background var(--d-2) var(--ease-move)",
       "selector": ".switch",
       "file": "预览资源/css/ling.css",
       "line": 803
@@ -31215,7 +31229,7 @@
     },
     {
       "name": "transition",
-      "value": "left var(--d-3) var(--sp-settle), width var(--d-2) var(--ease-out)",
+      "value": "left var(--d-2) var(--sp-settle), width var(--d-2) var(--ease-move)",
       "selector": ".switch::after",
       "file": "预览资源/css/ling.css",
       "line": 804
@@ -31607,7 +31621,7 @@
     },
     {
       "name": "transition",
-      "value": "color var(--d-3)",
+      "value": "color var(--d-2)",
       "selector": ".perm button",
       "file": "预览资源/css/ling.css",
       "line": 828
@@ -32475,7 +32489,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-3) var(--sp-settle)",
+      "value": "transform var(--d-2) var(--sp-settle)",
       "selector": "@media (max-width: 760px) → .menu-btn",
       "file": "预览资源/css/ling.css",
       "line": 873
@@ -38257,7 +38271,7 @@
     },
     {
       "name": "animation",
-      "value": "send-ready calc(.38s * var(--motion)) var(--sp-bouncy)",
+      "value": "send-ready calc(var(--duration-base) * var(--motion)) var(--ease-enter)",
       "selector": ".send.ready",
       "file": "预览资源/css/theme.css",
       "line": 514
@@ -38271,8 +38285,8 @@
     },
     {
       "name": "transform",
-      "value": "scale(1.06)",
-      "selector": "@keyframes send-ready → 60%",
+      "value": "scale(1.025)",
+      "selector": "@keyframes send-ready → 65%",
       "file": "预览资源/css/theme.css",
       "line": 517
     },
@@ -38285,7 +38299,7 @@
     },
     {
       "name": "animation",
-      "value": "chip-in calc(.3s * var(--motion)) var(--sp-bouncy) both",
+      "value": "chip-in calc(var(--duration-content) * var(--motion)) var(--ease-enter) both",
       "selector": ".ret-chip button",
       "file": "预览资源/css/theme.css",
       "line": 520
@@ -38397,7 +38411,7 @@
     },
     {
       "name": "transition",
-      "value": "stroke var(--d-3), opacity var(--d-3)",
+      "value": "stroke var(--d-3), opacity var(--d-2)",
       "selector": "[data-palette=\"jade\"] .orb-stage :is(.pv-rim, .pv-jade-vernier, .pv-arc.front)",
       "file": "预览资源/css/theme.css",
       "line": 549
@@ -38810,42 +38824,56 @@
     },
     {
       "name": "--duration-micro",
-      "value": "120ms",
+      "value": "160ms",
       "selector": ":root",
       "file": "预览资源/css/tokens.css",
       "line": 26
     },
     {
       "name": "--duration-base",
-      "value": "200ms",
+      "value": "240ms",
       "selector": ":root",
       "file": "预览资源/css/tokens.css",
       "line": 26
     },
     {
+      "name": "--duration-content",
+      "value": "420ms",
+      "selector": ":root",
+      "file": "预览资源/css/tokens.css",
+      "line": 27
+    },
+    {
       "name": "--duration-move",
-      "value": "240ms",
+      "value": "560ms",
       "selector": ":root",
       "file": "预览资源/css/tokens.css",
       "line": 27
     },
     {
       "name": "--duration-enter",
-      "value": "240ms",
+      "value": "560ms",
       "selector": ":root",
       "file": "预览资源/css/tokens.css",
       "line": 27
     },
     {
-      "name": "--duration-fade",
+      "name": "--duration-exit",
       "value": "220ms",
       "selector": ":root",
       "file": "预览资源/css/tokens.css",
       "line": 28
     },
     {
+      "name": "--duration-fade",
+      "value": "320ms",
+      "selector": ":root",
+      "file": "预览资源/css/tokens.css",
+      "line": 28
+    },
+    {
       "name": "--duration-text",
-      "value": "140ms",
+      "value": "200ms",
       "selector": ":root",
       "file": "预览资源/css/tokens.css",
       "line": 28
@@ -38858,136 +38886,185 @@
       "line": 28
     },
     {
-      "name": "--enter-stagger",
-      "value": "24ms",
+      "name": "--ease-enter",
+      "value": "cubic-bezier(.22,0,.2,1)",
       "selector": ":root",
       "file": "预览资源/css/tokens.css",
       "line": 29
     },
     {
-      "name": "--enter-limit",
-      "value": "8",
+      "name": "--ease-move",
+      "value": "cubic-bezier(.4,0,.2,1)",
       "selector": ":root",
       "file": "预览资源/css/tokens.css",
-      "line": 29
+      "line": 30
+    },
+    {
+      "name": "--ease-exit",
+      "value": "cubic-bezier(.4,0,1,1)",
+      "selector": ":root",
+      "file": "预览资源/css/tokens.css",
+      "line": 31
+    },
+    {
+      "name": "--enter-stagger",
+      "value": "70ms",
+      "selector": ":root",
+      "file": "预览资源/css/tokens.css",
+      "line": 32
+    },
+    {
+      "name": "--content-stagger",
+      "value": "40ms",
+      "selector": ":root",
+      "file": "预览资源/css/tokens.css",
+      "line": 32
+    },
+    {
+      "name": "--content-window",
+      "value": "160ms",
+      "selector": ":root",
+      "file": "预览资源/css/tokens.css",
+      "line": 32
+    },
+    {
+      "name": "--enter-window",
+      "value": "280ms",
+      "selector": ":root",
+      "file": "预览资源/css/tokens.css",
+      "line": 33
     },
     {
       "name": "--enter-offset",
-      "value": "8px",
+      "value": "24px",
       "selector": ":root",
       "file": "预览资源/css/tokens.css",
-      "line": 29
+      "line": 33
+    },
+    {
+      "name": "--content-offset",
+      "value": "16px",
+      "selector": ":root",
+      "file": "预览资源/css/tokens.css",
+      "line": 33
+    },
+    {
+      "name": "--float-offset",
+      "value": "12px",
+      "selector": ":root",
+      "file": "预览资源/css/tokens.css",
+      "line": 33
     },
     {
       "name": "--temper",
       "value": "1",
       "selector": ":root",
       "file": "预览资源/css/tokens.css",
-      "line": 30
+      "line": 34
     },
     {
       "name": "--d-0",
       "value": "calc(var(--duration-fast) * var(--motion))",
       "selector": ":root",
       "file": "预览资源/css/tokens.css",
-      "line": 31
+      "line": 35
     },
     {
       "name": "--d-1",
       "value": "calc(var(--duration-micro) * var(--motion))",
       "selector": ":root",
       "file": "预览资源/css/tokens.css",
-      "line": 32
+      "line": 36
     },
     {
       "name": "--d-2",
       "value": "calc(var(--duration-base) * var(--motion))",
       "selector": ":root",
       "file": "预览资源/css/tokens.css",
-      "line": 33
+      "line": 37
     },
     {
       "name": "--d-3",
       "value": "calc(var(--duration-move) * var(--motion))",
       "selector": ":root",
       "file": "预览资源/css/tokens.css",
-      "line": 34
+      "line": 38
     },
     {
       "name": "--d-4",
       "value": "calc(var(--duration-enter) * var(--motion))",
       "selector": ":root",
       "file": "预览资源/css/tokens.css",
-      "line": 35
+      "line": 39
     },
     {
       "name": "--card-padding",
       "value": "var(--space-4)",
       "selector": "@media (max-width: 760px) → :root",
       "file": "预览资源/css/tokens.css",
-      "line": 39
+      "line": 43
     },
     {
       "name": "--card-gap",
       "value": "var(--space-4)",
       "selector": "@media (max-width: 760px) → :root",
       "file": "预览资源/css/tokens.css",
-      "line": 39
+      "line": 43
     },
     {
       "name": "--group-gap",
       "value": "var(--space-6)",
       "selector": "@media (max-width: 760px) → :root",
       "file": "预览资源/css/tokens.css",
-      "line": 40
+      "line": 44
     },
     {
       "name": "--inner-gap",
       "value": "var(--space-3)",
       "selector": "@media (max-width: 760px) → :root",
       "file": "预览资源/css/tokens.css",
-      "line": 40
+      "line": 44
     },
     {
       "name": "--page-gutter",
       "value": "var(--space-4)",
       "selector": "@media (max-width: 760px) → :root",
       "file": "预览资源/css/tokens.css",
-      "line": 41
+      "line": 45
     },
     {
       "name": "--page-top",
       "value": "var(--space-20)",
       "selector": "@media (max-width: 760px) → :root",
       "file": "预览资源/css/tokens.css",
-      "line": 41
+      "line": 45
     },
     {
       "name": "--page-bottom",
       "value": "var(--space-16)",
       "selector": "@media (max-width: 760px) → :root",
       "file": "预览资源/css/tokens.css",
-      "line": 42
+      "line": 46
     },
     {
       "name": "--text-page",
       "value": "24px",
       "selector": "@media (max-width: 760px) → :root",
       "file": "预览资源/css/tokens.css",
-      "line": 42
+      "line": 46
     }
   ],
   "conditions": [
     {
       "name": "CSS 条件／关键帧",
-      "value": "@keyframes q-in { from { opacity: 0; transform: translateY(-6px); } }",
+      "value": "@keyframes q-in { from { opacity: 0; transform: translateY(-16px); } }",
       "selector": "app",
       "file": "预览资源/css/app.css",
       "line": 108
     },
     {
       "name": "CSS 条件／关键帧",
-      "value": "@keyframes req-in { from { opacity: 0; transform: translateY(-8px); } }",
+      "value": "@keyframes req-in { from { opacity: 0; transform: translateY(-24px) scale(.99); } }",
       "selector": "app",
       "file": "预览资源/css/app.css",
       "line": 131
@@ -39001,7 +39078,7 @@
     },
     {
       "name": "CSS 条件／关键帧",
-      "value": "@keyframes file-in { from { opacity: 0; transform: scale(.7); } }",
+      "value": "@keyframes file-in { from { opacity: 0; transform: translateY(16px) scale(.99); } }",
       "selector": "app",
       "file": "预览资源/css/app.css",
       "line": 286
@@ -39095,49 +39172,49 @@
       "value": "@supports selector(details::details-content) {",
       "selector": "app",
       "file": "预览资源/css/app.css",
-      "line": 1064
+      "line": 1066
     },
     {
       "name": "CSS 条件／关键帧",
       "value": "@media (prefers-reduced-motion: reduce) {",
       "selector": "app",
       "file": "预览资源/css/app.css",
-      "line": 1071
+      "line": 1073
     },
     {
       "name": "CSS 条件／关键帧",
       "value": "@media (max-width: 760px) {",
       "selector": "app",
       "file": "预览资源/css/app.css",
-      "line": 1093
+      "line": 1095
     },
     {
       "name": "CSS 条件／关键帧",
       "value": "@media (max-width: 760px) {",
       "selector": "app",
       "file": "预览资源/css/app.css",
-      "line": 1112
+      "line": 1114
     },
     {
       "name": "CSS 条件／关键帧",
       "value": "@keyframes dock-in {",
       "selector": "app",
       "file": "预览资源/css/app.css",
-      "line": 1125
+      "line": 1127
     },
     {
       "name": "CSS 条件／关键帧",
       "value": "@media (max-width: 1000px) and (min-width: 761px) {",
       "selector": "app",
       "file": "预览资源/css/app.css",
-      "line": 1156
+      "line": 1158
     },
     {
       "name": "CSS 条件／关键帧",
       "value": "@media (max-width: 760px) {",
       "selector": "app",
       "file": "预览资源/css/app.css",
-      "line": 1160
+      "line": 1162
     },
     {
       "name": "CSS 条件／关键帧",
@@ -39361,7 +39438,7 @@
       "value": "@media (max-width: 760px) {",
       "selector": "tokens",
       "file": "预览资源/css/tokens.css",
-      "line": 37
+      "line": 41
     }
   ],
   "motion": [
@@ -39465,49 +39542,35 @@
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.move, delay: 90 + i * 80, easing: EASE_OUT, fill: 'backwards' }));",
-      "selector": "chat",
-      "file": "预览资源/js/chat.js",
-      "line": 283
-    },
-    {
-      "name": "动效／局部常量",
       "value": "setTimeout(() => { e.target.textContent = '复制'; }, 1200);",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 352
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "if (!N.REDUCED) anim(el, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: N.DUR.base, easing: EASE_OUT });",
-      "selector": "chat",
-      "file": "预览资源/js/chat.js",
-      "line": 447
+      "line": 350
     },
     {
       "name": "动效／局部常量",
       "value": "if (!N.REDUCED) anim(bar, [{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }], { duration: N.DUR.move, easing: EASE_OUT });",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 461
+      "line": 459
     },
     {
       "name": "动效／局部常量",
       "value": "const r = n.getBoundingClientRect(); return r.bottom > rect.top + 76 && r.top < rect.bottom;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 497
+      "line": 495
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.enter, delay: N.MOTION.stagger * 2, easing: EASE_OUT, fill: 'backwards' });",
+      "value": "const messages = hero ? $$('.hero-kicker, h1, .hero-sub, .chips', hero) : visible;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 501
+      "line": 498
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: 220, easing: EASE_OUT });",
+      "value": "{ duration: N.DUR.enter, easing: EASE_OUT });",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
       "line": 541
@@ -39528,213 +39591,213 @@
     },
     {
       "name": "动效／局部常量",
-      "value": "setTimeout(() => { reqSig = ''; renderRequests(); }, 300);",
+      "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT }).onfinish = () => {",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 745
+      "line": 751
     },
     {
       "name": "动效／局部常量",
       "value": "const used = state.context ? (state.context.system || 0) + (state.context.tools || 0) + (state.context.messages || 0) : 0;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 901
+      "line": 909
     },
     {
       "name": "动效／局部常量",
       "value": "const win = state.context?.window || 0;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 902
+      "line": 910
     },
     {
       "name": "动效／局部常量",
       "value": "const pct = win ? Math.min(100, Math.round(used / win * 100)) : 0;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 903
+      "line": 911
     },
     {
       "name": "动效／局部常量",
       "value": "const known = used > 0;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 905
+      "line": 913
     },
     {
       "name": "动效／局部常量",
       "value": "const used = (c.system || 0) + (c.tools || 0) + (c.messages || 0);",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 918
+      "line": 926
     },
     {
       "name": "动效／局部常量",
       "value": "const pct = c.window ? Math.min(100, Math.round(used / c.window * 100)) : 0;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 919
+      "line": 927
     },
     {
       "name": "动效／局部常量",
       "value": "const cache = u.estimated ? '—' : (u.input + u.cached ? Math.round(u.cached / (u.input + u.cached) * 100) + '%' : '—');",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 921
+      "line": 929
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.SP.settle.d, easing: N.SP.settle.e });",
+      "value": "{ duration: N.DUR.content, easing: N.EASE_ENTER });",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 955
+      "line": 963
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.fast, easing: 'ease-in', fill: 'forwards' }).onfinish = done;",
+      "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' }).onfinish = done;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 961
+      "line": 969
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.move, easing: N.SP.settle.e });",
+      "value": "{ duration: N.DUR.content, easing: N.EASE_ENTER });",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 975
+      "line": 983
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.micro, easing: 'ease-in', fill: 'forwards' })).onfinish = done;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 982
+      "line": 990
     },
     {
       "name": "动效／局部常量",
       "value": "const h = Math.min(200, Math.ceil(Math.max(parseFloat(style.minHeight) || 0, inputMeasure.scrollHeight) / 4) * 4);",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1044
+      "line": 1052
     },
     {
       "name": "动效／局部常量",
       "value": "const blobToBase64 = blob => new Promise((resolve, reject) => {",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1069
+      "line": 1077
     },
     {
       "name": "动效／局部常量",
       "value": "anim(sendBtn, [{ transform: 'scale(.88)' }, { transform: 'scale(1)' }], { duration: N.DUR.base, easing: SP.settle.e });",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1150
+      "line": 1158
     },
     {
       "name": "动效／局部常量",
       "value": "setTimeout(async () => {",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1174
+      "line": 1182
     },
     {
       "name": "动效／局部常量",
       "value": "const cx = r.left + r.width / 2, cy = r.top + r.height / 2;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1221
+      "line": 1229
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.enter, easing: EASE_OUT }).onfinish = () => i.remove();",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1229
+      "line": 1237
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: 220, easing: EASE_OUT }).onfinish = () => ghost.remove();",
+      "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT }).onfinish = () => ghost.remove();",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1242
+      "line": 1250
     },
     {
       "name": "动效／局部常量",
-      "value": "node._sendMotion = anim(node, [{ transform: `translateY(${from.y - to.y}px)` }, { transform: 'none' }], { duration: 280, easing: EASE_OUT });",
+      "value": "node._sendMotion = anim(node, [{ transform: `translateY(${from.y - to.y}px)` }, { transform: 'none' }], { duration: N.DUR.move, easing: N.EASE_MOVE });",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1267
+      "line": 1275
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: 280, easing: EASE_OUT }).onfinish = () => ghost.remove();",
-      "selector": "chat",
-      "file": "预览资源/js/chat.js",
-      "line": 1276
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "{ duration: 200, delay: 80, easing: EASE_OUT, fill: 'backwards' });",
-      "selector": "chat",
-      "file": "预览资源/js/chat.js",
-      "line": 1279
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "let seq = 0;",
-      "selector": "chat",
-      "file": "预览资源/js/chat.js",
-      "line": 1283
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "const MAX_FILES = 8;",
+      "value": "{ duration: N.DUR.move, easing: N.EASE_MOVE }).onfinish = () => ghost.remove();",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
       "line": 1284
     },
     {
       "name": "动效／局部常量",
-      "value": "if (state.files.length >= MAX_FILES) { N.notify('每次最多 8 个附件', 'cinnabar'); break; }",
+      "value": "{ duration: N.DUR.content, delay: N.MOTION.stagger * 2, easing: EASE_OUT, fill: 'backwards' });",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
       "line": 1287
     },
     {
       "name": "动效／局部常量",
+      "value": "let seq = 0;",
+      "selector": "chat",
+      "file": "预览资源/js/chat.js",
+      "line": 1291
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const MAX_FILES = 8;",
+      "selector": "chat",
+      "file": "预览资源/js/chat.js",
+      "line": 1292
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "if (state.files.length >= MAX_FILES) { N.notify('每次最多 8 个附件', 'cinnabar'); break; }",
+      "selector": "chat",
+      "file": "预览资源/js/chat.js",
+      "line": 1295
+    },
+    {
+      "name": "动效／局部常量",
       "value": "if (isImage && file.size > 5 * 1024 * 1024) { N.notify('图片超过 5 MiB：' + file.name, 'cinnabar'); continue; }",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1289
+      "line": 1297
     },
     {
       "name": "动效／局部常量",
       "value": "if (!isImage && file.size > 25 * 1024 * 1024) { N.notify('文件超过 25 MiB：' + file.name, 'cinnabar'); continue; }",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1290
+      "line": 1298
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.move, easing: N.EASE_OUT }).onfinish = () => { node.style.overflow = ''; renderChat(); };",
+      "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT }).onfinish = () => { node.style.overflow = ''; renderChat(); };",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1403
+      "line": 1411
     },
     {
       "name": "动效／局部常量",
       "value": "const done = () => { state.files.splice(i, 1); renderFiles(); updateSend(); N.save(); };",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1482
+      "line": 1490
     },
     {
       "name": "动效／局部常量",
       "value": "if (chip && !N.REDUCED) N.anim(chip, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.6)' }], { duration: N.DUR.micro, easing: 'ease-in' }).onfinish = done;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1483
+      "line": 1491
     },
     {
       "name": "动效／局部常量",
@@ -39759,14 +39822,14 @@
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.enter, delay: i * N.MOTION.stagger, easing: N.EASE_OUT, fill: 'backwards' }));",
+      "value": "{ duration: N.DUR.enter, delay: i * N.MOTION.stagger, easing: N.EASE_MOVE, fill: 'backwards' }));",
       "selector": "context",
       "file": "预览资源/js/context.js",
       "line": 139
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.enter, delay: (i + 2) * N.MOTION.stagger, easing: N.EASE_OUT, fill: 'backwards' }));",
+      "value": "{ duration: N.DUR.enter, delay: (i + 2) * N.MOTION.stagger, easing: N.EASE_ENTER, fill: 'backwards' }));",
       "selector": "context",
       "file": "预览资源/js/context.js",
       "line": 141
@@ -39804,49 +39867,42 @@
       "value": "setTimeout(() => {",
       "selector": "context",
       "file": "预览资源/js/context.js",
-      "line": 192
+      "line": 193
     },
     {
       "name": "动效／局部常量",
       "value": "let lastSync = 0;",
       "selector": "context",
       "file": "预览资源/js/context.js",
-      "line": 207
+      "line": 208
     },
     {
       "name": "动效／局部常量",
       "value": "const wait = (ctx.enteredAt || 0) + 720 - Date.now();",
       "selector": "context",
       "file": "预览资源/js/context.js",
-      "line": 211
+      "line": 212
     },
     {
       "name": "动效／局部常量",
       "value": "if (wait > 0) { setTimeout(maybeSync, wait); return; }",
       "selector": "context",
       "file": "预览资源/js/context.js",
-      "line": 212
+      "line": 213
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.base, easing: 'ease-in', fill: 'forwards' }).finished;",
+      "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' }).finished;",
       "selector": "context",
       "file": "预览资源/js/context.js",
-      "line": 272
+      "line": 273
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.base, delay: k * 18, easing: 'ease-in', fill: 'forwards' }).finished));",
+      "value": "{ duration: N.DUR.micro, delay: Math.min(k * 20, 60), easing: N.EASE_EXIT, fill: 'forwards' }).finished));",
       "selector": "context",
       "file": "预览资源/js/context.js",
-      "line": 335
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "N.anim(oldPanel, [{ opacity: 1 }, { opacity: 0, transform: 'translateY(-4px)' }], { duration: N.DUR.fast, easing: 'ease-in' }).onfinish = swap;",
-      "selector": "context",
-      "file": "预览资源/js/context.js",
-      "line": 400
+      "line": 336
     },
     {
       "name": "动效／局部常量",
@@ -39923,378 +39979,413 @@
       "value": "const LINEAR_OK = CSS.supports('animation-timing-function', 'linear(0, 0.5, 1)');",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 41
+      "line": 46
     },
     {
       "name": "动效／局部常量",
       "value": "const dt = 1 / 600; let x = 0, v = 0, t = 0; const pts = [[0, 0]];",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 43
+      "line": 48
     },
     {
       "name": "动效／局部常量",
       "value": "const a = (-stiffness * (x - 1) - damping * v) / mass;",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 45
+      "line": 50
     },
     {
       "name": "动效／局部常量",
       "value": "const dur = t, COUNT = 56, vals = [];",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 49
+      "line": 54
     },
     {
       "name": "动效／局部常量",
       "value": "for (let i = 0, j = 0; i <= COUNT; i++) {",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 50
+      "line": 55
     },
     {
       "name": "动效／局部常量",
       "value": "bouncy: spring({ stiffness: 400, damping: 18 }),",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 61
+      "line": 66
     },
     {
       "name": "动效／局部常量",
       "value": "snappy: spring({ stiffness: 530, damping: 27 }),",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 62
+      "line": 67
     },
     {
       "name": "动效／局部常量",
       "value": "soft: spring({ stiffness: 230, damping: 20 }),",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 63
+      "line": 68
     },
     {
       "name": "动效／局部常量",
       "value": "island: spring({ stiffness: 410, damping: 24 }),",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 64
+      "line": 69
     },
     {
       "name": "动效／局部常量",
       "value": "pop: spring({ stiffness: 590, damping: 25 }),",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 65
+      "line": 70
     },
     {
       "name": "动效／局部常量",
-      "value": "settle: spring({ stiffness: 490, damping: 23 }),",
+      "value": "settle: spring({ stiffness: 490, damping: 34 }),",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 66
+      "line": 71
     },
     {
       "name": "动效／局部常量",
       "value": "if (REDUCED) for (const k in SP) SP[k] = { e: 'ease', d: 1 };",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 69
+      "line": 74
     },
     {
       "name": "动效／局部常量",
-      "value": "if (REDUCED) return el.animate(kf, { ...o, duration: 1, delay: 0 });",
+      "value": "if (REDUCED) return el.animate(kf, { easing: EASE_MOVE, ...o, duration: 1, delay: 0 });",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 85
+      "line": 90
     },
     {
       "name": "动效／局部常量",
-      "value": "return el.animate(kf, { ...o, duration: (o.duration || 0) * s, delay: (o.delay || 0) * s });",
+      "value": "return el.animate(kf, { easing: EASE_MOVE, ...o, duration: (o.duration || 0) * s, delay: (o.delay || 0) * s });",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 87
+      "line": 92
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: DUR.enter, delay: i * MOTION.stagger, easing: EASE_OUT, fill: 'backwards' });",
+      "value": "const floatPhase = el => el.matches('header, h2, .sheet-head, .isl-head, .det-head') ? 1",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 100
+      "line": 115
     },
     {
       "name": "动效／局部常量",
-      "value": "const p0 = previousAxis === axis ? (matrix ? (axis === 'x' ? matrix.m41 : matrix.m42) : 0) : null;",
-      "selector": "core",
-      "file": "预览资源/js/core.js",
-      "line": 117
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "const s0 = parseFloat(current[S]);",
-      "selector": "core",
-      "file": "预览资源/js/core.js",
-      "line": 118
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "const direction = Math.sign(pos - p0);",
-      "selector": "core",
-      "file": "预览资源/js/core.js",
-      "line": 125
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "const stretch = Math.min(Math.abs(pos - p0) * .3, size * .52);",
-      "selector": "core",
-      "file": "预览资源/js/core.js",
-      "line": 126
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "const crossEnd = axis === 'x' ? 6 : 7;",
+      "value": "const step = Math.min(MOTION.contentStagger, MOTION.contentWindow / Math.max(1, items.length - 1));",
       "selector": "core",
       "file": "预览资源/js/core.js",
       "line": 131
     },
     {
       "name": "动效／局部常量",
-      "value": "for (let i = 0; i <= 48; i++) {",
+      "value": "let wait = delay + (page ? Math.min(groupIndex * MOTION.stagger, MOTION.window) : 0) + i * step;",
+      "selector": "core",
+      "file": "预览资源/js/core.js",
+      "line": 132
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const from = start || { opacity: 0, transform: `translateY(${offset}px) scale(${card ? .99 : 1})` };",
       "selector": "core",
       "file": "预览资源/js/core.js",
       "line": 134
     },
     {
       "name": "动效／局部常量",
-      "value": "const t = i / 48;",
-      "selector": "core",
-      "file": "预览资源/js/core.js",
-      "line": 135
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "const progress = (1 - (1 + 9 * t) * Math.exp(-9 * t)) / (1 - 10 * Math.exp(-9));",
+      "value": "const to = { opacity: 1, transform: 'none', ...(floating ? { filter: 'none' } : {}) };",
       "selector": "core",
       "file": "预览资源/js/core.js",
       "line": 136
     },
     {
       "name": "动效／局部常量",
-      "value": "const tension = Math.sin(Math.PI * t) * (1 - t) * 1.7;",
+      "value": "const motion = anim(el, [from, to], { duration: duration ?? (page ? DUR.enter : DUR.content), delay: wait, easing: EASE_ENTER, fill: 'backwards' });",
       "selector": "core",
       "file": "预览资源/js/core.js",
       "line": 137
     },
     {
       "name": "动效／局部常量",
+      "value": "const phase = el.matches('footer, .sheet-foot, .save-bar, .isl-actions, .composer-wrap, .btn, .tabs, .seg, [class*=\"toolbar\"]') ? 0",
+      "selector": "core",
+      "file": "预览资源/js/core.js",
+      "line": 150
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const motion = anim(el, [from, { opacity: 0, transform: `${from.transform === 'none' ? '' : from.transform} translateY(-8px)` }],",
+      "selector": "core",
+      "file": "预览资源/js/core.js",
+      "line": 152
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "{ duration: DUR.micro, delay: phase * 30, easing: EASE_EXIT, fill: 'forwards' });",
+      "selector": "core",
+      "file": "预览资源/js/core.js",
+      "line": 153
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const p0 = previousAxis === axis ? (matrix ? (axis === 'x' ? matrix.m41 : matrix.m42) : 0) : null;",
+      "selector": "core",
+      "file": "预览资源/js/core.js",
+      "line": 172
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const s0 = parseFloat(current[S]);",
+      "selector": "core",
+      "file": "预览资源/js/core.js",
+      "line": 173
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const direction = Math.sign(pos - p0);",
+      "selector": "core",
+      "file": "预览资源/js/core.js",
+      "line": 180
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const stretch = Math.min(Math.abs(pos - p0) * .3, size * .52);",
+      "selector": "core",
+      "file": "预览资源/js/core.js",
+      "line": 181
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const crossEnd = axis === 'x' ? 6 : 7;",
+      "selector": "core",
+      "file": "预览资源/js/core.js",
+      "line": 186
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "for (let i = 0; i <= 48; i++) {",
+      "selector": "core",
+      "file": "预览资源/js/core.js",
+      "line": 189
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const t = i / 48;",
+      "selector": "core",
+      "file": "预览资源/js/core.js",
+      "line": 190
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const progress = (1 - (1 + 9 * t) * Math.exp(-9 * t)) / (1 - 10 * Math.exp(-9));",
+      "selector": "core",
+      "file": "预览资源/js/core.js",
+      "line": 191
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const tension = Math.sin(Math.PI * t) * (1 - t) * 1.7;",
+      "selector": "core",
+      "file": "预览资源/js/core.js",
+      "line": 192
+    },
+    {
+      "name": "动效／局部常量",
       "value": "const length = s0 + (size - s0) * progress + stretch * tension;",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 138
+      "line": 193
     },
     {
       "name": "动效／局部常量",
       "value": "const center = p0 + s0 / 2 + (pos + size / 2 - p0 - s0 / 2) * progress + direction * stretch * tension * .2;",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 139
+      "line": 194
     },
     {
       "name": "动效／局部常量",
-      "value": "ink.animate(frames, { duration: (360 + Math.min(120, Math.abs(pos - p0) * .4)) * motionScale(), easing: 'linear' });",
+      "value": "anim(ink, frames, { duration: DUR.move, easing: 'linear' });",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 148
+      "line": 203
     },
     {
       "name": "动效／局部常量",
-      "value": "], { duration: DUR.move * motionScale(), easing: EASE_OUT });",
+      "value": "], { duration: DUR.move * motionScale(), easing: EASE_MOVE });",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 154
+      "line": 209
     },
     {
       "name": "动效／局部常量",
       "value": "const nowHM = () => new Date().toTimeString().slice(0, 5);",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 158
+      "line": 213
     },
     {
       "name": "动效／局部常量",
       "value": "return size >= 1024 * 1024 ? (size / (1024 * 1024)).toFixed(1) + ' MiB' : Math.ceil(size / 1024) + ' KiB';",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 161
+      "line": 216
     },
     {
       "name": "动效／局部常量",
       "value": "const fmtNum = n => Number(n || 0).toLocaleString('en-US');",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 163
+      "line": 218
     },
     {
       "name": "动效／局部常量",
-      "value": "const t = Math.min(1, (now - start) / dur);",
+      "value": "const t = clamp((now - start) / dur, 0, 1);",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 184
+      "line": 240
     },
     {
       "name": "动效／局部常量",
       "value": "const chart = `<rect x=\"18\" y=\"120\" width=\"26\" height=\"58\" rx=\"6\" fill=\"#bfe9dd\"/>",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 201
+      "line": 257
     },
     {
       "name": "动效／局部常量",
       "value": "const ui = `<rect x=\"18\" y=\"22\" width=\"90\" height=\"10\" rx=\"5\" fill=\"#cfd8d5\"/>",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 206
+      "line": 262
     },
     {
       "name": "动效／局部常量",
       "value": "const svg = `<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"224\" height=\"212\" viewBox=\"0 0 224 212\">",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 212
+      "line": 268
     },
     {
       "name": "动效／局部常量",
       "value": "const lang = [...code.classList].find(c => c.startsWith('language-'))?.slice(9) || '';",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 257
+      "line": 313
     },
     {
       "name": "动效／局部常量",
       "value": "setTimeout(() => { e.target.textContent = '复制'; }, 1200);",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 271
+      "line": 327
     },
     {
       "name": "动效／局部常量",
       "value": "version: 2,",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 333
+      "line": 389
     },
     {
       "name": "动效／局部常量",
       "value": "liveRevision: 0,",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 349
+      "line": 405
     },
     {
       "name": "动效／局部常量",
       "value": "turns: 0,",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 354
+      "line": 410
     },
     {
       "name": "动效／局部常量",
       "value": "contextWindow: 0,",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 365
+      "line": 421
     },
     {
       "name": "动效／局部常量",
       "value": "N.later = (fn, ms) => { const t = setTimeout(() => { N.timers.delete(t); fn(); }, ms); N.timers.add(t); return t; };",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 395
+      "line": 452
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.fast * N.motionScale(), easing: 'ease-in' }).onfinish = () => { if (!menuAnchor) menu.hidden = true; };",
+      "value": "const motion = anim(menu, [from, { opacity: 0, transform: 'translateY(8px) scale(.98)' }],",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 18
+      "line": 21
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });",
+      "selector": "dialogs",
+      "file": "预览资源/js/dialogs.js",
+      "line": 22
     },
     {
       "name": "动效／局部常量",
       "value": "const left = Math.max(8, Math.min(r.left, innerWidth - mw - 12));",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 37
+      "line": 44
     },
     {
       "name": "动效／局部常量",
       "value": "let top = r.top - mh - 8;",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 38
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.enter, easing: N.EASE_OUT });",
-      "selector": "dialogs",
-      "file": "预览资源/js/dialogs.js",
       "line": 45
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.base, delay: 20 + i * 24, easing: EASE_OUT, fill: 'backwards' }));",
+      "value": "{ duration: N.DUR.content, easing: N.EASE_ENTER });",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 47
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.enter, easing: N.EASE_OUT });",
-      "selector": "dialogs",
-      "file": "预览资源/js/dialogs.js",
-      "line": 76
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.enter, easing: N.EASE_OUT });",
-      "selector": "dialogs",
-      "file": "预览资源/js/dialogs.js",
-      "line": 140
+      "line": 52
     },
     {
       "name": "动效／局部常量",
       "value": "if (line) setTimeout(() => $('.fp-line.target', fpBody)?.scrollIntoView({ block: 'center' }), 40);",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 169
+      "line": 172
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.enter, easing: N.EASE_OUT });",
+      "value": "{ duration: N.DUR.enter, easing: N.EASE_ENTER });",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 183
+      "line": 197
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.enter, easing: N.EASE_OUT });",
+      "value": "const motion = anim(d, [from, { opacity: 0, transform: 'translateY(8px) scale(.98)' }],",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 191
+      "line": 212
     },
     {
       "name": "动效／局部常量",
-      "value": "const ease = 'cubic-bezier(.4,0,.75,.2)';",
+      "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 205
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "setTimeout(done, ms + 20);",
-      "selector": "dialogs",
-      "file": "预览资源/js/dialogs.js",
-      "line": 220
+      "line": 213
     },
     {
       "name": "动效／局部常量",
@@ -41425,14 +41516,14 @@
     },
     {
       "name": "动效／局部常量",
-      "value": "if (fresh && spec.animate && !N.REDUCED) N.anim(node, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: N.DUR.base, easing: N.SP.soft.e });",
+      "value": "if (fresh && spec.animate && !N.REDUCED) N.anim(node, [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], { duration: N.DUR.content, easing: N.EASE_ENTER });",
       "selector": "plugin-pages",
       "file": "预览资源/js/plugin-pages.js",
       "line": 288
     },
     {
       "name": "动效／局部常量",
-      "value": "const animation = N.anim(node, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-4px)' }], { duration: N.DUR.micro, easing: N.EASE_OUT });",
+      "value": "const animation = N.anim(node, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-8px)' }], { duration: N.DUR.micro, easing: N.EASE_EXIT });",
       "selector": "plugin-pages",
       "file": "预览资源/js/plugin-pages.js",
       "line": 294
@@ -41488,7 +41579,7 @@
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.base, easing: 'ease-in', fill: 'forwards' });",
+      "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });",
       "selector": "plugins",
       "file": "预览资源/js/plugins.js",
       "line": 504
@@ -41502,63 +41593,42 @@
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.enter, delay: i * 90, easing: N.SP.bouncy.e });",
+      "value": "{ duration: N.DUR.enter, delay: i * N.MOTION.stagger, easing: N.EASE_ENTER });",
       "selector": "settings",
       "file": "预览资源/js/settings.js",
       "line": 58
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.enter, easing: N.EASE_OUT });",
-      "selector": "settings",
-      "file": "预览资源/js/settings.js",
-      "line": 207
-    },
-    {
-      "name": "动效／局部常量",
       "value": "setTimeout(() => $('#p-name').focus(), 40);",
       "selector": "settings",
       "file": "预览资源/js/settings.js",
-      "line": 265
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.enter, easing: N.EASE_OUT });",
-      "selector": "settings",
-      "file": "预览资源/js/settings.js",
-      "line": 267
+      "line": 263
     },
     {
       "name": "动效／局部常量",
       "value": "const first = state.providers[0];",
       "selector": "settings",
       "file": "预览资源/js/settings.js",
-      "line": 317
+      "line": 313
     },
     {
       "name": "动效／局部常量",
       "value": "const model = first && (first.models || [])[0];",
       "selector": "settings",
       "file": "预览资源/js/settings.js",
-      "line": 318
+      "line": 314
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.base, easing: N.SP.settle.e });",
       "selector": "settings",
       "file": "预览资源/js/settings.js",
-      "line": 363
+      "line": 359
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.enter, easing: N.EASE_OUT });",
-      "selector": "settings",
-      "file": "预览资源/js/settings.js",
-      "line": 393
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "setTimeout(() => { if (!scrim.classList.contains('show')) scrim.hidden = true; }, 300);",
+      "value": "setTimeout(() => { if (!scrim.classList.contains('show')) scrim.hidden = true; }, N.DUR.exit * N.motionScale() + 20);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
       "line": 31
@@ -41593,248 +41663,220 @@
     },
     {
       "name": "动效／局部常量",
-      "value": "], { duration: N.DUR.move * N.motionScale(), easing: N.EASE_OUT });",
-      "selector": "shell",
-      "file": "预览资源/js/shell.js",
-      "line": 165
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.fast * N.motionScale(), easing: 'ease-out', fill: 'forwards' });",
-      "selector": "shell",
-      "file": "预览资源/js/shell.js",
-      "line": 167
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.move * N.motionScale(), delay: (prev === mode ? 0 : 35) * N.motionScale(), easing: N.EASE_OUT, fill: 'backwards' });",
-      "selector": "shell",
-      "file": "预览资源/js/shell.js",
-      "line": 169
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.base * N.motionScale(), delay: (30 + Math.min(i, 6) * 16) * N.motionScale(), easing: N.EASE_OUT, fill: 'backwards' });",
+      "value": "], { duration: (closing ? N.DUR.exit : N.DUR.move) * N.motionScale(), easing: N.EASE_MOVE });",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
       "line": 173
     },
     {
       "name": "动效／局部常量",
-      "value": "islandAnim = island.animate([{ width: from + 'px' }, { width: to + 'px' }], { duration: N.DUR.move * N.motionScale(), easing: N.EASE_OUT });",
+      "value": "{ duration: N.DUR.micro, easing: N.EASE_EXIT, fill: 'forwards' });",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 206
+      "line": 177
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "if (closing) N.enterItems([panel], islandInner, { profile: 'content', delay: 60, duration: N.DUR.micro });",
+      "selector": "shell",
+      "file": "预览资源/js/shell.js",
+      "line": 179
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "islandAnim = anim(island, [{ width: from + 'px' }, { width: to + 'px' }], { duration: N.DUR.move, easing: N.EASE_MOVE });",
+      "selector": "shell",
+      "file": "预览资源/js/shell.js",
+      "line": 211
     },
     {
       "name": "动效／局部常量",
       "value": "const keepTop = sc ? sc.scrollTop : 0;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 234
+      "line": 239
     },
     {
       "name": "动效／局部常量",
       "value": "const keepThreadTop = tSc ? tSc.scrollTop : 0;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 236
+      "line": 241
     },
     {
       "name": "动效／局部常量",
       "value": "const ico = tone === 'jade' ? icon('check', 'i sm') : '<span class=\"orb-mini\" style=\"--s:16px\" aria-hidden=\"true\"></span>';",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 261
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "island.animate([{ height: island.getBoundingClientRect().height + 'px' }, { height: '46px' }], { duration: SP.island.d * N.motionScale(), easing: SP.island.e });",
-      "selector": "shell",
-      "file": "预览资源/js/shell.js",
-      "line": 265
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "toastTimer = setTimeout(() => { if (island.mode === 'toast') morphIsland('compact'); }, ms);",
-      "selector": "shell",
-      "file": "预览资源/js/shell.js",
       "line": 266
     },
     {
       "name": "动效／局部常量",
-      "value": "toastTimer = setTimeout(() => t.classList.remove('show'), ms);",
+      "value": "island._noticeMotion = anim(island, [{ height: island.getBoundingClientRect().height + 'px' }, { height: '46px' }], { duration: N.DUR.move, easing: N.EASE_MOVE });",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
       "line": 271
     },
     {
       "name": "动效／局部常量",
-      "value": "const currentOpacity = cur ? getComputedStyle(cur).opacity : '1';",
+      "value": "toastTimer = setTimeout(() => { if (island.mode === 'toast') morphIsland('compact'); }, ms);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 328
+      "line": 273
     },
     {
       "name": "动效／局部常量",
-      "value": "const out = anim(cur, [{ opacity: currentOpacity, transform: currentTransform }, { opacity: 0, transform: 'translateY(-4px)' }],",
+      "value": "toastTimer = setTimeout(() => t.classList.remove('show'), ms);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 355
+      "line": 278
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.micro, easing: 'ease-in', fill: 'forwards' });",
+      "value": "let viewVersion = 0;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 356
+      "line": 304
     },
     {
       "name": "动效／局部常量",
       "value": "const x0 = a.left + a.width / 2, y0 = a.top + a.height / 2, x1 = b.left + b.width / 2, y1 = b.top + b.height / 2;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 387
+      "line": 394
     },
     {
       "name": "动效／局部常量",
       "value": "const cx = x0 + (x1 - x0) * 0.25, cy = Math.min(y0, y1) + (Math.max(y0, y1) - Math.min(y0, y1)) * 0.15 - 60;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 388
+      "line": 395
     },
     {
       "name": "动效／局部常量",
       "value": "const NSTEP = 24, kf = [];",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 392
+      "line": 399
     },
     {
       "name": "动效／局部常量",
       "value": "for (let i = 0; i <= NSTEP; i++) {",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 393
+      "line": 400
     },
     {
       "name": "动效／局部常量",
       "value": "const t = i / NSTEP, u = 1 - t;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 394
+      "line": 401
     },
     {
       "name": "动效／局部常量",
       "value": "const x = u * u * x0 + 2 * u * t * cx + t * t * x1;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 395
+      "line": 402
     },
     {
       "name": "动效／局部常量",
       "value": "const y = u * u * y0 + 2 * u * t * cy + t * t * y1;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 396
+      "line": 403
     },
     {
       "name": "动效／局部常量",
       "value": "const dx = 2 * u * (cx - x0) + 2 * t * (x1 - cx);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 397
+      "line": 404
     },
     {
       "name": "动效／局部常量",
       "value": "const dy = 2 * u * (cy - y0) + 2 * t * (y1 - cy);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 398
+      "line": 405
     },
     {
       "name": "动效／局部常量",
       "value": "const ang = Math.atan2(dy, dx) * 180 / Math.PI;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 399
+      "line": 406
     },
     {
       "name": "动效／局部常量",
       "value": "const stretch = 1 + Math.sin(t * Math.PI) * 0.9, sc = 1 - t * 0.35;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 400
+      "line": 407
     },
     {
       "name": "动效／局部常量",
       "value": "const an = d.animate(kf, { duration: N.REDUCED ? 1 : 820 * N.motionScale(), easing: 'cubic-bezier(.55,0,.25,.09)' });",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 403
+      "line": 410
     },
     {
       "name": "动效／局部常量",
       "value": "const x = r ? r.left + r.width / 2 : innerWidth / 2;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 415
+      "line": 422
     },
     {
       "name": "动效／局部常量",
       "value": "const y = r ? r.top + r.height / 2 : 42;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 416
+      "line": 423
     },
     {
       "name": "动效／局部常量",
       "value": "const frames = { '--theme-reveal-radius': ['-24px', (rad + 24) + 'px'] };",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 444
+      "line": 451
     },
     {
       "name": "动效／局部常量",
       "value": "const timing = { duration: N.MOTION.theme * N.motionScale(), easing: 'ease-in-out', fill: 'both' };",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 445
+      "line": 452
     },
     {
       "name": "动效／局部常量",
       "value": "if (island.mode === 'toast') toastTimer = setTimeout(() => island.mode === 'toast' && morphIsland('compact'), 1200);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 564
+      "line": 571
     },
     {
       "name": "动效／局部常量",
       "value": "const first = focusable[0], last = focusable.at(-1);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 627
+      "line": 634
     },
     {
       "name": "动效／局部常量",
       "value": "let rz = 0;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 650
+      "line": 657
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.enter, easing: N.EASE_OUT });",
+      "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' }).finished;",
       "selector": "skills",
       "file": "预览资源/js/skills.js",
-      "line": 77
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.base, easing: 'ease-in', fill: 'forwards' }).finished;",
-      "selector": "skills",
-      "file": "预览资源/js/skills.js",
-      "line": 134
+      "line": 132
     },
     {
       "name": "动效／局部常量",
@@ -41845,52 +41887,59 @@
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.move, easing: N.SP.settle.e });",
+      "value": "{ duration: N.DUR.base, easing: N.SP.settle.e });",
       "selector": "work",
       "file": "预览资源/js/work.js",
       "line": 114
     },
     {
       "name": "动效／局部常量",
-      "value": "const from = body.hidden ? 0 : body.offsetHeight;",
+      "value": "const from = body.hidden ? 0 : body.getBoundingClientRect().height;",
       "selector": "work",
       "file": "预览资源/js/work.js",
-      "line": 130
+      "line": 129
     },
     {
       "name": "动效／局部常量",
       "value": "const to = next ? body.scrollHeight : 0;",
       "selector": "work",
       "file": "预览资源/js/work.js",
-      "line": 132
+      "line": 133
     },
     {
       "name": "动效／局部常量",
-      "value": "], { duration: next ? 360 : 260, easing: N.SP.soft.e }).onfinish = () => {",
+      "value": "if (next) N.enterItems([...body.children], section, { profile: 'content', delay: N.MOTION.stagger });",
       "selector": "work",
       "file": "预览资源/js/work.js",
-      "line": 138
+      "line": 135
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.base, easing: 'ease-in', fill: 'forwards' });",
+      "value": "], { duration: next ? N.DUR.move : N.DUR.exit, easing: N.EASE_MOVE });",
       "selector": "work",
       "file": "预览资源/js/work.js",
-      "line": 168
+      "line": 140
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.move, easing: N.SP.settle.e });",
+      "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });",
       "selector": "work",
       "file": "预览资源/js/work.js",
-      "line": 182
+      "line": 172
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.base, easing: 'ease-in', fill: 'forwards' });",
+      "value": "{ duration: N.DUR.base, easing: N.SP.settle.e });",
       "selector": "work",
       "file": "预览资源/js/work.js",
-      "line": 208
+      "line": 186
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });",
+      "selector": "work",
+      "file": "预览资源/js/work.js",
+      "line": 212
     }
   ],
   "icons": [

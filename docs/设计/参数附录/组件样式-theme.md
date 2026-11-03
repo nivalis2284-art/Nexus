@@ -247,11 +247,11 @@
 | `opacity` | `1` | `@keyframes new-rule → 18%` | 预览资源/css/theme.css:510 |
 | `transform` | `none` | `@keyframes new-rule → 18%` | 预览资源/css/theme.css:510 |
 | `opacity` | `0` | `@keyframes new-rule → 100%` | 预览资源/css/theme.css:511 |
-| `animation` | `send-ready calc(.38s * var(--motion)) var(--sp-bouncy)` | `.send.ready` | 预览资源/css/theme.css:514 |
+| `animation` | `send-ready calc(var(--duration-base) * var(--motion)) var(--ease-enter)` | `.send.ready` | 预览资源/css/theme.css:514 |
 | `transform` | `scale(.9)` | `@keyframes send-ready → 0%` | 预览资源/css/theme.css:516 |
-| `transform` | `scale(1.06)` | `@keyframes send-ready → 60%` | 预览资源/css/theme.css:517 |
+| `transform` | `scale(1.025)` | `@keyframes send-ready → 65%` | 预览资源/css/theme.css:517 |
 | `transform` | `scale(1)` | `@keyframes send-ready → 100%` | 预览资源/css/theme.css:518 |
-| `animation` | `chip-in calc(.3s * var(--motion)) var(--sp-bouncy) both` | `.ret-chip button` | 预览资源/css/theme.css:520 |
+| `animation` | `chip-in calc(var(--duration-content) * var(--motion)) var(--ease-enter) both` | `.ret-chip button` | 预览资源/css/theme.css:520 |
 | `opacity` | `0` | `@keyframes chip-in → from` | 预览资源/css/theme.css:522 |
 | `transform` | `translateY(6px) scale(.92)` | `@keyframes chip-in → from` | 预览资源/css/theme.css:522 |
 | `opacity` | `1` | `@keyframes chip-in → to` | 预览资源/css/theme.css:523 |
@@ -267,6 +267,6 @@
 | `filter` | `drop-shadow(0 0 2px rgba(78, 220, 175, .4))` | `[data-theme="night"][data-palette="jade"] .pv-arc.front` | 预览资源/css/theme.css:533 |
 | `background-image` | `radial-gradient(250px circle at 50% var(--my, -240px),     color-mix(in srgb, var(--jade) 56%, var(--cinnabar)),     color-mix(in srgb, var(--cinnabar) 34%, transparent) 52%, transparent 74%)` | `html[data-theme][data-palette] .dock::after` | 预览资源/css/theme.css:537 |
 | `background-image` | `radial-gradient(250px circle at 50% var(--my, -240px),     color-mix(in srgb, var(--jade) 56%, #f5c451),     color-mix(in srgb, #e5a324 34%, transparent) 52%, transparent 74%)` | `html[data-theme][data-palette="jade"] .dock::after` | 预览资源/css/theme.css:542 |
-| `transition` | `stroke var(--d-3), opacity var(--d-3)` | `[data-palette="jade"] .orb-stage :is(.pv-rim, .pv-jade-vernier, .pv-arc.front)` | 预览资源/css/theme.css:549 |
+| `transition` | `stroke var(--d-3), opacity var(--d-2)` | `[data-palette="jade"] .orb-stage :is(.pv-rim, .pv-jade-vernier, .pv-arc.front)` | 预览资源/css/theme.css:549 |
 | `stroke` | `var(--jade)` | `html[data-palette="jade"] .orb-stage.is-grasped :is(.pv-rim, .pv-jade-vernier, .pv-arc.front)` | 预览资源/css/theme.css:552 |
 | `opacity` | `.96` | `html[data-palette="jade"] .orb-stage.is-grasped :is(.pv-rim, .pv-jade-vernier, .pv-arc.front)` | 预览资源/css/theme.css:553 |

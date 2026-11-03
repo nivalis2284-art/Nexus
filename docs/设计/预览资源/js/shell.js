@@ -28,7 +28,7 @@
         islandTrigger = null;
       }
       scrim.classList.remove('show');
-      setTimeout(() => { if (!scrim.classList.contains('show')) scrim.hidden = true; }, 300);
+      setTimeout(() => { if (!scrim.classList.contains('show')) scrim.hidden = true; }, N.DUR.exit * N.motionScale() + 20);
     }
   }
 
@@ -126,6 +126,13 @@
     const from = island.getBoundingClientRect();
     const fromRadius = Math.min(parseFloat(getComputedStyle(island).borderTopLeftRadius), from.height / 2, from.width / 2);
     const ghost = islandInner.cloneNode(true);
+    const sources = [islandInner, ...islandInner.querySelectorAll('*')];
+    const copies = [ghost, ...ghost.querySelectorAll('*')];
+    sources.forEach((source, i) => {
+      if (!source._enterMotion && !source._exitMotion) return;
+      const style = getComputedStyle(source);
+      for (const key of ['opacity', 'transform', 'filter']) copies[i].style[key] = style[key];
+    });
     ghost.removeAttribute('id');
     ghost.className = 'island-inner island-ghost';
     ghost.style.width = from.width + 'px';
@@ -135,7 +142,7 @@
       islandAnim.onfinish = islandAnim.oncancel = null;
       islandAnim.cancel(); islandAnim = null;
     }
-    islandInner.getAnimations().forEach(a => a.cancel());
+    N.cancelMotion(islandInner);
     $$('.island-ghost', island).forEach(g => g.remove());
     island.style.width = island.style.height = '';
     island.style.willChange = '';
@@ -154,6 +161,7 @@
     }
     const to = island.getBoundingClientRect();
     if (N.REDUCED) return;
+    const closing = mode === 'compact' && (prev === 'overview' || prev === 'detail');
     island.appendChild(ghost);
     island.style.willChange = 'width, height';
     islandInner.style.willChange = 'opacity, transform';
@@ -162,17 +170,14 @@
     islandAnim = island.animate([
       { width: from.width + 'px', maxWidth: from.width + 'px', height: from.height + 'px', top: from.top + 'px', borderRadius: fromRadius + 'px' },
       { width: to.width + 'px', maxWidth: to.width + 'px', height: to.height + 'px', top: to.top + 'px', borderRadius: Math.min(parseFloat(getComputedStyle(island).borderTopLeftRadius), to.height / 2) + 'px' },
-    ], { duration: N.DUR.move * N.motionScale(), easing: N.EASE_OUT });
-    ghost.animate([{ opacity: 1, transform: 'translateX(-50%) scale(1)' }, { opacity: 0, transform: 'translateX(-50%) scale(.96)' }],
-      { duration: N.DUR.fast * N.motionScale(), easing: 'ease-out', fill: 'forwards' });
-    islandInner.animate([{ opacity: 0, transform: 'translateY(4px) scale(.985)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.move * N.motionScale(), delay: (prev === mode ? 0 : 35) * N.motionScale(), easing: N.EASE_OUT, fill: 'backwards' });
-    if ((mode === 'detail' || mode === 'overview') && prev !== mode) {
-      $$('.wrow, .drow, .isl-sec', islandInner).forEach((n, i) => {
-        n.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
-          { duration: N.DUR.base * N.motionScale(), delay: (30 + Math.min(i, 6) * 16) * N.motionScale(), easing: N.EASE_OUT, fill: 'backwards' });
-      });
-    }
+    ], { duration: (closing ? N.DUR.exit : N.DUR.move) * N.motionScale(), easing: N.EASE_MOVE });
+    const oldPanel = ghost.firstElementChild;
+    N.exitItems(oldPanel?.children.length ? [...oldPanel.children] : [ghost], ghost);
+    anim(ghost, [{ filter: 'blur(0px)' }, { filter: 'blur(4px)' }],
+      { duration: N.DUR.micro, easing: N.EASE_EXIT, fill: 'forwards' });
+    const panel = islandInner.firstElementChild;
+    if (closing) N.enterItems([panel], islandInner, { profile: 'content', delay: 60, duration: N.DUR.micro });
+    else N.enterItems(panel?.children.length ? [...panel.children] : [panel], islandInner, { profile: 'float' });
     const clean = () => {
       islandInner.style.width = islandInner.style.marginLeft = '';
       islandInner.style.willChange = '';
@@ -203,7 +208,7 @@
     $('#isl-orb')?.classList.toggle('busy', state.replying);
     const to = island.getBoundingClientRect().width;
     if (Math.abs(from - to) > 1 && !N.REDUCED) {
-      islandAnim = island.animate([{ width: from + 'px' }, { width: to + 'px' }], { duration: N.DUR.move * N.motionScale(), easing: N.EASE_OUT });
+      islandAnim = anim(island, [{ width: from + 'px' }, { width: to + 'px' }], { duration: N.DUR.move, easing: N.EASE_MOVE });
       islandAnim.onfinish = () => { islandAnim = null; refreshIsland(); };
     }
   }
@@ -262,7 +267,9 @@
       island.mode = 'toast'; island.dataset.mode = 'toast';
       setScrim(false);
       islandInner.innerHTML = `<div class="isl-toast" data-tone="${tone}"><span class="t-ico">${ico}</span><span>${esc(text)}</span></div>`;
-      island.animate([{ height: island.getBoundingClientRect().height + 'px' }, { height: '46px' }], { duration: SP.island.d * N.motionScale(), easing: SP.island.e });
+      island._noticeMotion?.cancel();
+      island._noticeMotion = anim(island, [{ height: island.getBoundingClientRect().height + 'px' }, { height: '46px' }], { duration: N.DUR.move, easing: N.EASE_MOVE });
+      N.enterItems([...islandInner.firstElementChild.children], islandInner, { profile: 'content' });
       toastTimer = setTimeout(() => { if (island.mode === 'toast') morphIsland('compact'); }, ms);
     } else {
       const t = $('#toast');
@@ -294,7 +301,7 @@
     if (name === 'plugins') N.renderPlugins();
     if (name === 'settings') N.renderSettings();
   }
-  let viewAnim = null;
+  let viewVersion = 0;
   function setBackgroundOnly(on) {
     if (!!state.backgroundOnly === on) return;
     if (on) {
@@ -319,22 +326,27 @@
     if (!VIEWS.includes(name)) return;
     if (island.mode !== 'compact' && !opts.keepIsland) morphIsland('compact');
     if (name === state.view) {
-      if (!opts.silent) renderView(name);
+      if (!opts.silent && !$('#view-' + name).hidden) renderView(name);
       syncDock(true);
       return;
     }
     if (state.view === 'plugins') N.closePluginPage?.();
     const cur = $('.view:not([hidden])'), next = $('#view-' + name);
-    const currentOpacity = cur ? getComputedStyle(cur).opacity : '1';
-    const currentTransform = cur ? getComputedStyle(cur).transform : 'none';
-    if (viewAnim) { viewAnim.onfinish = null; viewAnim.cancel(); viewAnim = null; }
-    cur?.getAnimations().forEach(a => a.cancel());
+    const version = ++viewVersion;
     state.view = name;
     $$('.dock-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
     syncDock();
     N.closeMenu?.();
 
+    if (cur === next) {
+      N.stagger(next);
+      N.save();
+      return;
+    }
+
     const swap = () => {
+      if (version !== viewVersion) return;
+      if (cur) N.cancelMotion(cur);
       $$('.view').forEach(v => { v.hidden = v !== next; });
       enterFlags[name] = true;
       renderView(name);
@@ -349,32 +361,27 @@
       N.save();
       return;
     }
-    // 旧页先退场，新页再逐组件登场；不做交叉淡入，避免两页重影
-    cur.style.zIndex = '1';
-    next.style.zIndex = '2';
-    const out = anim(cur, [{ opacity: currentOpacity, transform: currentTransform }, { opacity: 0, transform: 'translateY(-4px)' }],
-      { duration: N.DUR.micro, easing: 'ease-in', fill: 'forwards' });
-    out.onfinish = () => {
-      if (state.view !== name) return;
-      cur.hidden = true;
-      cur.style.zIndex = ''; next.style.zIndex = '';
-      out.cancel();
-      viewAnim = null;
-      swap();
-    };
-    viewAnim = out;
+    const items = viewItems(cur);
+    Promise.all(N.exitItems(items, cur).map(a => a.finished)).then(swap, () => {});
     N.save();
   }
 
+  function viewItems(root) {
+    const marked = $$('[data-s]', root).filter(n => !n.parentElement.closest('[data-s]'));
+    if (marked.length) return marked.flatMap(n => n.matches('.page-head') ? [...n.children] : [n]);
+    if (root.id === 'view-chat') return [...$$('.req-card, .qrow, .hero-kicker, .hero h1, .hero-sub, .chips, #thread > .msg, #thread > .phase', root), $('#composer-wrap')];
+    return [...root.children];
+  }
+
   function stagger(root) {
-    const items = $$('[data-s]', root).filter(n => !n.parentElement.closest('[data-s]'));
-    N.enterItems(items, root.closest('.view, dialog') || root);
+    if (!root) return;
+    return N.enterItems(viewItems(root), root.closest('.view, dialog') || root);
   }
 
   /* 只编排某个面板的直接子元素：标签页切换、插件详情切换用 */
   function cascade(root) {
     if (!root || N.REDUCED) return;
-    N.enterItems([...root.children].filter(n => n.nodeType === 1 && !n.hidden), root.closest('.view, dialog') || root);
+    return N.enterItems([...root.children].filter(n => n.nodeType === 1 && !n.hidden), root.closest('.view, dialog') || root, { profile: 'content' });
   }
 
   function openNav() { document.body.classList.add('nav-open'); $('#menu-btn').setAttribute('aria-expanded', 'true'); requestAnimationFrame(() => syncDock(true)); }

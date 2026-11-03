@@ -24,7 +24,7 @@
 | `font` | `400 var(--text-ui)/1.7 var(--font)` | `body` | 预览资源/css/ling.css:106 |
 | `-webkit-font-smoothing` | `antialiased` | `body` | 预览资源/css/ling.css:107 |
 | `text-rendering` | `optimizeLegibility` | `body` | 预览资源/css/ling.css:107 |
-| `transition` | `background-color var(--d-4) var(--ease-out), color var(--d-4) var(--ease-out)` | `body` | 预览资源/css/ling.css:108 |
+| `transition` | `background-color var(--d-2) var(--ease-move), color var(--d-2) var(--ease-move)` | `body` | 预览资源/css/ling.css:108 |
 | `font` | `inherit` | `button, input, select, textarea` | 预览资源/css/ling.css:110 |
 | `color` | `inherit` | `button, input, select, textarea` | 预览资源/css/ling.css:110 |
 | `cursor` | `pointer` | `button` | 预览资源/css/ling.css:111 |
@@ -159,7 +159,7 @@
 | `font-weight` | `600` | `.isl-text b` | 预览资源/css/ling.css:186 |
 | `letter-spacing` | `.02em` | `.isl-text b` | 预览资源/css/ling.css:186 |
 | `color` | `var(--i-ink-2)` | `.isl-status` | 预览资源/css/ling.css:187 |
-| `transition` | `color var(--d-3)` | `.isl-status` | 预览资源/css/ling.css:187 |
+| `transition` | `color var(--d-2)` | `.isl-status` | 预览资源/css/ling.css:187 |
 | `font-style` | `normal` | `.isl-status em` | 预览资源/css/ling.css:188 |
 | `color` | `var(--on-dark-warm, var(--cinnabar))` | `.isl-status em` | 预览资源/css/ling.css:188 |
 | `width` | `1px` | `.isl-sep` | 预览资源/css/ling.css:189 |
@@ -174,20 +174,20 @@
 | `border-radius` | `50%` | `.slot` | 预览资源/css/ling.css:194 |
 | `display` | `grid` | `.slot` | 预览资源/css/ling.css:195 |
 | `place-items` | `center` | `.slot` | 预览资源/css/ling.css:195 |
-| `transition` | `background var(--d-2), transform var(--d-3) var(--sp-settle)` | `.slot` | 预览资源/css/ling.css:195 |
+| `transition` | `background var(--d-2), transform var(--d-2) var(--sp-settle)` | `.slot` | 预览资源/css/ling.css:195 |
 | `background` | `rgba(255, 255, 255, .08)` | `.slot:hover` | 预览资源/css/ling.css:197 |
 | `transform` | `scale(.88)` | `.slot:active` | 预览资源/css/ling.css:198 |
 | `width` | `9px` | `.slot .core` | 预览资源/css/ling.css:200 |
 | `height` | `9px` | `.slot .core` | 预览资源/css/ling.css:200 |
 | `border-radius` | `50%` | `.slot .core` | 预览资源/css/ling.css:200 |
 | `background` | `var(--c)` | `.slot .core` | 预览资源/css/ling.css:200 |
-| `transition` | `width var(--d-3) var(--sp-settle), height var(--d-3) var(--sp-settle), background var(--d-4), box-shadow var(--d-4)` | `.slot .core` | 预览资源/css/ling.css:201 |
+| `transition` | `width var(--d-2) var(--sp-settle), height var(--d-2) var(--sp-settle), background var(--d-2), box-shadow var(--d-2)` | `.slot .core` | 预览资源/css/ling.css:201 |
 | `content` | `""` | `.slot::before, .slot::after` | 预览资源/css/ling.css:203 |
 | `position` | `absolute` | `.slot::before, .slot::after` | 预览资源/css/ling.css:203 |
 | `inset` | `5px` | `.slot::before, .slot::after` | 预览资源/css/ling.css:203 |
 | `border-radius` | `50%` | `.slot::before, .slot::after` | 预览资源/css/ling.css:203 |
 | `opacity` | `0` | `.slot::before, .slot::after` | 预览资源/css/ling.css:203 |
-| `transition` | `opacity var(--d-3)` | `.slot::before, .slot::after` | 预览资源/css/ling.css:203 |
+| `transition` | `opacity var(--d-2)` | `.slot::before, .slot::after` | 预览资源/css/ling.css:203 |
 | `width` | `14px` | `.slot[data-state="empty"] .core` | 预览资源/css/ling.css:204 |
 | `height` | `14px` | `.slot[data-state="empty"] .core` | 预览资源/css/ling.css:204 |
 | `background` | `transparent` | `.slot[data-state="empty"] .core` | 预览资源/css/ling.css:204 |
@@ -249,7 +249,7 @@
 | `display` | `grid` | `.isl-ibtn` | 预览资源/css/ling.css:234 |
 | `place-items` | `center` | `.isl-ibtn` | 预览资源/css/ling.css:234 |
 | `color` | `var(--i-ink-2)` | `.isl-ibtn` | 预览资源/css/ling.css:234 |
-| `transition` | `background var(--d-2), color var(--d-2), transform var(--d-3) var(--sp-settle)` | `.isl-ibtn` | 预览资源/css/ling.css:234 |
+| `transition` | `background var(--d-2), color var(--d-2), transform var(--d-2) var(--sp-settle)` | `.isl-ibtn` | 预览资源/css/ling.css:234 |
 | `background` | `rgba(255, 255, 255, .09)` | `.isl-ibtn:hover` | 预览资源/css/ling.css:235 |
 | `color` | `var(--i-ink)` | `.isl-ibtn:hover` | 预览资源/css/ling.css:235 |
 | `transform` | `scale(.88)` | `.isl-ibtn:active` | 预览资源/css/ling.css:236 |
@@ -282,7 +282,7 @@
 | `border-radius` | `var(--r-inner)` | `.wrow` | 预览资源/css/ling.css:248 |
 | `background` | `var(--island-2)` | `.wrow` | 预览资源/css/ling.css:248 |
 | `margin-bottom` | `var(--space-2)` | `.wrow` | 预览资源/css/ling.css:248 |
-| `transition` | `background var(--d-2), transform var(--d-3) var(--sp-settle)` | `.wrow` | 预览资源/css/ling.css:249 |
+| `transition` | `background var(--d-2), transform var(--d-2) var(--sp-settle)` | `.wrow` | 预览资源/css/ling.css:249 |
 | `background` | `var(--island-3)` | `.wrow:hover` | 预览资源/css/ling.css:251 |
 | `transform` | `scale(.985)` | `.wrow:active` | 预览资源/css/ling.css:252 |
 | `pointer-events` | `none` | `.wrow .slot` | 预览资源/css/ling.css:253 |
@@ -457,7 +457,7 @@
 | `align-items` | `center` | `.ibtn-solid, .ibtn-soft` | 预览资源/css/ling.css:306 |
 | `gap` | `var(--space-2)` | `.ibtn-solid, .ibtn-soft` | 预览资源/css/ling.css:306 |
 | `white-space` | `nowrap` | `.ibtn-solid, .ibtn-soft` | 预览资源/css/ling.css:306 |
-| `transition` | `transform var(--d-3) var(--sp-settle), background var(--d-2), box-shadow var(--d-2)` | `.ibtn-solid, .ibtn-soft` | 预览资源/css/ling.css:307 |
+| `transition` | `transform var(--d-2) var(--sp-settle), background var(--d-2), box-shadow var(--d-2)` | `.ibtn-solid, .ibtn-soft` | 预览资源/css/ling.css:307 |
 | `background` | `var(--i-ink)` | `.ibtn-solid` | 预览资源/css/ling.css:309 |
 | `color` | `var(--island)` | `.ibtn-solid` | 预览资源/css/ling.css:309 |
 | `box-shadow` | `0 0 0 4px rgba(255, 255, 255, .12)` | `.ibtn-solid:hover` | 预览资源/css/ling.css:310 |
@@ -478,7 +478,7 @@
 | `border-radius` | `var(--r-pill)` | `.dock` | 预览资源/css/ling.css:320 |
 | `background` | `var(--card)` | `.dock` | 预览资源/css/ling.css:321 |
 | `box-shadow` | `var(--sh-1), inset 0 0 0 1px var(--line-2)` | `.dock` | 预览资源/css/ling.css:322 |
-| `transition` | `background var(--d-3), box-shadow var(--d-3)` | `.dock` | 预览资源/css/ling.css:323 |
+| `transition` | `background var(--d-2), box-shadow var(--d-2)` | `.dock` | 预览资源/css/ling.css:323 |
 | `position` | `absolute` | `.dock-ink-clip` | 预览资源/css/ling.css:325 |
 | `inset` | `0` | `.dock-ink-clip` | 预览资源/css/ling.css:325 |
 | `border-radius` | `inherit` | `.dock-ink-clip` | 预览资源/css/ling.css:325 |
@@ -503,7 +503,7 @@
 | `display` | `grid` | `.dock-btn, .rail-ctl` | 预览资源/css/ling.css:334 |
 | `place-items` | `center` | `.dock-btn, .rail-ctl` | 预览资源/css/ling.css:334 |
 | `color` | `var(--ink-2)` | `.dock-btn, .rail-ctl` | 预览资源/css/ling.css:335 |
-| `transition` | `color var(--d-2), background var(--d-2), transform var(--d-3) var(--sp-settle)` | `.dock-btn, .rail-ctl` | 预览资源/css/ling.css:336 |
+| `transition` | `color var(--d-2), background var(--d-2), transform var(--d-2) var(--sp-settle)` | `.dock-btn, .rail-ctl` | 预览资源/css/ling.css:336 |
 | `color` | `var(--ink)` | `.dock-btn:hover` | 预览资源/css/ling.css:338 |
 | `width` | `38px` | `.rail-ctl` | 预览资源/css/ling.css:339 |
 | `height` | `38px` | `.rail-ctl` | 预览资源/css/ling.css:339 |
@@ -526,7 +526,7 @@
 | `transform` | `translate(-6px, -50%) scale(.94)` | `.dock-btn::after, .rail-ctl::after` | 预览资源/css/ling.css:347 |
 | `transform-origin` | `left center` | `.dock-btn::after, .rail-ctl::after` | 预览资源/css/ling.css:347 |
 | `pointer-events` | `none` | `.dock-btn::after, .rail-ctl::after` | 预览资源/css/ling.css:347 |
-| `transition` | `opacity var(--d-1), transform var(--sp-snappy-d) var(--sp-snappy)` | `.dock-btn::after, .rail-ctl::after` | 预览资源/css/ling.css:348 |
+| `transition` | `opacity var(--d-1), transform var(--d-2) var(--sp-snappy)` | `.dock-btn::after, .rail-ctl::after` | 预览资源/css/ling.css:348 |
 | `box-shadow` | `var(--sh-2)` | `.dock-btn::after, .rail-ctl::after` | 预览资源/css/ling.css:349 |
 | `opacity` | `1` | `.dock-btn:hover::after, .rail-ctl:hover::after` | 预览资源/css/ling.css:352 |
 | `transform` | `translate(0, -50%) scale(1)` | `.dock-btn:hover::after, .rail-ctl:hover::after` | 预览资源/css/ling.css:352 |
@@ -576,7 +576,7 @@
 | `padding` | `0 12px` | `.seg button` | 预览资源/css/ling.css:374 |
 | `border-radius` | `var(--r-pill)` | `.seg button` | 预览资源/css/ling.css:374 |
 | `color` | `var(--ink-3)` | `.seg button` | 预览资源/css/ling.css:374 |
-| `transition` | `color var(--d-3)` | `.seg button` | 预览资源/css/ling.css:374 |
+| `transition` | `color var(--d-2)` | `.seg button` | 预览资源/css/ling.css:374 |
 | `color` | `var(--ink)` | `.seg button.active` | 预览资源/css/ling.css:375 |
 | `position` | `absolute` | `.seg-ink, .tab-ink` | 预览资源/css/ling.css:376 |
 | `top` | `3px` | `.seg-ink, .tab-ink` | 预览资源/css/ling.css:376 |
@@ -598,7 +598,7 @@
 | `transform` | `scale(.88)` | `.pc-theme:active` | 预览资源/css/ling.css:378 |
 | `background` | `var(--paper-2)` | `.pc-theme:hover` | 预览资源/css/ling.css:379 |
 | `position` | `absolute` | `.pc-theme .i` | 预览资源/css/ling.css:380 |
-| `transition` | `transform var(--d-3) var(--sp-settle), opacity var(--d-3)` | `.pc-theme .i` | 预览资源/css/ling.css:380 |
+| `transition` | `transform var(--d-3) var(--sp-settle), opacity var(--d-2)` | `.pc-theme .i` | 预览资源/css/ling.css:380 |
 | `transform` | `translateY(22px) rotate(-60deg)` | `.pc-theme .moon` | 预览资源/css/ling.css:381 |
 | `opacity` | `0` | `.pc-theme .moon` | 预览资源/css/ling.css:381 |
 | `transform` | `translateY(-22px) rotate(60deg)` | `[data-theme="night"] .pc-theme .sun` | 预览资源/css/ling.css:382 |
@@ -650,7 +650,7 @@
 | `white-space` | `pre-wrap` | `.bubble` | 预览资源/css/ling.css:407 |
 | `word-break` | `break-word` | `.bubble` | 预览资源/css/ling.css:407 |
 | `box-shadow` | `var(--sh-1)` | `.bubble` | 预览资源/css/ling.css:408 |
-| `transition` | `border-radius var(--d-3), background var(--d-3)` | `.bubble` | 预览资源/css/ling.css:408 |
+| `transition` | `border-radius var(--d-3), background var(--d-2)` | `.bubble` | 预览资源/css/ling.css:408 |
 | `display` | `flex` | `.user-meta` | 预览资源/css/ling.css:410 |
 | `align-items` | `center` | `.user-meta` | 预览资源/css/ling.css:410 |
 | `gap` | `var(--space-2)` | `.user-meta` | 预览资源/css/ling.css:410 |
@@ -708,7 +708,7 @@
 | `margin-left` | `calc(-1 * var(--space-2))` | `.msg-tools` | 预览资源/css/ling.css:428 |
 | `opacity` | `0` | `.msg-tools` | 预览资源/css/ling.css:428 |
 | `transform` | `translateY(-4px)` | `.msg-tools` | 预览资源/css/ling.css:428 |
-| `transition` | `opacity var(--d-2), transform var(--sp-snappy-d) var(--sp-snappy)` | `.msg-tools` | 预览资源/css/ling.css:428 |
+| `transition` | `opacity var(--d-2), transform var(--d-2) var(--sp-snappy)` | `.msg-tools` | 预览资源/css/ling.css:428 |
 | `opacity` | `1` | `.msg:hover .msg-tools, .msg:focus-within .msg-tools` | 预览资源/css/ling.css:429 |
 | `transform` | `none` | `.msg:hover .msg-tools, .msg:focus-within .msg-tools` | 预览资源/css/ling.css:429 |
 | `display` | `flex` | `.msg-foot` | 预览资源/css/ling.css:430 |
@@ -725,7 +725,7 @@
 | `display` | `grid` | `.msg-tools button, .user-meta button` | 预览资源/css/ling.css:433 |
 | `place-items` | `center` | `.msg-tools button, .user-meta button` | 预览资源/css/ling.css:433 |
 | `color` | `var(--ink-3)` | `.msg-tools button, .user-meta button` | 预览资源/css/ling.css:433 |
-| `transition` | `background var(--d-2), color var(--d-2), transform var(--d-3) var(--sp-settle)` | `.msg-tools button, .user-meta button` | 预览资源/css/ling.css:433 |
+| `transition` | `background var(--d-2), color var(--d-2), transform var(--d-2) var(--sp-settle)` | `.msg-tools button, .user-meta button` | 预览资源/css/ling.css:433 |
 | `background` | `var(--paper-2)` | `.msg-tools button:hover, .user-meta button:hover` | 预览资源/css/ling.css:434 |
 | `color` | `var(--ink)` | `.msg-tools button:hover, .user-meta button:hover` | 预览资源/css/ling.css:434 |
 | `transform` | `scale(.85)` | `.msg-tools button:active, .user-meta button:active` | 预览资源/css/ling.css:435 |
@@ -780,7 +780,7 @@
 | `color` | `var(--jade-ink)` | `.spine .n` | 预览资源/css/ling.css:451 |
 | `box-shadow` | `inset 0 0 0 1.5px var(--jade), 0 0 0 5px var(--paper)` | `.spine .n` | 预览资源/css/ling.css:451 |
 | `z-index` | `1` | `.spine .n` | 预览资源/css/ling.css:451 |
-| `transition` | `background-color var(--d-4)` | `.spine .n` | 预览资源/css/ling.css:451 |
+| `transition` | `background-color var(--d-2)` | `.spine .n` | 预览资源/css/ling.css:451 |
 | `font-weight` | `600` | `.spine strong` | 预览资源/css/ling.css:452 |
 | `font-size` | `var(--text-ui)` | `.spine strong` | 预览资源/css/ling.css:452 |
 | `display` | `block` | `.spine strong` | 预览资源/css/ling.css:452 |
@@ -794,7 +794,7 @@
 | `border-radius` | `var(--r-card)` | `.card` | 预览资源/css/ling.css:456 |
 | `box-shadow` | `var(--sh-1), inset 0 0 0 1px var(--line)` | `.card` | 预览资源/css/ling.css:456 |
 | `transition` | `border-radius var(--d-3)` | `.card` | 预览资源/css/ling.css:456 |
-| `transition` | `transform var(--d-3) var(--sp-settle), box-shadow var(--d-3) var(--ease-out)` | `.lift` | 预览资源/css/ling.css:457 |
+| `transition` | `transform var(--d-3) var(--sp-settle), box-shadow var(--d-2) var(--ease-move)` | `.lift` | 预览资源/css/ling.css:457 |
 | `transform` | `translateY(-2px)` | `.lift:hover` | 预览资源/css/ling.css:458 |
 | `box-shadow` | `var(--sh-2), inset 0 0 0 1px var(--line)` | `.lift:hover` | 预览资源/css/ling.css:458 |
 | `transform` | `scale(.985)` | `.lift:active` | 预览资源/css/ling.css:459 |
@@ -823,7 +823,7 @@
 | `color` | `var(--ink-3)` | `.artifact-head .meta` | 预览资源/css/ling.css:465 |
 | `font-size` | `var(--text-caption)` | `.artifact-head .meta` | 预览资源/css/ling.css:465 |
 | `font-weight` | `400` | `.artifact-head .meta` | 预览资源/css/ling.css:465 |
-| `transition` | `color var(--d-2), gap var(--d-3) var(--sp-settle)` | `.artifact-head .meta` | 预览资源/css/ling.css:465 |
+| `transition` | `color var(--d-2), gap var(--d-2) var(--sp-settle)` | `.artifact-head .meta` | 预览资源/css/ling.css:465 |
 | `color` | `var(--jade-ink)` | `.artifact:hover .artifact-head .meta` | 预览资源/css/ling.css:466 |
 | `gap` | `var(--space-2)` | `.artifact:hover .artifact-head .meta` | 预览资源/css/ling.css:466 |
 | `position` | `relative` | `.flow` | 预览资源/css/ling.css:467 |
@@ -901,7 +901,7 @@
 | `color` | `var(--ink-3)` | `.dispatch .i` | 预览资源/css/ling.css:482 |
 | `width` | `14px` | `.dispatch .i` | 预览资源/css/ling.css:482 |
 | `height` | `14px` | `.dispatch .i` | 预览资源/css/ling.css:482 |
-| `transition` | `transform var(--d-3) var(--sp-settle)` | `.dispatch .i` | 预览资源/css/ling.css:482 |
+| `transition` | `transform var(--d-2) var(--sp-settle)` | `.dispatch .i` | 预览资源/css/ling.css:482 |
 | `transform` | `translateX(3px)` | `.dispatch:hover .i` | 预览资源/css/ling.css:483 |
 | `margin-top` | `var(--space-1)` | `.decide` | 预览资源/css/ling.css:486 |
 | `padding` | `var(--space-5)` | `.decide` | 预览资源/css/ling.css:486 |
@@ -944,7 +944,7 @@
 | `border-radius` | `var(--r-inner)` | `.opt` | 预览资源/css/ling.css:499 |
 | `background` | `var(--raised)` | `.opt` | 预览资源/css/ling.css:499 |
 | `box-shadow` | `inset 0 0 0 1.5px transparent` | `.opt` | 预览资源/css/ling.css:500 |
-| `transition` | `box-shadow var(--d-2), background var(--d-2), transform var(--d-3) var(--sp-settle), opacity var(--d-3), filter var(--d-3)` | `.opt` | 预览资源/css/ling.css:501 |
+| `transition` | `box-shadow var(--d-2), background var(--d-2), transform var(--d-3) var(--sp-settle), opacity var(--d-2), filter var(--d-3)` | `.opt` | 预览资源/css/ling.css:501 |
 | `box-shadow` | `inset 0 0 0 1.5px var(--cinnabar)` | `.opt:hover` | 预览资源/css/ling.css:503 |
 | `background` | `var(--card)` | `.opt:hover` | 预览资源/css/ling.css:503 |
 | `transform` | `scale(.97)` | `.opt:active` | 预览资源/css/ling.css:504 |
@@ -977,7 +977,7 @@
 | `background` | `var(--cinnabar)` | `.opt .tick` | 预览资源/css/ling.css:511 |
 | `color` | `#fff` | `.opt .tick` | 预览资源/css/ling.css:511 |
 | `transform` | `scale(0)` | `.opt .tick` | 预览资源/css/ling.css:511 |
-| `transition` | `transform var(--d-3) var(--sp-settle)` | `.opt .tick` | 预览资源/css/ling.css:511 |
+| `transition` | `transform var(--d-2) var(--sp-settle)` | `.opt .tick` | 预览资源/css/ling.css:511 |
 | `width` | `14px` | `.opt .tick .i` | 预览资源/css/ling.css:512 |
 | `height` | `14px` | `.opt .tick .i` | 预览资源/css/ling.css:512 |
 | `stroke-width` | `2.4` | `.opt .tick .i` | 预览资源/css/ling.css:512 |
@@ -1021,7 +1021,7 @@
 | `color` | `var(--ink-2)` | `.result p` | 预览资源/css/ling.css:526 |
 | `line-height` | `1.6` | `.result p` | 预览资源/css/ling.css:526 |
 | `color` | `var(--ink-3)` | `.result .go` | 预览资源/css/ling.css:527 |
-| `transition` | `transform var(--d-3) var(--sp-settle), color var(--d-2)` | `.result .go` | 预览资源/css/ling.css:527 |
+| `transition` | `transform var(--d-2) var(--sp-settle), color var(--d-2)` | `.result .go` | 预览资源/css/ling.css:527 |
 | `color` | `var(--ink)` | `.result:hover .go` | 预览资源/css/ling.css:528 |
 | `transform` | `translateX(3px)` | `.result:hover .go` | 预览资源/css/ling.css:528 |
 | `display` | `inline-flex` | `.thinking` | 预览资源/css/ling.css:531 |
@@ -1087,7 +1087,7 @@
 | `stroke` | `var(--ink-4)` | `.pv-ticks line` | 预览资源/css/ling.css:551 |
 | `stroke-width` | `.85` | `.pv-ticks line` | 预览资源/css/ling.css:551 |
 | `opacity` | `.55` | `.pv-ticks line` | 预览资源/css/ling.css:551 |
-| `transition` | `stroke var(--d-3), opacity var(--d-3)` | `.pv-ticks line` | 预览资源/css/ling.css:551 |
+| `transition` | `stroke var(--d-3), opacity var(--d-2)` | `.pv-ticks line` | 预览资源/css/ling.css:551 |
 | `stroke` | `var(--jade)` | `.pv-ticks line.major` | 预览资源/css/ling.css:552 |
 | `stroke-width` | `1.25` | `.pv-ticks line.major` | 预览资源/css/ling.css:552 |
 | `opacity` | `.82` | `.pv-ticks line.major` | 预览资源/css/ling.css:552 |
@@ -1095,7 +1095,7 @@
 | `stroke` | `color-mix(in srgb, var(--jade) 38%, var(--ink-4))` | `.pv-arc` | 预览资源/css/ling.css:554 |
 | `stroke-width` | `1.05` | `.pv-arc` | 预览资源/css/ling.css:555 |
 | `opacity` | `.44` | `.pv-arc` | 预览资源/css/ling.css:555 |
-| `transition` | `stroke var(--d-3), opacity var(--d-3)` | `.pv-arc` | 预览资源/css/ling.css:555 |
+| `transition` | `stroke var(--d-3), opacity var(--d-2)` | `.pv-arc` | 预览资源/css/ling.css:555 |
 | `stroke` | `color-mix(in srgb, var(--jade) 72%, var(--ink-2))` | `.pv-arc.front` | 预览资源/css/ling.css:558 |
 | `stroke-width` | `1.3` | `.pv-arc.front` | 预览资源/css/ling.css:559 |
 | `opacity` | `.82` | `.pv-arc.front` | 预览资源/css/ling.css:559 |
@@ -1162,7 +1162,7 @@
 | `font-size` | `var(--text-ui)` | `.chip` | 预览资源/css/ling.css:592 |
 | `background` | `var(--card)` | `.chip` | 预览资源/css/ling.css:593 |
 | `box-shadow` | `var(--sh-1), inset 0 0 0 1px var(--line-2)` | `.chip` | 预览资源/css/ling.css:593 |
-| `transition` | `transform var(--d-3) var(--sp-settle), box-shadow var(--d-3), background var(--d-3), border-radius var(--d-3)` | `.chip` | 预览资源/css/ling.css:594 |
+| `transition` | `transform var(--d-3) var(--sp-settle), box-shadow var(--d-2), background var(--d-2), border-radius var(--d-3)` | `.chip` | 预览资源/css/ling.css:594 |
 | `width` | `16px` | `.chip .i` | 预览资源/css/ling.css:596 |
 | `height` | `16px` | `.chip .i` | 预览资源/css/ling.css:596 |
 | `color` | `var(--jade-ink)` | `.chip .i` | 预览资源/css/ling.css:596 |
@@ -1196,7 +1196,7 @@
 | `border-radius` | `var(--r-composer)` | `.composer` | 预览资源/css/ling.css:614 |
 | `background` | `var(--card)` | `.composer` | 预览资源/css/ling.css:614 |
 | `box-shadow` | `var(--sh-2), inset 0 0 0 1px var(--line)` | `.composer` | 预览资源/css/ling.css:615 |
-| `transition` | `box-shadow var(--d-4) var(--ease-out), transform var(--d-3) var(--sp-settle), border-radius var(--d-3)` | `.composer` | 预览资源/css/ling.css:616 |
+| `transition` | `box-shadow var(--d-2) var(--ease-move), transform var(--d-3) var(--sp-settle), border-radius var(--d-3)` | `.composer` | 预览资源/css/ling.css:616 |
 | `box-shadow` | `0 0 0 4px var(--jade-soft), var(--sh-2), inset 0 0 0 1px color-mix(in srgb, var(--jade) 40%, transparent)` | `.composer:focus-within` | 预览资源/css/ling.css:618 |
 | `transform` | `translateY(-2px)` | `.composer:focus-within` | 预览资源/css/ling.css:618 |
 | `box-shadow` | `0 0 0 4px var(--jade-soft), var(--sh-2), inset 0 0 0 1.5px var(--jade)` | `.composer.to-work:focus-within, .composer.to-work` | 预览资源/css/ling.css:619 |
@@ -1220,7 +1220,7 @@
 | `font-size` | `var(--text-caption)` | `.target` | 预览资源/css/ling.css:626 |
 | `color` | `var(--ink-3)` | `.target` | 预览资源/css/ling.css:626 |
 | `white-space` | `nowrap` | `.target` | 预览资源/css/ling.css:626 |
-| `transition` | `color var(--d-3)` | `.target` | 预览资源/css/ling.css:626 |
+| `transition` | `color var(--d-2)` | `.target` | 预览资源/css/ling.css:626 |
 | `color` | `var(--ink-2)` | `.target:hover` | 预览资源/css/ling.css:628 |
 | `color` | `var(--ink)` | `.target.active` | 预览资源/css/ling.css:629 |
 | `box-shadow` | `none` | `.target .orb-mini` | 预览资源/css/ling.css:630 |
@@ -1250,7 +1250,7 @@
 | `font-size` | `var(--text-body)` | `.composer textarea` | 预览资源/css/ling.css:638 |
 | `line-height` | `1.65` | `.composer textarea` | 预览资源/css/ling.css:638 |
 | `color` | `var(--ink-4)` | `.composer textarea::placeholder` | 预览资源/css/ling.css:640 |
-| `transition` | `color var(--d-3)` | `.composer textarea::placeholder` | 预览资源/css/ling.css:640 |
+| `transition` | `color var(--d-2)` | `.composer textarea::placeholder` | 预览资源/css/ling.css:640 |
 | `display` | `flex` | `.composer-bar` | 预览资源/css/ling.css:641 |
 | `align-items` | `center` | `.composer-bar` | 预览资源/css/ling.css:641 |
 | `justify-content` | `space-between` | `.composer-bar` | 预览资源/css/ling.css:641 |
@@ -1265,7 +1265,7 @@
 | `display` | `grid` | `.c-btn` | 预览资源/css/ling.css:643 |
 | `place-items` | `center` | `.c-btn` | 预览资源/css/ling.css:643 |
 | `color` | `var(--ink-2)` | `.c-btn` | 预览资源/css/ling.css:643 |
-| `transition` | `background var(--d-2), transform var(--d-3) var(--sp-settle)` | `.c-btn` | 预览资源/css/ling.css:643 |
+| `transition` | `background var(--d-2), transform var(--d-2) var(--sp-settle)` | `.c-btn` | 预览资源/css/ling.css:643 |
 | `background` | `var(--paper-2)` | `.c-btn:hover` | 预览资源/css/ling.css:644 |
 | `transform` | `scale(.86) rotate(-12deg)` | `.c-btn:active` | 预览资源/css/ling.css:645 |
 | `height` | `36px` | `.c-pill` | 预览资源/css/ling.css:646 |
@@ -1277,7 +1277,7 @@
 | `font-size` | `var(--text-ui)` | `.c-pill` | 预览资源/css/ling.css:646 |
 | `color` | `var(--ink-2)` | `.c-pill` | 预览资源/css/ling.css:646 |
 | `white-space` | `nowrap` | `.c-pill` | 预览资源/css/ling.css:646 |
-| `transition` | `background var(--d-2), transform var(--d-3) var(--sp-settle), border-radius var(--d-3)` | `.c-pill` | 预览资源/css/ling.css:646 |
+| `transition` | `background var(--d-2), transform var(--d-2) var(--sp-settle), border-radius var(--d-2)` | `.c-pill` | 预览资源/css/ling.css:646 |
 | `background` | `var(--paper-2)` | `.c-pill:hover, .c-pill[aria-expanded="true"]` | 预览资源/css/ling.css:647 |
 | `color` | `var(--ink)` | `.c-pill:hover, .c-pill[aria-expanded="true"]` | 预览资源/css/ling.css:647 |
 | `transform` | `scale(.94)` | `.c-pill:active` | 预览资源/css/ling.css:648 |
@@ -1293,7 +1293,7 @@
 | `border-radius` | `var(--r-inline)` | `.bars i` | 预览资源/css/ling.css:651 |
 | `background` | `var(--ink-4)` | `.bars i` | 预览资源/css/ling.css:651 |
 | `opacity` | `.45` | `.bars i` | 预览资源/css/ling.css:651 |
-| `transition` | `background var(--d-2), opacity var(--d-2), height var(--d-3) var(--sp-settle)` | `.bars i` | 预览资源/css/ling.css:651 |
+| `transition` | `background var(--d-2), opacity var(--d-2), height var(--d-2) var(--sp-settle)` | `.bars i` | 预览资源/css/ling.css:651 |
 | `height` | `4px` | `.bars i:nth-child(1)` | 预览资源/css/ling.css:652 |
 | `height` | `6px` | `.bars i:nth-child(2)` | 预览资源/css/ling.css:653 |
 | `height` | `8px` | `.bars i:nth-child(3)` | 预览资源/css/ling.css:654 |
@@ -1330,9 +1330,9 @@
 | `place-items` | `center` | `.send` | 预览资源/css/ling.css:671 |
 | `background` | `var(--ink)` | `.send` | 预览资源/css/ling.css:672 |
 | `color` | `var(--paper)` | `.send` | 预览资源/css/ling.css:672 |
-| `transition` | `transform var(--d-3) var(--sp-settle), background var(--d-3), opacity var(--d-3)` | `.send` | 预览资源/css/ling.css:673 |
+| `transition` | `transform var(--d-3) var(--sp-settle), background var(--d-2), opacity var(--d-2)` | `.send` | 预览资源/css/ling.css:673 |
 | `position` | `absolute` | `.send .i` | 预览资源/css/ling.css:675 |
-| `transition` | `transform var(--d-3) var(--sp-settle), opacity var(--d-2)` | `.send .i` | 预览资源/css/ling.css:675 |
+| `transition` | `transform var(--d-2) var(--sp-settle), opacity var(--d-2)` | `.send .i` | 预览资源/css/ling.css:675 |
 | `stroke-width` | `2.1` | `.send .i` | 预览资源/css/ling.css:675 |
 | `opacity` | `0` | `.send .halt` | 预览资源/css/ling.css:676 |
 | `transform` | `scale(.4) rotate(-90deg)` | `.send .halt` | 预览资源/css/ling.css:676 |
@@ -1356,7 +1356,7 @@
 | `inset` | `-4px` | `.send-ring` | 预览资源/css/ling.css:686 |
 | `border-radius` | `50%` | `.send-ring` | 预览资源/css/ling.css:686 |
 | `opacity` | `0` | `.send-ring` | 预览资源/css/ling.css:686 |
-| `transition` | `opacity var(--d-3)` | `.send-ring` | 预览资源/css/ling.css:686 |
+| `transition` | `opacity var(--d-2)` | `.send-ring` | 预览资源/css/ling.css:686 |
 | `background` | `conic-gradient(from 0deg, transparent 0 55%, var(--jade) 100%)` | `.send-ring` | 预览资源/css/ling.css:686 |
 | `-webkit-mask` | `radial-gradient(circle, transparent 21px, #000 21.5px)` | `.send-ring` | 预览资源/css/ling.css:686 |
 | `mask` | `radial-gradient(circle, transparent 21px, #000 21.5px)` | `.send-ring` | 预览资源/css/ling.css:686 |
@@ -1397,7 +1397,7 @@
 | `font-size` | `var(--text-caption)` | `.composer-hint` | 预览资源/css/ling.css:696 |
 | `color` | `var(--ink-4)` | `.composer-hint` | 预览资源/css/ling.css:696 |
 | `padding` | `0` | `.composer-hint` | 预览资源/css/ling.css:696 |
-| `transition` | `opacity var(--d-4)` | `.composer-hint` | 预览资源/css/ling.css:696 |
+| `transition` | `opacity var(--d-2)` | `.composer-hint` | 预览资源/css/ling.css:696 |
 | `position` | `absolute` | `.ret-chip` | 预览资源/css/ling.css:697 |
 | `left` | `50%` | `.ret-chip` | 预览资源/css/ling.css:697 |
 | `top` | `-50px` | `.ret-chip` | 预览资源/css/ling.css:697 |
@@ -1544,7 +1544,7 @@
 | `border-radius` | `var(--r-pill)` | `.tabs button` | 预览资源/css/ling.css:745 |
 | `font-size` | `var(--text-ui)` | `.tabs button` | 预览资源/css/ling.css:745 |
 | `color` | `var(--ink-3)` | `.tabs button` | 预览资源/css/ling.css:745 |
-| `transition` | `color var(--d-3)` | `.tabs button` | 预览资源/css/ling.css:745 |
+| `transition` | `color var(--d-2)` | `.tabs button` | 预览资源/css/ling.css:745 |
 | `color` | `var(--ink)` | `.tabs button.active` | 预览资源/css/ling.css:746 |
 | `top` | `4px` | `.tabs .tab-ink` | 预览资源/css/ling.css:747 |
 | `height` | `calc(100% - 8px)` | `.tabs .tab-ink` | 预览资源/css/ling.css:747 |
@@ -1573,7 +1573,7 @@
 | `display` | `grid` | `.ic-btn` | 预览资源/css/ling.css:755 |
 | `place-items` | `center` | `.ic-btn` | 预览资源/css/ling.css:755 |
 | `color` | `var(--ink-3)` | `.ic-btn` | 预览资源/css/ling.css:755 |
-| `transition` | `background var(--d-2), color var(--d-2), transform var(--d-3) var(--sp-settle)` | `.ic-btn` | 预览资源/css/ling.css:755 |
+| `transition` | `background var(--d-2), color var(--d-2), transform var(--d-2) var(--sp-settle)` | `.ic-btn` | 预览资源/css/ling.css:755 |
 | `flex` | `none` | `.ic-btn` | 预览资源/css/ling.css:755 |
 | `background` | `var(--paper-2)` | `.ic-btn:hover` | 预览资源/css/ling.css:756 |
 | `color` | `var(--ink)` | `.ic-btn:hover` | 预览资源/css/ling.css:756 |
@@ -1698,7 +1698,7 @@
 | `display` | `grid` | `.skill.new .plus` | 预览资源/css/ling.css:788 |
 | `place-items` | `center` | `.skill.new .plus` | 预览资源/css/ling.css:788 |
 | `background` | `var(--paper-2)` | `.skill.new .plus` | 预览资源/css/ling.css:788 |
-| `transition` | `transform var(--d-3) var(--sp-settle), background var(--d-2)` | `.skill.new .plus` | 预览资源/css/ling.css:788 |
+| `transition` | `transform var(--d-2) var(--sp-settle), background var(--d-2)` | `.skill.new .plus` | 预览资源/css/ling.css:788 |
 | `transform` | `rotate(90deg) scale(1.08)` | `.skill.new:hover .plus` | 预览资源/css/ling.css:789 |
 | `background` | `var(--jade-soft)` | `.skill.new:hover .plus` | 预览资源/css/ling.css:789 |
 | `display` | `grid` | `.plug` | 预览资源/css/ling.css:791 |
@@ -1727,7 +1727,7 @@
 | `height` | `7px` | `.plug .stat i` | 预览资源/css/ling.css:796 |
 | `border-radius` | `50%` | `.plug .stat i` | 预览资源/css/ling.css:796 |
 | `background` | `var(--jade)` | `.plug .stat i` | 预览资源/css/ling.css:796 |
-| `transition` | `background var(--d-3)` | `.plug .stat i` | 预览资源/css/ling.css:796 |
+| `transition` | `background var(--d-2)` | `.plug .stat i` | 预览资源/css/ling.css:796 |
 | `background` | `var(--ink-4)` | `.plug.off .stat i` | 预览资源/css/ling.css:797 |
 | `opacity` | `.5` | `.plug.off .glyph` | 预览资源/css/ling.css:798 |
 | `padding` | `var(--card-padding)` | `.empty-card` | 预览资源/css/ling.css:799 |
@@ -1741,7 +1741,7 @@
 | `height` | `26px` | `.switch` | 预览资源/css/ling.css:803 |
 | `border-radius` | `var(--r-pill)` | `.switch` | 预览资源/css/ling.css:803 |
 | `background` | `var(--ink-4)` | `.switch` | 预览资源/css/ling.css:803 |
-| `transition` | `background var(--d-3) var(--ease-out)` | `.switch` | 预览资源/css/ling.css:803 |
+| `transition` | `background var(--d-2) var(--ease-move)` | `.switch` | 预览资源/css/ling.css:803 |
 | `flex` | `none` | `.switch` | 预览资源/css/ling.css:803 |
 | `content` | `""` | `.switch::after` | 预览资源/css/ling.css:804 |
 | `position` | `absolute` | `.switch::after` | 预览资源/css/ling.css:804 |
@@ -1752,7 +1752,7 @@
 | `border-radius` | `var(--r-pill)` | `.switch::after` | 预览资源/css/ling.css:804 |
 | `background` | `#fff` | `.switch::after` | 预览资源/css/ling.css:804 |
 | `box-shadow` | `0 2px 5px rgba(0, 0, 0, .2)` | `.switch::after` | 预览资源/css/ling.css:804 |
-| `transition` | `left var(--d-3) var(--sp-settle), width var(--d-2) var(--ease-out)` | `.switch::after` | 预览资源/css/ling.css:804 |
+| `transition` | `left var(--d-2) var(--sp-settle), width var(--d-2) var(--ease-move)` | `.switch::after` | 预览资源/css/ling.css:804 |
 | `width` | `26px` | `.switch:active::after` | 预览资源/css/ling.css:805 |
 | `background` | `var(--jade)` | `.switch[aria-checked="true"]` | 预览资源/css/ling.css:806 |
 | `left` | `21px` | `.switch[aria-checked="true"]::after` | 预览资源/css/ling.css:807 |
@@ -1808,7 +1808,7 @@
 | `padding` | `12px 14px` | `.perm button` | 预览资源/css/ling.css:828 |
 | `border-radius` | `var(--r-ctrl)` | `.perm button` | 预览资源/css/ling.css:828 |
 | `text-align` | `left` | `.perm button` | 预览资源/css/ling.css:828 |
-| `transition` | `color var(--d-3)` | `.perm button` | 预览资源/css/ling.css:828 |
+| `transition` | `color var(--d-2)` | `.perm button` | 预览资源/css/ling.css:828 |
 | `color` | `var(--ink-3)` | `.perm button` | 预览资源/css/ling.css:828 |
 | `display` | `block` | `.perm button b` | 预览资源/css/ling.css:829 |
 | `font-size` | `var(--text-ui)` | `.perm button b` | 预览资源/css/ling.css:829 |
@@ -1923,7 +1923,7 @@
 | `backdrop-filter` | `blur(18px)` | `@media (max-width: 760px) → .menu-btn` | 预览资源/css/ling.css:873 |
 | `-webkit-backdrop-filter` | `blur(18px)` | `@media (max-width: 760px) → .menu-btn` | 预览资源/css/ling.css:873 |
 | `box-shadow` | `var(--sh-1), inset 0 0 0 1px var(--line)` | `@media (max-width: 760px) → .menu-btn` | 预览资源/css/ling.css:873 |
-| `transition` | `transform var(--d-3) var(--sp-settle)` | `@media (max-width: 760px) → .menu-btn` | 预览资源/css/ling.css:873 |
+| `transition` | `transform var(--d-2) var(--sp-settle)` | `@media (max-width: 760px) → .menu-btn` | 预览资源/css/ling.css:873 |
 | `transform` | `scale(.88)` | `@media (max-width: 760px) → .menu-btn:active` | 预览资源/css/ling.css:874 |
 | `top` | `12px` | `@media (max-width: 760px) → .island` | 预览资源/css/ling.css:875 |
 | `left` | `50%` | `@media (max-width: 760px) → .island` | 预览资源/css/ling.css:875 |

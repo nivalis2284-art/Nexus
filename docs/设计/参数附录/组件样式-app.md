@@ -185,9 +185,9 @@
 | `box-shadow` | `var(--sh-1), inset 0 0 0 1px var(--line)` | `.qrow` | 预览资源/css/app.css:105 |
 | `font-size` | `var(--text-caption)` | `.qrow` | 预览资源/css/app.css:106 |
 | `color` | `var(--ink-2)` | `.qrow` | 预览资源/css/app.css:106 |
-| `animation` | `q-in calc(.36s * var(--motion)) var(--ease-out) both` | `.qrow` | 预览资源/css/app.css:106 |
+| `animation` | `q-in calc(var(--duration-content) * var(--motion)) var(--ease-enter) both` | `.qrow` | 预览资源/css/app.css:106 |
 | `opacity` | `0` | `@keyframes q-in → from` | 预览资源/css/app.css:108 |
-| `transform` | `translateY(-6px)` | `@keyframes q-in → from` | 预览资源/css/app.css:108 |
+| `transform` | `translateY(-16px)` | `@keyframes q-in → from` | 预览资源/css/app.css:108 |
 | `width` | `7px` | `.qdot` | 预览资源/css/app.css:109 |
 | `height` | `7px` | `.qdot` | 预览资源/css/app.css:109 |
 | `border-radius` | `50%` | `.qdot` | 预览资源/css/app.css:109 |
@@ -255,15 +255,15 @@
 | `border-radius` | `var(--r-card)` | `.req-card` | 预览资源/css/app.css:128 |
 | `background` | `var(--card)` | `.req-card` | 预览资源/css/app.css:128 |
 | `box-shadow` | `var(--sh-2), inset 0 0 0 1px var(--line)` | `.req-card` | 预览资源/css/app.css:128 |
-| `animation` | `req-in calc(.5s * var(--motion)) var(--sp-bouncy) both` | `.req-card` | 预览资源/css/app.css:129 |
+| `animation` | `req-in calc(var(--duration-enter) * var(--motion)) var(--ease-enter) both` | `.req-card` | 预览资源/css/app.css:129 |
 | `opacity` | `0` | `@keyframes req-in → from` | 预览资源/css/app.css:131 |
-| `transform` | `translateY(-8px)` | `@keyframes req-in → from` | 预览资源/css/app.css:131 |
+| `transform` | `translateY(-24px) scale(.99)` | `@keyframes req-in → from` | 预览资源/css/app.css:131 |
 | `content` | `""` | `.req-card::before` | 预览资源/css/app.css:132 |
 | `position` | `absolute` | `.req-card::before` | 预览资源/css/app.css:132 |
 | `inset` | `0 auto 0 0` | `.req-card::before` | 预览资源/css/app.css:132 |
 | `width` | `4px` | `.req-card::before` | 预览资源/css/app.css:132 |
 | `background` | `var(--cinnabar)` | `.req-card::before` | 预览资源/css/app.css:132 |
-| `animation` | `req-out calc(.32s * var(--motion)) var(--ease-in) forwards` | `.req-card.resolving` | 预览资源/css/app.css:133 |
+| `animation` | `req-out calc(var(--duration-exit) * var(--motion)) var(--ease-exit) forwards` | `.req-card.resolving` | 预览资源/css/app.css:133 |
 | `opacity` | `0` | `@keyframes req-out → to` | 预览资源/css/app.css:134 |
 | `transform` | `translateY(-6px)` | `@keyframes req-out → to` | 预览资源/css/app.css:134 |
 | `display` | `flex` | `.req-head` | 预览资源/css/app.css:135 |
@@ -683,9 +683,9 @@
 | `height` | `20px` | `.file .thumb` | 预览资源/css/app.css:284 |
 | `border-radius` | `var(--r-tag)` | `.file .thumb` | 预览资源/css/app.css:284 |
 | `object-fit` | `cover` | `.file .thumb` | 预览资源/css/app.css:284 |
-| `animation` | `file-in calc(.4s * var(--motion)) var(--sp-bouncy) both` | `.files .file` | 预览资源/css/app.css:285 |
+| `animation` | `file-in calc(var(--duration-content) * var(--motion)) var(--ease-enter) both` | `.files .file` | 预览资源/css/app.css:285 |
 | `opacity` | `0` | `@keyframes file-in → from` | 预览资源/css/app.css:286 |
-| `transform` | `scale(.7)` | `@keyframes file-in → from` | 预览资源/css/app.css:286 |
+| `transform` | `translateY(16px) scale(.99)` | `@keyframes file-in → from` | 预览资源/css/app.css:286 |
 | `position` | `fixed` | `.usage-pop` | 预览资源/css/app.css:290 |
 | `z-index` | `78` | `.usage-pop` | 预览资源/css/app.css:290 |
 | `width` | `min(340px, calc(100vw - 24px))` | `.usage-pop` | 预览资源/css/app.css:290 |
@@ -799,7 +799,7 @@
 | `margin-bottom` | `var(--card-gap)` | `.work-item` | 预览资源/css/app.css:339 |
 | `background` | `var(--card)` | `.work-item` | 预览资源/css/app.css:340 |
 | `box-shadow` | `var(--sh-1), inset 0 0 0 1px var(--line)` | `.work-item` | 预览资源/css/app.css:340 |
-| `transition` | `transform var(--d-3) var(--sp-settle), box-shadow var(--d-3), background var(--d-2)` | `.work-item` | 预览资源/css/app.css:341 |
+| `transition` | `transform var(--d-3) var(--sp-settle), box-shadow var(--d-2), background var(--d-2)` | `.work-item` | 预览资源/css/app.css:341 |
 | `font` | `inherit` | `.work-item` | 预览资源/css/app.css:342 |
 | `cursor` | `pointer` | `.work-item` | 预览资源/css/app.css:342 |
 | `display` | `flex` | `.work-item .wacts` | 预览资源/css/app.css:344 |
@@ -2246,7 +2246,7 @@
 | `background` | `var(--raised)` | `.ctx-card .ctx-owner` | 预览资源/css/app.css:854 |
 | `box-shadow` | `inset 0 0 0 1px var(--line)` | `.ctx-card .ctx-owner` | 预览资源/css/app.css:854 |
 | `padding` | `var(--space-2) var(--space-1) 0` | `.ctx-card .ctx-hint` | 预览资源/css/app.css:855 |
-| `animation` | `panel-in calc(.4s * var(--motion)) var(--ease-out) both` | `.ctx-panel` | 预览资源/css/app.css:856 |
+| `animation` | `none` | `.ctx-panel` | 预览资源/css/app.css:856 |
 | `opacity` | `0` | `@keyframes panel-in → from` | 预览资源/css/app.css:857 |
 | `transform` | `translateY(8px)` | `@keyframes panel-in → from` | 预览资源/css/app.css:857 |
 | `min-height` | `76px` | `.plug-list .plug-item` | 预览资源/css/app.css:860 |
@@ -2325,7 +2325,7 @@
 | `backdrop-filter` | `blur(3px)` | `.island-scrim` | 预览资源/css/app.css:925 |
 | `-webkit-backdrop-filter` | `blur(2px)` | `.island-scrim` | 预览资源/css/app.css:925 |
 | `opacity` | `0` | `.island-scrim` | 预览资源/css/app.css:926 |
-| `transition` | `opacity var(--d-3) var(--ease-out)` | `.island-scrim` | 预览资源/css/app.css:926 |
+| `transition` | `opacity calc(var(--duration-exit) * var(--motion)) var(--ease-move)` | `.island-scrim` | 预览资源/css/app.css:926 |
 | `opacity` | `1` | `.island-scrim.show` | 预览资源/css/app.css:928 |
 | `background` | `rgba(0, 0, 0, .5)` | `[data-theme="night"] .island-scrim` | 预览资源/css/app.css:929 |
 | `display` | `flex` | `.motion-slider` | 预览资源/css/app.css:932 |
@@ -2383,7 +2383,7 @@
 | `overflow-wrap` | `anywhere` | `.md.streaming` | 预览资源/css/app.css:985 |
 | `display` | `inline-block` | `.md.streaming .caret` | 预览资源/css/app.css:986 |
 | `vertical-align` | `middle` | `.md.streaming .caret` | 预览资源/css/app.css:986 |
-| `animation` | `tok-in calc(var(--duration-text) * var(--motion)) var(--ease-out) both` | `.tok-stream` | 预览资源/css/app.css:987 |
+| `animation` | `tok-in calc(var(--duration-text) * var(--motion)) var(--ease-enter) both` | `.tok-stream` | 预览资源/css/app.css:987 |
 | `opacity` | `0` | `@keyframes tok-in → from` | 预览资源/css/app.css:988 |
 | `opacity` | `1` | `@keyframes tok-in → to` | 预览资源/css/app.css:988 |
 | `overflow-anchor` | `none` | `.conversation` | 预览资源/css/app.css:989 |
@@ -2403,11 +2403,11 @@
 | `padding` | `10px 8px 0` | `.send-text-ghost` | 预览资源/css/app.css:993 |
 | `font` | `400 var(--text-ui)/1.68 var(--font-sans)` | `.send-text-ghost` | 预览资源/css/app.css:993 |
 | `color` | `var(--ink)` | `.send-text-ghost` | 预览资源/css/app.css:993 |
-| `transition` | `opacity calc(var(--duration-fade) * var(--motion)) var(--ease-out), visibility 0s` | `.stage, .island, .toast, .usage-pop, .menu-btn, .island-scrim` | 预览资源/css/app.css:997 |
+| `transition` | `opacity calc(var(--duration-fade) * var(--motion)) var(--ease-move), visibility 0s` | `.stage, .island, .toast, .usage-pop, .menu-btn, .island-scrim` | 预览资源/css/app.css:997 |
 | `opacity` | `0` | `body.background-only :is(.stage, .island, .toast, .usage-pop, .menu-btn, .island-scrim)` | 预览资源/css/app.css:1000 |
 | `visibility` | `hidden` | `body.background-only :is(.stage, .island, .toast, .usage-pop, .menu-btn, .island-scrim)` | 预览资源/css/app.css:1000 |
 | `pointer-events` | `none` | `body.background-only :is(.stage, .island, .toast, .usage-pop, .menu-btn, .island-scrim)` | 预览资源/css/app.css:1000 |
-| `transition` | `opacity calc(var(--duration-fade) * var(--motion)) var(--ease-out), visibility 0s calc(var(--duration-fade) * var(--motion))` | `body.background-only :is(.stage, .island, .toast, .usage-pop, .menu-btn, .island-scrim)` | 预览资源/css/app.css:1001 |
+| `transition` | `opacity calc(var(--duration-fade) * var(--motion)) var(--ease-move), visibility 0s calc(var(--duration-fade) * var(--motion))` | `body.background-only :is(.stage, .island, .toast, .usage-pop, .menu-btn, .island-scrim)` | 预览资源/css/app.css:1001 |
 | `pointer-events` | `auto` | `body.background-only .pivot-core .orb-stage` | 预览资源/css/app.css:1003 |
 | `background` | `var(--jade-soft)` | `#background-btn[aria-pressed="true"]` | 预览资源/css/app.css:1004 |
 | `color` | `var(--jade-ink)` | `#background-btn[aria-pressed="true"]` | 预览资源/css/app.css:1004 |
@@ -2429,183 +2429,185 @@
 | `animation-delay` | `.15s` | `.phase .live-dots i:nth-child(2)` | 预览资源/css/app.css:1020 |
 | `left` | `19px` | `.phase .live-dots i:nth-child(3)` | 预览资源/css/app.css:1021 |
 | `animation-delay` | `.3s` | `.phase .live-dots i:nth-child(3)` | 预览资源/css/app.css:1021 |
-| `transition` | `transform var(--d-2) var(--ease-out), box-shadow var(--d-3) var(--ease-out)` | `.lift` | 预览资源/css/app.css:1024 |
+| `transition` | `transform var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move)` | `.lift` | 预览资源/css/app.css:1024 |
 | `transform` | `translateY(-2px)` | `.lift:hover` | 预览资源/css/app.css:1025 |
 | `transform` | `scale(.988)` | `.lift:active` | 预览资源/css/app.css:1026 |
-| `transition-duration` | `.12s` | `.lift:active` | 预览资源/css/app.css:1026 |
-| `transition` | `box-shadow var(--d-3) var(--ease-out), transform var(--d-2) var(--ease-out)` | `.composer` | 预览资源/css/app.css:1027 |
+| `transition-duration` | `var(--d-0)` | `.lift:active` | 预览资源/css/app.css:1026 |
+| `transition` | `box-shadow var(--d-2) var(--ease-move), transform var(--d-2) var(--ease-move)` | `.composer` | 预览资源/css/app.css:1027 |
 | `transform` | `translateY(-2px)` | `.composer:focus-within` | 预览资源/css/app.css:1028 |
-| `transition` | `transform var(--d-1) var(--ease-out), background var(--d-2), opacity var(--d-2)` | `.send` | 预览资源/css/app.css:1029 |
+| `transition` | `transform var(--d-2) var(--sp-settle), background var(--d-2) var(--ease-move), opacity var(--d-2) var(--ease-move)` | `.send` | 预览资源/css/app.css:1029 |
 | `transform` | `scale(1.05)` | `.send:hover` | 预览资源/css/app.css:1030 |
 | `transform` | `scale(.9)` | `.send:active` | 预览资源/css/app.css:1031 |
-| `transition` | `transform var(--d-1) var(--ease-out), background var(--d-2), box-shadow var(--d-2)` | `.btn` | 预览资源/css/app.css:1032 |
+| `transition` | `transform var(--d-2) var(--sp-settle), background var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move)` | `.btn` | 预览资源/css/app.css:1032 |
 | `transform` | `scale(.95)` | `.btn:active` | 预览资源/css/app.css:1033 |
-| `transition` | `transform var(--d-2) var(--ease-out), box-shadow var(--d-3), background var(--d-3)` | `.chip` | 预览资源/css/app.css:1034 |
+| `transition` | `transform var(--d-2) var(--sp-settle), box-shadow var(--d-2) var(--ease-move), background var(--d-2) var(--ease-move)` | `.chip` | 预览资源/css/app.css:1034 |
 | `transform` | `translateY(-2px)` | `.chip:hover` | 预览资源/css/app.css:1035 |
-| `transition` | `color var(--d-1) var(--ease-out), transform var(--d-2) var(--ease-out)` | `.dock-btn` | 预览资源/css/app.css:1036 |
+| `transition` | `color var(--d-2) var(--ease-move), transform var(--d-2) var(--sp-settle)` | `.dock-btn` | 预览资源/css/app.css:1036 |
 | `transition-duration` | `var(--d-2)` | `.ic-btn, .c-btn, .c-pill, .isl-ibtn, .target, .req-opt` | 预览资源/css/app.css:1037 |
-| `transition` | `transform var(--d-2) var(--ease-out), box-shadow var(--d-3)` | `.work-item` | 预览资源/css/app.css:1038 |
-| `transition` | `transform var(--d-2) var(--ease-out), box-shadow var(--d-2), background var(--d-2)` | `.plug-item` | 预览资源/css/app.css:1039 |
-| `transition` | `transform var(--d-2) var(--ease-out), box-shadow var(--d-3)` | `.skill` | 预览资源/css/app.css:1040 |
-| `transition` | `background-color var(--d-4) var(--ease-out), color var(--d-4) var(--ease-out),     --aura-a 1.2s var(--ease-out), --aura-b 1.2s var(--ease-out), --aura-c 1.2s var(--ease-out)` | `body` | 预览资源/css/app.css:1044 |
-| `scrollbar-color` | `rgba(255,255,255,.16) transparent` | `[data-theme="night"] .conversation` | 预览资源/css/app.css:1049 |
-| `display` | `inline-flex` | `.phase .tw` | 预览资源/css/app.css:1052 |
-| `align-items` | `center` | `.phase .tw` | 预览资源/css/app.css:1052 |
-| `justify-content` | `center` | `.phase .tw` | 预览资源/css/app.css:1052 |
-| `width` | `12px` | `.phase .tw` | 预览资源/css/app.css:1052 |
-| `height` | `12px` | `.phase .tw` | 预览资源/css/app.css:1052 |
-| `color` | `var(--ink-3)` | `.phase .tw` | 预览资源/css/app.css:1052 |
-| `width` | `11px` | `.phase .tw .i` | 预览资源/css/app.css:1053 |
-| `height` | `11px` | `.phase .tw .i` | 预览资源/css/app.css:1053 |
-| `transform` | `rotate(90deg)` | `.phase[open] .tw` | 预览资源/css/app.css:1054 |
-| `width` | `13px` | `.step .sicon .i` | 预览资源/css/app.css:1055 |
-| `height` | `13px` | `.step .sicon .i` | 预览资源/css/app.css:1055 |
-| `width` | `34px` | `.phase .live-dots` | 预览资源/css/app.css:1056 |
-| `height` | `16px` | `.phase .live-dots` | 预览资源/css/app.css:1056 |
-| `top` | `4px` | `.phase .live-dots i` | 预览资源/css/app.css:1057 |
-| `width` | `8px` | `.phase .live-dots i` | 预览资源/css/app.css:1057 |
-| `height` | `8px` | `.phase .live-dots i` | 预览资源/css/app.css:1057 |
-| `box-shadow` | `0 0 6px color-mix(in srgb, var(--jade) 42%, transparent)` | `.phase .live-dots i` | 预览资源/css/app.css:1057 |
-| `left` | `3px` | `.phase .live-dots i:nth-child(1)` | 预览资源/css/app.css:1058 |
-| `left` | `12px` | `.phase .live-dots i:nth-child(2)` | 预览资源/css/app.css:1059 |
-| `left` | `21px` | `.phase .live-dots i:nth-child(3)` | 预览资源/css/app.css:1060 |
-| `interpolate-size` | `allow-keywords` | `:root` | 预览资源/css/app.css:1063 |
-| `block-size` | `0` | `@supports selector(details::details-content) → details::details-content` | 预览资源/css/app.css:1066 |
-| `overflow` | `hidden` | `@supports selector(details::details-content) → details::details-content` | 预览资源/css/app.css:1067 |
-| `transition` | `block-size var(--d-3) var(--ease-out), content-visibility var(--d-3) allow-discrete` | `@supports selector(details::details-content) → details::details-content` | 预览资源/css/app.css:1068 |
-| `block-size` | `auto` | `@supports selector(details::details-content) → details[open]::details-content` | 预览资源/css/app.css:1070 |
-| `transition` | `none` | `@supports selector(details::details-content) → @media (prefers-reduced-motion: reduce) → details::details-content` | 预览资源/css/app.css:1072 |
-| `margin-right` | `2px` | `.req-head .req-orb` | 预览资源/css/app.css:1076 |
-| `margin-top` | `var(--space-4)` | `.ling-body .spine` | 预览资源/css/app.css:1079 |
-| `padding` | `var(--space-2) 0` | `.ling-body .spine li` | 预览资源/css/app.css:1080 |
-| `margin-top` | `var(--space-4)` | `.ling-body .dispatch` | 预览资源/css/app.css:1081 |
-| `margin-top` | `var(--space-4)` | `.ling-body .result` | 预览资源/css/app.css:1082 |
-| `filter` | `url(#goo-soft)` | `.phase .live-dots` | 预览资源/css/app.css:1083 |
-| `overflow` | `hidden` | `.work-item` | 预览资源/css/app.css:1086 |
-| `min-width` | `0` | `.work-item > span:nth-child(2)` | 预览资源/css/app.css:1087 |
-| `flex-wrap` | `wrap` | `.work-item .wtitle` | 预览资源/css/app.css:1088 |
-| `row-gap` | `var(--space-1)` | `.work-item .wtitle` | 预览资源/css/app.css:1088 |
-| `max-width` | `100%` | `.work-item .wsub` | 预览资源/css/app.css:1089 |
-| `flex-wrap` | `wrap` | `.work-item .wmeta` | 预览资源/css/app.css:1090 |
-| `gap` | `var(--space-1) var(--space-3)` | `.work-item .wmeta` | 预览资源/css/app.css:1090 |
-| `max-width` | `100%` | `.work-item .wmeta .mono` | 预览资源/css/app.css:1091 |
-| `overflow` | `hidden` | `.work-item .wmeta .mono` | 预览资源/css/app.css:1091 |
-| `text-overflow` | `ellipsis` | `.work-item .wmeta .mono` | 预览资源/css/app.css:1091 |
-| `white-space` | `nowrap` | `.work-item .wmeta .mono` | 预览资源/css/app.css:1091 |
-| `grid-column` | `span 1` | `.isl-meta div:nth-child(3)` | 预览资源/css/app.css:1092 |
-| `grid-column` | `span 2` | `@media (max-width: 760px) → .isl-meta div:nth-child(3)` | 预览资源/css/app.css:1094 |
-| `max-width` | `42%` | `@media (max-width: 760px) → .provider-row .pinfo` | 预览资源/css/app.css:1095 |
-| `display` | `block` | `.work-item .wsub` | 预览资源/css/app.css:1097 |
-| `min-height` | `0` | `.sheet textarea` | 预览资源/css/app.css:1100 |
-| `min-height` | `160px` | `#editor-text` | 预览资源/css/app.css:1101 |
-| `min-height` | `84px` | `#skill-description` | 预览资源/css/app.css:1102 |
-| `min-height` | `190px` | `#skill-body` | 预览资源/css/app.css:1103 |
-| `min-width` | `0` | `.phase, .phase .pbody, .step` | 预览资源/css/app.css:1106 |
-| `max-width` | `100%` | `.phase, .phase .pbody, .step` | 预览资源/css/app.css:1106 |
-| `min-width` | `0` | `.step > summary` | 预览资源/css/app.css:1107 |
-| `overflow` | `hidden` | `.step > summary` | 预览资源/css/app.css:1107 |
-| `min-width` | `0` | `.step .stitle` | 预览资源/css/app.css:1108 |
-| `overflow` | `hidden` | `.step .stitle` | 预览资源/css/app.css:1108 |
-| `text-overflow` | `ellipsis` | `.step .stitle` | 预览资源/css/app.css:1108 |
-| `white-space` | `nowrap` | `.step .stitle` | 预览资源/css/app.css:1108 |
-| `flex` | `1 1 auto` | `.step .sargs` | 预览资源/css/app.css:1109 |
-| `min-width` | `0` | `.step .sargs` | 预览资源/css/app.css:1109 |
-| `flex` | `0 1 auto` | `.step .spreview` | 预览资源/css/app.css:1110 |
-| `min-width` | `0` | `.step .spreview` | 预览资源/css/app.css:1110 |
-| `overflow-wrap` | `anywhere` | `.thought-text` | 预览资源/css/app.css:1111 |
-| `display` | `none` | `@media (max-width: 760px) → .step .spreview` | 预览资源/css/app.css:1113 |
-| `max-width` | `60%` | `@media (max-width: 760px) → .step .sargs` | 预览资源/css/app.css:1114 |
-| `background` | `var(--jade-soft)` | `.work-item .pill.state-running, .work-item .pill.state-completed` | 预览资源/css/app.css:1118 |
-| `color` | `var(--jade-ink)` | `.work-item .pill.state-running, .work-item .pill.state-completed` | 预览资源/css/app.css:1118 |
-| `background` | `var(--cinnabar-soft)` | `.work-item .pill.state-waiting_user` | 预览资源/css/app.css:1119 |
-| `color` | `var(--cinnabar-deep)` | `.work-item .pill.state-waiting_user` | 预览资源/css/app.css:1119 |
-| `background` | `var(--ink-glass)` | `.work-item .pill.state-paused, .work-item .pill.state-cancelled` | 预览资源/css/app.css:1120 |
-| `color` | `var(--ink-3)` | `.work-item .pill.state-paused, .work-item .pill.state-cancelled` | 预览资源/css/app.css:1120 |
-| `background` | `var(--paper-2)` | `.work-item .pill.state-queued, .work-item .pill.state-pending` | 预览资源/css/app.css:1121 |
-| `color` | `var(--ink-2)` | `.work-item .pill.state-queued, .work-item .pill.state-pending` | 预览资源/css/app.css:1121 |
-| `animation` | `dock-in calc(.38s * var(--motion)) var(--sp-bouncy) both` | `.dock-btn.active .i` | 预览资源/css/app.css:1124 |
-| `transform` | `scale(.82)` | `@keyframes dock-in → 0%` | 预览资源/css/app.css:1126 |
-| `transform` | `scale(1.1)` | `@keyframes dock-in → 55%` | 预览资源/css/app.css:1127 |
-| `transform` | `scale(1)` | `@keyframes dock-in → 100%` | 预览资源/css/app.css:1128 |
-| `display` | `grid` | `.host-runtime-sections` | 预览资源/css/app.css:1132 |
-| `gap` | `var(--space-5)` | `.host-runtime-sections` | 预览资源/css/app.css:1132 |
-| `min-width` | `0` | `.host-runtime-sections` | 预览资源/css/app.css:1132 |
-| `border-top` | `1px solid var(--line)` | `.host-runtime-row` | 预览资源/css/app.css:1133 |
-| `padding` | `var(--space-3) 0` | `.host-runtime-row` | 预览资源/css/app.css:1133 |
-| `white-space` | `pre-wrap` | `.host-runtime-json` | 预览资源/css/app.css:1134 |
-| `overflow-wrap` | `anywhere` | `.host-runtime-json` | 预览资源/css/app.css:1134 |
-| `max-height` | `320px` | `.host-runtime-json` | 预览资源/css/app.css:1134 |
-| `overflow` | `auto` | `.host-runtime-json` | 预览资源/css/app.css:1134 |
-| `padding` | `var(--space-3)` | `.host-runtime-json` | 预览资源/css/app.css:1134 |
-| `border-radius` | `var(--r-ctrl)` | `.host-runtime-json` | 预览资源/css/app.css:1134 |
-| `background` | `var(--raised)` | `.host-runtime-json` | 预览资源/css/app.css:1134 |
-| `font` | `var(--text-caption)/1.7 var(--mono)` | `.host-runtime-json` | 预览资源/css/app.css:1134 |
-| `color` | `var(--ink-2)` | `.host-runtime-json` | 预览资源/css/app.css:1134 |
-| `scrollbar-gutter` | `stable both-edges` | `.conversation` | 预览资源/css/app.css:1137 |
-| `isolation` | `isolate` | `.conversation:not(:has(.hero)) .thread` | 预览资源/css/app.css:1138 |
-| `content` | `""` | `.view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1139 |
-| `position` | `fixed` | `.view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1139 |
-| `inset` | `68px max(0px, calc((100vw - 820px) / 2)) 150px` | `.view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1139 |
-| `z-index` | `-1` | `.view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1139 |
-| `pointer-events` | `none` | `.view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1139 |
-| `background` | `radial-gradient(ellipse, var(--paper) 25%, transparent 72%)` | `.view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1139 |
-| `opacity` | `.84` | `.view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1139 |
-| `justify-content` | `center` | `.btn` | 预览资源/css/app.css:1140 |
-| `display` | `flex` | `.ctx-composition-label` | 预览资源/css/app.css:1141 |
-| `justify-content` | `space-between` | `.ctx-composition-label` | 预览资源/css/app.css:1141 |
-| `gap` | `var(--space-3)` | `.ctx-composition-label` | 预览资源/css/app.css:1141 |
-| `margin-top` | `var(--space-5)` | `.ctx-composition-label` | 预览资源/css/app.css:1141 |
-| `padding-top` | `var(--space-4)` | `.ctx-composition-label` | 预览资源/css/app.css:1141 |
-| `border-top` | `1px solid var(--line)` | `.ctx-composition-label` | 预览资源/css/app.css:1141 |
-| `font-size` | `var(--text-caption)` | `.ctx-composition-label` | 预览资源/css/app.css:1141 |
-| `color` | `var(--ink-2)` | `.ctx-composition-label` | 预览资源/css/app.css:1141 |
-| `color` | `var(--ink-3)` | `.ctx-composition-label span` | 预览资源/css/app.css:1142 |
-| `margin-top` | `var(--space-2)` | `.ctx-composition-label + .ctx-meter` | 预览资源/css/app.css:1143 |
-| `margin-left` | `var(--space-3)` | `.setting-scope` | 预览资源/css/app.css:1144 |
-| `font-size` | `var(--text-caption)` | `.setting-scope` | 预览资源/css/app.css:1144 |
-| `font-weight` | `400` | `.setting-scope` | 预览资源/css/app.css:1144 |
-| `color` | `var(--jade-ink)` | `.setting-scope` | 预览资源/css/app.css:1144 |
-| `color` | `var(--i-ink)` | `.isl-thread .md` | 预览资源/css/app.css:1146 |
-| `padding-bottom` | `var(--space-4)` | `.plug-actions` | 预览资源/css/app.css:1147 |
-| `border-bottom` | `1px solid var(--line)` | `.plug-actions` | 预览资源/css/app.css:1147 |
-| `background` | `transparent` | `.plug-actions [data-op="uninstall"]` | 预览资源/css/app.css:1148 |
-| `box-shadow` | `inset 0 0 0 1px color-mix(in srgb, var(--danger) 24%, transparent)` | `.plug-actions [data-op="uninstall"]` | 预览资源/css/app.css:1148 |
-| `background` | `transparent` | `.plug-actions [data-act="plug-readme"]` | 预览资源/css/app.css:1149 |
-| `margin-bottom` | `var(--space-2)` | `.plug-toolbar` | 预览资源/css/app.css:1150 |
-| `margin-top` | `var(--space-2)` | `.plug-note` | 预览资源/css/app.css:1151 |
-| `margin-bottom` | `var(--space-3)` | `.plug-note` | 预览资源/css/app.css:1151 |
-| `background` | `var(--raised)` | `.skill .glyph` | 预览资源/css/app.css:1152 |
-| `color` | `var(--jade-ink)` | `.skill .glyph` | 预览资源/css/app.css:1152 |
-| `box-shadow` | `inset 0 0 0 1px var(--line)` | `.skill .glyph` | 预览资源/css/app.css:1152 |
-| `grid-column` | `1 / -1` | `.skill-empty` | 预览资源/css/app.css:1153 |
-| `padding` | `var(--card-padding)` | `.skill-empty` | 预览资源/css/app.css:1153 |
-| `min-height` | `150px` | `.skill-empty` | 预览资源/css/app.css:1153 |
-| `display` | `flex` | `.skill-empty` | 预览资源/css/app.css:1153 |
-| `flex-direction` | `column` | `.skill-empty` | 预览资源/css/app.css:1153 |
-| `align-items` | `flex-start` | `.skill-empty` | 预览资源/css/app.css:1153 |
-| `gap` | `var(--space-3)` | `.skill-empty` | 预览资源/css/app.css:1153 |
-| `background` | `var(--card)` | `.skill-empty` | 预览资源/css/app.css:1153 |
-| `border-radius` | `var(--r-card)` | `.skill-empty` | 预览资源/css/app.css:1153 |
-| `font` | `600 var(--text-title) var(--font-display)` | `.skill-empty h2` | 预览资源/css/app.css:1154 |
-| `color` | `var(--ink-2)` | `.skill-empty p` | 预览资源/css/app.css:1155 |
-| `flex-wrap` | `wrap` | `@media (max-width: 1000px) and (min-width: 761px) → .ui-row` | 预览资源/css/app.css:1157 |
-| `margin-left` | `auto` | `@media (max-width: 1000px) and (min-width: 761px) → .ui-controls` | 预览资源/css/app.css:1158 |
-| `grid-template-columns` | `minmax(0, 1fr)` | `@media (max-width: 760px) → .sheet .fields` | 预览资源/css/app.css:1161 |
-| `grid-column` | `auto` | `@media (max-width: 760px) → .sheet .span-2` | 预览资源/css/app.css:1162 |
-| `grid-template-columns` | `repeat(2, minmax(0, 1fr))` | `@media (max-width: 760px) → .model-row` | 预览资源/css/app.css:1163 |
-| `grid-column` | `1 / -1` | `@media (max-width: 760px) → .model-row .model-name` | 预览资源/css/app.css:1164 |
-| `justify-self` | `end` | `@media (max-width: 760px) → .model-row .rm` | 预览资源/css/app.css:1165 |
-| `min-width` | `0` | `@media (max-width: 760px) → .model-row > *` | 预览资源/css/app.css:1166 |
-| `top` | `0` | `@media (max-width: 760px) → .perm .tab-ink` | 预览资源/css/app.css:1167 |
-| `left` | `4px` | `@media (max-width: 760px) → .perm .tab-ink` | 预览资源/css/app.css:1167 |
-| `width` | `calc(100% - 8px)` | `@media (max-width: 760px) → .perm .tab-ink` | 预览资源/css/app.css:1167 |
-| `flex-wrap` | `wrap` | `@media (max-width: 760px) → .plug-toolbar` | 预览资源/css/app.css:1168 |
-| `justify-content` | `flex-start` | `@media (max-width: 760px) → .plug-toolbar` | 预览资源/css/app.css:1168 |
-| `flex-basis` | `100%` | `@media (max-width: 760px) → .plug-toolbar .count` | 预览资源/css/app.css:1169 |
-| `grid-auto-columns` | `minmax(210px, 1fr)` | `@media (max-width: 760px) → .plug-list` | 预览资源/css/app.css:1170 |
-| `gap` | `var(--space-2)` | `@media (max-width: 760px) → .ui-controls` | 预览资源/css/app.css:1171 |
-| `min-width` | `0` | `@media (max-width: 760px) → .motion-slider` | 预览资源/css/app.css:1172 |
-| `flex` | `1` | `@media (max-width: 760px) → .motion-slider` | 预览资源/css/app.css:1172 |
-| `display` | `none` | `@media (max-width: 760px) → .motion-demo` | 预览资源/css/app.css:1173 |
-| `left` | `0` | `@media (max-width: 760px) → .view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1174 |
-| `right` | `0` | `@media (max-width: 760px) → .view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1174 |
+| `transition` | `transform var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move)` | `.work-item` | 预览资源/css/app.css:1038 |
+| `transition` | `transform var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move), background var(--d-2) var(--ease-move)` | `.plug-item` | 预览资源/css/app.css:1039 |
+| `transition` | `transform var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move)` | `.skill` | 预览资源/css/app.css:1040 |
+| `transition` | `left var(--d-2) var(--sp-settle), width var(--d-2) var(--ease-move)` | `.switch::after` | 预览资源/css/app.css:1041 |
+| `transition-duration` | `var(--d-0)` | `.send:active, .btn:active, .chip:active, .dock-btn:active` | 预览资源/css/app.css:1042 |
+| `transition` | `background-color var(--d-2) var(--ease-move), color var(--d-2) var(--ease-move),     --aura-a 1.2s var(--ease-out), --aura-b 1.2s var(--ease-out), --aura-c 1.2s var(--ease-out)` | `body` | 预览资源/css/app.css:1046 |
+| `scrollbar-color` | `rgba(255,255,255,.16) transparent` | `[data-theme="night"] .conversation` | 预览资源/css/app.css:1051 |
+| `display` | `inline-flex` | `.phase .tw` | 预览资源/css/app.css:1054 |
+| `align-items` | `center` | `.phase .tw` | 预览资源/css/app.css:1054 |
+| `justify-content` | `center` | `.phase .tw` | 预览资源/css/app.css:1054 |
+| `width` | `12px` | `.phase .tw` | 预览资源/css/app.css:1054 |
+| `height` | `12px` | `.phase .tw` | 预览资源/css/app.css:1054 |
+| `color` | `var(--ink-3)` | `.phase .tw` | 预览资源/css/app.css:1054 |
+| `width` | `11px` | `.phase .tw .i` | 预览资源/css/app.css:1055 |
+| `height` | `11px` | `.phase .tw .i` | 预览资源/css/app.css:1055 |
+| `transform` | `rotate(90deg)` | `.phase[open] .tw` | 预览资源/css/app.css:1056 |
+| `width` | `13px` | `.step .sicon .i` | 预览资源/css/app.css:1057 |
+| `height` | `13px` | `.step .sicon .i` | 预览资源/css/app.css:1057 |
+| `width` | `34px` | `.phase .live-dots` | 预览资源/css/app.css:1058 |
+| `height` | `16px` | `.phase .live-dots` | 预览资源/css/app.css:1058 |
+| `top` | `4px` | `.phase .live-dots i` | 预览资源/css/app.css:1059 |
+| `width` | `8px` | `.phase .live-dots i` | 预览资源/css/app.css:1059 |
+| `height` | `8px` | `.phase .live-dots i` | 预览资源/css/app.css:1059 |
+| `box-shadow` | `0 0 6px color-mix(in srgb, var(--jade) 42%, transparent)` | `.phase .live-dots i` | 预览资源/css/app.css:1059 |
+| `left` | `3px` | `.phase .live-dots i:nth-child(1)` | 预览资源/css/app.css:1060 |
+| `left` | `12px` | `.phase .live-dots i:nth-child(2)` | 预览资源/css/app.css:1061 |
+| `left` | `21px` | `.phase .live-dots i:nth-child(3)` | 预览资源/css/app.css:1062 |
+| `interpolate-size` | `allow-keywords` | `:root` | 预览资源/css/app.css:1065 |
+| `block-size` | `0` | `@supports selector(details::details-content) → details::details-content` | 预览资源/css/app.css:1068 |
+| `overflow` | `hidden` | `@supports selector(details::details-content) → details::details-content` | 预览资源/css/app.css:1069 |
+| `transition` | `block-size var(--d-3) var(--ease-move), content-visibility var(--d-3) allow-discrete` | `@supports selector(details::details-content) → details::details-content` | 预览资源/css/app.css:1070 |
+| `block-size` | `auto` | `@supports selector(details::details-content) → details[open]::details-content` | 预览资源/css/app.css:1072 |
+| `transition` | `none` | `@supports selector(details::details-content) → @media (prefers-reduced-motion: reduce) → details::details-content` | 预览资源/css/app.css:1074 |
+| `margin-right` | `2px` | `.req-head .req-orb` | 预览资源/css/app.css:1078 |
+| `margin-top` | `var(--space-4)` | `.ling-body .spine` | 预览资源/css/app.css:1081 |
+| `padding` | `var(--space-2) 0` | `.ling-body .spine li` | 预览资源/css/app.css:1082 |
+| `margin-top` | `var(--space-4)` | `.ling-body .dispatch` | 预览资源/css/app.css:1083 |
+| `margin-top` | `var(--space-4)` | `.ling-body .result` | 预览资源/css/app.css:1084 |
+| `filter` | `url(#goo-soft)` | `.phase .live-dots` | 预览资源/css/app.css:1085 |
+| `overflow` | `hidden` | `.work-item` | 预览资源/css/app.css:1088 |
+| `min-width` | `0` | `.work-item > span:nth-child(2)` | 预览资源/css/app.css:1089 |
+| `flex-wrap` | `wrap` | `.work-item .wtitle` | 预览资源/css/app.css:1090 |
+| `row-gap` | `var(--space-1)` | `.work-item .wtitle` | 预览资源/css/app.css:1090 |
+| `max-width` | `100%` | `.work-item .wsub` | 预览资源/css/app.css:1091 |
+| `flex-wrap` | `wrap` | `.work-item .wmeta` | 预览资源/css/app.css:1092 |
+| `gap` | `var(--space-1) var(--space-3)` | `.work-item .wmeta` | 预览资源/css/app.css:1092 |
+| `max-width` | `100%` | `.work-item .wmeta .mono` | 预览资源/css/app.css:1093 |
+| `overflow` | `hidden` | `.work-item .wmeta .mono` | 预览资源/css/app.css:1093 |
+| `text-overflow` | `ellipsis` | `.work-item .wmeta .mono` | 预览资源/css/app.css:1093 |
+| `white-space` | `nowrap` | `.work-item .wmeta .mono` | 预览资源/css/app.css:1093 |
+| `grid-column` | `span 1` | `.isl-meta div:nth-child(3)` | 预览资源/css/app.css:1094 |
+| `grid-column` | `span 2` | `@media (max-width: 760px) → .isl-meta div:nth-child(3)` | 预览资源/css/app.css:1096 |
+| `max-width` | `42%` | `@media (max-width: 760px) → .provider-row .pinfo` | 预览资源/css/app.css:1097 |
+| `display` | `block` | `.work-item .wsub` | 预览资源/css/app.css:1099 |
+| `min-height` | `0` | `.sheet textarea` | 预览资源/css/app.css:1102 |
+| `min-height` | `160px` | `#editor-text` | 预览资源/css/app.css:1103 |
+| `min-height` | `84px` | `#skill-description` | 预览资源/css/app.css:1104 |
+| `min-height` | `190px` | `#skill-body` | 预览资源/css/app.css:1105 |
+| `min-width` | `0` | `.phase, .phase .pbody, .step` | 预览资源/css/app.css:1108 |
+| `max-width` | `100%` | `.phase, .phase .pbody, .step` | 预览资源/css/app.css:1108 |
+| `min-width` | `0` | `.step > summary` | 预览资源/css/app.css:1109 |
+| `overflow` | `hidden` | `.step > summary` | 预览资源/css/app.css:1109 |
+| `min-width` | `0` | `.step .stitle` | 预览资源/css/app.css:1110 |
+| `overflow` | `hidden` | `.step .stitle` | 预览资源/css/app.css:1110 |
+| `text-overflow` | `ellipsis` | `.step .stitle` | 预览资源/css/app.css:1110 |
+| `white-space` | `nowrap` | `.step .stitle` | 预览资源/css/app.css:1110 |
+| `flex` | `1 1 auto` | `.step .sargs` | 预览资源/css/app.css:1111 |
+| `min-width` | `0` | `.step .sargs` | 预览资源/css/app.css:1111 |
+| `flex` | `0 1 auto` | `.step .spreview` | 预览资源/css/app.css:1112 |
+| `min-width` | `0` | `.step .spreview` | 预览资源/css/app.css:1112 |
+| `overflow-wrap` | `anywhere` | `.thought-text` | 预览资源/css/app.css:1113 |
+| `display` | `none` | `@media (max-width: 760px) → .step .spreview` | 预览资源/css/app.css:1115 |
+| `max-width` | `60%` | `@media (max-width: 760px) → .step .sargs` | 预览资源/css/app.css:1116 |
+| `background` | `var(--jade-soft)` | `.work-item .pill.state-running, .work-item .pill.state-completed` | 预览资源/css/app.css:1120 |
+| `color` | `var(--jade-ink)` | `.work-item .pill.state-running, .work-item .pill.state-completed` | 预览资源/css/app.css:1120 |
+| `background` | `var(--cinnabar-soft)` | `.work-item .pill.state-waiting_user` | 预览资源/css/app.css:1121 |
+| `color` | `var(--cinnabar-deep)` | `.work-item .pill.state-waiting_user` | 预览资源/css/app.css:1121 |
+| `background` | `var(--ink-glass)` | `.work-item .pill.state-paused, .work-item .pill.state-cancelled` | 预览资源/css/app.css:1122 |
+| `color` | `var(--ink-3)` | `.work-item .pill.state-paused, .work-item .pill.state-cancelled` | 预览资源/css/app.css:1122 |
+| `background` | `var(--paper-2)` | `.work-item .pill.state-queued, .work-item .pill.state-pending` | 预览资源/css/app.css:1123 |
+| `color` | `var(--ink-2)` | `.work-item .pill.state-queued, .work-item .pill.state-pending` | 预览资源/css/app.css:1123 |
+| `animation` | `dock-in calc(var(--duration-base) * var(--motion)) var(--ease-enter) both` | `.dock-btn.active .i` | 预览资源/css/app.css:1126 |
+| `transform` | `scale(.82)` | `@keyframes dock-in → 0%` | 预览资源/css/app.css:1128 |
+| `transform` | `scale(1.025)` | `@keyframes dock-in → 65%` | 预览资源/css/app.css:1129 |
+| `transform` | `scale(1)` | `@keyframes dock-in → 100%` | 预览资源/css/app.css:1130 |
+| `display` | `grid` | `.host-runtime-sections` | 预览资源/css/app.css:1134 |
+| `gap` | `var(--space-5)` | `.host-runtime-sections` | 预览资源/css/app.css:1134 |
+| `min-width` | `0` | `.host-runtime-sections` | 预览资源/css/app.css:1134 |
+| `border-top` | `1px solid var(--line)` | `.host-runtime-row` | 预览资源/css/app.css:1135 |
+| `padding` | `var(--space-3) 0` | `.host-runtime-row` | 预览资源/css/app.css:1135 |
+| `white-space` | `pre-wrap` | `.host-runtime-json` | 预览资源/css/app.css:1136 |
+| `overflow-wrap` | `anywhere` | `.host-runtime-json` | 预览资源/css/app.css:1136 |
+| `max-height` | `320px` | `.host-runtime-json` | 预览资源/css/app.css:1136 |
+| `overflow` | `auto` | `.host-runtime-json` | 预览资源/css/app.css:1136 |
+| `padding` | `var(--space-3)` | `.host-runtime-json` | 预览资源/css/app.css:1136 |
+| `border-radius` | `var(--r-ctrl)` | `.host-runtime-json` | 预览资源/css/app.css:1136 |
+| `background` | `var(--raised)` | `.host-runtime-json` | 预览资源/css/app.css:1136 |
+| `font` | `var(--text-caption)/1.7 var(--mono)` | `.host-runtime-json` | 预览资源/css/app.css:1136 |
+| `color` | `var(--ink-2)` | `.host-runtime-json` | 预览资源/css/app.css:1136 |
+| `scrollbar-gutter` | `stable both-edges` | `.conversation` | 预览资源/css/app.css:1139 |
+| `isolation` | `isolate` | `.conversation:not(:has(.hero)) .thread` | 预览资源/css/app.css:1140 |
+| `content` | `""` | `.view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1141 |
+| `position` | `fixed` | `.view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1141 |
+| `inset` | `68px max(0px, calc((100vw - 820px) / 2)) 150px` | `.view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1141 |
+| `z-index` | `-1` | `.view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1141 |
+| `pointer-events` | `none` | `.view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1141 |
+| `background` | `radial-gradient(ellipse, var(--paper) 25%, transparent 72%)` | `.view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1141 |
+| `opacity` | `.84` | `.view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1141 |
+| `justify-content` | `center` | `.btn` | 预览资源/css/app.css:1142 |
+| `display` | `flex` | `.ctx-composition-label` | 预览资源/css/app.css:1143 |
+| `justify-content` | `space-between` | `.ctx-composition-label` | 预览资源/css/app.css:1143 |
+| `gap` | `var(--space-3)` | `.ctx-composition-label` | 预览资源/css/app.css:1143 |
+| `margin-top` | `var(--space-5)` | `.ctx-composition-label` | 预览资源/css/app.css:1143 |
+| `padding-top` | `var(--space-4)` | `.ctx-composition-label` | 预览资源/css/app.css:1143 |
+| `border-top` | `1px solid var(--line)` | `.ctx-composition-label` | 预览资源/css/app.css:1143 |
+| `font-size` | `var(--text-caption)` | `.ctx-composition-label` | 预览资源/css/app.css:1143 |
+| `color` | `var(--ink-2)` | `.ctx-composition-label` | 预览资源/css/app.css:1143 |
+| `color` | `var(--ink-3)` | `.ctx-composition-label span` | 预览资源/css/app.css:1144 |
+| `margin-top` | `var(--space-2)` | `.ctx-composition-label + .ctx-meter` | 预览资源/css/app.css:1145 |
+| `margin-left` | `var(--space-3)` | `.setting-scope` | 预览资源/css/app.css:1146 |
+| `font-size` | `var(--text-caption)` | `.setting-scope` | 预览资源/css/app.css:1146 |
+| `font-weight` | `400` | `.setting-scope` | 预览资源/css/app.css:1146 |
+| `color` | `var(--jade-ink)` | `.setting-scope` | 预览资源/css/app.css:1146 |
+| `color` | `var(--i-ink)` | `.isl-thread .md` | 预览资源/css/app.css:1148 |
+| `padding-bottom` | `var(--space-4)` | `.plug-actions` | 预览资源/css/app.css:1149 |
+| `border-bottom` | `1px solid var(--line)` | `.plug-actions` | 预览资源/css/app.css:1149 |
+| `background` | `transparent` | `.plug-actions [data-op="uninstall"]` | 预览资源/css/app.css:1150 |
+| `box-shadow` | `inset 0 0 0 1px color-mix(in srgb, var(--danger) 24%, transparent)` | `.plug-actions [data-op="uninstall"]` | 预览资源/css/app.css:1150 |
+| `background` | `transparent` | `.plug-actions [data-act="plug-readme"]` | 预览资源/css/app.css:1151 |
+| `margin-bottom` | `var(--space-2)` | `.plug-toolbar` | 预览资源/css/app.css:1152 |
+| `margin-top` | `var(--space-2)` | `.plug-note` | 预览资源/css/app.css:1153 |
+| `margin-bottom` | `var(--space-3)` | `.plug-note` | 预览资源/css/app.css:1153 |
+| `background` | `var(--raised)` | `.skill .glyph` | 预览资源/css/app.css:1154 |
+| `color` | `var(--jade-ink)` | `.skill .glyph` | 预览资源/css/app.css:1154 |
+| `box-shadow` | `inset 0 0 0 1px var(--line)` | `.skill .glyph` | 预览资源/css/app.css:1154 |
+| `grid-column` | `1 / -1` | `.skill-empty` | 预览资源/css/app.css:1155 |
+| `padding` | `var(--card-padding)` | `.skill-empty` | 预览资源/css/app.css:1155 |
+| `min-height` | `150px` | `.skill-empty` | 预览资源/css/app.css:1155 |
+| `display` | `flex` | `.skill-empty` | 预览资源/css/app.css:1155 |
+| `flex-direction` | `column` | `.skill-empty` | 预览资源/css/app.css:1155 |
+| `align-items` | `flex-start` | `.skill-empty` | 预览资源/css/app.css:1155 |
+| `gap` | `var(--space-3)` | `.skill-empty` | 预览资源/css/app.css:1155 |
+| `background` | `var(--card)` | `.skill-empty` | 预览资源/css/app.css:1155 |
+| `border-radius` | `var(--r-card)` | `.skill-empty` | 预览资源/css/app.css:1155 |
+| `font` | `600 var(--text-title) var(--font-display)` | `.skill-empty h2` | 预览资源/css/app.css:1156 |
+| `color` | `var(--ink-2)` | `.skill-empty p` | 预览资源/css/app.css:1157 |
+| `flex-wrap` | `wrap` | `@media (max-width: 1000px) and (min-width: 761px) → .ui-row` | 预览资源/css/app.css:1159 |
+| `margin-left` | `auto` | `@media (max-width: 1000px) and (min-width: 761px) → .ui-controls` | 预览资源/css/app.css:1160 |
+| `grid-template-columns` | `minmax(0, 1fr)` | `@media (max-width: 760px) → .sheet .fields` | 预览资源/css/app.css:1163 |
+| `grid-column` | `auto` | `@media (max-width: 760px) → .sheet .span-2` | 预览资源/css/app.css:1164 |
+| `grid-template-columns` | `repeat(2, minmax(0, 1fr))` | `@media (max-width: 760px) → .model-row` | 预览资源/css/app.css:1165 |
+| `grid-column` | `1 / -1` | `@media (max-width: 760px) → .model-row .model-name` | 预览资源/css/app.css:1166 |
+| `justify-self` | `end` | `@media (max-width: 760px) → .model-row .rm` | 预览资源/css/app.css:1167 |
+| `min-width` | `0` | `@media (max-width: 760px) → .model-row > *` | 预览资源/css/app.css:1168 |
+| `top` | `0` | `@media (max-width: 760px) → .perm .tab-ink` | 预览资源/css/app.css:1169 |
+| `left` | `4px` | `@media (max-width: 760px) → .perm .tab-ink` | 预览资源/css/app.css:1169 |
+| `width` | `calc(100% - 8px)` | `@media (max-width: 760px) → .perm .tab-ink` | 预览资源/css/app.css:1169 |
+| `flex-wrap` | `wrap` | `@media (max-width: 760px) → .plug-toolbar` | 预览资源/css/app.css:1170 |
+| `justify-content` | `flex-start` | `@media (max-width: 760px) → .plug-toolbar` | 预览资源/css/app.css:1170 |
+| `flex-basis` | `100%` | `@media (max-width: 760px) → .plug-toolbar .count` | 预览资源/css/app.css:1171 |
+| `grid-auto-columns` | `minmax(210px, 1fr)` | `@media (max-width: 760px) → .plug-list` | 预览资源/css/app.css:1172 |
+| `gap` | `var(--space-2)` | `@media (max-width: 760px) → .ui-controls` | 预览资源/css/app.css:1173 |
+| `min-width` | `0` | `@media (max-width: 760px) → .motion-slider` | 预览资源/css/app.css:1174 |
+| `flex` | `1` | `@media (max-width: 760px) → .motion-slider` | 预览资源/css/app.css:1174 |
+| `display` | `none` | `@media (max-width: 760px) → .motion-demo` | 预览资源/css/app.css:1175 |
+| `left` | `0` | `@media (max-width: 760px) → .view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1176 |
+| `right` | `0` | `@media (max-width: 760px) → .view-chat:not(.is-empty) .thread::before` | 预览资源/css/app.css:1176 |
