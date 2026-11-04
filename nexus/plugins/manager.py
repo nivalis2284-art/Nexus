@@ -92,10 +92,8 @@ class PluginManager:
         plugin_id = value.get('id', '')
         if not isinstance(plugin_id, str) or not plugin_id or any(c not in 'abcdefghijklmnopqrstuvwxyz0123456789-_' for c in plugin_id):
             raise ValueError('插件标识仅支持小写字母、数字、连字符和下划线')
-        from .host import CAPABILITIES
-        requires = value.get('requires_host', {})
-        if not isinstance(requires, dict) or any(type(v) is not int or CAPABILITIES.get(k) != v for k,v in requires.items()):
-            raise ValueError('宿主不支持插件所需的能力版本')
+        from .host import require_capabilities
+        require_capabilities(value.get('requires_host', {}))
         if value.get('api_version', 1) != 1:
             raise ValueError('不支持此插件所需的宿主接口版本')
         from .pages import declarations

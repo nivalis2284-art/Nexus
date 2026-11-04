@@ -1,14 +1,15 @@
-// Nexus Host SDK 1.1.0 — Node.js 22+, no npm dependencies.
+// Nexus Host SDK 1.2.0 — Node.js 22+, no npm dependencies.
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {createInterface} from 'node:readline';
 const context=new AsyncLocalStorage();
 const longMethods=new Set(['models.generate','dialogues.send','dialogues.continue','dialogues.continue_turn','services.call']);
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+export const SDK_VERSION='1.2.0';
 export class HostClient {
  constructor({url=process.env.NEXUS_HOST_URL,token=process.env.NEXUS_PLUGIN_TOKEN}={}) {
   this.url=url;this.token=token;
   const namespace=path=>new Proxy((params={})=>path==='models.stream'?this.stream(params):this.call(path,params),{get:(_,name)=>name==='then'?undefined:namespace(path?`${path}.${String(name)}`:String(name))});
-  for(const name of ['capabilities','models','dialogues','history','jobs','storage','services','context','events','hooks','chat','mcp','operations'])this[name]=namespace(name);
+  for(const name of ['capabilities','models','dialogues','history','jobs','storage','services','context','events','hooks','chat','mcp','work','operations'])this[name]=namespace(name);
  }
  async request(method,params={}) {
   const response=await fetch(this.url,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${this.token}`},body:JSON.stringify({method,params}),signal:AbortSignal.timeout(30000)});
@@ -34,7 +35,7 @@ export function serve({tools,handlers,initialize}) {
  const input=createInterface({input:process.stdin,crlfDelay:Infinity});
  input.on('line',line=>{let message;try{message=JSON.parse(line);}catch{return;}if(message.id===undefined)return;
   (async()=>{const p=message.params||{};let result;
-   if(message.method==='initialize'){await initialize?.();result={protocolVersion:p.protocolVersion||'2025-06-18',serverInfo:{name:'nexus-sdk-node',version:'1.1.0'},capabilities:{tools:{}}};}
+   if(message.method==='initialize'){await initialize?.();result={protocolVersion:p.protocolVersion||'2025-06-18',serverInfo:{name:'nexus-sdk-node',version:SDK_VERSION},capabilities:{tools:{}}};}
    else if(message.method==='tools/list')result={tools};else if(message.method==='ping')result={};
    else if(message.method==='tools/call'){const args={...(p.arguments||{})};const token=args._host_context;delete args._host_context;const value=await context.run({service:token,job:args.job_id,attempt:args.attempt},()=>handlers[p.name](args));result={content:[{type:'text',text:JSON.stringify(value)}],isError:false};}
    else throw Error('Unsupported method');

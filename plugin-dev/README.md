@@ -6,6 +6,8 @@
 
 统一 SDK 入口为 [独立插件 SDK](../nexus-plugin-sdk/README.md)，页面协议见 [UI.md](../nexus-plugin-sdk/UI.md)。SDK 中的 Python、Node 客户端是唯一来源；发布包按实际引用加入客户端。
 
+当前开发的插件包括网页搜索与阅读 `web-research`、浏览器控制 `browser-control`，以及[约定与关注 `followup`](followup/README.md)。约定与关注需要新增的宿主 `work` v1 能力，打包后由所有者自行导入与启用。
+
 ```text
 plugin-dev/
   README.md

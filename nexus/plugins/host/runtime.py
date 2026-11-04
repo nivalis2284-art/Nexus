@@ -12,9 +12,23 @@ from .history import History
 from .jobs import Jobs
 from .dialogues import Dialogues
 from .bridge import Bridge
+from .work import Work
 
-CAPABILITIES = {name: 1 for name in ('models', 'dialogues', 'history', 'jobs', 'storage', 'services', 'context', 'events', 'hooks', 'chat', 'mcp', 'ui')}
+SDK_VERSION = '1.2.0'
+CAPABILITIES = {name: 1 for name in ('models', 'dialogues', 'history', 'jobs', 'storage', 'services', 'context', 'events', 'hooks', 'chat', 'mcp', 'ui', 'work')}
 LONG = {'models.generate', 'dialogues.send', 'dialogues.continue', 'dialogues.continue_turn', 'services.call'}
+
+
+def require_capabilities(required):
+    if not isinstance(required, dict) or any(not isinstance(k, str) or type(v) is not int for k, v in required.items()):
+        raise ValueError('宿主能力要求必须为“能力名称: 整数版本”的对象')
+    missing = [f'{name} v{version}（宿主为 v{CAPABILITIES[name]}）' if name in CAPABILITIES
+               else f'{name} v{version}（宿主未提供）'
+               for name, version in required.items() if CAPABILITIES.get(name) != version]
+    if missing:
+        raise ValueError('宿主不支持插件所需的能力版本：' + '、'.join(missing)
+                         + '。请使用支持这些能力的 Nexus 宿主并重启；仅更新插件或 SDK 客户端无效。')
+
 
 class Runtime:
     def __init__(self, manager):
@@ -30,6 +44,7 @@ class Runtime:
         self.jobs = Jobs(self)
         self.dialogues = Dialogues(self)
         self.bridge = Bridge(self)
+        self.work = Work(self)
         self.closed = False
         from ...runtime.stream import runtime_updates
         from collections import deque
@@ -47,7 +62,7 @@ class Runtime:
     def check(self, owner, method):
         item = self.manager.entries.get(owner)
         if item is None: raise ValueError('插件不存在')
-        registering = method in ('capabilities.describe', 'capabilities.require', 'models.list', 'context.export', 'services.register', 'services.list', 'jobs.register', 'events.subscribe', 'hooks.define', 'hooks.subscribe', 'hooks.unsubscribe') or method.startswith('storage.')
+        registering = method in ('capabilities.describe', 'capabilities.require', 'models.list', 'context.export', 'services.register', 'services.list', 'jobs.register', 'events.subscribe', 'hooks.define', 'hooks.subscribe', 'hooks.unsubscribe', 'work.defaults', 'work.list', 'work.get', 'work.events') or method.startswith('storage.')
         if not item.enabled or item.status not in (('ready', 'loading') if registering else ('ready',)) or self.closed:
             raise ValueError('插件已停用或尚未就绪')
 
@@ -194,12 +209,18 @@ class Runtime:
             events = self.store.events(owner, p.get('after', 0), p['operation_id'])
             return {'events': events, 'cursor': events[-1]['seq'] if events else p.get('after', 0)}
         if method in ('operations.cancel', 'models.cancel'): return self.cancel(owner, p['operation_id'])
-        if method == 'capabilities.describe': return {'sdk_version': '1.1.0', 'capabilities': CAPABILITIES}
+        if method == 'capabilities.describe': return {'sdk_version': SDK_VERSION, 'capabilities': CAPABILITIES}
         if method == 'capabilities.require':
-            required = p['requires']
-            if any(CAPABILITIES.get(k) != v for k,v in required.items()): raise ValueError('宿主能力版本不匹配')
+            require_capabilities(p['requires'])
             return {'satisfied': True}
         if method == 'models.list': return self.models.list()
+        if method == 'work.defaults': return self.work.defaults()
+        if method == 'work.list': return self.work.list()
+        if method == 'work.get': return self.work.get(**p)
+        if method == 'work.events': return self.work.events(**p)
+        if method == 'work.start': return self.work.start(owner, **p)
+        if method == 'work.control': return self.work.control(owner, **p)
+        if method == 'work.report': return self.work.report(owner, **p)
         if method == 'context.export': return self.export_context(p.get('sections', []))
         if method.startswith('storage.'): return self.storage(owner, method[8:], p)
         if method.startswith('history.'):
@@ -262,6 +283,8 @@ class Runtime:
         self.jobs.recover_owner(owner)
 
     def suspend(self, owner):
+        if self.manager.state.get('task_controller'):
+            self.work.suspend(owner)
         self.jobs.suspend(owner)
         for op in self.store.list('operation', owner):
             if op['status'] in ('pending','running'): self.cancel(owner, op['id'])

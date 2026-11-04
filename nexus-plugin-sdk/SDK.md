@@ -1,6 +1,6 @@
 # Nexus 插件 SDK
 
-这是插件开发规范和客户端的统一来源。宿主能力版本为 v1，客户端版本沿用 1.1.0。SDK 可单独复制，插件可在任意目录开发并在自己的目录生成 ZIP。
+这是插件开发规范和客户端的统一来源。当前 SDK 为 **1.2.0**，新增公共 `work` v1。`api_version` 仍为 1，各能力分别按 `requires_host` 声明版本。SDK 可单独复制，插件可在任意目录开发并在自己的目录生成 ZIP。
 
 ## 目录与接入方式
 
@@ -125,7 +125,71 @@ Python 使用关键字参数，Node 使用参数对象。客户端导出 `serve`
 - `describe()` → `{sdk_version, capabilities}`。
 - `require(requires={能力:版本})` → `{satisfied:true}`，不支持时加载失败或抛错。
 
-能力组：models、dialogues、history、jobs、storage、services、context、events、hooks、chat、mcp，均为 v1。描述字段仅表示接口存在，不表示已配置可用的云端模型。
+能力组：models、dialogues、history、jobs、storage、services、context、events、hooks、chat、mcp、work，均为 v1；ui v1 表示宿主渲染页面。描述字段仅表示接口存在，不表示已配置可用的云端模型。
+
+SDK 版本标识这一组客户端与文档；能力版本决定插件实际兼容性。不要求旧插件升级清单，也不按整个 SDK 版本拒绝插件。导入时和 `require` 调用使用同一能力检查，错误包含缺失能力或实际版本。
+
+需要 `work` 的插件必须运行在提供 `work v1` 的 Nexus 上。复制新版 SDK 或插件 ZIP 不会升级宿主；其他电脑须先更新实际启动的 Nexus 源码或发行包并完全重启，保留各自的数据与配置，再导入插件。
+
+### work：标准后台 Agent 工作
+
+声明 `requires_host: {"work": 1}`。Python 使用 `host.work.start(...)`，Node 使用 `host.work.start({...})`。这些工作使用现有 TaskStore/TaskController、工具、Skill、项目写入协调与权限审批，不使用插件独立模型对话或 jobs 执行器。
+
+- `defaults()` → 当前 `workspace/provider_id/model_id/effort` 和模型目录；创建长期安排时保存这些值，避免以后切换主交流项目或模型影响安排。
+- `list()` → 现有顶层工作摘要，可用于选取事件源。
+- `get(task_id,messages=False)` → 工作状态、摘要、待决定事项及可选完整消息；插件工作增加 `plugin_id/plugin_source`。读取不局限于本插件，修改与汇报限定本插件所属工作。
+- `events(after=None)` → `{events,cursor}`。省略 after 只返回当前通知游标，不回放历史；传入游标后读取之后的工作通知，最多 1000 条，按返回游标继续。通知包含 `id/task_id/kind/text/source` 等现有字段。重连是否补处理由插件明确决定。
+- `start(request_id,goal,title='',context='',constraints='',workspace=None,provider_id=None,model_id=None,effort=None,read_only=False,report=True,source={})` → 接收后的工作摘要。未指定的项目与模型采用调用当时设置。请求标识按插件隔离，同一标识和相同参数不重复创建／运行；参数变化报错。source 为插件自己的来源信息。不自动带入主交流历史或附件，所需背景由插件显式提供。
+- `control(task_id,operation,request_id)` → 操作后的摘要。operation 为 pause/resume/cancel，只能控制本插件发起的工作。恢复不代替待决审批。start、control、report 的 request_id 均为非空字符串，最长 200 字符，按插件与操作类别隔离；重试复用编号，新操作使用新编号。
+- `report(text,request_id,task_id=None,source={})` → 主交流回报的接收结果。提供 task_id 时校验工作归属，正文与插件来源作为 work_report 进入主交流，不伪装为用户消息；同一请求标识不重复回报。启动前错误也可省略 task_id 并显式提供来源。
+
+`report=False` 只抑制常规完成时自动唤醒主交流，适合插件决定是否汇报的关注任务；审批、受阻与中断等仍使用原有通知。插件可以随后调用 work.report。停用插件会请求暂停其仍在运行／排队／等待决定的工作；保存的工作与实际已发生操作不删除，不自动重放。
+
+Python SDK 的 stdio 适配器明确使用 UTF-8 读写，Windows 系统编码不影响中文页面与工具结果。
+
+#### 选择执行方式
+
+| 需求 | 接口 |
+| --- | --- |
+| 插件自己完成一次模型生成，或自行管理工具循环 | models / dialogues |
+| 运行插件代码、保存进度与检查点 | jobs |
+| 让 Nexus 的灵使用现有工具与审批独立完成工作 | work |
+| 转发用户实际发给主交流的消息 | chat.send |
+
+时间计算、关注目标、业务条件、外部数据接入和通知时机由插件实现；work 不解析这些业务，也不提供定时器。新插件在已有能力范围内组合即可，无须修改 Nexus。
+
+宿主内 Python 插件原有 `host.query('tasks.*')` 和 `host.command('task.pause/resume/cancel', ...)` 保留兼容；它们返回旧格式。`host.command('work.*')` 仍依赖当前工具调用的工作监督上下文，不是后台服务的创建入口。新插件统一使用 work 的工作摘要与来源归属，独立服务通过同名 SDK 接口调用。读取仍复用现有 TaskStore，控制仍复用 TaskController，没有第二套任务或事件存储。
+
+#### 独立于业务插件的用法
+
+以下代码用于已声明 `requires_host: {"work": 1}`、已就绪的插件或独立服务，无需主交流工具调用上下文：
+
+```python
+# 宿主内直接使用传入的 host；独立服务使用 HostClient()。
+host.capabilities.require(requires={'work': 1})
+cursor = host.work.events()['cursor']
+work = host.work.start(
+    request_id='project-review-001', goal='检查项目最近的改动，给出建议。',
+    report=False, source={'kind': 'project-review'},
+)
+state = host.work.get(task_id=work['id'], messages=True)
+# 后续检查使用保存的 cursor，处理后保存返回的新 cursor。
+events = host.work.events(after=cursor)
+# 插件决定需要回报时调用；工作没有完成时无需提前汇报。
+# host.work.report(task_id=work['id'], text='检查结果……', request_id='review-report-001')
+```
+
+```javascript
+const host = new HostClient();
+await host.capabilities.require({requires: {work: 1}});
+const work = await host.work.start({
+  request_id: 'project-review-001', goal: '检查项目最近的改动，给出建议。',
+  report: false, source: {kind: 'project-review'},
+});
+const state = await host.work.get({task_id: work.id, messages: true});
+```
+
+start 返回已接收的工作摘要，执行由宿主后台推进，不保证返回时已完成。插件自行保存工作 ID 和事件游标；不通过发送伪造用户消息触发工作，不调用宿主私有状态。
 
 ### models
 
@@ -240,10 +304,10 @@ POST 注入地址，Authorization: Bearer 注入凭据，JSON 为：
 
 成功 `{result:...}`；错误 HTTP 400、`{error:{code,message}}`，无效/已撤销凭据为 HTTP 401。凭据决定插件归属，不接受请求自行指定 owner。长操作由 SDK 调用 `operations.start({method,params})` 得到 operation_id，再读取 `operations.get/events` 或取消。独立语言实现应使用相同流程，避免同步 HTTP 的超时限制。
 
-操作事件按 seq 分页。开始、结果和错误会持久记录；主交流实时流只在内存保留最近1000个事件。插件加载期间只允许能力查询、配置及处理器注册，运行请求需等待 ready。
+操作事件按 seq 分页。开始、结果和错误会持久记录；主交流实时流只在内存保留最近1000个事件。插件加载期间允许能力查询、配置、处理器注册及 work 的只读查询，创建与控制工作需等待 ready。
 
 ## 管理与兼容
 
 宿主插件详情提供能力依赖、服务、作业和独立对话状态；可取消、重试和查看历史，不增加第二套用户聊天入口。请求记录可按插件、对话、作业、用途筛选。
 
-旧插件接口保留；旧包无须改写。SDK 示例不迁移记忆包、不接入QQ，不提供通用 Agent 执行或任意宿主工具授权。没有安装 Node.js 时，Node 示例加载会明确失败，不自动安装运行时。
+旧插件接口保留；旧包无须改写。SDK 示例不迁移记忆包、不接入QQ。models/dialogues 不自动执行工具；work 复用标准 Agent 执行与当前权限，不额外授予任意宿主工具权限。没有安装 Node.js 时，Node 示例加载会明确失败，不自动安装运行时。

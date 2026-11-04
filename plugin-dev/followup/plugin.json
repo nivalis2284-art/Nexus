@@ -1,0 +1,13 @@
+{
+  "id": "followup",
+  "name": "约定与关注",
+  "version": "0.1.0",
+  "api_version": 1,
+  "description": "按约定时间或指定工作事件，在后台执行并按需汇报。",
+  "entry": "backend.py:create_plugin",
+  "requires_host": {"work": 1, "ui": 1},
+  "capabilities": ["定时执行", "持续关注", "工作事件衔接"],
+  "dependencies": ["tzlocal>=5,<6", "tzdata>=2025.1"],
+  "services": [{"name": "worker", "command": "{python}", "args": ["{plugin}/worker.py", "{data}"], "model_tools": []}],
+  "pages": [{"id": "main", "title": "约定与关注", "renderer": "host", "ui_version": 1, "action": "ui"}]
+}

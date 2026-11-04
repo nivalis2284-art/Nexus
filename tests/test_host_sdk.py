@@ -22,6 +22,42 @@ from nexus.plugins.pages import declarations, validate_view
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.parametrize(('required', 'error'), [
+    ({'work': 1, 'ui': 1}, None),
+    ({'work': 2}, 'work v2（宿主为 v1）'),
+    ({'unavailable': 1}, 'unavailable v1（宿主未提供）'),
+    ({'work': True}, '整数版本'),
+    ([], '整数版本'),
+])
+def test_capability_contract_matches_manifest_and_runtime(manager, tmp_path, required, error):
+    path = tmp_path / 'capability-check'
+    path.mkdir()
+    (path / 'plugin.json').write_text(json.dumps({'id': 'check', 'requires_host': required}), encoding='utf-8')
+    host = PluginHost(manager, 'test')
+    assert host.capabilities.describe()['sdk_version'] == '1.2.0'
+    assert host.capabilities.describe()['capabilities']['work'] == 1
+    checks = (lambda: PluginManager.read_manifest(path),
+              lambda: host.capabilities.require(requires=required))
+    for check in checks:
+        if error:
+            with pytest.raises(ValueError) as caught:
+                check()
+            assert error in str(caught.value)
+        else:
+            assert check()
+
+
+def test_manifest_missing_work_explains_host_upgrade(tmp_path, monkeypatch):
+    from nexus.plugins.host import CAPABILITIES
+    monkeypatch.delitem(CAPABILITIES, 'work')
+    (tmp_path / 'plugin.json').write_text(json.dumps({'id': 'check', 'requires_host': {'work': 1}}), encoding='utf-8')
+    with pytest.raises(ValueError) as caught:
+        PluginManager.read_manifest(tmp_path)
+    message = str(caught.value)
+    assert 'work v1（宿主未提供）' in message
+    assert '重启' in message and '仅更新插件或 SDK 客户端无效' in message
+
+
 def test_host_page_protocol_rejects_unsupported_content():
     declarations([{'path': 'index.html'}, {'id': 'new', 'renderer': 'host', 'ui_version': 1, 'action': 'ui'}])
     with pytest.raises(ValueError, match='版本'):

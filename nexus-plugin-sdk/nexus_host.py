@@ -1,4 +1,4 @@
-"""Nexus Host SDK 1.1.0. Python 3.12 standard library; works outside the host."""
+"""Nexus Host SDK 1.2.0. Python 3.12 standard library; works outside the host."""
 import contextvars
 import json
 import os
@@ -7,7 +7,7 @@ import time
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
-SDK_VERSION = '1.1.0'
+SDK_VERSION = '1.2.0'
 _context = contextvars.ContextVar('nexus_service_context', default=None)
 _job = contextvars.ContextVar('nexus_job_context', default=None)
 
@@ -77,6 +77,8 @@ def serve(tools, handlers, initialize=None):
     """Small stdio MCP adapter, including caller context propagation for service cycles."""
     import sys
     from concurrent.futures import ThreadPoolExecutor
+    sys.stdin.reconfigure(encoding='utf-8')
+    sys.stdout.reconfigure(encoding='utf-8')
     lock=threading.Lock()
     def respond(message):
         if 'id' not in message:return

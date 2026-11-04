@@ -407,6 +407,14 @@ class LingInbox:
     def collect_reports(self):
         # One durable inbox key per work event also covers a crash between enqueue and acknowledgement.
         for report in self.store.notifications(unread_only=True, limit=100):
+            manager = self.state.get('plugins')
+            runtime = getattr(manager, '_host_runtime', None)
+            binding = runtime.work.binding(report['task_id']) if runtime else None
+            if binding:
+                report.update(plugin_id=binding['plugin_id'], plugin_source=binding['source'])
+                if report['kind'] == 'completed' and not binding['report']:
+                    self.store.ack_notification(report['id'])
+                    continue
             if not self._report_current(report):
                 self.store.ack_notification(report["id"])
                 continue
