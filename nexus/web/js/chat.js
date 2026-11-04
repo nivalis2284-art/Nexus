@@ -4,7 +4,7 @@
 'use strict';
 
 (function (N) {
-  const { $, $$, esc, icon, anim, SP, EASE_OUT, state } = N;
+  const { $, $$, esc, icon, anim, SP, EASE_ENTER: EASE_OUT, state } = N;
   const thread = $('#thread');
   const conv = $('#conversation');
   const input = $('#input');
@@ -279,8 +279,6 @@
         ol.className = 'spine';
         ol.innerHTML = item.spine.map(([t, d], i) => `<li><span class="n">${String(i + 1).padStart(2, '0')}</span><div><strong>${esc(t)}</strong><p>${esc(d)}</p></div></li>`).join('');
         wrap.appendChild(ol);
-        if (!N.REDUCED) $$('li', ol).forEach((li, i) => anim(li, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }],
-          { duration: N.DUR.move, delay: 90 + i * 80, easing: EASE_OUT, fill: 'backwards' }));
       }
       const w = item.workId && byId(item.workId);
       if (w && item.card === 'result') wrap.insertAdjacentHTML('beforeend', resultCard(w));
@@ -444,7 +442,7 @@
         body.replaceChild(el, old);
       } else {
         body.appendChild(el);
-        if (!N.REDUCED) anim(el, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: N.DUR.base, easing: EASE_OUT });
+        if (!N.REDUCED) N.enterItems([el], conv, { profile: 'content' });
       }
       existing.delete(step.key);
     });
@@ -496,9 +494,11 @@
     const visible = [...thread.children].filter(n => {
       const r = n.getBoundingClientRect(); return r.bottom > rect.top + 76 && r.top < rect.bottom;
     });
-    N.enterItems(visible, conv);
-    anim($('#composer-wrap'), [{ opacity: 0, transform: `translateY(${N.MOTION.offset}px)` }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.enter, delay: N.MOTION.stagger * 2, easing: EASE_OUT, fill: 'backwards' });
+    const hero = $('.hero', thread);
+    const messages = hero ? $$('.hero-kicker, h1, .hero-sub, .chips', hero) : visible;
+    const requests = $$('.req-card, .qrow', $('#view-chat'));
+    requests.forEach(el => { el.style.animation = 'none'; });
+    N.enterItems([...requests, ...messages, $('#composer-wrap')], $('#view-chat'));
   }
 
   /* 身份稳定的节点就地更新，快照与实时输出共享同一条记录。 */
@@ -537,8 +537,8 @@
         node.dataset.key = entry.key;
         node._text = entry.item?.text;
         if (!N.REDUCED && !entering && !force && !sendLayout) anim(node,
-          [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
-          { duration: 220, easing: EASE_OUT });
+          [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }],
+          { duration: N.DUR.enter, easing: EASE_OUT });
       } else if (node._sig !== sig) {
         if (entry.type === 'phase') updatePhase(node, entry);
         else updateMessage(node, entry.item);
@@ -630,7 +630,7 @@
               field?.setSelectionRange(focused.selectionStart, focused.selectionEnd);
             }
             fresh.style.animation = 'none';
-          } else fresh.style.animationDelay = (added++ * 45 * N.motionScale()) + 'ms';
+          } else fresh.style.animationDelay = (Math.min(added++ * N.MOTION.contentStagger, N.MOTION.contentWindow) * N.motionScale()) + 'ms';
           card = fresh;
           card._questions = JSON.stringify(request.value.payload?.questions);
         }
@@ -741,8 +741,16 @@
   function resolveCard(id) {
     const card = document.querySelector(`.req-card[data-req="${CSS.escape(id)}"]`);
     if (!card || N.REDUCED) { renderRequests(); return; }
-    card.classList.add('resolving');
-    setTimeout(() => { reqSig = ''; renderRequests(); }, 300);
+    const bounds = card.getBoundingClientRect(), ghost = card.cloneNode(true);
+    ghost.inert = true; ghost.setAttribute('aria-hidden', 'true');
+    $$('[id]', ghost).forEach(el => el.removeAttribute('id'));
+    Object.assign(ghost.style, { position: 'fixed', left: bounds.x + 'px', top: bounds.y + 'px', width: bounds.width + 'px', height: bounds.height + 'px', zIndex: 32, pointerEvents: 'none', animation: 'none' });
+    document.body.appendChild(ghost);
+    card.style.visibility = 'hidden';
+    anim(ghost, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-8px)' }],
+      { duration: N.DUR.exit, easing: N.EASE_EXIT }).onfinish = () => {
+        ghost.remove(); card.style.visibility = ''; reqSig = ''; renderRequests();
+      };
   }
 
   async function answerRequest(id) {
@@ -865,7 +873,7 @@
         if (!row) {
           row = document.createElement('div'); row.className = 'qrow'; row.dataset.id = id;
           row.innerHTML = `<i class="qdot"></i><span class="qtext"></span><span class="qstatus"></span><button class="qclose" type="button" data-act="dismiss-input" aria-label="关闭输入失败提示">${icon('close', 'i xs')}</button>`;
-          row.style.animationDelay = (index * 35 * N.motionScale()) + 'ms';
+          row.style.animationDelay = (index * N.MOTION.contentStagger * N.motionScale()) + 'ms';
         }
         row.dataset.status = q.status;
         const close = $('.qclose', row);
@@ -952,13 +960,13 @@
       renderUsage();
       if (!N.REDUCED) {
         N.anim(panel, [{ opacity: 0, transform: 'translateY(9px) scale(.93)' }, { opacity: 1, transform: 'none' }],
-          { duration: N.SP.settle.d, easing: N.SP.settle.e });
+          { duration: N.DUR.content, easing: N.EASE_ENTER });
       }
     } else {
       const done = () => { panel.hidden = true; panel.getAnimations().forEach(a => a.cancel()); };
       if (N.REDUCED) done();
       else N.anim(panel, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(6px) scale(.97)' }],
-        { duration: N.DUR.fast, easing: 'ease-in', fill: 'forwards' }).onfinish = done;
+        { duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' }).onfinish = done;
     }
     $$('#stat-tokens').forEach(b => b.setAttribute('aria-expanded', String(!panel.hidden && b === anchor)));
   }
@@ -972,7 +980,7 @@
       el.hidden = false;
       if (!N.REDUCED) {
         el._motion = N.anim(el, [{ opacity: 0, transform: 'translateX(-50%) translateY(8px)' }, { opacity: 1, transform: 'translateX(-50%)' }],
-          { duration: N.DUR.move, easing: N.SP.settle.e });
+          { duration: N.DUR.content, easing: N.EASE_ENTER });
       }
       return;
     }
@@ -1239,7 +1247,7 @@
       $$('[id]', ghost).forEach(n => n.removeAttribute('id'));
       document.body.appendChild(ghost);
       anim(ghost, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-8px)' }],
-        { duration: 220, easing: EASE_OUT }).onfinish = () => ghost.remove();
+        { duration: N.DUR.exit, easing: N.EASE_EXIT }).onfinish = () => ghost.remove();
     }
     view.classList.remove('is-empty');
     thread.innerHTML = '';
@@ -1264,7 +1272,7 @@
     for (const [node, from, to] of positions) {
       if (!node.isConnected || Math.abs(from.y - to.y) < .5 || node !== $('#composer-wrap') && Math.abs(from.y - to.y) > conv.clientHeight) continue;
       node._sendMotion?.cancel();
-      node._sendMotion = anim(node, [{ transform: `translateY(${from.y - to.y}px)` }, { transform: 'none' }], { duration: 280, easing: EASE_OUT });
+      node._sendMotion = anim(node, [{ transform: `translateY(${from.y - to.y}px)` }, { transform: 'none' }], { duration: N.DUR.move, easing: N.EASE_MOVE });
     }
     if (!bubble) return;
     if (before.text) {
@@ -1273,10 +1281,10 @@
       Object.assign(ghost.style, { left: before.source.x + 'px', top: before.source.y + 'px', width: before.source.width + 'px', maxHeight: before.source.height + 'px' });
       document.body.appendChild(ghost);
       anim(ghost, [{ opacity: .85, transform: 'none' }, { opacity: 0, transform: `translate(${target.x - before.source.x}px, ${target.y - before.source.y}px)` }],
-        { duration: 280, easing: EASE_OUT }).onfinish = () => ghost.remove();
+        { duration: N.DUR.move, easing: N.EASE_MOVE }).onfinish = () => ghost.remove();
     }
-    anim(bubble, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
-      { duration: 200, delay: 80, easing: EASE_OUT, fill: 'backwards' });
+    anim(bubble, [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }],
+      { duration: N.DUR.content, delay: N.MOTION.stagger * 2, easing: EASE_OUT, fill: 'backwards' });
   }
 
   /* ---------------------------------------------------------------- 附件 */
@@ -1400,7 +1408,7 @@
     const h = node.offsetHeight;
     node.style.overflow = 'hidden';
     N.anim(node, [{ opacity: 1, height: h + 'px' }, { opacity: 0, height: '0px', transform: 'scale(.97)' }],
-      { duration: N.DUR.move, easing: N.EASE_OUT }).onfinish = () => { node.style.overflow = ''; renderChat(); };
+      { duration: N.DUR.exit, easing: N.EASE_EXIT }).onfinish = () => { node.style.overflow = ''; renderChat(); };
   }
 
   async function deleteItem(key) {

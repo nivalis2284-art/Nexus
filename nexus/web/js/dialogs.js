@@ -4,21 +4,28 @@
 'use strict';
 
 (function (N) {
-  const { $, $$, esc, icon, anim, SP, EASE_OUT } = N;
+  const { $, $$, esc, icon, anim } = N;
 
   /* ---------------------------------------------------------------- 通用菜单 */
   const menu = $('#menu');
   let menuAnchor = null;
   function closeMenu(instant) {
-    if (!menuAnchor) return;
-    menuAnchor.setAttribute('aria-expanded', 'false');
+    if (!menuAnchor && !instant) return;
+    menuAnchor?.setAttribute('aria-expanded', 'false');
     menuAnchor = null;
-    if (instant || N.REDUCED) { menu.hidden = true; return; }
-    menu.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(6px) scale(.96)' }],
-      { duration: N.DUR.fast * N.motionScale(), easing: 'ease-in' }).onfinish = () => { if (!menuAnchor) menu.hidden = true; };
+    if (instant || N.REDUCED) { menu._surfaceMotion?.cancel(); N.cancelMotion(menu); menu.hidden = true; return; }
+    const current = getComputedStyle(menu);
+    const from = { opacity: current.opacity, transform: current.transform };
+    menu._surfaceMotion?.cancel();
+    N.exitItems([...menu.children], menu);
+    const motion = anim(menu, [from, { opacity: 0, transform: 'translateY(8px) scale(.98)' }],
+      { duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });
+    menu._surfaceMotion = motion;
+    motion.onfinish = () => { if (!menuAnchor && menu._surfaceMotion === motion) { menu.hidden = true; N.cancelMotion(menu); motion.cancel(); } };
   }
   function openMenu(anchor, items, opts = {}) {
     if (menuAnchor === anchor) { closeMenu(); return; }
+    const previous = menu.hidden ? null : { opacity: getComputedStyle(menu).opacity, transform: getComputedStyle(menu).transform };
     closeMenu(true);
     menuAnchor = anchor;
     anchor.setAttribute('aria-expanded', 'true');
@@ -41,10 +48,9 @@
     menu.style.top = top + 'px';
     menu.style.setProperty('--ox', (r.left + r.width / 2 - left) + 'px');
     menu.style.setProperty('--oy', (top > r.top ? '0%' : '100%') );
-    anim(menu, [{ opacity: 0, transform: 'translateY(9px) scale(.9)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.enter, easing: N.EASE_OUT });
-    $$('button', menu).forEach((b, i) => anim(b, [{ opacity: 0, transform: 'translateY(5px)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.base, delay: 20 + i * 24, easing: EASE_OUT, fill: 'backwards' }));
+    menu._surfaceMotion = anim(menu, [previous || { opacity: 1, transform: 'translateY(12px) scale(.98)' }, { opacity: 1, transform: 'none' }],
+      { duration: N.DUR.content, easing: N.EASE_ENTER });
+    N.enterItems([...menu.children], menu, { profile: 'float' });
     menu.onclick = e => {
       const b = e.target.closest('button[data-i]');
       if (!b) return;
@@ -71,9 +77,7 @@
     $('#editor-error').textContent = '';
     $('#editor-save').textContent = submitLabel;
     dlg.dataset.size = confirm ? 'small' : 'medium';
-    dlg.showModal();
-    anim(dlg, [{ opacity: 0, transform: 'translateY(22px) scale(.92)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.enter, easing: N.EASE_OUT });
+    openDialog(dlg);
     (confirm ? $('.btn.ghost', dlg) : area).focus();
     return new Promise(resolve => {
       resolveEdit = resolve;
@@ -135,9 +139,7 @@
     loading.className = 'fp-loading';
     loading.textContent = '正在读取…';
     fpBody.appendChild(loading);
-    if (!fp.open) fp.showModal();
-    anim(fp, [{ opacity: 0, transform: 'translateY(20px) scale(.93)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.enter, easing: N.EASE_OUT });
+    openDialog(fp);
 
     let text = '';
     try {
@@ -166,6 +168,7 @@
       pre.appendChild(row);
     });
     fpBody.appendChild(pre);
+    N.cascade?.(fpBody);
     if (line) setTimeout(() => $('.fp-line.target', fpBody)?.scrollIntoView({ block: 'center' }), 40);
   }
 
@@ -178,46 +181,45 @@
     img.src = url;
     img.alt = name;
     fpBody.appendChild(img);
-    if (!fp.open) fp.showModal();
-    anim(fp, [{ opacity: 0, transform: 'translateY(20px) scale(.93)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.enter, easing: N.EASE_OUT });
+    openDialog(fp);
   }
 
   /* ---------------------------------------------------------------- 关闭委托 */
   function openDialog(d) {
-    if (!d || d.open) return;
-    d.showModal();
-    anim(d, [{ opacity: 0, transform: 'translateY(24px) scale(.92)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.enter, easing: N.EASE_OUT });
+    if (!d || d.open && !d._closing) return;
+    const from = d.open ? { opacity: getComputedStyle(d).opacity, transform: getComputedStyle(d).transform }
+      : { opacity: 1, transform: 'translateY(24px) scale(.97)' };
+    d._surfaceMotion?.cancel();
+    d._closing = false;
+    d.classList.remove('is-closing');
+    if (!d.open) d.showModal();
+    d._surfaceMotion = anim(d, [from, { opacity: 1, transform: 'none' }],
+      { duration: N.DUR.enter, easing: N.EASE_ENTER });
+    const body = $('.sheet-body', d) || $('form', d) || d;
+    N.enterItems([...body.children], d, { profile: 'float' });
   }
 
   function closeDialog(d) {
     if (!d || !d.open || d._closing) return;
-    if (N.REDUCED) { d.close(); return; }
+    if (N.REDUCED) { d._surfaceMotion?.cancel(); N.cancelMotion(d); d.close(); return; }
     d._closing = true;
     d.classList.add('is-closing');
     const current = getComputedStyle(d);
-    const opacity = current.opacity, transform = current.transform;
-    d.getAnimations().forEach(a => { try { a.cancel(); } catch (_) {} });
-    d.style.opacity = opacity;
-    d.style.transform = transform;
-    const ms = Math.round(N.DUR.base * N.motionScale());
-    const ease = 'cubic-bezier(.4,0,.75,.2)';
-    /* 入场是 WAAPI，退场用 transition：两者同时挂在 opacity 上会互相抢占。 */
-    d.style.transition = `opacity ${ms}ms ${ease}, transform ${ms}ms ${ease}`;
-    void d.offsetWidth;
-    d.style.opacity = '0';
-    d.style.transform = 'translateY(9px) scale(.972)';
-    const done = () => {
+    const from = { opacity: current.opacity, transform: current.transform };
+    d._surfaceMotion?.cancel();
+    const body = $('.sheet-body', d) || $('form', d) || d;
+    N.exitItems([...body.children], d);
+    const motion = anim(d, [from, { opacity: 0, transform: 'translateY(8px) scale(.98)' }],
+      { duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });
+    d._surfaceMotion = motion;
+    motion.onfinish = () => {
+      if (d._surfaceMotion !== motion) return;
       d._closing = false;
       d.classList.remove('is-closing');
-      d.style.transition = '';
-      d.style.opacity = '';
-      d.style.transform = '';
       d.close();
-      d.getAnimations().forEach(a => { try { a.cancel(); } catch (_) {} });
+      N.cancelMotion(d);
+      motion.cancel();
     };
-    setTimeout(done, ms + 20);
   }
 
   document.addEventListener('click', e => {

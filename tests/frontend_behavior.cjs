@@ -27,9 +27,11 @@ function page({ hooks = [], respond } = {}) {
     state: { sessionId: 's1', works: [], files: [], items: [], queue: [], requests: [],
       plugins: [], modelRequests: [], pending: [], replying: false },
     $, $$: () => [], esc: String, icon: () => '', REDUCED: true, DUR: {}, SP: { settle: {} },
+    MOTION: { contentStagger: 40, contentWindow: 160 },
     uid: () => 'request-' + ++uid, nowHM: () => '12:00', fmtSize: String,
     shortPath: String, fmtNum: String, anim() {}, save() {}, notify() {},
     moveInk() {}, refreshIsland() {}, renderStatus() {}, composeItems() {},
+    openDialog(dialog) { dialog.showModal(); }, enterItems() {}, cancelMotion() {},
   };
   const document = {
     body: { appendChild() {} },
@@ -217,34 +219,41 @@ test('multiline input only changes layout when its measured height changes', () 
   assert.equal(changes.includes('auto'), false);
 });
 
-test('page entrances share CSS timing, visible-item limits and theme-independent speed', () => {
+test('page entrances share CSS timing, bounded stagger and theme-independent speed', () => {
   const css = fs.readFileSync(path.join(__dirname, '../nexus/web/css/tokens.css'), 'utf8');
   const values = Object.fromEntries([...css.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(m => [m[1], m[2]]));
   const root = { dataset: { palette: 'jade', theme: 'night' }, style: { setProperty() {} } };
   let reduce;
   const context = vm.createContext({ window: {}, document: { documentElement: root },
     matchMedia: () => ({ matches: false, addEventListener: (_type, callback) => { reduce = callback; } }),
-    getComputedStyle: () => ({ getPropertyValue: name => values[name] || '' }),
+    getComputedStyle: () => ({ opacity: '1', transform: 'none', filter: 'none', getPropertyValue: name => values[name] || '' }),
+    innerWidth: 1440, innerHeight: 1000,
     CSS: { supports: () => true }, localStorage: { getItem: () => null }, setTimeout() {}, clearTimeout() {},
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../nexus/web/js/core.js'), 'utf8'), context);
   const N = context.window.N, calls = [];
   const nodes = Array.from({ length: 12 }, (_, i) => ({
-    getBoundingClientRect: () => ({ top: i < 2 ? -100 : i * 20, bottom: i < 2 ? -60 : i * 20 + 16, width: 200, height: 16 }),
+    getBoundingClientRect: () => ({ top: i < 2 ? -100 : i * 20, bottom: i < 2 ? -60 : i * 20 + 16, left: 0, right: 200, width: 200, height: 16 }),
+    closest: () => null, matches: () => false,
     animate(_frames, options) { calls.push(options); return { cancel() {} }; },
   }));
-  const viewport = { getBoundingClientRect: () => ({ top: 0, bottom: 300 }) };
+  const viewport = { getBoundingClientRect: () => ({ top: 0, bottom: 300, left: 0, right: 1440 }) };
   N.enterItems(nodes, viewport);
-  assert.equal(N.DUR.micro, 120);
-  assert.equal(calls.length, 8);
-  calls.forEach((call, i) => { assert.equal(call.duration, 240); assert.equal(call.delay, i * 24); });
+  assert.equal(N.DUR.micro, 160);
+  assert.equal(calls.length, 10);
+  calls.forEach((call, i) => {
+    assert.equal(call.duration, 560);
+    assert.equal(call.delay, Math.min(i * 70, 280));
+    assert.equal(call.easing, N.EASE_ENTER);
+  });
   const curve = N.SP.soft.e;
   root.dataset.palette = 'cool'; N.rebuildSprings();
   assert.equal(N.SP.soft.e, curve);
   assert.equal(N.motionScale(), 1);
   N.setMotionScale('0.5');
   calls.length = 0; N.enterItems(nodes, viewport);
-  assert.equal(calls[0].duration, 240 * .68);
+  assert.equal(calls[0].duration, 560 * .68);
+  assert.equal(calls[1].delay, 70 * .68);
   reduce({ matches: true }); calls.length = 0; N.enterItems(nodes, viewport);
   assert.equal(calls.length, 0);
 });

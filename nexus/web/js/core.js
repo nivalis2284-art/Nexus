@@ -32,9 +32,14 @@ window.N = window.N || {};
   /* 统一时长阶梯：微交互 / 小元素 / 卡片与折叠 / 页面与弹窗 */
   const tokenStyle = getComputedStyle(document.documentElement);
   const numberToken = name => parseFloat(tokenStyle.getPropertyValue(name));
-  const DUR = Object.fromEntries(['fast', 'micro', 'base', 'move', 'enter'].map(name => [name, numberToken('--duration-' + name)]));
-  const MOTION = { stagger: numberToken('--enter-stagger'), limit: numberToken('--enter-limit'),
-    offset: numberToken('--enter-offset'), theme: numberToken('--duration-theme') };
+  const DUR = Object.fromEntries(['fast', 'micro', 'base', 'content', 'move', 'enter', 'exit', 'fade', 'text'].map(name => [name, numberToken('--duration-' + name)]));
+  const EASE_ENTER = tokenStyle.getPropertyValue('--ease-enter').trim();
+  const EASE_MOVE = tokenStyle.getPropertyValue('--ease-move').trim();
+  const EASE_EXIT = tokenStyle.getPropertyValue('--ease-exit').trim();
+  const MOTION = { stagger: numberToken('--enter-stagger'), contentStagger: numberToken('--content-stagger'),
+    window: numberToken('--enter-window'), contentWindow: numberToken('--content-window'),
+    offset: numberToken('--enter-offset'), contentOffset: numberToken('--content-offset'),
+    floatOffset: numberToken('--float-offset'), theme: numberToken('--duration-theme') };
   rmq.addEventListener?.('change', e => { REDUCED = e.matches; buildSprings(); });
 
   /* ---------------------------------------------------------------- 弹簧 */
@@ -63,7 +68,7 @@ window.N = window.N || {};
       soft: spring({ stiffness: 230, damping: 20 }),
       island: spring({ stiffness: 410, damping: 24 }),
       pop: spring({ stiffness: 590, damping: 25 }),
-      settle: spring({ stiffness: 490, damping: 23 }),
+      settle: spring({ stiffness: 490, damping: 34 }),
     };
     for (const k in base) SP[k] = { e: base[k].e, d: base[k].d };
     if (REDUCED) for (const k in SP) SP[k] = { e: 'ease', d: 1 };
@@ -82,22 +87,72 @@ window.N = window.N || {};
     buildSprings();
   }
   const anim = (el, kf, o = {}) => {
-    if (REDUCED) return el.animate(kf, { ...o, duration: 1, delay: 0 });
+    if (REDUCED) return el.animate(kf, { easing: EASE_MOVE, ...o, duration: 1, delay: 0 });
     const s = motionScale();
-    return el.animate(kf, { ...o, duration: (o.duration || 0) * s, delay: (o.delay || 0) * s });
+    return el.animate(kf, { easing: EASE_MOVE, ...o, duration: (o.duration || 0) * s, delay: (o.delay || 0) * s });
   };
 
-  function enterItems(elements, viewport) {
-    if (REDUCED) return;
+  function visibleItems(elements, viewport) {
     const bounds = viewport.getBoundingClientRect();
-    const visible = elements.filter(el => {
+    return elements.filter(el => {
       const rect = el.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0 && rect.bottom > bounds.top && rect.top < bounds.bottom;
-    }).slice(0, MOTION.limit);
-    visible.forEach((el, i) => {
-      el._enterMotion?.cancel();
-      el._enterMotion = anim(el, [{ opacity: 0, transform: `translateY(${MOTION.offset}px)` }, { opacity: 1, transform: 'none' }],
-        { duration: DUR.enter, delay: i * MOTION.stagger, easing: EASE_OUT, fill: 'backwards' });
+      return rect.width > 0 && rect.height > 0 && rect.bottom > Math.max(0, bounds.top) && rect.top < Math.min(innerHeight, bounds.bottom)
+        && rect.right > Math.max(0, bounds.left) && rect.left < Math.min(innerWidth, bounds.right);
+    });
+  }
+
+  function cancelMotion(root) {
+    for (const el of [root, ...root.querySelectorAll('*')]) {
+      el._enterMotion?.cancel(); el._exitMotion?.cancel();
+      el._enterMotion = el._exitMotion = null;
+    }
+  }
+
+  function enterItems(elements, viewport, { profile = 'page', delay = 0, duration } = {}) {
+    const visible = visibleItems(elements, viewport);
+    const groups = new Map();
+    const page = profile === 'page', floating = profile === 'float';
+    const floatPhase = el => el.matches('header, h2, .sheet-head, .isl-head, .det-head') ? 1
+      : el.matches('footer, .sheet-foot, .save-bar, .isl-actions, .isl-foot, .det-foot') ? 3 : 2;
+    visible.forEach(el => {
+      const group = floating ? floatPhase(el) : page ? el.closest('.page-head, .skill-grid, .plug-list, .work-group-body, .ctx-roles') || el : viewport;
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group).push(el);
+    });
+    return [...groups.values()].flatMap((items, groupIndex) => items.map((el, i) => {
+      const running = [el._enterMotion, el._exitMotion].some(a => a && a.playState !== 'finished' && a.playState !== 'idle');
+      const current = getComputedStyle(el);
+      const start = running ? { opacity: current.opacity, transform: current.transform } : null;
+      const filter = current.filter;
+      el._enterMotion?.cancel(); el._exitMotion?.cancel(); el._exitMotion = null;
+      if (REDUCED) { el._enterMotion = null; return null; }
+      const card = page && el.matches('.card, .work-item, .plug-item, .ctx-sec, .work-quiet');
+      const offset = floating ? MOTION.floatOffset : card ? MOTION.offset : MOTION.contentOffset;
+      const step = Math.min(MOTION.contentStagger, MOTION.contentWindow / Math.max(1, items.length - 1));
+      let wait = delay + (page ? Math.min(groupIndex * MOTION.stagger, MOTION.window) : 0) + i * step;
+      if (floating) wait += floatPhase(el) * MOTION.stagger;
+      const from = start || { opacity: 0, transform: `translateY(${offset}px) scale(${card ? .99 : 1})` };
+      if (floating) from.filter = running ? filter : 'blur(4px)';
+      const to = { opacity: 1, transform: 'none', ...(floating ? { filter: 'none' } : {}) };
+      const motion = anim(el, [from, to], { duration: duration ?? (page ? DUR.enter : DUR.content), delay: wait, easing: EASE_ENTER, fill: 'backwards' });
+      el._enterMotion = motion;
+      const clear = () => { if (el._enterMotion === motion) el._enterMotion = null; };
+      motion.onfinish = motion.oncancel = clear;
+      return motion;
+    })).filter(Boolean);
+  }
+
+  function exitItems(elements, viewport) {
+    return visibleItems(elements, viewport).map(el => {
+      const current = getComputedStyle(el);
+      const from = { opacity: current.opacity, transform: current.transform };
+      el._enterMotion?.cancel(); el._exitMotion?.cancel(); el._enterMotion = null;
+      const phase = el.matches('footer, .sheet-foot, .save-bar, .isl-actions, .composer-wrap, .btn, .tabs, .seg, [class*="toolbar"]') ? 0
+        : el.matches('header, h1, h2, .page-head, .isl-head, .det-head') || el.closest('.page-head') ? 2 : 1;
+      const motion = anim(el, [from, { opacity: 0, transform: `${from.transform === 'none' ? '' : from.transform} translateY(-8px)` }],
+        { duration: DUR.micro, delay: phase * 30, easing: EASE_EXIT, fill: 'forwards' });
+      el._exitMotion = motion;
+      return motion;
     });
   }
 
@@ -145,13 +200,13 @@ window.N = window.N || {};
           borderRadius: '24px',
         });
       }
-      ink.animate(frames, { duration: (360 + Math.min(120, Math.abs(pos - p0) * .4)) * motionScale(), easing: 'linear' });
+      anim(ink, frames, { duration: DUR.move, easing: 'linear' });
       return;
     }
     ink.animate([
       { transform: `${P}(${p0}px)`, [S]: s0 + 'px' },
       { transform: `${P}(${pos}px)`, [S]: size + 'px' },
-    ], { duration: DUR.move * motionScale(), easing: EASE_OUT });
+    ], { duration: DUR.move * motionScale(), easing: EASE_MOVE });
   }
 
   /* ---------------------------------------------------------------- 格式 */
@@ -179,9 +234,10 @@ window.N = window.N || {};
   function countUp(el, to, dur = 700) {
     if (!el) return;
     if (REDUCED) { el.textContent = String(to); return; }
+    el.textContent = '0';
     const start = performance.now();
     const tick = now => {
-      const t = Math.min(1, (now - start) / dur);
+      const t = clamp((now - start) / dur, 0, 1);
       el.textContent = String(Math.round(to * (1 - Math.pow(1 - t, 3))));
       if (t < 1) requestAnimationFrame(tick);
     };
@@ -402,8 +458,9 @@ window.N = window.N || {};
 
   N.$ = $; N.$$ = $$; N.esc = esc; N.icon = icon; N.wait = wait; N.uid = uid;
   N.clone = clone; N.clamp = clamp; N.EASE_OUT = EASE_OUT;
+  N.EASE_ENTER = EASE_ENTER; N.EASE_MOVE = EASE_MOVE; N.EASE_EXIT = EASE_EXIT;
   N.SP = SP; N.anim = anim; N.moveInk = moveInk; N.rebuildSprings = buildSprings;
-  N.MOTION = MOTION; N.enterItems = enterItems;
+  N.MOTION = MOTION; N.enterItems = enterItems; N.exitItems = exitItems; N.cancelMotion = cancelMotion;
   N.motionScale = motionScale; N.setMotionScale = setMotionScale; N.MOTION_SCALES = MOTION_SCALES;
   N.MOTION_LEVELS = MOTION_LEVELS; N.MOTION_LABELS = MOTION_LABELS; N.MOTION_ALIAS = MOTION_ALIAS; N.DUR = DUR;
   N.THEMES = THEMES;

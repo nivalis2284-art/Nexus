@@ -511,13 +511,13 @@ body[data-mood="waiting"],
   100% { opacity: 0; }
 }
 
-.send.ready { animation: send-ready calc(.38s * var(--motion)) var(--sp-bouncy); }
+.send.ready { animation: send-ready calc(var(--duration-base) * var(--motion)) var(--ease-enter); }
 @keyframes send-ready {
   0% { transform: scale(.9); }
-  60% { transform: scale(1.06); }
+  65% { transform: scale(1.025); }
   100% { transform: scale(1); }
 }
-.ret-chip button { animation: chip-in calc(.3s * var(--motion)) var(--sp-bouncy) both; }
+.ret-chip button { animation: chip-in calc(var(--duration-content) * var(--motion)) var(--ease-enter) both; }
 @keyframes chip-in {
   from { opacity: 0; transform: translateY(6px) scale(.92); }
   to { opacity: 1; transform: none; }
@@ -546,7 +546,7 @@ html[data-theme][data-palette="jade"] .dock::after {
 
 /* 长按沿用星枢的线色反馈，不额外增加光晕。 */
 [data-palette="jade"] .orb-stage :is(.pv-rim, .pv-jade-vernier, .pv-arc.front) {
-  transition: stroke var(--d-3), opacity var(--d-3);
+  transition: stroke var(--d-3), opacity var(--d-2);
 }
 html[data-palette="jade"] .orb-stage.is-grasped :is(.pv-rim, .pv-jade-vernier, .pv-arc.front) {
   stroke: var(--jade);

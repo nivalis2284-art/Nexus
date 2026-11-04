@@ -23,10 +23,14 @@
   --dialog-width-medium: 880px; --dialog-height-medium: 80dvh;
   --dialog-width-large: 1120px; --dialog-height-large: 88dvh;
   --dialog-gutter: 16px;
-  --duration-fast: 96ms; --duration-micro: 120ms; --duration-base: 200ms;
-  --duration-move: 240ms; --duration-enter: 240ms;
-  --duration-fade: 220ms; --duration-text: 140ms; --duration-theme: 850ms;
-  --enter-stagger: 24ms; --enter-limit: 8; --enter-offset: 8px;
+  --duration-fast: 96ms; --duration-micro: 160ms; --duration-base: 240ms;
+  --duration-content: 420ms; --duration-move: 560ms; --duration-enter: 560ms;
+  --duration-exit: 220ms; --duration-fade: 320ms; --duration-text: 200ms; --duration-theme: 850ms;
+  --ease-enter: cubic-bezier(.22,0,.2,1);
+  --ease-move: cubic-bezier(.4,0,.2,1);
+  --ease-exit: cubic-bezier(.4,0,1,1);
+  --enter-stagger: 70ms; --content-stagger: 40ms; --content-window: 160ms;
+  --enter-window: 280ms; --enter-offset: 24px; --content-offset: 16px; --float-offset: 12px;
   --temper: 1;
   --d-0: calc(var(--duration-fast) * var(--motion));
   --d-1: calc(var(--duration-micro) * var(--motion));

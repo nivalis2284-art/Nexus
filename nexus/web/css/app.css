@@ -103,9 +103,9 @@ button:disabled:hover { transform: none; }
 .qrow {
   display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3) var(--space-2) var(--space-3);
   border-radius: var(--r-ctrl); background: var(--card); box-shadow: var(--sh-1), inset 0 0 0 1px var(--line);
-  font-size: var(--text-caption); color: var(--ink-2); animation: q-in calc(.36s * var(--motion)) var(--ease-out) both;
+  font-size: var(--text-caption); color: var(--ink-2); animation: q-in calc(var(--duration-content) * var(--motion)) var(--ease-enter) both;
 }
-@keyframes q-in { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes q-in { from { opacity: 0; transform: translateY(-16px); } }
 .qdot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-4); flex: none; }
 .qrow[data-status="running"] .qdot { background: var(--jade); box-shadow: 0 0 0 3px var(--jade-soft); animation: breathe 1.4s infinite; }
 .qrow[data-status="queued"] .qdot, .qrow[data-status="pending"] .qdot { background: var(--jade); opacity: .55; }
@@ -126,11 +126,11 @@ button:disabled:hover { transform: none; }
 .req-card {
   position: relative; overflow: hidden; padding: var(--space-4) var(--space-5) var(--space-4) var(--space-5); margin-bottom: var(--space-2);
   border-radius: var(--r-card); background: var(--card); box-shadow: var(--sh-2), inset 0 0 0 1px var(--line);
-  animation: req-in calc(.5s * var(--motion)) var(--sp-bouncy) both;
+  animation: req-in calc(var(--duration-enter) * var(--motion)) var(--ease-enter) both;
 }
-@keyframes req-in { from { opacity: 0; transform: translateY(-8px); } }
+@keyframes req-in { from { opacity: 0; transform: translateY(-24px) scale(.99); } }
 .req-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--cinnabar); }
-.req-card.resolving { animation: req-out calc(.32s * var(--motion)) var(--ease-in) forwards; }
+.req-card.resolving { animation: req-out calc(var(--duration-exit) * var(--motion)) var(--ease-exit) forwards; }
 @keyframes req-out { to { opacity: 0; transform: translateY(-6px); } }
 .req-head { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-caption); }
 .req-owner { color: var(--ink-3); max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -282,8 +282,8 @@ button:disabled:hover { transform: none; }
 .send.busy { background: var(--ink); color: var(--paper); }
 .file .fmeta { font-size: var(--text-caption); color: var(--ink-3); }
 .file .thumb { width: 20px; height: 20px; border-radius: var(--r-tag); object-fit: cover; }
-.files .file { animation: file-in calc(.4s * var(--motion)) var(--sp-bouncy) both; }
-@keyframes file-in { from { opacity: 0; transform: scale(.7); } }
+.files .file { animation: file-in calc(var(--duration-content) * var(--motion)) var(--ease-enter) both; }
+@keyframes file-in { from { opacity: 0; transform: translateY(16px) scale(.99); } }
 
 /* 用量浮层 */
 .usage-pop {
@@ -338,7 +338,7 @@ button:disabled:hover { transform: none; }
   width: 100%; text-align: left; display: grid; grid-template-columns: 40px 1fr auto; gap: var(--space-4); align-items: center;
   padding: var(--card-padding); border-radius: var(--r-card); margin-bottom: var(--card-gap);
   background: var(--card); box-shadow: var(--sh-1), inset 0 0 0 1px var(--line);
-  transition: transform var(--d-3) var(--sp-settle), box-shadow var(--d-3), background var(--d-2);
+  transition: transform var(--d-3) var(--sp-settle), box-shadow var(--d-2), background var(--d-2);
   font: inherit; cursor: pointer;
 }
 .work-item .wacts { display: flex; align-items: center; gap: var(--space-2); flex: none; }
@@ -853,7 +853,7 @@ button:disabled:hover { transform: none; }
 .ctx-card-acts { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); flex: none; }
 .ctx-card .ctx-owner { background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); }
 .ctx-card .ctx-hint { padding: var(--space-2) var(--space-1) 0; }
-.ctx-panel { animation: panel-in calc(.4s * var(--motion)) var(--ease-out) both; }
+.ctx-panel { animation: none; }
 @keyframes panel-in { from { opacity: 0; transform: translateY(8px); } }
 
 /* 插件列表横向滚动时保持卡片高度 */
@@ -923,7 +923,7 @@ dialog .sheet-body { outline: none; }
 .island-scrim {
   position: fixed; inset: 0; z-index: 39; background: rgba(22, 23, 26, .26);
   backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(2px);
-  opacity: 0; transition: opacity var(--d-3) var(--ease-out);
+  opacity: 0; transition: opacity calc(var(--duration-exit) * var(--motion)) var(--ease-move);
 }
 .island-scrim.show { opacity: 1; }
 [data-theme="night"] .island-scrim { background: rgba(0, 0, 0, .5); }
@@ -984,7 +984,7 @@ dialog .sheet-body { outline: none; }
 /* 流式文字：直接追加片段，结尾光标跟字走 */
 .md.streaming { overflow-wrap: anywhere; }
 .md.streaming .caret { display: inline-block; vertical-align: middle; }
-.tok-stream { animation: tok-in calc(var(--duration-text) * var(--motion)) var(--ease-out) both; }
+.tok-stream { animation: tok-in calc(var(--duration-text) * var(--motion)) var(--ease-enter) both; }
 @keyframes tok-in { from { opacity: 0; } to { opacity: 1; } }
 .conversation { overflow-anchor: none; }
 .msg.is-streaming > .msg-tools { visibility: hidden; pointer-events: none; }
@@ -994,11 +994,11 @@ dialog .sheet-body { outline: none; }
 
 /* 保留页面布局与会话现场，只把交互交还给背景。 */
 .stage, .island, .toast, .usage-pop, .menu-btn, .island-scrim {
-  transition: opacity calc(var(--duration-fade) * var(--motion)) var(--ease-out), visibility 0s;
+  transition: opacity calc(var(--duration-fade) * var(--motion)) var(--ease-move), visibility 0s;
 }
 body.background-only :is(.stage, .island, .toast, .usage-pop, .menu-btn, .island-scrim) {
   opacity: 0; visibility: hidden; pointer-events: none;
-  transition: opacity calc(var(--duration-fade) * var(--motion)) var(--ease-out), visibility 0s calc(var(--duration-fade) * var(--motion));
+  transition: opacity calc(var(--duration-fade) * var(--motion)) var(--ease-move), visibility 0s calc(var(--duration-fade) * var(--motion));
 }
 body.background-only .pivot-core .orb-stage { pointer-events: auto; }
 #background-btn[aria-pressed="true"] { background: var(--jade-soft); color: var(--jade-ink); }
@@ -1021,27 +1021,29 @@ body.background-only .pivot-core .orb-stage { pointer-events: auto; }
 .phase .live-dots i:nth-child(3) { left: 19px; animation-delay: .3s; }
 
 /* 交互反馈：短、准、不拖泥带水 */
-.lift { transition: transform var(--d-2) var(--ease-out), box-shadow var(--d-3) var(--ease-out); }
+.lift { transition: transform var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move); }
 .lift:hover { transform: translateY(-2px); }
-.lift:active { transform: scale(.988); transition-duration: .12s; }
-.composer { transition: box-shadow var(--d-3) var(--ease-out), transform var(--d-2) var(--ease-out); }
+.lift:active { transform: scale(.988); transition-duration: var(--d-0); }
+.composer { transition: box-shadow var(--d-2) var(--ease-move), transform var(--d-2) var(--ease-move); }
 .composer:focus-within { transform: translateY(-2px); }
-.send { transition: transform var(--d-1) var(--ease-out), background var(--d-2), opacity var(--d-2); }
+.send { transition: transform var(--d-2) var(--sp-settle), background var(--d-2) var(--ease-move), opacity var(--d-2) var(--ease-move); }
 .send:hover { transform: scale(1.05); }
 .send:active { transform: scale(.9); }
-.btn { transition: transform var(--d-1) var(--ease-out), background var(--d-2), box-shadow var(--d-2); }
+.btn { transition: transform var(--d-2) var(--sp-settle), background var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move); }
 .btn:active { transform: scale(.95); }
-.chip { transition: transform var(--d-2) var(--ease-out), box-shadow var(--d-3), background var(--d-3); }
+.chip { transition: transform var(--d-2) var(--sp-settle), box-shadow var(--d-2) var(--ease-move), background var(--d-2) var(--ease-move); }
 .chip:hover { transform: translateY(-2px); }
-.dock-btn { transition: color var(--d-1) var(--ease-out), transform var(--d-2) var(--ease-out); }
+.dock-btn { transition: color var(--d-2) var(--ease-move), transform var(--d-2) var(--sp-settle); }
 .ic-btn, .c-btn, .c-pill, .isl-ibtn, .target, .req-opt { transition-duration: var(--d-2); }
-.work-item { transition: transform var(--d-2) var(--ease-out), box-shadow var(--d-3); }
-.plug-item { transition: transform var(--d-2) var(--ease-out), box-shadow var(--d-2), background var(--d-2); }
-.skill { transition: transform var(--d-2) var(--ease-out), box-shadow var(--d-3); }
+.work-item { transition: transform var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move); }
+.plug-item { transition: transform var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move), background var(--d-2) var(--ease-move); }
+.skill { transition: transform var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move); }
+.switch::after { transition: left var(--d-2) var(--sp-settle), width var(--d-2) var(--ease-move); }
+.send:active, .btn:active, .chip:active, .dock-btn:active { transition-duration: var(--d-0); }
 
 /* 气场换色在 body 上过渡，子元素继承插值后的颜色 */
 body {
-  transition: background-color var(--d-4) var(--ease-out), color var(--d-4) var(--ease-out),
+  transition: background-color var(--d-2) var(--ease-move), color var(--d-2) var(--ease-move),
     --aura-a 1.2s var(--ease-out), --aura-b 1.2s var(--ease-out), --aura-c 1.2s var(--ease-out);
 }
 
@@ -1065,7 +1067,7 @@ body {
   details::details-content {
     block-size: 0;
     overflow: hidden;
-    transition: block-size var(--d-3) var(--ease-out), content-visibility var(--d-3) allow-discrete;
+    transition: block-size var(--d-3) var(--ease-move), content-visibility var(--d-3) allow-discrete;
   }
   details[open]::details-content { block-size: auto; }
   @media (prefers-reduced-motion: reduce) {
@@ -1121,10 +1123,10 @@ body {
 .work-item .pill.state-queued, .work-item .pill.state-pending { background: var(--paper-2); color: var(--ink-2); }
 
 /* 菜单切换时，激活图标自己弹一下 */
-.dock-btn.active .i { animation: dock-in calc(.38s * var(--motion)) var(--sp-bouncy) both; }
+.dock-btn.active .i { animation: dock-in calc(var(--duration-base) * var(--motion)) var(--ease-enter) both; }
 @keyframes dock-in {
   0% { transform: scale(.82); }
-  55% { transform: scale(1.1); }
+  65% { transform: scale(1.025); }
   100% { transform: scale(1); }
 }
 

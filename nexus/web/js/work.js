@@ -111,7 +111,7 @@
       const before = previousStates.get(card.dataset.workOpen);
       if (before && before !== card.dataset.state) {
         N.anim($('.wico', card), [{ transform: 'scale(.88)', opacity: .55 }, { transform: 'none', opacity: 1 }],
-          { duration: N.DUR.move, easing: N.SP.settle.e });
+          { duration: N.DUR.base, easing: N.SP.settle.e });
       }
     });
   }
@@ -126,20 +126,24 @@
     state.workGroups = { ...(state.workGroups || {}), [id]: next };
     N.save();
 
-    if (N.REDUCED) { body.hidden = !next; return; }
-    const from = body.hidden ? 0 : body.offsetHeight;
+    const from = body.hidden ? 0 : body.getBoundingClientRect().height;
+    if (body._foldMotion) { body._foldMotion.onfinish = null; body._foldMotion.cancel(); }
+    if (N.REDUCED) { N.cancelMotion(body); body.hidden = !next; body.style.overflow = ''; return; }
     if (next) body.hidden = false;
     const to = next ? body.scrollHeight : 0;
     body.style.overflow = 'hidden';
-    body.getAnimations().forEach(a => a.cancel());
-    N.anim(body, [
-      { height: from + 'px', opacity: next ? 0 : 1 },
-      { height: to + 'px', opacity: next ? 1 : 0 },
-    ], { duration: next ? 360 : 260, easing: N.SP.soft.e }).onfinish = () => {
+    if (next) N.enterItems([...body.children], section, { profile: 'content', delay: N.MOTION.stagger });
+    else N.exitItems([...body.children], section);
+    body._foldMotion = N.anim(body, [
+      { height: from + 'px' },
+      { height: to + 'px' },
+    ], { duration: next ? N.DUR.move : N.DUR.exit, easing: N.EASE_MOVE });
+    body._foldMotion.onfinish = () => {
       body.style.height = '';
       body.style.overflow = '';
       body.hidden = !next;
-      if (next) N.stagger?.(body);
+      body._foldMotion = null;
+      if (!next) N.cancelMotion(body);
     };
   }
 
@@ -165,7 +169,7 @@
     const node = view && $(`.work-item[data-work-open="${CSS.escape(id)}"]`, view);
     if (node && !N.REDUCED) {
       N.anim(node, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-4px) scale(.98)' }],
-        { duration: N.DUR.base, easing: 'ease-in', fill: 'forwards' });
+        { duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });
     }
     try {
       await N.api.taskCommand(id, {
@@ -179,7 +183,7 @@
       const head = $(`#view-work [data-g="${restore ? 'ended' : 'archived'}"] .work-group-h`);
       if (head && !N.REDUCED) {
         N.anim(head, [{ opacity: .45, transform: 'translateX(-4px)' }, { opacity: 1, transform: 'none' }],
-          { duration: N.DUR.move, easing: N.SP.settle.e });
+          { duration: N.DUR.base, easing: N.SP.settle.e });
       }
       N.notify(restore ? `已恢复「${w.title}」` : `已归档「${w.title}」`, 'jade');
       N.syncDock?.(true);
@@ -205,7 +209,7 @@
     const node = view && $(`.work-item[data-work-open="${CSS.escape(id)}"]`, view);
     if (node && !N.REDUCED) {
       N.anim(node, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-4px) scale(.98)' }],
-        { duration: N.DUR.base, easing: 'ease-in', fill: 'forwards' });
+        { duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });
     }
     try {
       await N.api.del('/api/tasks/' + encodeURIComponent(id), {
