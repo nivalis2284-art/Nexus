@@ -26,7 +26,7 @@ function page({ hooks = [], respond } = {}) {
   const N = {
     state: { sessionId: 's1', works: [], files: [], items: [], queue: [], requests: [],
       plugins: [], modelRequests: [], pending: [], replying: false },
-    $, $$: () => [], esc: String, icon: () => '', REDUCED: true, DUR: {}, SP: { settle: {} },
+    $, $$: () => [], esc: String, icon: () => '', REDUCED: true, DUR: {}, SP: { settle: {}, bouncy: {} },
     MOTION: { contentStagger: 40, contentWindow: 160 },
     uid: () => 'request-' + ++uid, nowHM: () => '12:00', fmtSize: String,
     shortPath: String, fmtNum: String, anim() {}, save() {}, notify() {},
@@ -239,12 +239,12 @@ test('page entrances share CSS timing, bounded stagger and theme-independent spe
   }));
   const viewport = { getBoundingClientRect: () => ({ top: 0, bottom: 300, left: 0, right: 1440 }) };
   N.enterItems(nodes, viewport);
-  assert.equal(N.DUR.micro, 160);
+  assert.equal(N.DUR.micro, 180);
   assert.equal(calls.length, 10);
   calls.forEach((call, i) => {
-    assert.equal(call.duration, 560);
-    assert.equal(call.delay, Math.min(i * 70, 280));
-    assert.equal(call.easing, N.EASE_ENTER);
+    assert.equal(call.duration, N.SP.soft.d);
+    assert.equal(call.delay, 40 + Math.min(i * 50, 250));
+    assert.equal(call.easing, N.SP.soft.e);
   });
   const curve = N.SP.soft.e;
   root.dataset.palette = 'cool'; N.rebuildSprings();
@@ -252,8 +252,8 @@ test('page entrances share CSS timing, bounded stagger and theme-independent spe
   assert.equal(N.motionScale(), 1);
   N.setMotionScale('0.5');
   calls.length = 0; N.enterItems(nodes, viewport);
-  assert.equal(calls[0].duration, 560 * .68);
-  assert.equal(calls[1].delay, 70 * .68);
+  assert.equal(calls[0].duration, N.SP.soft.d * .68);
+  assert.equal(calls[1].delay, 90 * .68);
   reduce({ matches: true }); calls.length = 0; N.enterItems(nodes, viewport);
   assert.equal(calls.length, 0);
 });
@@ -267,7 +267,7 @@ test('one round control stops an empty reply and sends a draft instead of stoppi
   button.setAttribute = (name, value) => { labels[name] = value; };
   p.N.state.replying = true;
   p.N.updateSend();
-  assert.equal(labels['aria-label'], '停止当前回应');
+  assert.equal(labels['aria-label'], '停止当前回复');
   assert.equal(classes.has('busy'), true);
   p.$('#input').handlers.keydown({ key: 'Enter', preventDefault() {} });
   assert.equal(p.requests.filter(r => r.url === '/api/ling/stop').length, 0, 'empty Enter must not cancel the reply');

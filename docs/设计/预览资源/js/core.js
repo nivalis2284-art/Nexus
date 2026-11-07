@@ -32,17 +32,30 @@ window.N = window.N || {};
   /* 统一时长阶梯：微交互 / 小元素 / 卡片与折叠 / 页面与弹窗 */
   const tokenStyle = getComputedStyle(document.documentElement);
   const numberToken = name => parseFloat(tokenStyle.getPropertyValue(name));
-  const DUR = Object.fromEntries(['fast', 'micro', 'base', 'content', 'move', 'enter', 'exit', 'fade', 'text'].map(name => [name, numberToken('--duration-' + name)]));
+  const DUR = Object.fromEntries(['press', 'fast', 'micro', 'base', 'content', 'move', 'enter', 'exit', 'fade', 'text'].map(name => [name, numberToken('--duration-' + name)]));
   const EASE_ENTER = tokenStyle.getPropertyValue('--ease-enter').trim();
   const EASE_MOVE = tokenStyle.getPropertyValue('--ease-move').trim();
   const EASE_EXIT = tokenStyle.getPropertyValue('--ease-exit').trim();
-  const MOTION = { stagger: numberToken('--enter-stagger'), contentStagger: numberToken('--content-stagger'),
-    window: numberToken('--enter-window'), contentWindow: numberToken('--content-window'),
-    offset: numberToken('--enter-offset'), contentOffset: numberToken('--content-offset'),
-    floatOffset: numberToken('--float-offset'), theme: numberToken('--duration-theme') };
+  const EASE_PRESS = tokenStyle.getPropertyValue('--ease-press').trim() || 'cubic-bezier(.2,0,0,1)';
+  const MOTION = {
+    stagger: numberToken('--enter-stagger'),
+    contentStagger: numberToken('--content-stagger'),
+    floatStagger: numberToken('--float-stagger') || 16,
+    window: numberToken('--enter-window'),
+    contentWindow: numberToken('--content-window'),
+    floatWindow: numberToken('--float-window') || 64,
+    offset: numberToken('--enter-offset'),
+    contentOffset: numberToken('--content-offset'),
+    floatOffset: numberToken('--float-offset'),
+    exitOffset: numberToken('--exit-offset') || -4,
+    enterScale: numberToken('--enter-scale') || .985,
+    contentScale: numberToken('--content-scale') || .99,
+    floatScale: numberToken('--float-scale') || .96,
+    theme: numberToken('--duration-theme'),
+  };
   rmq.addEventListener?.('change', e => { REDUCED = e.matches; buildSprings(); });
 
-  /* ---------------------------------------------------------------- 弹簧 */
+  /* ---------------------------------------------------------------- 阻尼谐振子弹簧 */
   const LINEAR_OK = CSS.supports('animation-timing-function', 'linear(0, 0.5, 1)');
   function spring({ stiffness = 200, damping = 20, mass = 1 } = {}) {
     const dt = 1 / 600; let x = 0, v = 0, t = 0; const pts = [[0, 0]];
@@ -62,18 +75,25 @@ window.N = window.N || {};
   }
   const SP = {};
   function buildSprings() {
+    const bouncy = spring({ stiffness: 320, damping: 19 });
+    const snappy = spring({ stiffness: 460, damping: 34 });
+    const soft = spring({ stiffness: 170, damping: 24 });
+    const island = spring({ stiffness: 340, damping: 27 });
     const base = {
-      bouncy: spring({ stiffness: 400, damping: 18 }),
-      snappy: spring({ stiffness: 530, damping: 27 }),
-      soft: spring({ stiffness: 230, damping: 20 }),
-      island: spring({ stiffness: 410, damping: 24 }),
-      pop: spring({ stiffness: 590, damping: 25 }),
-      settle: spring({ stiffness: 490, damping: 24 }),
+      bouncy,
+      snappy,
+      soft,
+      island,
+      tap: bouncy,
+      settle: soft,
+      morph: island,
+      rebound: bouncy,
+      pop: bouncy,
     };
     for (const k in base) SP[k] = { e: base[k].e, d: base[k].d };
     if (REDUCED) for (const k in SP) SP[k] = { e: 'ease', d: 1 };
     const root = document.documentElement.style;
-    for (const k of ['bouncy', 'snappy', 'soft', 'settle']) {
+    for (const k of ['bouncy', 'snappy', 'soft', 'island', 'tap', 'settle', 'morph', 'rebound']) {
       root.setProperty(`--sp-${k}`, SP[k].e);
       root.setProperty(`--sp-${k}-d`, Math.round(SP[k].d * motionScale()) + 'ms');
     }
@@ -110,36 +130,32 @@ window.N = window.N || {};
 
   function enterItems(elements, viewport, { profile = 'page', delay = 0, duration } = {}) {
     const visible = visibleItems(elements, viewport);
-    const groups = new Map();
     const page = profile === 'page', floating = profile === 'float';
-    const floatPhase = el => el.matches('header, h2, .sheet-head, .isl-head, .det-head') ? 1
-      : el.matches('footer, .sheet-foot, .save-bar, .isl-actions, .isl-foot, .det-foot') ? 3 : 2;
-    visible.forEach(el => {
-      const group = floating ? floatPhase(el) : page ? el.closest('.page-head, .skill-grid, .plug-list, .work-group-body, .ctx-roles') || el : viewport;
-      if (!groups.has(group)) groups.set(group, []);
-      groups.get(group).push(el);
-    });
-    return [...groups.values()].flatMap((items, groupIndex) => items.map((el, i) => {
+    return visible.map((el, i) => {
       const running = [el._enterMotion, el._exitMotion].some(a => a && a.playState !== 'finished' && a.playState !== 'idle');
       const current = getComputedStyle(el);
       const start = running ? { opacity: current.opacity, transform: current.transform } : null;
-      const filter = current.filter;
       el._enterMotion?.cancel(); el._exitMotion?.cancel(); el._exitMotion = null;
       if (REDUCED) { el._enterMotion = null; return null; }
-      const card = page && el.matches('.card, .work-item, .plug-item, .ctx-sec, .work-quiet');
-      const offset = floating ? MOTION.floatOffset : card ? MOTION.offset : MOTION.contentOffset;
-      const step = Math.min(MOTION.contentStagger, MOTION.contentWindow / Math.max(1, items.length - 1));
-      let wait = delay + (page ? Math.min(groupIndex * MOTION.stagger, MOTION.window) : 0) + i * step;
-      if (floating) wait += floatPhase(el) * MOTION.stagger;
-      const from = start || { opacity: 0, transform: `translateY(${offset}px) scale(${card ? .99 : 1})` };
-      if (floating) from.filter = running ? filter : 'blur(4px)';
-      const to = { opacity: 1, transform: 'none', ...(floating ? { filter: 'none' } : {}) };
-      const motion = anim(el, [from, to], { duration: duration ?? (page ? DUR.enter : DUR.content), delay: wait, easing: EASE_ENTER, fill: 'backwards' });
+      const offset = floating ? MOTION.floatOffset : page ? MOTION.offset : MOTION.contentOffset;
+      const fromTransform = page ? `translateY(${offset}px) scale(${MOTION.enterScale})` : `translateY(${offset}px)`;
+      const step = floating ? MOTION.floatStagger : page ? MOTION.stagger : MOTION.contentStagger;
+      const win = floating ? MOTION.floatWindow : page ? MOTION.window : MOTION.contentWindow;
+      const baseDelay = delay || (page ? 40 : floating ? 30 : 0);
+      const wait = baseDelay + Math.min(i * step, win);
+      const from = start || { opacity: 0, transform: fromTransform };
+      const to = { opacity: 1, transform: 'none' };
+      const motion = anim(el, [from, to], {
+        duration: duration ?? (floating ? DUR.base : SP.soft.d),
+        delay: wait,
+        easing: floating ? EASE_OUT : SP.soft.e,
+        fill: 'backwards',
+      });
       el._enterMotion = motion;
       const clear = () => { if (el._enterMotion === motion) el._enterMotion = null; };
       motion.onfinish = motion.oncancel = clear;
       return motion;
-    })).filter(Boolean);
+    }).filter(Boolean);
   }
 
   function exitItems(elements, viewport) {
@@ -147,16 +163,14 @@ window.N = window.N || {};
       const current = getComputedStyle(el);
       const from = { opacity: current.opacity, transform: current.transform };
       el._enterMotion?.cancel(); el._exitMotion?.cancel(); el._enterMotion = null;
-      const phase = el.matches('footer, .sheet-foot, .save-bar, .isl-actions, .composer-wrap, .btn, .tabs, .seg, [class*="toolbar"]') ? 0
-        : el.matches('header, h1, h2, .page-head, .isl-head, .det-head') || el.closest('.page-head') ? 2 : 1;
-      const motion = anim(el, [from, { opacity: 0, transform: `${from.transform === 'none' ? '' : from.transform} translateY(-8px)` }],
-        { duration: DUR.micro, delay: phase * 30, easing: EASE_EXIT, fill: 'forwards' });
+      const motion = anim(el, [from, { opacity: 0, transform: `${from.transform === 'none' ? '' : from.transform} translateY(${MOTION.exitOffset}px) scale(.99)` }],
+        { duration: 150, easing: 'ease-in', fill: 'forwards' });
       el._exitMotion = motion;
       return motion;
     });
   }
 
-  /* 液态指示器：克制平滑滑移，避免分段过冲弹簧在宽高上引发边缘抖动 */
+  /* 液态指示器：水滴前缘先抵达，后缘滞后跟上，产生黏连张力 */
   function moveInk(ink, target, axis = 'x', instant = false) {
     if (!ink || !target) return;
     const P = axis === 'x' ? 'translateX' : 'translateY';
@@ -171,45 +185,19 @@ window.N = window.N || {};
     const matrix = current.transform === 'none' ? null : new DOMMatrixReadOnly(current.transform);
     const p0 = previousAxis === axis ? (matrix ? (axis === 'x' ? matrix.m41 : matrix.m42) : 0) : null;
     const s0 = parseFloat(current[S]);
-    const crossSize = parseFloat(current[O]);
     ink.getAnimations().forEach(a => a.cancel());
     ink.style.transform = `${P}(${pos}px)`; ink.style[S] = size + 'px'; ink.style[O] = '';
     ink._axis = axis;
     if (instant || p0 == null || REDUCED || (p0 === pos && s0 === size)) return;
-    if (ink.id === 'dock-ink') {
-      const direction = Math.sign(pos - p0);
-      const stretch = Math.min(Math.abs(pos - p0) * .4, size * .65);
-      const parent = ink.parentElement;
-      const limit = axis === 'x' ? parent.clientWidth : parent.clientHeight;
-      const crossPosition = axis === 'x' ? 'top' : 'left';
-      const crossStart = parseFloat(current[crossPosition]);
-      const crossEnd = axis === 'x' ? 6 : 7;
-      const frames = [];
-      // 一条轨迹同时控制前缘、尾部与横向收束，打断时从当前轮廓继续。
-      for (let i = 0; i <= 48; i++) {
-        const t = i / 48;
-        const progress = (1 - (1 + 7 * t) * Math.exp(-7 * t)) / (1 - 8 * Math.exp(-7));
-        const tension = Math.sin(Math.PI * t) * (1 - t) * 2;
-        const length = s0 + (size - s0) * progress + stretch * tension;
-        const center = p0 + s0 / 2 + (pos + size / 2 - p0 - s0 / 2) * progress + direction * stretch * tension * .3;
-        frames.push({
-          offset: t,
-          transform: `${P}(${Math.max(6, Math.min(limit - 6 - length, center - length / 2))}px)`,
-          [S]: length + 'px', [O]: (crossSize + (42 - crossSize) * progress - 4 * tension) + 'px',
-          [crossPosition]: (crossStart + (crossEnd - crossStart) * progress + 2 * tension) + 'px',
-          borderRadius: '24px',
-        });
-      }
-      anim(ink, frames, { duration: DUR.move, easing: 'linear' });
-      return;
-    }
-    const positionSpring = spring({ stiffness: 490, damping: Math.min(40, 24 + Math.abs(pos - p0) * .1) });
-    ink.animate([
-      { transform: `${P}(${p0}px)` },
-      { transform: `${P}(${pos}px)` },
-    ], { duration: DUR.move * motionScale(), easing: positionSpring.e });
-    ink.animate([{ [S]: s0 + 'px' }, { [S]: size + 'px' }],
-      { duration: DUR.move * motionScale(), easing: EASE_MOVE });
+    const a0 = p0, b0 = p0 + s0, a1 = pos, b1 = pos + size;
+    const goFwd = a1 >= a0;
+    const midStart = goFwd ? a0 + (a1 - a0) * 0.12 : a1;
+    const midEnd   = goFwd ? b1 : b0 + (b1 - b0) * 0.12;
+    anim(ink, [
+      { transform: `${P}(${a0}px)`, [S]: s0 + 'px', easing: 'cubic-bezier(.45,0,.2,1)' },
+      { offset: 0.34, transform: `${P}(${midStart}px)`, [S]: Math.max(size, midEnd - midStart) + 'px', easing: SP.bouncy.e },
+      { transform: `${P}(${pos}px)`, [S]: size + 'px' },
+    ], { duration: Math.max(520, SP.bouncy.d * 0.9), easing: 'linear' });
   }
 
   /* ---------------------------------------------------------------- 格式 */
@@ -338,14 +326,14 @@ window.N = window.N || {};
     paused: '已挂起', waiting_user: '等待你处理', completed: '已完成', cancelled: '已取消',
   };
   const STATE_DETAIL = {
-    pending: '尚未开始；点击开始后进入执行队列。',
+    pending: '尚未开始，等待调度执行。',
     queued: '已加入执行队列，等待当前工作结束。',
     running: '正在执行当前步骤。',
     pausing: '已请求挂起，正在停止当前执行。',
     paused: '已挂起；不会因补充信息而自动继续。',
     waiting_user: '等待你处理；完成确认后继续保存的工作。',
-    completed: '任务已完成。',
-    cancelled: '任务已取消；重新启用后才能再次开始。',
+    completed: '工作已完成。',
+    cancelled: '工作已取消；如需继续请在对话中提出。',
   };
   const stateLabel = w => (w.state === 'waiting_user'
     ? (w.pending_interactions?.some(i => i.kind === 'approval') ? '等待你批准操作'
@@ -357,7 +345,7 @@ window.N = window.N || {};
     if (w.wait_reason && !(w.state === 'waiting_user' && w.pending_interactions?.length)) parts.push(w.wait_reason);
     if (w.blocked) parts.push('受阻：' + w.blocked);
     if (w.next_step && w.state !== 'completed') parts.push('下一步：' + w.next_step);
-    if (w.pending_interactions?.length) parts.push(`有 ${w.pending_interactions.length} 项待你处理。`);
+    if (w.pending_interactions?.length) parts.push(`有 ${w.pending_interactions.length} 项待处理。`);
     return parts.join(' ');
   }
   const progressText = w => w.work_summary || w.progress_text || '暂无进展说明';
@@ -437,7 +425,7 @@ window.N = window.N || {};
 
   N.$ = $; N.$$ = $$; N.esc = esc; N.icon = icon; N.wait = wait; N.uid = uid;
   N.clone = clone; N.clamp = clamp; N.EASE_OUT = EASE_OUT;
-  N.EASE_ENTER = EASE_ENTER; N.EASE_MOVE = EASE_MOVE; N.EASE_EXIT = EASE_EXIT;
+  N.EASE_ENTER = EASE_ENTER; N.EASE_MOVE = EASE_MOVE; N.EASE_EXIT = EASE_EXIT; N.EASE_PRESS = EASE_PRESS;
   N.SP = SP; N.anim = anim; N.moveInk = moveInk; N.rebuildSprings = buildSprings;
   N.MOTION = MOTION; N.enterItems = enterItems; N.exitItems = exitItems; N.cancelMotion = cancelMotion;
   N.motionScale = motionScale; N.setMotionScale = setMotionScale; N.MOTION_SCALES = MOTION_SCALES;

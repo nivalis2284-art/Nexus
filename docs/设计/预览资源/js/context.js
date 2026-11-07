@@ -43,7 +43,7 @@
       </section>
 
       <section class="card ctx-card" data-s>
-        <div class="ctx-card-head"><div><h2>角色与工作规则</h2><p>三个角色分别生效，编辑后在弹窗中保存。</p></div></div>
+        <div class="ctx-card-head"><div><h2>角色与工作规则</h2><p>按「对话」「工作」「子代理」三种角色分别注入，修改后对后续请求生效。</p></div></div>
         <div class="ctx-roles">
           ${roles.map(role => `<article class="ctx-role" data-s>
             <div class="ctx-role-top"><b>${esc(role.title)}</b><button data-act="edit-role" data-id="${esc(role.id)}" ${locked() ? 'disabled' : ''}>编辑</button></div>
@@ -77,10 +77,10 @@
     const sum = d.summary;
     const sel = [...ctx.selected].filter(i => turns[i]);
     return `<div class="ctx-panel" data-panel="history">
-      ${ctx.canUndo ? `<div class="ctx-undo" data-s>已修改交流记录<button data-act="ctx-undo" ${locked() ? 'disabled' : ''}>撤销最近一次修改</button></div>` : ''}
-      ${locked() ? '<div class="ctx-lock" data-s>正在处理当前消息，请先停止处理，再编辑或删除历史。</div>' : ''}
+      ${ctx.canUndo ? `<div class="ctx-undo" data-s>已修改对话记录<button data-act="ctx-undo" ${locked() ? 'disabled' : ''}>撤销最近一次修改</button></div>` : ''}
+      ${locked() ? '<div class="ctx-lock" data-s>当前正在回复，请先停止或等待完成后再修改历史。</div>' : ''}
       <section class="card ctx-card" data-s>
-        <div class="ctx-card-head"><div><h2>已压缩上下文</h2><p>此前交流收束为摘要；编辑会替换当前摘要。</p></div><button class="btn ghost sm" data-act="edit-summary" ${!sum || locked() ? 'disabled' : ''}>${icon('edit', 'i xs')}编辑摘要</button></div>
+        <div class="ctx-card-head"><div><h2>已压缩上下文</h2><p>早期对话已收束为摘要；编辑会替换当前摘要。</p></div><button class="btn ghost sm" data-act="edit-summary" ${!sum || locked() ? 'disabled' : ''}>${icon('edit', 'i xs')}编辑摘要</button></div>
         ${sum ? `<div class="ctx-summary"><div class="ctx-summary-meta"><span>覆盖此前 ${Number(sum.through) + 1} 条记录</span><span>编辑后影响后续请求</span></div><p>${esc(sum.text)}</p></div>` : '<p class="ctx-hint">当前还没有压缩摘要。</p>'}
         <p class="ctx-hint">摘要是此前的工作记录，最新的所有者要求仍然优先。</p>
       </section>
@@ -103,7 +103,7 @@
                 ${meta ? `<div class="ctx-turn-meta">${esc(meta)}</div>` : ''}
               </div>
             </article>`;
-          }).join('') : '<p class="ctx-hint">没有未压缩的会话消息。</p>'}
+          }).join('') : '<p class="ctx-hint">没有未压缩的对话记录。</p>'}
         </div>
         <p class="ctx-hint">工具结果和工作通知也可能进入上下文；完整请求可在「插件管理 → 请求记录」查看。删除一轮会连同这一轮的思考与工具记录一起移除；会话尚未继续时，可撤销最近一次历史修改。</p>
       </section>
@@ -136,9 +136,9 @@
   function growMeter(view, pct) {
     if (N.REDUCED) return;
     $$('.ctx-meter i', view).forEach((n, i) => N.anim(n, [{ transform: 'scaleX(0)' }, { transform: 'none' }],
-      { duration: N.DUR.enter, delay: i * N.MOTION.stagger, easing: N.EASE_MOVE, fill: 'backwards' }));
-    $$('.ctx-legend span', view).forEach((n, i) => N.anim(n, [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.enter, delay: (i + 2) * N.MOTION.stagger, easing: N.EASE_ENTER, fill: 'backwards' }));
+      { duration: N.SP.soft.d, delay: 200 + i * 70, easing: N.SP.soft.e, fill: 'backwards' }));
+    $$('.ctx-legend span', view).forEach((n, i) => N.anim(n, [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 320, delay: 240 + i * 60, easing: N.EASE_OUT, fill: 'backwards' }));
   }
 
   function renderContext() {
@@ -162,11 +162,11 @@
       <section class="card ctx-overview" data-s>
         <div class="ctx-ov-top">
           <div class="ctx-big"><strong${pct === null ? ' class="unknown"' : ''}>${pct === null ? '—' : pct}</strong>${pct === null ? '' : '<small>%</small>'}</div>
-          <div class="ctx-ov-main"><p>请求上下文估算<br>随模型请求更新</p>
-            <span class="ctx-state ${locked() ? 'locked' : ''}"><i></i>${locked() ? '正在处理消息，修改历史前请先停止处理。' : '当前空闲，可调整后续请求使用的上下文。'}</span></div>
+          <div class="ctx-ov-main"><p>当前上下文占用<br>随每次请求更新</p>
+            <span class="ctx-state ${locked() ? 'locked' : ''}"><i></i>${locked() ? '当前正在回复，修改历史前请先停止回复。' : '当前空闲，可调整后续请求使用的上下文。'}</span></div>
           <span class="ctx-window">模型窗口 ${N.fmtNum(c.window)} tok</span>
         </div>
-        <div class="ctx-composition-label">已用内容构成<span>占本轮已用上下文</span></div>
+        <div class="ctx-composition-label">已用内容构成<span>各部分占已用上下文比例</span></div>
         <div class="ctx-meter">${SEGS.map(([n, get, color]) => `<i style="width:${Math.round(get() / denom * 100)}%;background:${color}" title="${n} ${N.approx(get())}"></i>`).join('')}</div>
         <div class="ctx-legend">${SEGS.map(([n, get, color]) => `<span><i style="background:${color}"></i>${n}<b>${N.approx(get())}</b></span>`).join('')}</div>
         <div class="ctx-metrics">
@@ -190,17 +190,12 @@
       ctx.enteredAt = Date.now();
       if (pct !== null) N.countUp($('.ctx-big strong', view), pct, N.DUR.enter * N.motionScale());
       growMeter(view, pct);
-      setTimeout(() => {
-        const tabs = $('.tabs', view);
-        if (tabs) N.moveInk($('.tab-ink', tabs), $('button.active', tabs), 'x');
-      }, 170);
-    } else {
-      requestAnimationFrame(() => {
-        const tabs = $('.tabs', view);
-        if (tabs) N.moveInk($('.tab-ink', tabs), $('button.active', tabs), 'x', !ctx.tabSlide);
-        ctx.tabSlide = false;
-      });
     }
+    requestAnimationFrame(() => {
+      const tabs = $('.tabs', view);
+      if (tabs) N.moveInk($('.tab-ink', tabs), $('button.active', tabs), 'x', !ctx.tabSlide);
+      ctx.tabSlide = false;
+    });
   }
 
   /* 页面只在进入时读一次内存快照，聊完回来还是旧数字；只在数据确实变化且用户未勾选时静默刷新。 */
@@ -290,7 +285,7 @@
   async function editSummary() {
     const sum = state.contextData.summary;
     if (!sum) return;
-    if (locked()) { N.notify('请先停止处理当前消息，再修改摘要。', 'cinnabar'); return; }
+    if (locked()) { N.notify('请先停止当前回复，再修改摘要。', 'cinnabar'); return; }
     await N.ask({
       title: '编辑已压缩上下文', text: sum.text,
       description: '摘要会替代此前记录；最新的所有者要求仍然优先。',
@@ -310,7 +305,7 @@
     const turns = state.contextData.turns || [];
     const picked = [...ctx.selected].filter(i => turns[i]).sort((a, b) => a - b);
     if (!picked.length) return;
-    if (locked()) { N.notify('请先停止处理当前消息，再删除历史。', 'cinnabar'); return; }
+    if (locked()) { N.notify('请先停止当前回复，再删除历史。', 'cinnabar'); return; }
     const indices = [...new Set(picked.flatMap(i => turns[i].indices))].sort((a, b) => a - b);
     const ok = await N.confirmEdit({
       title: `删除 ${picked.length} 轮对话？`,
@@ -379,18 +374,10 @@
     if (act === 'ctx-tab') {
       if (ctx.tab === t.dataset.k) return;
       ctx.tab = t.dataset.k;
-      const oldPanel = $('.ctx-panel');
-      const selected = ctx.tab;
-      const swap = () => {
-        if (ctx.tab !== selected) return;
-        ctx.tabSlide = true;
-        renderContext();
-        const panel = $('.ctx-panel');
-        if (panel) N.cascade(panel);
-      };
-      if (oldPanel && !N.REDUCED) {
-        Promise.all(N.exitItems([...oldPanel.children], $('#view-context')).map(a => a.finished)).then(swap, () => {});
-      } else swap();
+      ctx.tabSlide = true;
+      renderContext();
+      const panel = $('.ctx-panel');
+      if (panel) N.cascade(panel);
       return;
     }
     if (act === 'add-rule') return addRule();

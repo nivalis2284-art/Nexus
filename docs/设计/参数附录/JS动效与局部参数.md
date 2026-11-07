@@ -22,10 +22,10 @@
 | `动效／局部常量` | `if (!N.REDUCED) anim(bar, [{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }], { duration: N.DUR.move, easing: EASE_OUT });` | `chat` | 预览资源/js/chat.js:459 |
 | `动效／局部常量` | `const r = n.getBoundingClientRect(); return r.bottom > rect.top + 76 && r.top < rect.bottom;` | `chat` | 预览资源/js/chat.js:495 |
 | `动效／局部常量` | `const messages = hero ? $$('.hero-kicker, h1, .hero-sub, .chips', hero) : visible;` | `chat` | 预览资源/js/chat.js:498 |
-| `动效／局部常量` | `{ duration: N.DUR.enter, easing: EASE_OUT });` | `chat` | 预览资源/js/chat.js:541 |
+| `动效／局部常量` | `{ duration: SP.soft.d, easing: SP.soft.e });` | `chat` | 预览资源/js/chat.js:541 |
 | `动效／局部常量` | `let added = 0;` | `chat` | 预览资源/js/chat.js:598 |
 | `动效／局部常量` | `const slot = section.children[index + 1];` | `chat` | 预览资源/js/chat.js:639 |
-| `动效／局部常量` | `{ duration: N.DUR.exit, easing: N.EASE_EXIT }).onfinish = () => {` | `chat` | 预览资源/js/chat.js:751 |
+| `动效／局部常量` | `{ duration: 200, easing: 'ease-in' }).onfinish = () => {` | `chat` | 预览资源/js/chat.js:751 |
 | `动效／局部常量` | `const used = state.context ? (state.context.system \|\| 0) + (state.context.tools \|\| 0) + (state.context.messages \|\| 0) : 0;` | `chat` | 预览资源/js/chat.js:909 |
 | `动效／局部常量` | `const win = state.context?.window \|\| 0;` | `chat` | 预览资源/js/chat.js:910 |
 | `动效／局部常量` | `const pct = win ? Math.min(100, Math.round(used / win * 100)) : 0;` | `chat` | 预览资源/js/chat.js:911 |
@@ -33,45 +33,43 @@
 | `动效／局部常量` | `const used = (c.system \|\| 0) + (c.tools \|\| 0) + (c.messages \|\| 0);` | `chat` | 预览资源/js/chat.js:926 |
 | `动效／局部常量` | `const pct = c.window ? Math.min(100, Math.round(used / c.window * 100)) : 0;` | `chat` | 预览资源/js/chat.js:927 |
 | `动效／局部常量` | `const cache = u.estimated ? '—' : (u.input + u.cached ? Math.round(u.cached / (u.input + u.cached) * 100) + '%' : '—');` | `chat` | 预览资源/js/chat.js:929 |
-| `动效／局部常量` | `const from = panel.hidden ? { opacity: 0, transform: 'translateY(9px) scale(.93)' }` | `chat` | 预览资源/js/chat.js:959 |
-| `动效／局部常量` | `{ duration: N.DUR.content, easing: N.EASE_ENTER, fill: 'backwards' });` | `chat` | 预览资源/js/chat.js:969 |
-| `动效／局部常量` | `const motion = N.anim(panel, [from, { opacity: 0, transform: 'translateY(6px) scale(.97)' }],` | `chat` | 预览资源/js/chat.js:975 |
-| `动效／局部常量` | `{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });` | `chat` | 预览资源/js/chat.js:976 |
-| `动效／局部常量` | `{ duration: N.DUR.content, easing: N.EASE_ENTER });` | `chat` | 预览资源/js/chat.js:993 |
-| `动效／局部常量` | `{ duration: N.DUR.micro, easing: 'ease-in', fill: 'forwards' })).onfinish = done;` | `chat` | 预览资源/js/chat.js:1000 |
+| `动效／局部常量` | `const from = panel.hidden ? { opacity: 0, transform: 'translateY(8px) scale(.94)' }` | `chat` | 预览资源/js/chat.js:959 |
+| `动效／局部常量` | `{ duration: N.SP.bouncy.d, easing: N.SP.bouncy.e, fill: 'backwards' });` | `chat` | 预览资源/js/chat.js:969 |
+| `动效／局部常量` | `const motion = N.anim(panel, [from, { opacity: 0, transform: 'translateY(6px) scale(.94)' }],` | `chat` | 预览资源/js/chat.js:975 |
+| `动效／局部常量` | `{ duration: 140, easing: 'ease-in', fill: 'forwards' });` | `chat` | 预览资源/js/chat.js:976 |
+| `动效／局部常量` | `{ duration: N.SP.bouncy.d, easing: N.SP.bouncy.e });` | `chat` | 预览资源/js/chat.js:993 |
+| `动效／局部常量` | `{ duration: 140, easing: 'ease-in', fill: 'forwards' })).onfinish = done;` | `chat` | 预览资源/js/chat.js:1000 |
 | `动效／局部常量` | `const h = Math.min(200, Math.ceil(Math.max(parseFloat(style.minHeight) \|\| 0, inputMeasure.scrollHeight) / 4) * 4);` | `chat` | 预览资源/js/chat.js:1062 |
 | `动效／局部常量` | `const blobToBase64 = blob => new Promise((resolve, reject) => {` | `chat` | 预览资源/js/chat.js:1087 |
-| `动效／局部常量` | `anim(sendBtn, [{ transform: 'scale(.88)' }, { transform: 'scale(1)' }], { duration: N.DUR.content, easing: SP.settle.e });` | `chat` | 预览资源/js/chat.js:1168 |
+| `动效／局部常量` | `anim(sendBtn, [{ transform: 'scale(.91)' }, { transform: 'scale(1)' }], { duration: N.DUR.micro, easing: SP.tap.e });` | `chat` | 预览资源/js/chat.js:1168 |
 | `动效／局部常量` | `setTimeout(async () => {` | `chat` | 预览资源/js/chat.js:1192 |
 | `动效／局部常量` | `const cx = r.left + r.width / 2, cy = r.top + r.height / 2;` | `chat` | 预览资源/js/chat.js:1239 |
 | `动效／局部常量` | `{ duration: N.DUR.enter, easing: EASE_OUT }).onfinish = () => i.remove();` | `chat` | 预览资源/js/chat.js:1247 |
-| `动效／局部常量` | `{ duration: N.DUR.exit, easing: N.EASE_EXIT }).onfinish = () => ghost.remove();` | `chat` | 预览资源/js/chat.js:1260 |
-| `动效／局部常量` | `node._sendMotion = anim(node, [{ transform: 'translateY(${from.y - to.y}px)' }, { transform: 'none' }], { duration: N.DUR.move, easing: N.EASE_MOVE });` | `chat` | 预览资源/js/chat.js:1285 |
-| `动效／局部常量` | `{ duration: N.DUR.move, easing: N.EASE_MOVE }).onfinish = () => ghost.remove();` | `chat` | 预览资源/js/chat.js:1294 |
-| `动效／局部常量` | `{ duration: N.DUR.content, delay: N.MOTION.stagger * 2, easing: EASE_OUT, fill: 'backwards' });` | `chat` | 预览资源/js/chat.js:1297 |
-| `动效／局部常量` | `let seq = 0;` | `chat` | 预览资源/js/chat.js:1301 |
-| `动效／局部常量` | `const MAX_FILES = 8;` | `chat` | 预览资源/js/chat.js:1302 |
-| `动效／局部常量` | `if (state.files.length >= MAX_FILES) { N.notify('每次最多 8 个附件', 'cinnabar'); break; }` | `chat` | 预览资源/js/chat.js:1305 |
-| `动效／局部常量` | `if (isImage && file.size > 5 * 1024 * 1024) { N.notify('图片超过 5 MiB：' + file.name, 'cinnabar'); continue; }` | `chat` | 预览资源/js/chat.js:1307 |
-| `动效／局部常量` | `if (!isImage && file.size > 25 * 1024 * 1024) { N.notify('文件超过 25 MiB：' + file.name, 'cinnabar'); continue; }` | `chat` | 预览资源/js/chat.js:1308 |
-| `动效／局部常量` | `{ duration: N.DUR.exit, easing: N.EASE_EXIT }).onfinish = () => { node.style.overflow = ''; renderChat(); };` | `chat` | 预览资源/js/chat.js:1421 |
-| `动效／局部常量` | `const done = () => { state.files.splice(i, 1); renderFiles(); updateSend(); N.save(); };` | `chat` | 预览资源/js/chat.js:1496 |
-| `动效／局部常量` | `if (chip && !N.REDUCED) N.anim(chip, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.6)' }], { duration: N.DUR.micro, easing: 'ease-in' }).onfinish = done;` | `chat` | 预览资源/js/chat.js:1497 |
+| `动效／局部常量` | `{ duration: 420, easing: EASE_OUT, fill: 'forwards' }).onfinish = () => ghost.remove();` | `chat` | 预览资源/js/chat.js:1260 |
+| `动效／局部常量` | `node._sendMotion = anim(node, [{ transform: 'translateY(${from.y - to.y}px)' }, { transform: 'none' }], { duration: SP.soft.d, easing: SP.soft.e });` | `chat` | 预览资源/js/chat.js:1286 |
+| `动效／局部常量` | `], { duration: SP.bouncy.d, easing: SP.bouncy.e, fill: 'backwards' }).onfinish = () => {` | `chat` | 预览资源/js/chat.js:1293 |
+| `动效／局部常量` | `let seq = 0;` | `chat` | 预览资源/js/chat.js:1299 |
+| `动效／局部常量` | `const MAX_FILES = 8;` | `chat` | 预览资源/js/chat.js:1300 |
+| `动效／局部常量` | `if (state.files.length >= MAX_FILES) { N.notify('每次最多 8 个附件', 'cinnabar'); break; }` | `chat` | 预览资源/js/chat.js:1303 |
+| `动效／局部常量` | `if (isImage && file.size > 5 * 1024 * 1024) { N.notify('图片超过 5 MiB：' + file.name, 'cinnabar'); continue; }` | `chat` | 预览资源/js/chat.js:1305 |
+| `动效／局部常量` | `if (!isImage && file.size > 25 * 1024 * 1024) { N.notify('文件超过 25 MiB：' + file.name, 'cinnabar'); continue; }` | `chat` | 预览资源/js/chat.js:1306 |
+| `动效／局部常量` | `{ duration: 340, easing: EASE_OUT }).onfinish = () => { node.style.overflow = ''; renderChat(); };` | `chat` | 预览资源/js/chat.js:1419 |
+| `动效／局部常量` | `const done = () => { state.files.splice(i, 1); renderFiles(); updateSend(); N.save(); };` | `chat` | 预览资源/js/chat.js:1494 |
+| `动效／局部常量` | `if (chip && !N.REDUCED) N.anim(chip, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.6)' }], { duration: N.DUR.micro, easing: 'ease-in' }).onfinish = done;` | `chat` | 预览资源/js/chat.js:1495 |
 | `动效／局部常量` | `const ctx = { tab: 'system', selected: new Set(), undo: null, canUndo: false, busy: false, enteredAt: 0 };` | `context` | 预览资源/js/context.js:8 |
 | `动效／局部常量` | `const hit = /T(\d{2}):(\d{2})/.exec(text);` | `context` | 预览资源/js/context.js:69 |
 | `动效／局部常量` | `const meta = [turnClock(t.at), t.tools ? '${t.tools} 次工具调用' : '', t.indices.length > 2 ? '${t.indices.length} 条记录' : ''].filter(Boolean).join(' · ');` | `context` | 预览资源/js/context.js:97 |
-| `动效／局部常量` | `{ duration: N.DUR.enter, delay: i * N.MOTION.stagger, easing: N.EASE_MOVE, fill: 'backwards' }));` | `context` | 预览资源/js/context.js:139 |
-| `动效／局部常量` | `{ duration: N.DUR.enter, delay: (i + 2) * N.MOTION.stagger, easing: N.EASE_ENTER, fill: 'backwards' }));` | `context` | 预览资源/js/context.js:141 |
+| `动效／局部常量` | `{ duration: N.SP.soft.d, delay: 200 + i * 70, easing: N.SP.soft.e, fill: 'backwards' }));` | `context` | 预览资源/js/context.js:139 |
+| `动效／局部常量` | `{ duration: 320, delay: 240 + i * 60, easing: N.EASE_OUT, fill: 'backwards' }));` | `context` | 预览资源/js/context.js:141 |
 | `动效／局部常量` | `const used = (c.system \|\| 0) + (c.tools \|\| 0) + (c.messages \|\| 0);` | `context` | 预览资源/js/context.js:151 |
 | `动效／局部常量` | `const known = used > 0;` | `context` | 预览资源/js/context.js:152 |
 | `动效／局部常量` | `const pct = known && c.window ? Math.min(100, Math.round(used / c.window * 100)) : null;` | `context` | 预览资源/js/context.js:153 |
 | `动效／局部常量` | `const denom = used \|\| 1;` | `context` | 预览资源/js/context.js:154 |
-| `动效／局部常量` | `setTimeout(() => {` | `context` | 预览资源/js/context.js:193 |
-| `动效／局部常量` | `let lastSync = 0;` | `context` | 预览资源/js/context.js:208 |
-| `动效／局部常量` | `const wait = (ctx.enteredAt \|\| 0) + 720 - Date.now();` | `context` | 预览资源/js/context.js:212 |
-| `动效／局部常量` | `if (wait > 0) { setTimeout(maybeSync, wait); return; }` | `context` | 预览资源/js/context.js:213 |
-| `动效／局部常量` | `{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' }).finished;` | `context` | 预览资源/js/context.js:265 |
-| `动效／局部常量` | `{ duration: N.DUR.micro, delay: Math.min(k * 20, 60), easing: N.EASE_EXIT, fill: 'forwards' }).finished));` | `context` | 预览资源/js/context.js:325 |
+| `动效／局部常量` | `let lastSync = 0;` | `context` | 预览资源/js/context.js:203 |
+| `动效／局部常量` | `const wait = (ctx.enteredAt \|\| 0) + 720 - Date.now();` | `context` | 预览资源/js/context.js:207 |
+| `动效／局部常量` | `if (wait > 0) { setTimeout(maybeSync, wait); return; }` | `context` | 预览资源/js/context.js:208 |
+| `动效／局部常量` | `{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' }).finished;` | `context` | 预览资源/js/context.js:260 |
+| `动效／局部常量` | `{ duration: N.DUR.micro, delay: Math.min(k * 20, 60), easing: N.EASE_EXIT, fill: 'forwards' }).finished));` | `context` | 预览资源/js/context.js:320 |
 | `动效／局部常量` | `const wait = ms => new Promise(r => setTimeout(r, ms));` | `core` | 预览资源/js/core.js:17 |
 | `动效／局部常量` | `const uid = (p = 'id') => p + '-' + Math.random().toString(36).slice(2, 9);` | `core` | 预览资源/js/core.js:18 |
 | `动效／局部常量` | `const EASE_OUT = 'cubic-bezier(.22,1,.36,1)';` | `core` | 预览资源/js/core.js:21 |
@@ -82,69 +80,58 @@
 | `动效／局部常量` | `const motionKey = id => (MOTION_ALIAS[id] \|\| (MOTION_SCALES[id] ? id : '1'));` | `core` | 预览资源/js/core.js:29 |
 | `动效／局部常量` | `let motionId = '1';` | `core` | 预览资源/js/core.js:30 |
 | `动效／局部常量` | `const motionScale = () => MOTION_SCALES[motionId] \|\| 1;` | `core` | 预览资源/js/core.js:31 |
-| `动效／局部常量` | `const LINEAR_OK = CSS.supports('animation-timing-function', 'linear(0, 0.5, 1)');` | `core` | 预览资源/js/core.js:46 |
-| `动效／局部常量` | `const dt = 1 / 600; let x = 0, v = 0, t = 0; const pts = [[0, 0]];` | `core` | 预览资源/js/core.js:48 |
-| `动效／局部常量` | `const a = (-stiffness * (x - 1) - damping * v) / mass;` | `core` | 预览资源/js/core.js:50 |
-| `动效／局部常量` | `const dur = t, COUNT = 56, vals = [];` | `core` | 预览资源/js/core.js:54 |
-| `动效／局部常量` | `for (let i = 0, j = 0; i <= COUNT; i++) {` | `core` | 预览资源/js/core.js:55 |
-| `动效／局部常量` | `bouncy: spring({ stiffness: 400, damping: 18 }),` | `core` | 预览资源/js/core.js:66 |
-| `动效／局部常量` | `snappy: spring({ stiffness: 530, damping: 27 }),` | `core` | 预览资源/js/core.js:67 |
-| `动效／局部常量` | `soft: spring({ stiffness: 230, damping: 20 }),` | `core` | 预览资源/js/core.js:68 |
-| `动效／局部常量` | `island: spring({ stiffness: 410, damping: 24 }),` | `core` | 预览资源/js/core.js:69 |
-| `动效／局部常量` | `pop: spring({ stiffness: 590, damping: 25 }),` | `core` | 预览资源/js/core.js:70 |
-| `动效／局部常量` | `settle: spring({ stiffness: 490, damping: 24 }),` | `core` | 预览资源/js/core.js:71 |
-| `动效／局部常量` | `if (REDUCED) for (const k in SP) SP[k] = { e: 'ease', d: 1 };` | `core` | 预览资源/js/core.js:74 |
-| `动效／局部常量` | `if (REDUCED) return el.animate(kf, { easing: EASE_MOVE, ...o, duration: 1, delay: 0 });` | `core` | 预览资源/js/core.js:90 |
-| `动效／局部常量` | `return el.animate(kf, { easing: EASE_MOVE, ...o, duration: (o.duration \|\| 0) * s, delay: (o.delay \|\| 0) * s });` | `core` | 预览资源/js/core.js:92 |
-| `动效／局部常量` | `const floatPhase = el => el.matches('header, h2, .sheet-head, .isl-head, .det-head') ? 1` | `core` | 预览资源/js/core.js:115 |
-| `动效／局部常量` | `const step = Math.min(MOTION.contentStagger, MOTION.contentWindow / Math.max(1, items.length - 1));` | `core` | 预览资源/js/core.js:131 |
-| `动效／局部常量` | `let wait = delay + (page ? Math.min(groupIndex * MOTION.stagger, MOTION.window) : 0) + i * step;` | `core` | 预览资源/js/core.js:132 |
-| `动效／局部常量` | `const from = start \|\| { opacity: 0, transform: 'translateY(${offset}px) scale(${card ? .99 : 1})' };` | `core` | 预览资源/js/core.js:134 |
-| `动效／局部常量` | `const to = { opacity: 1, transform: 'none', ...(floating ? { filter: 'none' } : {}) };` | `core` | 预览资源/js/core.js:136 |
-| `动效／局部常量` | `const motion = anim(el, [from, to], { duration: duration ?? (page ? DUR.enter : DUR.content), delay: wait, easing: EASE_ENTER, fill: 'backwards' });` | `core` | 预览资源/js/core.js:137 |
-| `动效／局部常量` | `const phase = el.matches('footer, .sheet-foot, .save-bar, .isl-actions, .composer-wrap, .btn, .tabs, .seg, [class*="toolbar"]') ? 0` | `core` | 预览资源/js/core.js:150 |
-| `动效／局部常量` | `const motion = anim(el, [from, { opacity: 0, transform: '${from.transform === 'none' ? '' : from.transform} translateY(-8px)' }],` | `core` | 预览资源/js/core.js:152 |
-| `动效／局部常量` | `{ duration: DUR.micro, delay: phase * 30, easing: EASE_EXIT, fill: 'forwards' });` | `core` | 预览资源/js/core.js:153 |
-| `动效／局部常量` | `const p0 = previousAxis === axis ? (matrix ? (axis === 'x' ? matrix.m41 : matrix.m42) : 0) : null;` | `core` | 预览资源/js/core.js:172 |
-| `动效／局部常量` | `const s0 = parseFloat(current[S]);` | `core` | 预览资源/js/core.js:173 |
-| `动效／局部常量` | `const direction = Math.sign(pos - p0);` | `core` | 预览资源/js/core.js:180 |
-| `动效／局部常量` | `const stretch = Math.min(Math.abs(pos - p0) * .4, size * .65);` | `core` | 预览资源/js/core.js:181 |
-| `动效／局部常量` | `const crossEnd = axis === 'x' ? 6 : 7;` | `core` | 预览资源/js/core.js:186 |
-| `动效／局部常量` | `for (let i = 0; i <= 48; i++) {` | `core` | 预览资源/js/core.js:189 |
-| `动效／局部常量` | `const t = i / 48;` | `core` | 预览资源/js/core.js:190 |
-| `动效／局部常量` | `const progress = (1 - (1 + 7 * t) * Math.exp(-7 * t)) / (1 - 8 * Math.exp(-7));` | `core` | 预览资源/js/core.js:191 |
-| `动效／局部常量` | `const tension = Math.sin(Math.PI * t) * (1 - t) * 2;` | `core` | 预览资源/js/core.js:192 |
-| `动效／局部常量` | `const length = s0 + (size - s0) * progress + stretch * tension;` | `core` | 预览资源/js/core.js:193 |
-| `动效／局部常量` | `const center = p0 + s0 / 2 + (pos + size / 2 - p0 - s0 / 2) * progress + direction * stretch * tension * .3;` | `core` | 预览资源/js/core.js:194 |
-| `动效／局部常量` | `anim(ink, frames, { duration: DUR.move, easing: 'linear' });` | `core` | 预览资源/js/core.js:203 |
-| `动效／局部常量` | `const positionSpring = spring({ stiffness: 490, damping: Math.min(40, 24 + Math.abs(pos - p0) * .1) });` | `core` | 预览资源/js/core.js:206 |
-| `动效／局部常量` | `], { duration: DUR.move * motionScale(), easing: positionSpring.e });` | `core` | 预览资源/js/core.js:210 |
-| `动效／局部常量` | `{ duration: DUR.move * motionScale(), easing: EASE_MOVE });` | `core` | 预览资源/js/core.js:212 |
-| `动效／局部常量` | `const nowHM = () => new Date().toTimeString().slice(0, 5);` | `core` | 预览资源/js/core.js:216 |
-| `动效／局部常量` | `return size >= 1024 * 1024 ? (size / (1024 * 1024)).toFixed(1) + ' MiB' : Math.ceil(size / 1024) + ' KiB';` | `core` | 预览资源/js/core.js:219 |
-| `动效／局部常量` | `const fmtNum = n => Number(n \|\| 0).toLocaleString('en-US');` | `core` | 预览资源/js/core.js:221 |
-| `动效／局部常量` | `const t = clamp((now - start) / dur, 0, 1);` | `core` | 预览资源/js/core.js:243 |
-| `动效／局部常量` | `const chart = '<rect x="18" y="120" width="26" height="58" rx="6" fill="#bfe9dd"/>` | `core` | 预览资源/js/core.js:260 |
-| `动效／局部常量` | `const ui = '<rect x="18" y="22" width="90" height="10" rx="5" fill="#cfd8d5"/>` | `core` | 预览资源/js/core.js:265 |
-| `动效／局部常量` | `const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="224" height="212" viewBox="0 0 224 212">` | `core` | 预览资源/js/core.js:271 |
-| `动效／局部常量` | `const lang = [...code.classList].find(c => c.startsWith('language-'))?.slice(9) \|\| '';` | `core` | 预览资源/js/core.js:316 |
-| `动效／局部常量` | `setTimeout(() => { e.target.textContent = '复制'; }, 1200);` | `core` | 预览资源/js/core.js:330 |
-| `动效／局部常量` | `version: 2,` | `core` | 预览资源/js/core.js:392 |
-| `动效／局部常量` | `liveRevision: 0,` | `core` | 预览资源/js/core.js:408 |
-| `动效／局部常量` | `turns: 0,` | `core` | 预览资源/js/core.js:413 |
-| `动效／局部常量` | `contextWindow: 0,` | `core` | 预览资源/js/core.js:424 |
-| `动效／局部常量` | `N.later = (fn, ms) => { const t = setTimeout(() => { N.timers.delete(t); fn(); }, ms); N.timers.add(t); return t; };` | `core` | 预览资源/js/core.js:455 |
-| `动效／局部常量` | `const motion = animateSurface(menu, from, { opacity: 0, transform: 'translateY(8px) scale(.97)' },` | `dialogs` | 预览资源/js/dialogs.js:28 |
-| `动效／局部常量` | `{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });` | `dialogs` | 预览资源/js/dialogs.js:29 |
-| `动效／局部常量` | `{ duration: N.DUR.content, easing: N.EASE_ENTER, fill: 'backwards' }, N.SP.settle.e);` | `dialogs` | 预览资源/js/dialogs.js:49 |
-| `动效／局部常量` | `const left = Math.max(8, Math.min(r.left, innerWidth - mw - 12));` | `dialogs` | 预览资源/js/dialogs.js:54 |
-| `动效／局部常量` | `let top = r.top - mh - 8;` | `dialogs` | 预览资源/js/dialogs.js:55 |
-| `动效／局部常量` | `const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : (index + (e.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;` | `dialogs` | 预览资源/js/dialogs.js:81 |
-| `动效／局部常量` | `let previewVersion = 0;` | `dialogs` | 预览资源/js/dialogs.js:159 |
-| `动效／局部常量` | `if (line) setTimeout(() => { if (version === previewVersion && fp.open && !fp._closing) $('.fp-line.target', fpBody)?.scrollIntoView({ block: 'center' }); }, 40);` | `dialogs` | 预览资源/js/dialogs.js:203 |
-| `动效／局部常量` | `{ duration: N.DUR.enter, easing: N.EASE_ENTER, fill: 'backwards' }, N.SP.settle.e);` | `dialogs` | 预览资源/js/dialogs.js:228 |
-| `动效／局部常量` | `const motion = animateSurface(d, from, { opacity: 0, transform: 'translateY(8px) scale(.97)' },` | `dialogs` | 预览资源/js/dialogs.js:244 |
-| `动效／局部常量` | `{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });` | `dialogs` | 预览资源/js/dialogs.js:245 |
+| `动效／局部常量` | `const EASE_PRESS = tokenStyle.getPropertyValue('--ease-press').trim() \|\| 'cubic-bezier(.2,0,0,1)';` | `core` | 预览资源/js/core.js:39 |
+| `动效／局部常量` | `const LINEAR_OK = CSS.supports('animation-timing-function', 'linear(0, 0.5, 1)');` | `core` | 预览资源/js/core.js:59 |
+| `动效／局部常量` | `const dt = 1 / 600; let x = 0, v = 0, t = 0; const pts = [[0, 0]];` | `core` | 预览资源/js/core.js:61 |
+| `动效／局部常量` | `const a = (-stiffness * (x - 1) - damping * v) / mass;` | `core` | 预览资源/js/core.js:63 |
+| `动效／局部常量` | `const dur = t, COUNT = 56, vals = [];` | `core` | 预览资源/js/core.js:67 |
+| `动效／局部常量` | `for (let i = 0, j = 0; i <= COUNT; i++) {` | `core` | 预览资源/js/core.js:68 |
+| `动效／局部常量` | `const bouncy = spring({ stiffness: 320, damping: 19 });` | `core` | 预览资源/js/core.js:78 |
+| `动效／局部常量` | `const snappy = spring({ stiffness: 460, damping: 34 });` | `core` | 预览资源/js/core.js:79 |
+| `动效／局部常量` | `const soft = spring({ stiffness: 170, damping: 24 });` | `core` | 预览资源/js/core.js:80 |
+| `动效／局部常量` | `const island = spring({ stiffness: 340, damping: 27 });` | `core` | 预览资源/js/core.js:81 |
+| `动效／局部常量` | `if (REDUCED) for (const k in SP) SP[k] = { e: 'ease', d: 1 };` | `core` | 预览资源/js/core.js:94 |
+| `动效／局部常量` | `if (REDUCED) return el.animate(kf, { easing: EASE_MOVE, ...o, duration: 1, delay: 0 });` | `core` | 预览资源/js/core.js:110 |
+| `动效／局部常量` | `return el.animate(kf, { easing: EASE_MOVE, ...o, duration: (o.duration \|\| 0) * s, delay: (o.delay \|\| 0) * s });` | `core` | 预览资源/js/core.js:112 |
+| `动效／局部常量` | `const baseDelay = delay \|\| (page ? 40 : floating ? 30 : 0);` | `core` | 预览资源/js/core.js:144 |
+| `动效／局部常量` | `const from = start \|\| { opacity: 0, transform: fromTransform };` | `core` | 预览资源/js/core.js:146 |
+| `动效／局部常量` | `const to = { opacity: 1, transform: 'none' };` | `core` | 预览资源/js/core.js:147 |
+| `动效／局部常量` | `duration: duration ?? (floating ? DUR.base : SP.soft.d),` | `core` | 预览资源/js/core.js:149 |
+| `动效／局部常量` | `delay: wait,` | `core` | 预览资源/js/core.js:150 |
+| `动效／局部常量` | `const motion = anim(el, [from, { opacity: 0, transform: '${from.transform === 'none' ? '' : from.transform} translateY(${MOTION.exitOffset}px) scale(.99)' }],` | `core` | 预览资源/js/core.js:166 |
+| `动效／局部常量` | `{ duration: 150, easing: 'ease-in', fill: 'forwards' });` | `core` | 预览资源/js/core.js:167 |
+| `动效／局部常量` | `const p0 = previousAxis === axis ? (matrix ? (axis === 'x' ? matrix.m41 : matrix.m42) : 0) : null;` | `core` | 预览资源/js/core.js:186 |
+| `动效／局部常量` | `const s0 = parseFloat(current[S]);` | `core` | 预览资源/js/core.js:187 |
+| `动效／局部常量` | `const a0 = p0, b0 = p0 + s0, a1 = pos, b1 = pos + size;` | `core` | 预览资源/js/core.js:192 |
+| `动效／局部常量` | `const goFwd = a1 >= a0;` | `core` | 预览资源/js/core.js:193 |
+| `动效／局部常量` | `const midStart = goFwd ? a0 + (a1 - a0) * 0.12 : a1;` | `core` | 预览资源/js/core.js:194 |
+| `动效／局部常量` | `const midEnd   = goFwd ? b1 : b0 + (b1 - b0) * 0.12;` | `core` | 预览资源/js/core.js:195 |
+| `动效／局部常量` | `], { duration: Math.max(520, SP.bouncy.d * 0.9), easing: 'linear' });` | `core` | 预览资源/js/core.js:200 |
+| `动效／局部常量` | `const nowHM = () => new Date().toTimeString().slice(0, 5);` | `core` | 预览资源/js/core.js:204 |
+| `动效／局部常量` | `return size >= 1024 * 1024 ? (size / (1024 * 1024)).toFixed(1) + ' MiB' : Math.ceil(size / 1024) + ' KiB';` | `core` | 预览资源/js/core.js:207 |
+| `动效／局部常量` | `const fmtNum = n => Number(n \|\| 0).toLocaleString('en-US');` | `core` | 预览资源/js/core.js:209 |
+| `动效／局部常量` | `const t = clamp((now - start) / dur, 0, 1);` | `core` | 预览资源/js/core.js:231 |
+| `动效／局部常量` | `const chart = '<rect x="18" y="120" width="26" height="58" rx="6" fill="#bfe9dd"/>` | `core` | 预览资源/js/core.js:248 |
+| `动效／局部常量` | `const ui = '<rect x="18" y="22" width="90" height="10" rx="5" fill="#cfd8d5"/>` | `core` | 预览资源/js/core.js:253 |
+| `动效／局部常量` | `const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="224" height="212" viewBox="0 0 224 212">` | `core` | 预览资源/js/core.js:259 |
+| `动效／局部常量` | `const lang = [...code.classList].find(c => c.startsWith('language-'))?.slice(9) \|\| '';` | `core` | 预览资源/js/core.js:304 |
+| `动效／局部常量` | `setTimeout(() => { e.target.textContent = '复制'; }, 1200);` | `core` | 预览资源/js/core.js:318 |
+| `动效／局部常量` | `version: 2,` | `core` | 预览资源/js/core.js:380 |
+| `动效／局部常量` | `liveRevision: 0,` | `core` | 预览资源/js/core.js:396 |
+| `动效／局部常量` | `turns: 0,` | `core` | 预览资源/js/core.js:401 |
+| `动效／局部常量` | `contextWindow: 0,` | `core` | 预览资源/js/core.js:412 |
+| `动效／局部常量` | `N.later = (fn, ms) => { const t = setTimeout(() => { N.timers.delete(t); fn(); }, ms); N.timers.add(t); return t; };` | `core` | 预览资源/js/core.js:443 |
+| `动效／局部常量` | `const motion = animateSurface(menu, from, { opacity: 0, transform: 'translateY(6px) scale(.94)' },` | `dialogs` | 预览资源/js/dialogs.js:28 |
+| `动效／局部常量` | `{ duration: 140, easing: 'ease-in', fill: 'forwards' });` | `dialogs` | 预览资源/js/dialogs.js:29 |
+| `动效／局部常量` | `{ duration: N.SP.bouncy.d, easing: N.EASE_OUT, fill: 'backwards' }, N.SP.bouncy.e);` | `dialogs` | 预览资源/js/dialogs.js:51 |
+| `动效／局部常量` | `const left = Math.max(8, Math.min(r.left, innerWidth - mw - 12));` | `dialogs` | 预览资源/js/dialogs.js:56 |
+| `动效／局部常量` | `let top = r.top - mh - 8;` | `dialogs` | 预览资源/js/dialogs.js:57 |
+| `动效／局部常量` | `const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : (index + (e.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;` | `dialogs` | 预览资源/js/dialogs.js:83 |
+| `动效／局部常量` | `let previewVersion = 0;` | `dialogs` | 预览资源/js/dialogs.js:161 |
+| `动效／局部常量` | `if (line) setTimeout(() => { if (version === previewVersion && fp.open && !fp._closing) $('.fp-line.target', fpBody)?.scrollIntoView({ block: 'center' }); }, 40);` | `dialogs` | 预览资源/js/dialogs.js:205 |
+| `动效／局部常量` | `{ duration: N.SP.bouncy.d, easing: N.EASE_OUT, fill: 'backwards' }, N.SP.bouncy.e);` | `dialogs` | 预览资源/js/dialogs.js:230 |
+| `动效／局部常量` | `const motion = animateSurface(d, from, { opacity: 0, transform: 'translateY(12px) scale(.95)' },` | `dialogs` | 预览资源/js/dialogs.js:243 |
+| `动效／局部常量` | `{ duration: 160, easing: 'ease-in', fill: 'forwards' });` | `dialogs` | 预览资源/js/dialogs.js:244 |
 | `动效／局部常量` | `const {$,esc}=N;let owner=null,version=0;` | `host-sdk` | 预览资源/js/host-sdk.js:4 |
 | `动效／局部常量` | `try{const r=await request('/api/plugins/${encodeURIComponent(pluginId)}/runtime');if(current!==version\|\|pluginId!==owner)return;const text=v=>esc(JSON.stringify(v,null,2));` | `host-sdk` | 预览资源/js/host-sdk.js:10 |
 | `动效／局部常量` | `if(b.dataset.hostMethod){b.disabled=true;const method=b.dataset.hostMethod;const params=method.startsWith('jobs.')?{job_id:b.dataset.resource}:{dialogue_id:b.dataset.resource};const r=await request('/api/plugins/${encodeURIComponent(owner)}/runtime',{method,params});if(method==='dialogues.history'){const box=document.createElement('pre');box.className='host-runtime-json';box.textContent=JSON.stringify(r,null,2);b.parentElement.append(box);}else await runtime();}` | `host-sdk` | 预览资源/js/host-sdk.js:19 |
@@ -320,57 +307,55 @@
 | `动效／局部常量` | `{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });` | `plugins` | 预览资源/js/plugins.js:508 |
 | `动效／局部常量` | `let selectedPath = '', autoName = '', editing = false, saving = false, picking = false, generation = 0;` | `projects` | 预览资源/js/projects.js:8 |
 | `动效／局部常量` | `let providerVersion = 0, mcpVersion = 0;` | `settings` | 预览资源/js/settings.js:11 |
-| `动效／局部常量` | `{ duration: N.DUR.enter, delay: i * N.MOTION.stagger, easing: N.EASE_ENTER });` | `settings` | 预览资源/js/settings.js:59 |
-| `动效／局部常量` | `setTimeout(() => $('#p-name').focus(), 40);` | `settings` | 预览资源/js/settings.js:266 |
-| `动效／局部常量` | `const first = state.providers[0];` | `settings` | 预览资源/js/settings.js:317 |
-| `动效／局部常量` | `const model = first && (first.models \|\| [])[0];` | `settings` | 预览资源/js/settings.js:318 |
-| `动效／局部常量` | `{ duration: N.DUR.base, easing: N.SP.settle.e });` | `settings` | 预览资源/js/settings.js:364 |
+| `动效／局部常量` | `], { duration: N.SP.bouncy.d, delay: i * 50, easing: N.SP.bouncy.e });` | `settings` | 预览资源/js/settings.js:61 |
+| `动效／局部常量` | `setTimeout(() => $('#p-name').focus(), 40);` | `settings` | 预览资源/js/settings.js:268 |
+| `动效／局部常量` | `const first = state.providers[0];` | `settings` | 预览资源/js/settings.js:319 |
+| `动效／局部常量` | `const model = first && (first.models \|\| [])[0];` | `settings` | 预览资源/js/settings.js:320 |
+| `动效／局部常量` | `{ duration: N.DUR.base, easing: N.SP.settle.e });` | `settings` | 预览资源/js/settings.js:366 |
 | `动效／局部常量` | `setTimeout(() => { if (!scrim.classList.contains('show')) scrim.hidden = true; }, N.DUR.exit * N.motionScale() + 20);` | `shell` | 预览资源/js/shell.js:32 |
 | `动效／局部常量` | `const pendingReq = () => state.requests.length + state.works.reduce((n, w) => n + (w.pending_interactions?.length \|\| 0), 0);` | `shell` | 预览资源/js/shell.js:37 |
 | `动效／局部常量` | `const a = activeWorks().slice(0, 3);` | `shell` | 预览资源/js/shell.js:59 |
 | `动效／局部常量` | `const done = state.works.filter(w => w.state === 'completed').slice(0, 4);` | `shell` | 预览资源/js/shell.js:86 |
-| `动效／局部常量` | `const shapeFrom = islandInner._shapeMotion && !['finished', 'idle'].includes(islandInner._shapeMotion.playState) ? innerTransform : 'scale(.97)';` | `shell` | 预览资源/js/shell.js:129 |
-| `动效／局部常量` | `const fromRadius = Math.min(parseFloat(getComputedStyle(island).borderTopLeftRadius), from.height / 2, from.width / 2);` | `shell` | 预览资源/js/shell.js:130 |
-| `动效／局部常量` | `], { duration: (closing ? N.DUR.exit : N.DUR.move) * N.motionScale(), easing: N.EASE_MOVE });` | `shell` | 预览资源/js/shell.js:178 |
-| `动效／局部常量` | `{ duration: closing ? N.DUR.exit : N.DUR.move, easing: N.SP.settle.e });` | `shell` | 预览资源/js/shell.js:180 |
-| `动效／局部常量` | `{ duration: closing ? N.DUR.exit : N.DUR.move, easing: N.SP.settle.e, fill: 'backwards' });` | `shell` | 预览资源/js/shell.js:182 |
-| `动效／局部常量` | `{ duration: N.DUR.micro, easing: N.EASE_EXIT, fill: 'forwards' });` | `shell` | 预览资源/js/shell.js:186 |
-| `动效／局部常量` | `if (closing) N.enterItems([panel], islandInner, { profile: 'content', delay: 60, duration: N.DUR.micro });` | `shell` | 预览资源/js/shell.js:188 |
-| `动效／局部常量` | `islandAnim = anim(island, [{ width: from + 'px' }, { width: to + 'px' }], { duration: N.DUR.move, easing: N.EASE_MOVE });` | `shell` | 预览资源/js/shell.js:222 |
-| `动效／局部常量` | `const keepTop = sc ? sc.scrollTop : 0;` | `shell` | 预览资源/js/shell.js:250 |
-| `动效／局部常量` | `const keepThreadTop = tSc ? tSc.scrollTop : 0;` | `shell` | 预览资源/js/shell.js:252 |
-| `动效／局部常量` | `const ico = tone === 'jade' ? icon('check', 'i sm') : '<span class="orb-mini" style="--s:16px" aria-hidden="true"></span>';` | `shell` | 预览资源/js/shell.js:277 |
-| `动效／局部常量` | `island._noticeMotion = anim(island, [{ height: island.getBoundingClientRect().height + 'px' }, { height: '46px' }], { duration: N.DUR.move, easing: N.EASE_MOVE });` | `shell` | 预览资源/js/shell.js:282 |
-| `动效／局部常量` | `toastTimer = setTimeout(() => { if (island.mode === 'toast') morphIsland('compact'); }, ms);` | `shell` | 预览资源/js/shell.js:284 |
-| `动效／局部常量` | `toastTimer = setTimeout(() => t.classList.remove('show'), ms);` | `shell` | 预览资源/js/shell.js:289 |
-| `动效／局部常量` | `let viewVersion = 0;` | `shell` | 预览资源/js/shell.js:315 |
-| `动效／局部常量` | `const x0 = a.left + a.width / 2, y0 = a.top + a.height / 2, x1 = b.left + b.width / 2, y1 = b.top + b.height / 2;` | `shell` | 预览资源/js/shell.js:405 |
-| `动效／局部常量` | `const cx = x0 + (x1 - x0) * 0.25, cy = Math.min(y0, y1) + (Math.max(y0, y1) - Math.min(y0, y1)) * 0.15 - 60;` | `shell` | 预览资源/js/shell.js:406 |
-| `动效／局部常量` | `const NSTEP = 24, kf = [];` | `shell` | 预览资源/js/shell.js:410 |
-| `动效／局部常量` | `for (let i = 0; i <= NSTEP; i++) {` | `shell` | 预览资源/js/shell.js:411 |
-| `动效／局部常量` | `const t = i / NSTEP, u = 1 - t;` | `shell` | 预览资源/js/shell.js:412 |
-| `动效／局部常量` | `const x = u * u * x0 + 2 * u * t * cx + t * t * x1;` | `shell` | 预览资源/js/shell.js:413 |
-| `动效／局部常量` | `const y = u * u * y0 + 2 * u * t * cy + t * t * y1;` | `shell` | 预览资源/js/shell.js:414 |
-| `动效／局部常量` | `const dx = 2 * u * (cx - x0) + 2 * t * (x1 - cx);` | `shell` | 预览资源/js/shell.js:415 |
-| `动效／局部常量` | `const dy = 2 * u * (cy - y0) + 2 * t * (y1 - cy);` | `shell` | 预览资源/js/shell.js:416 |
-| `动效／局部常量` | `const ang = Math.atan2(dy, dx) * 180 / Math.PI;` | `shell` | 预览资源/js/shell.js:417 |
-| `动效／局部常量` | `const stretch = 1 + Math.sin(t * Math.PI) * 0.9, sc = 1 - t * 0.35;` | `shell` | 预览资源/js/shell.js:418 |
-| `动效／局部常量` | `const an = d.animate(kf, { duration: N.REDUCED ? 1 : 820 * N.motionScale(), easing: 'cubic-bezier(.55,0,.25,.09)' });` | `shell` | 预览资源/js/shell.js:421 |
-| `动效／局部常量` | `const x = r ? r.left + r.width / 2 : innerWidth / 2;` | `shell` | 预览资源/js/shell.js:433 |
-| `动效／局部常量` | `const y = r ? r.top + r.height / 2 : 42;` | `shell` | 预览资源/js/shell.js:434 |
-| `动效／局部常量` | `const frames = { '--theme-reveal-radius': ['-24px', (rad + 24) + 'px'] };` | `shell` | 预览资源/js/shell.js:462 |
-| `动效／局部常量` | `const timing = { duration: N.MOTION.theme * N.motionScale(), easing: 'ease-in-out', fill: 'both' };` | `shell` | 预览资源/js/shell.js:463 |
-| `动效／局部常量` | `if (island.mode === 'toast') toastTimer = setTimeout(() => island.mode === 'toast' && morphIsland('compact'), 1200);` | `shell` | 预览资源/js/shell.js:582 |
-| `动效／局部常量` | `const first = focusable[0], last = focusable.at(-1);` | `shell` | 预览资源/js/shell.js:645 |
-| `动效／局部常量` | `let rz = 0;` | `shell` | 预览资源/js/shell.js:668 |
+| `动效／局部常量` | `const ico = d.tone === 'jade' ? icon('check', 'i sm') : '<span class="orb-mini" style="--s:16px" aria-hidden="true"></span>';` | `shell` | 预览资源/js/shell.js:121 |
+| `动效／局部常量` | `], { duration: closing ? 420 : SP.island.d, easing: closing ? N.EASE_OUT : SP.island.e, fill: 'forwards' });` | `shell` | 预览资源/js/shell.js:183 |
+| `动效／局部常量` | `], { duration: closing ? 130 : 160, easing: N.EASE_OUT, fill: 'forwards' }).onfinish = () => ghost.remove();` | `shell` | 预览资源/js/shell.js:187 |
+| `动效／局部常量` | `], { duration: closing ? 280 : 420, delay: prev === mode ? 0 : closing ? 25 : 55, easing: N.EASE_OUT, fill: 'backwards' });` | `shell` | 预览资源/js/shell.js:191 |
+| `动效／局部常量` | `], { duration: SP.soft.d, delay: 90 + i * 32, easing: SP.soft.e, fill: 'backwards' });` | `shell` | 预览资源/js/shell.js:201 |
+| `动效／局部常量` | `islandAnim = anim(island, [{ width: from + 'px' }, { width: to + 'px' }], { duration: SP.island.d, easing: SP.island.e });` | `shell` | 预览资源/js/shell.js:239 |
+| `动效／局部常量` | `const keepTop = sc ? sc.scrollTop : 0;` | `shell` | 预览资源/js/shell.js:267 |
+| `动效／局部常量` | `const keepThreadTop = tSc ? tSc.scrollTop : 0;` | `shell` | 预览资源/js/shell.js:269 |
+| `动效／局部常量` | `toastTimer = setTimeout(() => { if (island.mode === 'toast') morphIsland('compact'); }, ms);` | `shell` | 预览资源/js/shell.js:295 |
+| `动效／局部常量` | `toastTimer = setTimeout(() => t.classList.remove('show'), ms);` | `shell` | 预览资源/js/shell.js:300 |
+| `动效／局部常量` | `let viewVersion = 0;` | `shell` | 预览资源/js/shell.js:326 |
+| `动效／局部常量` | `], { duration: SP.soft.d, easing: SP.soft.e });` | `shell` | 预览资源/js/shell.js:384 |
+| `动效／局部常量` | `], { duration: 150, easing: 'ease-in' });` | `shell` | 预览资源/js/shell.js:394 |
+| `动效／局部常量` | `const x0 = a.left + a.width / 2, y0 = a.top + a.height / 2, x1 = b.left + b.width / 2, y1 = b.top + b.height / 2;` | `shell` | 预览资源/js/shell.js:427 |
+| `动效／局部常量` | `const cx = x0 + (x1 - x0) * 0.25, cy = Math.min(y0, y1) + (Math.max(y0, y1) - Math.min(y0, y1)) * 0.15 - 60;` | `shell` | 预览资源/js/shell.js:428 |
+| `动效／局部常量` | `const NSTEP = 28, kf = [];` | `shell` | 预览资源/js/shell.js:432 |
+| `动效／局部常量` | `for (let i = 0; i <= NSTEP; i++) {` | `shell` | 预览资源/js/shell.js:433 |
+| `动效／局部常量` | `const t = i / NSTEP, u = 1 - t;` | `shell` | 预览资源/js/shell.js:434 |
+| `动效／局部常量` | `const x = u * u * x0 + 2 * u * t * cx + t * t * x1;` | `shell` | 预览资源/js/shell.js:435 |
+| `动效／局部常量` | `const y = u * u * y0 + 2 * u * t * cy + t * t * y1;` | `shell` | 预览资源/js/shell.js:436 |
+| `动效／局部常量` | `const dx = 2 * u * (cx - x0) + 2 * t * (x1 - cx);` | `shell` | 预览资源/js/shell.js:437 |
+| `动效／局部常量` | `const dy = 2 * u * (cy - y0) + 2 * t * (y1 - cy);` | `shell` | 预览资源/js/shell.js:438 |
+| `动效／局部常量` | `const ang = Math.atan2(dy, dx) * 180 / Math.PI;` | `shell` | 预览资源/js/shell.js:439 |
+| `动效／局部常量` | `const stretch = 1 + Math.sin(t * Math.PI) * 0.9, sc = 1 - t * 0.35;` | `shell` | 预览资源/js/shell.js:440 |
+| `动效／局部常量` | `const an = d.animate(kf, { duration: N.REDUCED ? 1 : 820 * N.motionScale(), easing: 'cubic-bezier(.55,0,.25,1)' });` | `shell` | 预览资源/js/shell.js:443 |
+| `动效／局部常量` | `const x = r ? r.left + r.width / 2 : innerWidth / 2;` | `shell` | 预览资源/js/shell.js:455 |
+| `动效／局部常量` | `const y = r ? r.top + r.height / 2 : 42;` | `shell` | 预览资源/js/shell.js:456 |
+| `动效／局部常量` | `const frames = { '--theme-reveal-radius': ['-24px', (rad + 24) + 'px'] };` | `shell` | 预览资源/js/shell.js:484 |
+| `动效／局部常量` | `const timing = { duration: N.MOTION.theme * N.motionScale(), easing: 'ease-in-out', fill: 'both' };` | `shell` | 预览资源/js/shell.js:485 |
+| `动效／局部常量` | `if (island.mode === 'toast') toastTimer = setTimeout(() => island.mode === 'toast' && morphIsland('compact'), 1200);` | `shell` | 预览资源/js/shell.js:604 |
+| `动效／局部常量` | `const first = focusable[0], last = focusable.at(-1);` | `shell` | 预览资源/js/shell.js:669 |
+| `动效／局部常量` | `let rz = 0;` | `shell` | 预览资源/js/shell.js:692 |
 | `动效／局部常量` | `let editorVersion = 0;` | `skills` | 预览资源/js/skills.js:11 |
 | `动效／局部常量` | `{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' }).finished;` | `skills` | 预览资源/js/skills.js:139 |
 | `动效／局部常量` | `const pendingCount = w => Array.isArray(w.pending_interactions) ? w.pending_interactions.length : 0;` | `work` | 预览资源/js/work.js:16 |
 | `动效／局部常量` | `{ duration: N.DUR.base, easing: N.SP.settle.e });` | `work` | 预览资源/js/work.js:114 |
 | `动效／局部常量` | `const from = body.hidden ? 0 : body.getBoundingClientRect().height;` | `work` | 预览资源/js/work.js:129 |
 | `动效／局部常量` | `const to = next ? body.scrollHeight : 0;` | `work` | 预览资源/js/work.js:133 |
-| `动效／局部常量` | `if (next) N.enterItems([...body.children], section, { profile: 'content', delay: N.MOTION.stagger });` | `work` | 预览资源/js/work.js:135 |
-| `动效／局部常量` | `], { duration: next ? N.DUR.move : N.DUR.exit, easing: N.EASE_MOVE });` | `work` | 预览资源/js/work.js:140 |
+| `动效／局部常量` | `if (next) N.enterItems([...body.children], section, { profile: 'content', delay: 0 });` | `work` | 预览资源/js/work.js:135 |
+| `动效／局部常量` | `], { duration: next ? N.SP.soft.d : 220, easing: next ? N.SP.soft.e : N.EASE_OUT });` | `work` | 预览资源/js/work.js:140 |
 | `动效／局部常量` | `{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });` | `work` | 预览资源/js/work.js:172 |
 | `动效／局部常量` | `{ duration: N.DUR.base, easing: N.SP.settle.e });` | `work` | 预览资源/js/work.js:186 |
 | `动效／局部常量` | `{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });` | `work` | 预览资源/js/work.js:212 |

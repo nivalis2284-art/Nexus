@@ -83,7 +83,7 @@ def test_popup_first_frames_and_interruption(live):
         browser.close()
 
 
-def test_stronger_spring_keeps_sizes_and_opacity_stable(live):
+def test_optimized_springs_stretch_and_settle_after_interruption(live):
     base, _, _, _, _ = live
     with playwright.sync_playwright() as p:
         browser = p.chromium.launch()
@@ -99,7 +99,7 @@ def test_stronger_spring_keeps_sizes_and_opacity_stable(live):
         }""")
         page.locator("#spring-button").hover()
         page.mouse.down()
-        page.wait_for_timeout(140)
+        page.wait_for_timeout(900)
         page.mouse.up()
         button = page.evaluate("""() => {
           const e=document.querySelector('#spring-button'),a=e.getAnimations().find(a=>a.transitionProperty==='transform');
@@ -107,8 +107,8 @@ def test_stronger_spring_keeps_sizes_and_opacity_stable(live):
           for(let i=0;i<=40;i++){a.currentTime=duration*i/40;scales.push(new DOMMatrixReadOnly(getComputedStyle(e).transform).m11)}
           e.remove();return {duration,scales};
         }""")
-        assert button["duration"] == 420, button
-        assert 1.005 < max(button["scales"]) < 1.01, button
+        assert button["duration"] == page.evaluate('N.SP.bouncy.d'), button
+        assert 1.005 < max(button["scales"]) < 1.02, button
         assert abs(button["scales"][-1] - 1) < .0001
 
         tabs = page.evaluate("""() => {
@@ -117,45 +117,50 @@ def test_stronger_spring_keeps_sizes_and_opacity_stable(live):
           document.body.append(tabs);const ink=tabs.firstElementChild,target=tabs.lastElementChild;
           N.moveInk(ink,tabs.children[1],'x',true);N.moveInk(ink,target);
           const animations=ink.getAnimations();animations.forEach(a=>a.pause());const samples=[];
+          const duration=animations[0].effect.getTiming().duration;
           for(let i=0;i<=40;i++){
-            animations.forEach(a=>a.currentTime=560*i/40);
+            animations.forEach(a=>a.currentTime=duration*i/40);
             const s=getComputedStyle(ink);samples.push({x:new DOMMatrixReadOnly(s.transform).m41,width:parseFloat(s.width)});
           }
-          const to=target.offsetLeft;tabs.remove();return {samples,to};
+          const to=target.offsetLeft,width=target.offsetWidth;tabs.remove();return {samples,to,width};
         }""")
-        assert 1 < max(s["x"] for s in tabs["samples"]) - tabs["to"] < 4, tabs
+        assert tabs["samples"][-1]["x"] == tabs["to"], tabs
+        assert abs(tabs["samples"][-1]["width"] - tabs["width"]) < .02, tabs
         widths = [s["width"] for s in tabs["samples"]]
-        assert all(a <= b + .02 for a, b in zip(widths, widths[1:])), widths
+        assert max(widths) > max(widths[0], widths[-1]) + 10, widths
 
         dock = page.evaluate("""() => {
           N.state.view='chat';N.syncDock(true);N.state.view='settings';N.syncDock();
           const ink=document.querySelector('#dock-ink'),a=ink.getAnimations()[0],values=[];a.pause();
           for(const p of [0,.25,.5,.75,1]){
-            a.currentTime=560*p;const s=getComputedStyle(ink);values.push(new DOMMatrixReadOnly(s.transform).m42+parseFloat(s.height)/2);
+            a.currentTime=a.effect.getTiming().duration*p;const s=getComputedStyle(ink);values.push(new DOMMatrixReadOnly(s.transform).m42+parseFloat(s.height)/2);
           }
           N.state.view='chat';N.syncDock(true);return values;
         }""")
-        assert .80 < (dock[2] - dock[0]) / (dock[-1] - dock[0]) < .93, dock
+        assert .80 < (dock[2] - dock[0]) / (dock[-1] - dock[0]) < 1.1, dock
 
         island = page.evaluate("""() => {
           N.morphIsland('overview');const el=document.querySelector('#island'),inner=document.querySelector('#island-inner');
           const animations=el.getAnimations({subtree:true}).filter(a=>a.effect.getTiming().iterations!==Infinity);
           animations.forEach(a=>a.pause());const samples=[];
+          const duration=Math.max(...animations.map(a=>a.effect.getTiming().duration+a.effect.getTiming().delay));
           for(let i=0;i<=40;i++){
-            animations.forEach(a=>a.currentTime=560*i/40);
+            animations.forEach(a=>a.currentTime=duration*i/40);
             const s=getComputedStyle(el);samples.push({width:parseFloat(s.width),height:parseFloat(s.height),scale:new DOMMatrixReadOnly(getComputedStyle(inner).transform).m11});
           }
           N.morphIsland('compact');return samples;
         }""")
-        assert max(s["scale"] for s in island) > 1.003, island
+        assert abs(island[0]["scale"] - .93) < .001, island
+        assert abs(island[-1]["scale"] - 1) < .001, island
         for key in ["width", "height"]:
             values = [s[key] for s in island]
-            assert all(a <= b + .02 for a, b in zip(values, values[1:])), (key, values)
+            assert min(values) >= values[0] - .1, (key, values)
+            assert max(values) <= values[-1] + (values[-1] - values[0]) * .05 + .1, (key, values)
         page.wait_for_timeout(80)
         page.evaluate('N.morphIsland("overview")')
         page.wait_for_timeout(80)
         page.evaluate('N.morphIsland("compact")')
-        page.wait_for_timeout(400)
+        page.wait_for_timeout(500)
         assert page.locator(".island-ghost").count() == 0
         assert page.evaluate('getComputedStyle(document.querySelector("#island")).height') == "46px"
         assert page.evaluate('getComputedStyle(document.querySelector("#island-inner")).transform') == "none"
@@ -224,7 +229,7 @@ def test_formal_motion_keeps_backend_and_preferences(live, tmp_path, request):
             }""", view)
             assert len(motions) >= 2, (view, motions)
             assert len({a["delay"] for a in motions}) >= 2, (view, motions)
-            assert all(a["duration"] == 560 and a["easing"] != "linear" for a in motions)
+            assert all(a["duration"] == page.evaluate('N.SP.soft.d') and a["easing"] != "linear" for a in motions)
             assert max(a["duration"] + a["delay"] for a in motions) <= 1000
             timings[view] = [a["delay"] for a in motions]
             page.evaluate("v=>N.cancelMotion(document.querySelector('#view-'+v))", view)
@@ -241,7 +246,7 @@ def test_formal_motion_keeps_backend_and_preferences(live, tmp_path, request):
           N.cancelMotion(document.querySelector('#view-work'));return values;
         }""")
         distances = [curve[i] - curve[i + 1] for i in range(4)]
-        assert abs(curve[0] - 24) < .1 and abs(curve[-1]) < .1, curve
+        assert abs(curve[0] - 18) < .1 and abs(curve[-1]) < .1, curve
         assert max(distances) - min(distances) > 2, curve
         page.evaluate('N.go("settings")')
         page.wait_for_timeout(60)
@@ -267,7 +272,7 @@ def test_formal_motion_keeps_backend_and_preferences(live, tmp_path, request):
         }""")
         page.wait_for_function('countSamples.length && countSamples[0].values.at(-1)===countSamples[0].to')
         sample = page.evaluate("countSamples[0]")
-        assert sample["to"] > 0 and sample["initial"] == "0" and sample["dur"] == 560, sample
+        assert sample["to"] > 0 and sample["initial"] == "0" and sample["dur"] == 620, sample
         assert sample["values"] == sorted(sample["values"]), sample
         assert any(0 < n < sample["to"] for n in sample["values"]), sample
         page.locator('[data-act="ctx-refresh"]').click()
@@ -280,9 +285,9 @@ def test_formal_motion_keeps_backend_and_preferences(live, tmp_path, request):
         for speed, factor in [("0.5", .68), ("1.5", 1.32)]:
             timing = page.evaluate("""s=>{
               N.setMotion(s,true);const root=document.querySelector('#view-context');N.stagger(root);
-              const t=root.querySelector('h1').parentElement._enterMotion.effect.getTiming();N.cancelMotion(root);return t;
+              const t=root.querySelector('.page-head')._enterMotion.effect.getTiming();N.cancelMotion(root);return t;
             }""", speed)
-            assert abs(timing["duration"] - 560 * factor) < .01
+            assert abs(timing["duration"] - page.evaluate('N.SP.soft.d') * factor) < .01
         page.evaluate('N.setMotion("1",true)')
 
         for palette in ["cool", "jade"]:
@@ -292,7 +297,7 @@ def test_formal_motion_keeps_backend_and_preferences(live, tmp_path, request):
                     page.evaluate('([p,t])=>{N.applyPalette(p);N.applyTheme(t);N.morphIsland("overview")}', [palette, theme])
                     page.wait_for_timeout(80)
                     page.evaluate('N.morphIsland("compact")')
-                    page.wait_for_function('!document.querySelector(".island-ghost")')
+                    page.wait_for_function('!document.querySelector(".island-ghost") && getComputedStyle(document.querySelector("#island")).height==="46px"')
                     assert page.locator(".island-ghost").count() == 0, (palette, theme, width, page.evaluate('''() => ({
                       mode:document.querySelector('#island').mode,
                       animations:document.querySelector('#island').getAnimations().map(a=>({time:a.currentTime,state:a.playState,timing:a.effect.getTiming()}))

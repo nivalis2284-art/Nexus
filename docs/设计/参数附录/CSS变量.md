@@ -11,16 +11,16 @@
 | `--ink-glass` | `rgba(255, 255, 255, .07)` | `[data-theme="night"]` | 预览资源/css/app.css:14 |
 | `--s` | `40px` | `.work-empty .orb-mini` | 预览资源/css/app.css:374 |
 | `--s` | `15px` | `.isl-thread .ling-head .orb-mini` | 预览资源/css/app.css:418 |
-| `--s` | `18px` | `.req-head .req-orb` | 预览资源/css/app.css:1078 |
-| `--ink` | `var(--i-ink)` | `.isl-thread` | 预览资源/css/app.css:1147 |
-| `--ink-2` | `var(--i-ink-2)` | `.isl-thread` | 预览资源/css/app.css:1147 |
-| `--ink-3` | `var(--i-ink-2)` | `.isl-thread` | 预览资源/css/app.css:1147 |
-| `--ink-4` | `var(--i-ink-3)` | `.isl-thread` | 预览资源/css/app.css:1147 |
-| `--jade-ink` | `var(--jade-hi)` | `.isl-thread` | 预览资源/css/app.css:1147 |
-| `--raised` | `var(--island-2)` | `.isl-thread` | 预览资源/css/app.css:1147 |
-| `--paper-2` | `var(--island-3)` | `.isl-thread` | 预览资源/css/app.css:1147 |
-| `--line` | `var(--i-line)` | `.isl-thread` | 预览资源/css/app.css:1147 |
-| `--line-2` | `var(--i-line)` | `.isl-thread` | 预览资源/css/app.css:1147 |
+| `--s` | `18px` | `.req-head .req-orb` | 预览资源/css/app.css:1048 |
+| `--ink` | `var(--i-ink)` | `.isl-thread` | 预览资源/css/app.css:1116 |
+| `--ink-2` | `var(--i-ink-2)` | `.isl-thread` | 预览资源/css/app.css:1116 |
+| `--ink-3` | `var(--i-ink-2)` | `.isl-thread` | 预览资源/css/app.css:1116 |
+| `--ink-4` | `var(--i-ink-3)` | `.isl-thread` | 预览资源/css/app.css:1116 |
+| `--jade-ink` | `var(--jade-hi)` | `.isl-thread` | 预览资源/css/app.css:1116 |
+| `--raised` | `var(--island-2)` | `.isl-thread` | 预览资源/css/app.css:1116 |
+| `--paper-2` | `var(--island-3)` | `.isl-thread` | 预览资源/css/app.css:1116 |
+| `--line` | `var(--i-line)` | `.isl-thread` | 预览资源/css/app.css:1116 |
+| `--line-2` | `var(--i-line)` | `.isl-thread` | 预览资源/css/app.css:1116 |
 | `--paper` | `#f4f1ea` | `:root` | 预览资源/css/ling.css:12 |
 | `--paper-2` | `#eae5db` | `:root` | 预览资源/css/ling.css:13 |
 | `--card` | `#fbfaf6` | `:root` | 预览资源/css/ling.css:14 |
@@ -66,59 +66,69 @@
 | `--sp-snappy-d` | `420ms` | `:root` | 预览资源/css/ling.css:65 |
 | `--sp-soft` | `cubic-bezier(.25, 1, .4, 1)` | `:root` | 预览资源/css/ling.css:66 |
 | `--sp-soft-d` | `700ms` | `:root` | 预览资源/css/ling.css:67 |
-| `--motion` | `1` | `:root` | 预览资源/css/ling.css:70 |
-| `--track` | `-.024em` | `:root` | 预览资源/css/ling.css:71 |
-| `--paper` | `#0f1012` | `[data-theme="night"]` | 预览资源/css/ling.css:77 |
-| `--paper-2` | `#16171a` | `[data-theme="night"]` | 预览资源/css/ling.css:78 |
-| `--card` | `#1a1b1f` | `[data-theme="night"]` | 预览资源/css/ling.css:79 |
-| `--card-glass` | `rgba(28, 29, 33, .72)` | `[data-theme="night"]` | 预览资源/css/ling.css:80 |
-| `--raised` | `#202125` | `[data-theme="night"]` | 预览资源/css/ling.css:81 |
-| `--ink` | `#f1f0ec` | `[data-theme="night"]` | 预览资源/css/ling.css:82 |
-| `--ink-2` | `#b4b5ba` | `[data-theme="night"]` | 预览资源/css/ling.css:83 |
-| `--ink-3` | `#7c7e85` | `[data-theme="night"]` | 预览资源/css/ling.css:84 |
-| `--ink-4` | `#4e5056` | `[data-theme="night"]` | 预览资源/css/ling.css:85 |
-| `--line` | `rgba(255, 255, 255, .07)` | `[data-theme="night"]` | 预览资源/css/ling.css:86 |
-| `--line-2` | `rgba(255, 255, 255, .13)` | `[data-theme="night"]` | 预览资源/css/ling.css:87 |
-| `--jade` | `#19d3a8` | `[data-theme="night"]` | 预览资源/css/ling.css:88 |
-| `--jade-ink` | `#5fecc7` | `[data-theme="night"]` | 预览资源/css/ling.css:89 |
-| `--jade-soft` | `rgba(25, 211, 168, .13)` | `[data-theme="night"]` | 预览资源/css/ling.css:90 |
-| `--cinnabar-soft` | `rgba(255, 90, 54, .15)` | `[data-theme="night"]` | 预览资源/css/ling.css:91 |
-| `--island` | `#000` | `[data-theme="night"]` | 预览资源/css/ling.css:92 |
-| `--island-2` | `#16171a` | `[data-theme="night"]` | 预览资源/css/ling.css:93 |
-| `--island-3` | `#232428` | `[data-theme="night"]` | 预览资源/css/ling.css:94 |
-| `--sh-1` | `0 1px 2px rgba(0, 0, 0, .3), 0 8px 20px -8px rgba(0, 0, 0, .5)` | `[data-theme="night"]` | 预览资源/css/ling.css:95 |
-| `--sh-2` | `0 2px 4px rgba(0, 0, 0, .3), 0 24px 60px -20px rgba(0, 0, 0, .7)` | `[data-theme="night"]` | 预览资源/css/ling.css:96 |
-| `--sh-3` | `0 30px 90px -20px rgba(0, 0, 0, .8)` | `[data-theme="night"]` | 预览资源/css/ling.css:97 |
-| `--aura-a` | `#8ff0d6` | `body[data-mood="calm"]` | 预览资源/css/ling.css:123 |
-| `--aura-b` | `#ffd9b8` | `body[data-mood="calm"]` | 预览资源/css/ling.css:123 |
-| `--aura-c` | `#c9dcff` | `body[data-mood="calm"]` | 预览资源/css/ling.css:123 |
-| `--aura-a` | `#6eedc9` | `body[data-mood="running"]` | 预览资源/css/ling.css:124 |
-| `--aura-b` | `#b7f3e4` | `body[data-mood="running"]` | 预览资源/css/ling.css:124 |
-| `--aura-c` | `#bcd6ff` | `body[data-mood="running"]` | 预览资源/css/ling.css:124 |
-| `--aura-a` | `#9ef2db` | `body[data-mood="waiting"]` | 预览资源/css/ling.css:125 |
-| `--aura-b` | `#ffc2ad` | `body[data-mood="waiting"]` | 预览资源/css/ling.css:125 |
-| `--aura-c` | `#ffd9c4` | `body[data-mood="waiting"]` | 预览资源/css/ling.css:125 |
-| `--aura-a` | `#0f6b5a` | `[data-theme="night"] body[data-mood], [data-theme="night"] body` | 预览资源/css/ling.css:126 |
-| `--aura-b` | `#3a2a22` | `[data-theme="night"] body[data-mood], [data-theme="night"] body` | 预览资源/css/ling.css:126 |
-| `--aura-c` | `#1d2a4a` | `[data-theme="night"] body[data-mood], [data-theme="night"] body` | 预览资源/css/ling.css:126 |
-| `--aura-b` | `#5a2618` | `[data-theme="night"] body[data-mood="waiting"]` | 预览资源/css/ling.css:127 |
-| `--s` | `22px` | `.orb-mini` | 预览资源/css/ling.css:147 |
-| `--s` | `30px` | `.orb-mini.lg` | 预览资源/css/ling.css:154 |
-| `--c` | `transparent` | `.slot` | 预览资源/css/ling.css:193 |
-| `--c` | `var(--jade-hi)` | `.slot[data-state="running"]` | 预览资源/css/ling.css:205 |
-| `--c` | `color-mix(in srgb, var(--jade-hi) 58%, transparent)` | `.slot[data-state="queued"], .slot[data-state="pending"], .slot[data-state="pausing"]` | 预览资源/css/ling.css:213 |
-| `--c` | `var(--cinnabar)` | `.slot[data-state="waiting"], .slot[data-state="waiting_user"]` | 预览资源/css/ling.css:214 |
-| `--s` | `13px` | `.target .orb-mini` | 预览资源/css/ling.css:630 |
-| `--s` | `34px` | `.empty-card .orb-mini` | 预览资源/css/ling.css:800 |
-| `--dialog-width` | `var(--dialog-width-small)` | `.sheet` | 预览资源/css/ling.css:836 |
-| `--dialog-height` | `fit-content` | `.sheet` | 预览资源/css/ling.css:836 |
-| `--dialog-max-height` | `var(--dialog-height-small)` | `.sheet` | 预览资源/css/ling.css:836 |
-| `--dialog-width` | `var(--dialog-width-compact)` | `.sheet[data-size="compact"]` | 预览资源/css/ling.css:837 |
-| `--dialog-max-height` | `var(--dialog-height-compact)` | `.sheet[data-size="compact"]` | 预览资源/css/ling.css:837 |
-| `--dialog-width` | `var(--dialog-width-medium)` | `.sheet[data-size="medium"]` | 预览资源/css/ling.css:838 |
-| `--dialog-max-height` | `var(--dialog-height-medium)` | `.sheet[data-size="medium"]` | 预览资源/css/ling.css:838 |
-| `--dialog-width` | `var(--dialog-width-large)` | `.sheet[data-size="large"]` | 预览资源/css/ling.css:839 |
-| `--dialog-max-height` | `var(--dialog-height-large)` | `.sheet[data-size="large"]` | 预览资源/css/ling.css:839 |
+| `--sp-island` | `cubic-bezier(.3, 1.25, .5, 1)` | `:root` | 预览资源/css/ling.css:68 |
+| `--sp-island-d` | `560ms` | `:root` | 预览资源/css/ling.css:69 |
+| `--sp-tap` | `var(--sp-bouncy)` | `:root` | 预览资源/css/ling.css:70 |
+| `--sp-tap-d` | `var(--sp-bouncy-d)` | `:root` | 预览资源/css/ling.css:71 |
+| `--sp-settle` | `var(--sp-soft)` | `:root` | 预览资源/css/ling.css:72 |
+| `--sp-settle-d` | `var(--sp-soft-d)` | `:root` | 预览资源/css/ling.css:73 |
+| `--sp-morph` | `var(--sp-island)` | `:root` | 预览资源/css/ling.css:74 |
+| `--sp-morph-d` | `var(--sp-island-d)` | `:root` | 预览资源/css/ling.css:75 |
+| `--sp-rebound` | `var(--sp-bouncy)` | `:root` | 预览资源/css/ling.css:75 |
+| `--sp-rebound-d` | `var(--sp-bouncy-d)` | `:root` | 预览资源/css/ling.css:75 |
+| `--motion` | `1` | `:root` | 预览资源/css/ling.css:78 |
+| `--track` | `-.024em` | `:root` | 预览资源/css/ling.css:79 |
+| `--paper` | `#0f1012` | `[data-theme="night"]` | 预览资源/css/ling.css:85 |
+| `--paper-2` | `#16171a` | `[data-theme="night"]` | 预览资源/css/ling.css:86 |
+| `--card` | `#1a1b1f` | `[data-theme="night"]` | 预览资源/css/ling.css:87 |
+| `--card-glass` | `rgba(28, 29, 33, .72)` | `[data-theme="night"]` | 预览资源/css/ling.css:88 |
+| `--raised` | `#202125` | `[data-theme="night"]` | 预览资源/css/ling.css:89 |
+| `--ink` | `#f1f0ec` | `[data-theme="night"]` | 预览资源/css/ling.css:90 |
+| `--ink-2` | `#b4b5ba` | `[data-theme="night"]` | 预览资源/css/ling.css:91 |
+| `--ink-3` | `#7c7e85` | `[data-theme="night"]` | 预览资源/css/ling.css:92 |
+| `--ink-4` | `#4e5056` | `[data-theme="night"]` | 预览资源/css/ling.css:93 |
+| `--line` | `rgba(255, 255, 255, .07)` | `[data-theme="night"]` | 预览资源/css/ling.css:94 |
+| `--line-2` | `rgba(255, 255, 255, .13)` | `[data-theme="night"]` | 预览资源/css/ling.css:95 |
+| `--jade` | `#19d3a8` | `[data-theme="night"]` | 预览资源/css/ling.css:96 |
+| `--jade-ink` | `#5fecc7` | `[data-theme="night"]` | 预览资源/css/ling.css:97 |
+| `--jade-soft` | `rgba(25, 211, 168, .13)` | `[data-theme="night"]` | 预览资源/css/ling.css:98 |
+| `--cinnabar-soft` | `rgba(255, 90, 54, .15)` | `[data-theme="night"]` | 预览资源/css/ling.css:99 |
+| `--island` | `#000` | `[data-theme="night"]` | 预览资源/css/ling.css:100 |
+| `--island-2` | `#16171a` | `[data-theme="night"]` | 预览资源/css/ling.css:101 |
+| `--island-3` | `#232428` | `[data-theme="night"]` | 预览资源/css/ling.css:102 |
+| `--sh-1` | `0 1px 2px rgba(0, 0, 0, .3), 0 8px 20px -8px rgba(0, 0, 0, .5)` | `[data-theme="night"]` | 预览资源/css/ling.css:103 |
+| `--sh-2` | `0 2px 4px rgba(0, 0, 0, .3), 0 24px 60px -20px rgba(0, 0, 0, .7)` | `[data-theme="night"]` | 预览资源/css/ling.css:104 |
+| `--sh-3` | `0 30px 90px -20px rgba(0, 0, 0, .8)` | `[data-theme="night"]` | 预览资源/css/ling.css:105 |
+| `--aura-a` | `#8ff0d6` | `body[data-mood="calm"]` | 预览资源/css/ling.css:131 |
+| `--aura-b` | `#ffd9b8` | `body[data-mood="calm"]` | 预览资源/css/ling.css:131 |
+| `--aura-c` | `#c9dcff` | `body[data-mood="calm"]` | 预览资源/css/ling.css:131 |
+| `--aura-a` | `#6eedc9` | `body[data-mood="running"]` | 预览资源/css/ling.css:132 |
+| `--aura-b` | `#b7f3e4` | `body[data-mood="running"]` | 预览资源/css/ling.css:132 |
+| `--aura-c` | `#bcd6ff` | `body[data-mood="running"]` | 预览资源/css/ling.css:132 |
+| `--aura-a` | `#9ef2db` | `body[data-mood="waiting"]` | 预览资源/css/ling.css:133 |
+| `--aura-b` | `#ffc2ad` | `body[data-mood="waiting"]` | 预览资源/css/ling.css:133 |
+| `--aura-c` | `#ffd9c4` | `body[data-mood="waiting"]` | 预览资源/css/ling.css:133 |
+| `--aura-a` | `#0f6b5a` | `[data-theme="night"] body[data-mood], [data-theme="night"] body` | 预览资源/css/ling.css:134 |
+| `--aura-b` | `#3a2a22` | `[data-theme="night"] body[data-mood], [data-theme="night"] body` | 预览资源/css/ling.css:134 |
+| `--aura-c` | `#1d2a4a` | `[data-theme="night"] body[data-mood], [data-theme="night"] body` | 预览资源/css/ling.css:134 |
+| `--aura-b` | `#5a2618` | `[data-theme="night"] body[data-mood="waiting"]` | 预览资源/css/ling.css:135 |
+| `--s` | `22px` | `.orb-mini` | 预览资源/css/ling.css:155 |
+| `--s` | `30px` | `.orb-mini.lg` | 预览资源/css/ling.css:162 |
+| `--c` | `transparent` | `.slot` | 预览资源/css/ling.css:202 |
+| `--c` | `var(--jade-hi)` | `.slot[data-state="running"]` | 预览资源/css/ling.css:214 |
+| `--c` | `color-mix(in srgb, var(--jade-hi) 58%, transparent)` | `.slot[data-state="queued"], .slot[data-state="pending"], .slot[data-state="pausing"]` | 预览资源/css/ling.css:222 |
+| `--c` | `var(--cinnabar)` | `.slot[data-state="waiting"], .slot[data-state="waiting_user"]` | 预览资源/css/ling.css:223 |
+| `--s` | `13px` | `.target .orb-mini` | 预览资源/css/ling.css:639 |
+| `--s` | `34px` | `.empty-card .orb-mini` | 预览资源/css/ling.css:809 |
+| `--dialog-width` | `var(--dialog-width-small)` | `.sheet` | 预览资源/css/ling.css:845 |
+| `--dialog-height` | `fit-content` | `.sheet` | 预览资源/css/ling.css:845 |
+| `--dialog-max-height` | `var(--dialog-height-small)` | `.sheet` | 预览资源/css/ling.css:845 |
+| `--dialog-width` | `var(--dialog-width-compact)` | `.sheet[data-size="compact"]` | 预览资源/css/ling.css:846 |
+| `--dialog-max-height` | `var(--dialog-height-compact)` | `.sheet[data-size="compact"]` | 预览资源/css/ling.css:846 |
+| `--dialog-width` | `var(--dialog-width-medium)` | `.sheet[data-size="medium"]` | 预览资源/css/ling.css:847 |
+| `--dialog-max-height` | `var(--dialog-height-medium)` | `.sheet[data-size="medium"]` | 预览资源/css/ling.css:847 |
+| `--dialog-width` | `var(--dialog-width-large)` | `.sheet[data-size="large"]` | 预览资源/css/ling.css:848 |
+| `--dialog-max-height` | `var(--dialog-height-large)` | `.sheet[data-size="large"]` | 预览资源/css/ling.css:848 |
 | `--paper` | `#f3f1eb` | `:root` | 预览资源/css/plugin-ui.css:7 |
 | `--paper-2` | `#ebe8e0` | `:root` | 预览资源/css/plugin-ui.css:8 |
 | `--card` | `#ffffff` | `:root` | 预览资源/css/plugin-ui.css:9 |
@@ -369,7 +379,7 @@
 | `--r-pill` | `999px` | `:root` | 预览资源/css/tokens.css:13 |
 | `--r-btn` | `var(--r-ctrl)` | `:root` | 预览资源/css/tokens.css:13 |
 | `--r-rail` | `var(--r-pill)` | `:root` | 预览资源/css/tokens.css:13 |
-| `--r-island-compact` | `var(--r-pill)` | `:root` | 预览资源/css/tokens.css:14 |
+| `--r-island-compact` | `var(--r-sheet)` | `:root` | 预览资源/css/tokens.css:14 |
 | `--r-island-open` | `var(--r-sheet)` | `:root` | 预览资源/css/tokens.css:14 |
 | `--r-bubble` | `20px 20px 8px 20px` | `:root` | 预览资源/css/tokens.css:15 |
 | `--text-caption` | `12px` | `:root` | 预览资源/css/tokens.css:16 |
@@ -392,37 +402,46 @@
 | `--dialog-width-large` | `1120px` | `:root` | 预览资源/css/tokens.css:24 |
 | `--dialog-height-large` | `88dvh` | `:root` | 预览资源/css/tokens.css:24 |
 | `--dialog-gutter` | `16px` | `:root` | 预览资源/css/tokens.css:25 |
-| `--duration-fast` | `96ms` | `:root` | 预览资源/css/tokens.css:26 |
-| `--duration-micro` | `160ms` | `:root` | 预览资源/css/tokens.css:26 |
-| `--duration-base` | `240ms` | `:root` | 预览资源/css/tokens.css:26 |
-| `--duration-content` | `420ms` | `:root` | 预览资源/css/tokens.css:27 |
-| `--duration-move` | `560ms` | `:root` | 预览资源/css/tokens.css:27 |
-| `--duration-enter` | `560ms` | `:root` | 预览资源/css/tokens.css:27 |
-| `--duration-exit` | `220ms` | `:root` | 预览资源/css/tokens.css:28 |
-| `--duration-fade` | `320ms` | `:root` | 预览资源/css/tokens.css:28 |
-| `--duration-text` | `200ms` | `:root` | 预览资源/css/tokens.css:28 |
-| `--duration-theme` | `850ms` | `:root` | 预览资源/css/tokens.css:28 |
-| `--ease-enter` | `cubic-bezier(.22,0,.2,1)` | `:root` | 预览资源/css/tokens.css:29 |
-| `--ease-move` | `cubic-bezier(.4,0,.2,1)` | `:root` | 预览资源/css/tokens.css:30 |
-| `--ease-exit` | `cubic-bezier(.4,0,1,1)` | `:root` | 预览资源/css/tokens.css:31 |
-| `--enter-stagger` | `70ms` | `:root` | 预览资源/css/tokens.css:32 |
-| `--content-stagger` | `40ms` | `:root` | 预览资源/css/tokens.css:32 |
-| `--content-window` | `160ms` | `:root` | 预览资源/css/tokens.css:32 |
-| `--enter-window` | `280ms` | `:root` | 预览资源/css/tokens.css:33 |
-| `--enter-offset` | `24px` | `:root` | 预览资源/css/tokens.css:33 |
-| `--content-offset` | `16px` | `:root` | 预览资源/css/tokens.css:33 |
-| `--float-offset` | `12px` | `:root` | 预览资源/css/tokens.css:33 |
-| `--temper` | `1` | `:root` | 预览资源/css/tokens.css:34 |
-| `--d-0` | `calc(var(--duration-fast) * var(--motion))` | `:root` | 预览资源/css/tokens.css:35 |
-| `--d-1` | `calc(var(--duration-micro) * var(--motion))` | `:root` | 预览资源/css/tokens.css:36 |
-| `--d-2` | `calc(var(--duration-base) * var(--motion))` | `:root` | 预览资源/css/tokens.css:37 |
-| `--d-3` | `calc(var(--duration-move) * var(--motion))` | `:root` | 预览资源/css/tokens.css:38 |
-| `--d-4` | `calc(var(--duration-enter) * var(--motion))` | `:root` | 预览资源/css/tokens.css:39 |
-| `--card-padding` | `var(--space-4)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:43 |
-| `--card-gap` | `var(--space-4)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:43 |
-| `--group-gap` | `var(--space-6)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:44 |
-| `--inner-gap` | `var(--space-3)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:44 |
-| `--page-gutter` | `var(--space-4)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:45 |
-| `--page-top` | `var(--space-20)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:45 |
-| `--page-bottom` | `var(--space-16)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:46 |
-| `--text-page` | `24px` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:46 |
+| `--duration-press` | `120ms` | `:root` | 预览资源/css/tokens.css:26 |
+| `--duration-fast` | `120ms` | `:root` | 预览资源/css/tokens.css:26 |
+| `--duration-exit` | `160ms` | `:root` | 预览资源/css/tokens.css:26 |
+| `--duration-micro` | `180ms` | `:root` | 预览资源/css/tokens.css:27 |
+| `--duration-fade` | `250ms` | `:root` | 预览资源/css/tokens.css:27 |
+| `--duration-base` | `300ms` | `:root` | 预览资源/css/tokens.css:27 |
+| `--duration-text` | `420ms` | `:root` | 预览资源/css/tokens.css:28 |
+| `--duration-content` | `440ms` | `:root` | 预览资源/css/tokens.css:28 |
+| `--duration-move` | `520ms` | `:root` | 预览资源/css/tokens.css:28 |
+| `--duration-enter` | `620ms` | `:root` | 预览资源/css/tokens.css:29 |
+| `--duration-theme` | `680ms` | `:root` | 预览资源/css/tokens.css:29 |
+| `--ease-enter` | `cubic-bezier(.22,1,.36,1)` | `:root` | 预览资源/css/tokens.css:30 |
+| `--ease-move` | `cubic-bezier(.22,1,.36,1)` | `:root` | 预览资源/css/tokens.css:31 |
+| `--ease-exit` | `cubic-bezier(.55,0,.75,.3)` | `:root` | 预览资源/css/tokens.css:32 |
+| `--ease-press` | `cubic-bezier(.22,1,.36,1)` | `:root` | 预览资源/css/tokens.css:33 |
+| `--enter-stagger` | `50ms` | `:root` | 预览资源/css/tokens.css:34 |
+| `--content-stagger` | `35ms` | `:root` | 预览资源/css/tokens.css:34 |
+| `--float-stagger` | `30ms` | `:root` | 预览资源/css/tokens.css:34 |
+| `--enter-window` | `250ms` | `:root` | 预览资源/css/tokens.css:35 |
+| `--content-window` | `175ms` | `:root` | 预览资源/css/tokens.css:35 |
+| `--float-window` | `150ms` | `:root` | 预览资源/css/tokens.css:35 |
+| `--enter-offset` | `18px` | `:root` | 预览资源/css/tokens.css:36 |
+| `--content-offset` | `12px` | `:root` | 预览资源/css/tokens.css:36 |
+| `--float-offset` | `6px` | `:root` | 预览资源/css/tokens.css:36 |
+| `--exit-offset` | `-8px` | `:root` | 预览资源/css/tokens.css:36 |
+| `--enter-scale` | `.985` | `:root` | 预览资源/css/tokens.css:37 |
+| `--content-scale` | `.96` | `:root` | 预览资源/css/tokens.css:37 |
+| `--float-scale` | `.92` | `:root` | 预览资源/css/tokens.css:37 |
+| `--temper` | `1` | `:root` | 预览资源/css/tokens.css:38 |
+| `--d-press` | `calc(var(--duration-press) * var(--motion))` | `:root` | 预览资源/css/tokens.css:39 |
+| `--d-0` | `calc(var(--duration-fast) * var(--motion))` | `:root` | 预览资源/css/tokens.css:40 |
+| `--d-1` | `calc(var(--duration-micro) * var(--motion))` | `:root` | 预览资源/css/tokens.css:41 |
+| `--d-2` | `calc(var(--duration-base) * var(--motion))` | `:root` | 预览资源/css/tokens.css:42 |
+| `--d-3` | `calc(var(--duration-move) * var(--motion))` | `:root` | 预览资源/css/tokens.css:43 |
+| `--d-4` | `calc(var(--duration-enter) * var(--motion))` | `:root` | 预览资源/css/tokens.css:44 |
+| `--card-padding` | `var(--space-4)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:48 |
+| `--card-gap` | `var(--space-4)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:48 |
+| `--group-gap` | `var(--space-6)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:49 |
+| `--inner-gap` | `var(--space-3)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:49 |
+| `--page-gutter` | `var(--space-4)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:50 |
+| `--page-top` | `var(--space-20)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:50 |
+| `--page-bottom` | `var(--space-16)` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:51 |
+| `--text-page` | `24px` | `@media (max-width: 760px) → :root` | 预览资源/css/tokens.css:51 |

@@ -55,8 +55,10 @@
     if (!dots.length) return;
     dots.forEach((d, i) => {
       d.getAnimations().forEach(a => a.cancel());
-      N.anim(d, [{ opacity: .15, transform: 'translateX(-16px) scale(.99)' }, { opacity: 1, transform: 'none' }],
-        { duration: N.DUR.enter, delay: i * N.MOTION.stagger, easing: N.EASE_ENTER });
+      N.anim(d, [
+        { opacity: .3, transform: 'translateX(-14px) scale(.85)' },
+        { opacity: 1, transform: 'none' },
+      ], { duration: N.SP.bouncy.d, delay: i * 50, easing: N.SP.bouncy.e });
     });
   }
 
@@ -75,7 +77,7 @@
       </header>
 
       <section class="card set-sec" data-s>
-        <h3>界面<span class="setting-scope">即时生效</span></h3><p>主题与动效设置即时生效；「灵玉」与「星枢」均可切换白昼与黑夜。</p>
+        <h3>界面<span class="setting-scope">即时生效</span></h3><p>选择主题风格、昼夜模式与动效节奏。</p>
         <div class="ui-row" data-s>
           <div><b>动效速度</b><small>调整界面动效与文字呈现的速度。</small></div>
           <div class="ui-controls">
@@ -124,7 +126,7 @@
       </section>
 
       <section class="card set-sec" data-s>
-        <h3>基本原则</h3><p>这些原则用于每次模型请求；修改后点击底部「保存设置」生效。</p>
+        <h3>所有者指令</h3><p>作为你的基本原则与交流偏好，在每次模型请求中生效；修改后点击底部「保存设置」。</p>
         <label class="field"><span class="sr">原则与交流偏好</span><textarea id="instructions" rows="5" placeholder="例如：先说明关键取舍，再执行；遇到不确定的外部影响时先停下确认。">${esc(instructions)}</textarea></label>
       </section>
 
@@ -153,11 +155,11 @@
       </section>
 
       <section class="card set-sec" data-s>
-        <h3>其他</h3><p>设置工具执行时的权限。</p>
+        <h3>执行权限</h3><p>控制写文件与运行命令时的确认方式。</p>
         <div class="perm" role="radiogroup"><span class="tab-ink" aria-hidden="true"></span>
           ${[['ask', '写前询问', '写文件和运行命令前询问'], ['yolo', '全部放行', '不再逐项确认']].map(([v, b, s]) => `<button role="radio" aria-checked="${state.permission === v}" class="${state.permission === v ? 'active' : ''}" data-act="perm" data-v="${v}"><b>${b}</b><small>${s}</small></button>`).join('')}
         </div>
-        <p class="ctx-window-info" id="ctx-window-info">${budget ? `当前模型上下文预算：${N.fmtNum(budget)} tok（可在编辑提供商时为每个模型单独设置）` : ''}</p>
+        <p class="ctx-window-info" id="ctx-window-info">${budget ? `当前模型上下文窗口：${N.fmtNum(budget)} tok（可在编辑提供商时按模型单独设置）` : ''}</p>
         <p class="sheet-error" id="settings-error" role="alert"></p>
       </section>
 
@@ -336,7 +338,7 @@
     const provider = editingProvider, version = providerVersion;
     const ok = await N.confirmEdit({
       title: `删除提供商「${editingProvider.name}」？`,
-      description: '会同时移除它的密钥与模型列表；正在使用它的交流需要重新选择模型。',
+      description: '会同时移除它的密钥与模型列表；正在使用它的对话需要重新选择模型。',
       submitLabel: '删除提供商',
     });
     if (!ok) return;

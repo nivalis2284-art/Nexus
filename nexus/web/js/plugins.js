@@ -42,6 +42,8 @@
     if (state.view === 'plugins') $('.plug-expand', detail)?.focus({ preventScroll: true });
   });
 
+  const RUN_STATUS_LABEL = { ready: '已就绪', unloaded: '未加载', loading: '加载中', draining: '收尾中', closing: '收尾中', error: '异常' };
+  const REQ_STATUS_LABEL = { ok: '完成', completed: '完成', error: '失败', failed: '失败', running: '进行中' };
   function plugin() { return state.plugins.find(p => p.id === pv.selected) || state.plugins[0]; }
   function statusOf(p) {
     if (p.error) return { label: '错误', tone: 'err' };
@@ -203,7 +205,7 @@
       <div class="plug-status-row" data-s>
         <div class="plug-meta">
         <span>当前调用 ${Number(p.active_calls || 0)}</span>
-        <span>运行状态 ${esc(p.status || '—')}</span>
+        <span>运行状态 ${esc(RUN_STATUS_LABEL[p.status] || p.status || '—')}</span>
         ${caps.length ? `<span>能力 ${caps.length} 项</span>` : ''}
         </div>
         <div class="plug-enable"><span>启用插件</span><button type="button" class="switch" role="switch" aria-label="启用 ${esc(p.name)}" aria-checked="${!!p.enabled || loading}" aria-busy="${pv.busy || draining || loading}" data-act="plug-op" data-op="${p.enabled || loading ? 'unload' : 'load'}" data-id="${esc(p.id)}" ${pv.busy || draining ? 'disabled' : ''}></button></div>
@@ -380,8 +382,8 @@
     const sel = state.modelRequests.find(r => String(r.id) === String(pv.req)) || null;
     return `<div class="plug-toolbar" data-s><span class="count">请求记录 · ${list.length} 条</span><span class="plug-note" style="margin:0">仅保留最近 7 天</span></div>
       <form class="plug-filters" data-s id="plug-filters">
-        <label>活动标识<input id="f-owner" type="text" autocomplete="off" placeholder="可按 owner_id 筛选" value="${esc(pv.owner)}"></label>
-        <label>类型<input id="f-kind" type="text" autocomplete="off" list="kind-options" placeholder="可按 kind 筛选" value="${esc(pv.kind)}"><datalist id="kind-options">${kinds.map(k => `<option value="${esc(k)}">`).join('')}</datalist></label>
+        <label>活动标识<input id="f-owner" type="text" autocomplete="off" placeholder="会话或工作 ID" value="${esc(pv.owner)}"></label>
+        <label>类型<input id="f-kind" type="text" autocomplete="off" list="kind-options" placeholder="对话 / 工作 / 子代理" value="${esc(pv.kind)}"><datalist id="kind-options">${kinds.map(k => `<option value="${esc(k)}">`).join('')}</datalist></label>
         ${[['plugin_id','插件'],['dialogue_id','独立对话'],['job_id','插件作业'],['purpose','用途']].map(([key,label])=>`<label>${label}<input id="f-${key}" type="text" value="${esc(pv[key])}"></label>`).join('')}
         <button class="btn ghost sm" type="submit">查询</button>
       </form>
@@ -392,7 +394,7 @@
               ${shown.length ? shown.map(r => `<button class="preq${String(pv.req) === String(r.id) ? ' is-selected' : ''}" data-s data-act="req-open" data-id="${esc(r.id)}">
                 <time>${time(r.created_at)}</time>
                 <span class="pm"><b>${esc(KIND_LABEL[r.kind] || r.kind || '未知类型')}</b><span>${esc(r.owner_id || '无活动标识')} · ${esc(r.model || '模型未记录')}</span></span>
-                <span class="pst ${r.status === 'error' || r.status === 'failed' ? 'err' : ''}">${esc(r.status || '状态未记录')}</span>
+                <span class="pst ${r.status === 'error' || r.status === 'failed' ? 'err' : ''}">${esc(REQ_STATUS_LABEL[r.status] || r.status || '状态未记录')}</span>
               </button>`).join('') : '<p class="plug-empty-line" style="padding:14px">没有符合条件的请求。</p>'}
             </div>
             ${list.length > 4 || state.modelRequestsNext ? `<button class="btn ghost sm" data-act="req-more" style="width:calc(100% - 12px);margin:6px 6px 2px;justify-content:center">${!pv.more ? '展开记录' : state.modelRequestsNext ? '加载更早记录' : '收起'}</button>` : ''}
@@ -406,7 +408,7 @@
     if (r.body === undefined) return '<p class="plug-empty-line">正在读取请求…</p>';
     const participation = Array.isArray(r.plugins) ? r.plugins : [];
     const statusLabel = { used: '已参与', not_applicable: '无需参与', failed: '失败', skipped: '未参与' };
-    return `<h2>请求 #${esc(r.id)}<span class="pst ${r.status === 'error' ? 'err' : ''}">${esc(r.status || '状态未记录')}</span></h2>
+    return `<h2>请求 #${esc(r.id)}<span class="pst ${r.status === 'error' || r.status === 'failed' ? 'err' : ''}">${esc(REQ_STATUS_LABEL[r.status] || r.status || '状态未记录')}</span></h2>
       <div class="preq-meta">
         ${[['时间', time(r.created_at)], ['活动', r.owner_id], ['类型', KIND_LABEL[r.kind] || r.kind], ['模型', r.model], r.protocol ? ['协议', r.protocol] : null].filter(Boolean).map(([k, v]) => `<div><span>${k}</span><span>${esc(v || '未记录')}</span></div>`).join('')}
       </div>
@@ -622,7 +624,7 @@
       pv.tab = t.dataset.k;
       pv.tabSlide = true;
       renderPlugins();
-      N.stagger?.($('.plug-pane'));
+      N.cascade?.($('.plug-pane'));
       return;
     }
     if (act === 'plug-select') return selectPlugin(t.dataset.id);

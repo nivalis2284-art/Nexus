@@ -30,6 +30,34 @@ def frontend(live, tmp_path, request):
         assert not errors, errors
 
 
+def test_island_immediate_close_releases_scrim_and_keyboard(frontend):
+    page = frontend
+    opacity = page.evaluate("""()=>{
+      N.morphIsland('overview');const inner=document.querySelector('#island-inner');
+      inner._shapeMotion.pause();inner._shapeMotion.currentTime=0;
+      const before=+getComputedStyle(inner).opacity;N.morphIsland('overview');
+      const ghost=document.querySelector('.island-ghost');
+      return {before,after:+ghost.getAnimations()[0].effect.getKeyframes()[0].opacity};
+    }""")
+    assert opacity == {'before': 0, 'after': 0}, opacity
+    state = page.evaluate("""async()=>{
+      N.morphIsland('overview');N.morphIsland('compact');
+      await new Promise(r=>setTimeout(r,650));
+      const scrim=document.querySelector('#island-scrim');
+      return {hidden:scrim.hidden,shown:scrim.classList.contains('show'),inert:document.querySelector('#stage').inert};
+    }""")
+    assert state == {"hidden": True, "shown": False, "inert": False}, state
+    page.locator('#input').fill('keyboard remains available')
+    assert page.locator('#input').input_value() == 'keyboard remains available'
+    page.evaluate("N.morphIsland('overview')")
+    page.keyboard.press('Shift+Tab')
+    assert page.evaluate('document.querySelector("#island-inner").contains(document.activeElement)')
+    page.keyboard.press('Tab')
+    assert page.evaluate('document.activeElement===document.querySelector("#island-inner button")')
+    page.keyboard.press('Escape')
+    assert page.locator('#input').evaluate('e=>e===document.activeElement')
+
+
 def test_overlay_exit_file_order_keyboard_and_usage(frontend):
     page = frontend
     samples = page.evaluate("""async()=>{
@@ -235,3 +263,56 @@ def test_mobile_plugins_are_full_width_rows(frontend, tmp_path):
     assert page.locator(".plug-layout").evaluate("e=>getComputedStyle(e).gridTemplateColumns.split(' ').length") == 2
     page.set_viewport_size({"width": 820, "height": 1000})
     assert page.locator(".plug-list").evaluate("e=>getComputedStyle(e).gridAutoFlow") == "column"
+
+
+def test_all_pages_fit_four_themes_and_desktop_mobile_short_screens(frontend, tmp_path):
+    page = frontend
+    failed = []
+    origin = page.evaluate('location.origin')
+    page.on('response', lambda response: failed.append((response.status, response.url))
+            if response.url.startswith(origin + '/') and response.status >= 400 else None)
+    checks = 0
+    for width, height in [(1440, 1000), (390, 844), (720, 480)]:
+        page.set_viewport_size({'width': width, 'height': height})
+        for palette in ['cool', 'jade']:
+            for theme in ['day', 'night']:
+                page.evaluate('([p,t])=>{N.applyPalette(p);N.applyTheme(t)}', [palette, theme])
+                for view in ['chat', 'work', 'context', 'skills', 'plugins', 'settings']:
+                    page.evaluate('v=>N.go(v)', view)
+                    page.wait_for_function('v=>!document.querySelector("#view-"+v).hidden', arg=view)
+                    page.evaluate("""async v=>{
+                      const root=document.querySelector('#view-'+v);
+                      await Promise.all(root.getAnimations({subtree:true})
+                        .filter(a=>a.effect.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})));
+                    }""", view)
+                    assert not page.evaluate('document.documentElement.scrollWidth>innerWidth'), (width, height, palette, theme, view)
+                    if view == 'chat':
+                        for selector in ['#composer-wrap', '#send']:
+                            box = page.locator(selector).bounding_box()
+                            assert box and box['y'] >= 0 and box['y'] + box['height'] <= height + 1, (width, height, palette, theme, selector, box)
+                    checks += 1
+                page.screenshot(path=str(tmp_path / f'formal-{width}-{height}-{palette}-{theme}.png'))
+    assert not failed, failed
+    print(f'PASS {checks} formal page/theme/viewport combinations; screenshots: {tmp_path}')
+
+
+def test_delete_last_provider_and_add_another_through_real_ui(frontend):
+    page = frontend
+    page.evaluate("N.go('settings')")
+    page.locator('[data-act="edit-provider"]').first.click()
+    page.locator('#p-delete').click()
+    page.locator('#editor-save').click()
+    page.wait_for_function('N.state.providers.length===0 && !document.querySelector("#provider-dialog").open')
+    assert page.locator('#provider-error').inner_text() == ''
+    page.reload(wait_until='domcontentloaded')
+    page.wait_for_function('N.state.connected && N.state.view==="settings"')
+    assert page.evaluate('N.state.providers.length') == 0
+    page.locator('[data-act="add-provider"]').click()
+    page.locator('#p-name').fill('Browser test provider')
+    page.locator('#p-family').select_option('openai_chat_completions')
+    page.locator('#p-base').fill('https://fake.test')
+    page.locator('#p-model-new').fill('fake')
+    page.locator('#p-model-add').click()
+    page.locator('#p-save').click()
+    page.wait_for_function('N.state.providers.length===1 && !document.querySelector("#provider-dialog").open')
+    assert page.evaluate('N.state.providers[0].name') == 'Browser test provider'

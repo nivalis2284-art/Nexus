@@ -155,7 +155,7 @@
         setTimeout(() => {
           if (!piece.isConnected) return;
           piece.replaceWith(document.createTextNode(piece.textContent)); node.normalize();
-        }, 160 * N.motionScale());
+        }, 420 * N.motionScale());
       } else node.textContent = text;
       return node;
     }
@@ -454,7 +454,7 @@
     if (state.historyUndo && !bar) {
       bar = document.createElement('div');
       bar.className = 'history-undo';
-      bar.innerHTML = '<span>已修改交流记录</span><button type="button" data-act="undo-history">撤销操作</button>';
+      bar.innerHTML = '<span>已修改对话记录</span><button type="button" data-act="undo-history">撤销操作</button>';
       thread.prepend(bar);
       if (!N.REDUCED) anim(bar, [{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }], { duration: N.DUR.move, easing: EASE_OUT });
     } else if (!state.historyUndo && bar) bar.remove();
@@ -537,8 +537,8 @@
         node.dataset.key = entry.key;
         node._text = entry.item?.text;
         if (!N.REDUCED && !entering && !force && !sendLayout) anim(node,
-          [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }],
-          { duration: N.DUR.enter, easing: EASE_OUT });
+          [{ opacity: 0, transform: 'translateY(14px)', filter: 'blur(6px)' }, { opacity: 1, transform: 'none', filter: 'blur(0px)' }],
+          { duration: SP.soft.d, easing: SP.soft.e });
       } else if (node._sig !== sig) {
         if (entry.type === 'phase') updatePhase(node, entry);
         else updateMessage(node, entry.item);
@@ -747,8 +747,8 @@
     Object.assign(ghost.style, { position: 'fixed', left: bounds.x + 'px', top: bounds.y + 'px', width: bounds.width + 'px', height: bounds.height + 'px', zIndex: 32, pointerEvents: 'none', animation: 'none' });
     document.body.appendChild(ghost);
     card.style.visibility = 'hidden';
-    anim(ghost, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-8px)' }],
-      { duration: N.DUR.exit, easing: N.EASE_EXIT }).onfinish = () => {
+    anim(ghost, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-10px) scale(.96)', filter: 'blur(4px)' }],
+      { duration: 200, easing: 'ease-in' }).onfinish = () => {
         ghost.remove(); card.style.visibility = ''; reqSig = ''; renderRequests();
       };
   }
@@ -956,7 +956,7 @@
     const panel = $('#usage-panel');
     if (!anchor && (panel.hidden || panel._closing)) return;
     const opening = !!anchor && (panel.hidden || panel._closing);
-    const from = panel.hidden ? { opacity: 0, transform: 'translateY(9px) scale(.93)' }
+    const from = panel.hidden ? { opacity: 0, transform: 'translateY(8px) scale(.94)' }
       : { opacity: getComputedStyle(panel).opacity, transform: getComputedStyle(panel).transform };
     panel._usageMotion?.cancel();
     panel._closing = !opening;
@@ -966,14 +966,14 @@
       renderUsage();
       if (!N.REDUCED) {
         panel._usageMotion = N.anim(panel, [from, { opacity: 1, transform: 'none' }],
-          { duration: N.DUR.content, easing: N.EASE_ENTER, fill: 'backwards' });
+          { duration: N.SP.bouncy.d, easing: N.SP.bouncy.e, fill: 'backwards' });
       }
     } else {
       const done = () => { panel.hidden = true; panel._closing = false; panel.getAnimations().forEach(a => a.cancel()); };
       if (N.REDUCED) done();
       else {
-        const motion = N.anim(panel, [from, { opacity: 0, transform: 'translateY(6px) scale(.97)' }],
-          { duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });
+        const motion = N.anim(panel, [from, { opacity: 0, transform: 'translateY(6px) scale(.94)' }],
+          { duration: 140, easing: 'ease-in', fill: 'forwards' });
         panel._usageMotion = motion;
         motion.onfinish = () => { if (panel._usageMotion === motion) done(); };
       }
@@ -989,15 +989,15 @@
     if (on) {
       el.hidden = false;
       if (!N.REDUCED) {
-        el._motion = N.anim(el, [{ opacity: 0, transform: 'translateX(-50%) translateY(8px)' }, { opacity: 1, transform: 'translateX(-50%)' }],
-          { duration: N.DUR.content, easing: N.EASE_ENTER });
+        el._motion = N.anim(el, [{ opacity: 0, transform: 'translateX(-50%) translateY(8px) scale(.94)' }, { opacity: 1, transform: 'translateX(-50%)' }],
+          { duration: N.SP.bouncy.d, easing: N.SP.bouncy.e });
       }
       return;
     }
     const done = () => { if (!el._wanted) el.hidden = true; };
     if (N.REDUCED) done();
-    else (el._motion = N.anim(el, [{ opacity: 1, transform: 'translateX(-50%)' }, { opacity: 0, transform: 'translateX(-50%) translateY(6px)' }],
-      { duration: N.DUR.micro, easing: 'ease-in', fill: 'forwards' })).onfinish = done;
+    else (el._motion = N.anim(el, [{ opacity: 1, transform: 'translateX(-50%)' }, { opacity: 0, transform: 'translateX(-50%) translateY(6px) scale(.94)' }],
+      { duration: 140, easing: 'ease-in', fill: 'forwards' })).onfinish = done;
   }
 
   /* ---------------------------------------------------------------- 输入舱 */
@@ -1038,7 +1038,7 @@
     b.classList.toggle('running', !!state.replying);
     b.classList.toggle('ready', has);
     b.classList.toggle('idle', !state.replying && !has);
-    const label = stopping ? '停止当前回应' : state.replying ? '加入队列' : '发送';
+    const label = stopping ? '停止当前回复' : state.replying ? '加入队列' : '发送';
     b.setAttribute('aria-label', label);
     b.title = label;
   }
@@ -1064,7 +1064,7 @@
       beginLayoutChange(); input.style.height = h + 'px'; endLayoutChange();
     }
   }
-  input.addEventListener('input', () => { autosize(); updateSend(); });
+  input.addEventListener('input', () => { $('#composer-wrap')?._enterMotion?.finish(); autosize(); updateSend(); });
   input.addEventListener('keydown', e => {
     if (e.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
@@ -1165,7 +1165,7 @@
     sendRipple();
     const sendBtn = $('#send');
     if (sendBtn && !N.REDUCED) {
-      anim(sendBtn, [{ transform: 'scale(.88)' }, { transform: 'scale(1)' }], { duration: N.DUR.content, easing: SP.settle.e });
+      anim(sendBtn, [{ transform: 'scale(.91)' }, { transform: 'scale(1)' }], { duration: N.DUR.micro, easing: SP.tap.e });
     }
     if ($('#view-chat').classList.contains('is-empty')) leaveEmpty();
     const target = state.target;
@@ -1256,8 +1256,8 @@
       Object.assign(ghost.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', margin: 0, zIndex: 2, pointerEvents: 'none' });
       $$('[id]', ghost).forEach(n => n.removeAttribute('id'));
       document.body.appendChild(ghost);
-      anim(ghost, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-8px)' }],
-        { duration: N.DUR.exit, easing: N.EASE_EXIT }).onfinish = () => ghost.remove();
+      anim(ghost, [{ opacity: 1, transform: 'none', filter: 'blur(0px)' }, { opacity: 0, transform: 'translateY(-30px) scale(.92)', filter: 'blur(10px)' }],
+        { duration: 420, easing: EASE_OUT, fill: 'forwards' }).onfinish = () => ghost.remove();
     }
     view.classList.remove('is-empty');
     thread.innerHTML = '';
@@ -1270,31 +1270,29 @@
     const visible = [...thread.children].filter(n => {
       const r = n.getBoundingClientRect(); return n.dataset.key && r.bottom > bounds.top && r.top < bounds.bottom;
     });
-    sendLayout = { positions: [wrap, ...visible].map(node => [node, node.getBoundingClientRect()]), source: input.getBoundingClientRect(), text };
+    sendLayout = { positions: [wrap, ...visible].map(node => [node, node.getBoundingClientRect()]), text };
   }
 
   function finishSendLayout(key) {
     const before = sendLayout;
     sendLayout = null;
     if (!before) return;
-    const bubble = thread.querySelector(`[data-key="m:${key}"] .bubble`);
+    const msgNode = thread.querySelector(`[data-key="m:${key}"]`);
+    const bubble = msgNode?.querySelector('.bubble') || msgNode;
     const positions = before.positions.map(([node, rect]) => [node, rect, node.getBoundingClientRect()]);
     for (const [node, from, to] of positions) {
       if (!node.isConnected || Math.abs(from.y - to.y) < .5 || node !== $('#composer-wrap') && Math.abs(from.y - to.y) > conv.clientHeight) continue;
       node._sendMotion?.cancel();
-      node._sendMotion = anim(node, [{ transform: `translateY(${from.y - to.y}px)` }, { transform: 'none' }], { duration: N.DUR.move, easing: N.EASE_MOVE });
+      node._sendMotion = anim(node, [{ transform: `translateY(${from.y - to.y}px)` }, { transform: 'none' }], { duration: SP.soft.d, easing: SP.soft.e });
     }
     if (!bubble) return;
-    if (before.text) {
-      const target = bubble.getBoundingClientRect(), ghost = document.createElement('div');
-      ghost.className = 'send-text-ghost'; ghost.textContent = before.text;
-      Object.assign(ghost.style, { left: before.source.x + 'px', top: before.source.y + 'px', width: before.source.width + 'px', maxHeight: before.source.height + 'px' });
-      document.body.appendChild(ghost);
-      anim(ghost, [{ opacity: .85, transform: 'none' }, { opacity: 0, transform: `translate(${target.x - before.source.x}px, ${target.y - before.source.y}px)` }],
-        { duration: N.DUR.move, easing: N.EASE_MOVE }).onfinish = () => ghost.remove();
-    }
-    anim(bubble, [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.content, delay: N.MOTION.stagger * 2, easing: EASE_OUT, fill: 'backwards' });
+    bubble.style.transformOrigin = '100% 100%';
+    anim(bubble, [
+      { opacity: 0, transform: 'translateY(18px) scale(.9)' },
+      { opacity: 1, transform: 'none' },
+    ], { duration: SP.bouncy.d, easing: SP.bouncy.e, fill: 'backwards' }).onfinish = () => {
+      bubble.style.transformOrigin = '';
+    };
   }
 
   /* ---------------------------------------------------------------- 附件 */
@@ -1418,12 +1416,12 @@
     const h = node.offsetHeight;
     node.style.overflow = 'hidden';
     N.anim(node, [{ opacity: 1, height: h + 'px' }, { opacity: 0, height: '0px', transform: 'scale(.97)' }],
-      { duration: N.DUR.exit, easing: N.EASE_EXIT }).onfinish = () => { node.style.overflow = ''; renderChat(); };
+      { duration: 340, easing: EASE_OUT }).onfinish = () => { node.style.overflow = ''; renderChat(); };
   }
 
   async function deleteItem(key) {
     const item = itemByKey(key);
-    if (!item || typeof item.index !== 'number') { N.notify('这条记录还不能在这里删除', 'cinnabar'); return; }
+    if (!item || typeof item.index !== 'number') { N.notify('消息尚未保存完成，暂无法删除', 'cinnabar'); return; }
     const node = thread.querySelector(`[data-key="m:${key}"]`);
     removeNode(node);
     try {
@@ -1440,12 +1438,14 @@
   async function resend(key) {
     const item = itemByKey(key);
     if (!item) return;
-    if (typeof item.index !== 'number') { N.notify('这条记录不能重新发送', 'cinnabar'); return; }
+    if (typeof item.index !== 'number') { N.notify('消息尚未保存完成，暂无法重新发送', 'cinnabar'); return; }
     const later = state.items.filter(i => i.role === 'user' && state.items.indexOf(i) > state.items.indexOf(item)).length;
     await N.ask({
       title: '编辑并重新发送',
       text: item.text || '',
-      description: `从这条消息重新继续，将替换后续 ${later} 条交流消息。保留本条附件与工作归属；已执行的工具和后台工作不会回滚。`,
+      description: later > 0
+        ? `从此处重新发送，将替换后续 ${later} 条消息。本条附件与工作归属会保留；已执行的工具和后台工作不会回滚。`
+        : '修改后将重新生成本轮回复。本条附件与工作归属会保留；已执行的工具和后台工作不会回滚。',
       submitLabel: '重新发送',
     }, async value => {
       await N.api.history({

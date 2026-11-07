@@ -19,7 +19,7 @@
       island.setAttribute('role', 'dialog');
       island.setAttribute('aria-modal', 'true');
       scrim.hidden = false;
-      requestAnimationFrame(() => scrim.classList.add('show'));
+      requestAnimationFrame(() => { if (island.hasAttribute('aria-modal')) scrim.classList.add('show'); });
     } else {
       island.removeAttribute('role');
       island.removeAttribute('aria-modal');
@@ -39,14 +39,14 @@
   /* ---------------------------------------------------------------- 状态文本 */
   function statusText() {
     if (state.connectionError) return '连接暂时中断，稍后自动重试';
-    if (state.replying) return '正在回应…';
+    if (state.replying) return '正在回复…';
     if (state.requests.length) return '有待处理请求';
     if (state.held) return '有输入等待恢复';
     const a = activeWorks();
     if (!a.length) return '暂无进行中的工作';
     const r = a.filter(w => w.state === 'running').length;
     const w = a.filter(w => w.state === 'waiting_user').length;
-    return [r ? `${r} 项进行` : '', w ? `<em>${w} 项待你决定</em>` : ''].filter(Boolean).join(' · ');
+    return [r ? `${r} 项进行中` : '', w ? `<em>${w} 项待处理</em>` : ''].filter(Boolean).join(' · ');
   }
   function updateMood() {
     const waiting = state.requests.length || state.works.some(w => w.state === 'waiting_user');
@@ -91,14 +91,14 @@
       <div class="slot-meter">${slots.map(w => `<i class="${w ? w.state : ''}"></i>`).join('')}</div>
       ${state.queue.length ? (() => {
         const stuck = state.queue.some(q => ['interrupted', 'held', 'failed'].includes(q.status));
-        return `<div class="isl-queue">${icon('arrow', 'i xxs')}<b>${state.queue.length} 条输入${stuck ? '待确认' : '排队'}</b><span>${stuck ? '检查上次处理后再继续' : state.replying ? '当前回应结束后处理' : '等待处理'}</span></div>`;
+        return `<div class="isl-queue">${icon('arrow', 'i xxs')}<b>${state.queue.length} 条输入${stuck ? '待确认' : '排队'}</b><span>${stuck ? '检查上次处理后再继续' : state.replying ? '当前回复结束后处理' : '等待处理'}</span></div>`;
       })() : ''}
       ${slots.map(workRow).join('')}
       ${done.length ? `<p class="isl-sub">已完成</p>${done.map(w => `<button class="drow" data-isl="detail" data-id="${esc(w.id)}">${icon('check', 'i sm')}<span>${esc(w.title)}</span><time>${esc(w.finished || '')}</time></button>`).join('')}` : ''}
       ${held ? '<div class="isl-held">' + icon('pause', 'i xs') + '有输入在重启后暂停，需要你确认继续</div>' : ''}
       <div class="isl-actions">
-        ${held ? `<button class="ibtn-soft" data-act="resume-held">继续待恢复输入</button>` : ''}
-        ${active.length ? `<button class="ibtn-soft" data-act="pause-all">全部工作挂起</button>` : ''}
+        ${held ? `<button class="ibtn-soft" data-act="resume-held">恢复暂停的输入</button>` : ''}
+        ${active.length ? `<button class="ibtn-soft" data-act="pause-all">全部挂起</button>` : ''}
         <button class="ibtn-soft" data-act="all-works">查看全部工作</button>
       </div>
       <p class="isl-foot">补充要求、挂起、恢复或取消工作，请在对话中提出。</p></div>`;
@@ -116,7 +116,12 @@
     }
     island.removeAttribute('aria-labelledby');
     if (island.mode === 'overview') { islandInner.innerHTML = overviewHTML(); return; }
-    if (island.mode === 'toast') return;
+    if (island.mode === 'toast') {
+      const d = island.data || {};
+      const ico = d.tone === 'jade' ? icon('check', 'i sm') : '<span class="orb-mini" style="--s:16px" aria-hidden="true"></span>';
+      islandInner.innerHTML = `<div class="isl-toast" data-tone="${esc(d.tone || 'info')}"><span class="t-ico">${ico}</span><span>${esc(d.text || '')}</span></div>`;
+      return;
+    }
     islandInner.innerHTML = compactHTML();
   }
 
@@ -125,9 +130,10 @@
     if ((mode === 'overview' || mode === 'detail') && !island.hasAttribute('aria-modal')) islandTrigger = document.activeElement;
     const prev = island.mode;
     const from = island.getBoundingClientRect();
-    const innerTransform = getComputedStyle(islandInner).transform;
-    const shapeFrom = islandInner._shapeMotion && !['finished', 'idle'].includes(islandInner._shapeMotion.playState) ? innerTransform : 'scale(.97)';
-    const fromRadius = Math.min(parseFloat(getComputedStyle(island).borderTopLeftRadius), from.height / 2, from.width / 2);
+    const innerWidth = islandInner.offsetWidth || from.width;
+    const innerStyle = getComputedStyle(islandInner);
+    const innerTransform = innerStyle.transform;
+    const innerOpacity = parseFloat(innerStyle.opacity);
     const ghost = islandInner.cloneNode(true);
     const sources = [islandInner, ...islandInner.querySelectorAll('*')];
     const copies = [ghost, ...ghost.querySelectorAll('*')];
@@ -138,8 +144,9 @@
     });
     ghost.removeAttribute('id');
     ghost.className = 'island-inner island-ghost';
+    ghost.style.marginLeft = '';
     ghost.style.transform = 'translateX(-50%)' + (innerTransform === 'none' ? '' : ' ' + innerTransform);
-    ghost.style.width = from.width + 'px';
+    ghost.style.width = innerWidth + 'px';
     ghost.setAttribute('aria-hidden', 'true'); ghost.inert = true;
     $$('[id]', ghost).forEach(n => n.removeAttribute('id'));
     if (islandAnim) {
@@ -162,38 +169,48 @@
     setScrim(modal);
     if (modal) {
       island.tabIndex = -1;
-      ($('[data-isl="compact"], .isl-ibtn', islandInner) || island).focus({ preventScroll: true });
+      island.focus({ preventScroll: true });
     }
     const to = island.getBoundingClientRect();
     if (N.REDUCED) return;
     const closing = mode === 'compact' && (prev === 'overview' || prev === 'detail');
     island.appendChild(ghost);
-    island.style.willChange = 'width, height';
-    islandInner.style.willChange = 'opacity, transform';
     islandInner.style.width = to.width + 'px';
-    // 收起态的窄屏 max-width 不能提前截断外壳；宽高与上边缘沿同一进度到位。
-    islandAnim = island.animate([
-      { width: from.width + 'px', maxWidth: from.width + 'px', height: from.height + 'px', borderRadius: fromRadius + 'px' },
-      { width: to.width + 'px', maxWidth: to.width + 'px', height: to.height + 'px', borderRadius: Math.min(parseFloat(getComputedStyle(island).borderTopLeftRadius), to.height / 2) + 'px' },
-    ], { duration: (closing ? N.DUR.exit : N.DUR.move) * N.motionScale(), easing: N.EASE_MOVE });
-    islandPosition = anim(island, [{ top: from.top + 'px' }, { top: to.top + 'px' }],
-      { duration: closing ? N.DUR.exit : N.DUR.move, easing: N.SP.settle.e });
-    islandInner._shapeMotion = anim(islandInner, [{ transform: shapeFrom }, { transform: 'none' }],
-      { duration: closing ? N.DUR.exit : N.DUR.move, easing: N.SP.settle.e, fill: 'backwards' });
-    const oldPanel = ghost.firstElementChild;
-    N.exitItems(oldPanel?.children.length ? [...oldPanel.children] : [ghost], ghost);
-    anim(ghost, [{ filter: 'blur(0px)' }, { filter: 'blur(4px)' }],
-      { duration: N.DUR.micro, easing: N.EASE_EXIT, fill: 'forwards' });
-    const panel = islandInner.firstElementChild;
-    if (closing) N.enterItems([panel], islandInner, { profile: 'content', delay: 60, duration: N.DUR.micro });
-    else N.enterItems(panel?.children.length ? [...panel.children] : [panel], islandInner, { profile: 'float' });
+    islandInner.style.marginLeft = `calc((100% - ${to.width}px) / 2)`;
+    islandAnim = anim(island, [
+      { width: from.width + 'px', maxWidth: from.width + 'px', height: from.height + 'px' },
+      { width: to.width + 'px', maxWidth: to.width + 'px', height: to.height + 'px' },
+    ], { duration: closing ? 420 : SP.island.d, easing: closing ? N.EASE_OUT : SP.island.e, fill: 'forwards' });
+    anim(ghost, [
+      { opacity: innerOpacity, transform: ghost.style.transform },
+      { opacity: 0, transform: 'translateX(-50%) scale(.92)' },
+    ], { duration: closing ? 130 : 160, easing: N.EASE_OUT, fill: 'forwards' }).onfinish = () => ghost.remove();
+    const shapeMotion = anim(islandInner, [
+      { opacity: 0, transform: closing ? 'scale(.96)' : 'scale(.93)' },
+      { opacity: 1, transform: 'none' },
+    ], { duration: closing ? 280 : 420, delay: prev === mode ? 0 : closing ? 25 : 55, easing: N.EASE_OUT, fill: 'backwards' });
+    islandInner._shapeMotion = shapeMotion;
+    shapeMotion.onfinish = shapeMotion.oncancel = () => {
+      if (islandInner._shapeMotion === shapeMotion) islandInner._shapeMotion = null;
+    };
+    if (mode === 'overview' || mode === 'detail') {
+      $$('.isl-scroll > *, .det-scroll > *, .wrow, .isl-sub, .drow, .isl-queue, .isl-held, .isl-actions, .isl-foot, .isl-foot2, .det-foot', islandInner).forEach((n, i) => {
+        const m = anim(n, [
+          { opacity: 0, transform: 'translateY(10px)' },
+          { opacity: 1, transform: 'none' },
+        ], { duration: SP.soft.d, delay: 90 + i * 32, easing: SP.soft.e, fill: 'backwards' });
+        n._enterMotion = m;
+        m.onfinish = m.oncancel = () => { if (n._enterMotion === m) n._enterMotion = null; };
+      });
+    }
     const clean = () => {
+      const done = islandAnim; islandAnim = null;
+      if (done) { done.onfinish = done.oncancel = null; done.cancel(); }
       islandPosition?.cancel(); islandPosition = null;
-      islandInner._shapeMotion?.cancel(); islandInner._shapeMotion = null;
       islandInner.style.width = islandInner.style.marginLeft = '';
       islandInner.style.willChange = '';
       island.style.willChange = '';
-      ghost.remove(); islandAnim = null;
+      ghost.remove();
       refreshIsland();
     };
     islandAnim.onfinish = clean;
@@ -219,7 +236,7 @@
     $('#isl-orb')?.classList.toggle('busy', state.replying);
     const to = island.getBoundingClientRect().width;
     if (Math.abs(from - to) > 1 && !N.REDUCED) {
-      islandAnim = anim(island, [{ width: from + 'px' }, { width: to + 'px' }], { duration: N.DUR.move, easing: N.EASE_MOVE });
+      islandAnim = anim(island, [{ width: from + 'px' }, { width: to + 'px' }], { duration: SP.island.d, easing: SP.island.e });
       islandAnim.onfinish = () => { islandAnim = null; refreshIsland(); };
     }
   }
@@ -274,13 +291,7 @@
     $('#live').textContent = text;
     if (island.mode === 'compact' || island.mode === 'toast') {
       clearTimeout(toastTimer);
-      const ico = tone === 'jade' ? icon('check', 'i sm') : '<span class="orb-mini" style="--s:16px" aria-hidden="true"></span>';
-      island.mode = 'toast'; island.dataset.mode = 'toast';
-      setScrim(false);
-      islandInner.innerHTML = `<div class="isl-toast" data-tone="${tone}"><span class="t-ico">${ico}</span><span>${esc(text)}</span></div>`;
-      island._noticeMotion?.cancel();
-      island._noticeMotion = anim(island, [{ height: island.getBoundingClientRect().height + 'px' }, { height: '46px' }], { duration: N.DUR.move, easing: N.EASE_MOVE });
-      N.enterItems([...islandInner.firstElementChild.children], islandInner, { profile: 'content' });
+      morphIsland('toast', { text, tone });
       toastTimer = setTimeout(() => { if (island.mode === 'toast') morphIsland('compact'); }, ms);
     } else {
       const t = $('#toast');
@@ -313,6 +324,7 @@
     if (name === 'settings') N.renderSettings();
   }
   let viewVersion = 0;
+  let viewAnim = null;
   function setBackgroundOnly(on) {
     if (!!state.backgroundOnly === on) return;
     if (on) {
@@ -342,6 +354,8 @@
       return;
     }
     if (state.view === 'plugins') N.closePluginPage?.();
+    const wasExiting = !!viewAnim;
+    if (viewAnim) { viewAnim.onfinish = null; viewAnim.cancel(); viewAnim = null; }
     const cur = $('.view:not([hidden])'), next = $('#view-' + name);
     const version = ++viewVersion;
     state.view = name;
@@ -363,23 +377,31 @@
       renderView(name);
       if (name === 'chat') N.syncTargets(true);
       N.syncPivot?.();
+      if (!N.REDUCED) {
+        anim(next, [
+          { opacity: 0, transform: 'translateY(16px)', filter: 'blur(6px)' },
+          { opacity: 1, transform: 'none', filter: 'blur(0px)' },
+        ], { duration: SP.soft.d, easing: SP.soft.e });
+      }
       if (name !== 'chat') {
         N.stagger(next);
       }
     };
-    if (N.REDUCED || !cur) {
+    if (cur && !N.REDUCED && !opts.silent && !wasExiting) {
+      viewAnim = anim(cur, [
+        { opacity: 1, transform: 'none', filter: 'blur(0px)' },
+        { opacity: 0, transform: 'translateY(-8px) scale(.99)', filter: 'blur(4px)' },
+      ], { duration: 150, easing: 'ease-in' });
+      viewAnim.onfinish = () => { viewAnim = null; swap(); };
+    } else {
       swap();
-      N.save();
-      return;
     }
-    const items = viewItems(cur);
-    Promise.all(N.exitItems(items, cur).map(a => a.finished)).then(swap, () => {});
     N.save();
   }
 
   function viewItems(root) {
     const marked = $$('[data-s]', root).filter(n => !n.parentElement.closest('[data-s]'));
-    if (marked.length) return marked.flatMap(n => n.matches('.page-head') ? [...n.children] : [n]);
+    if (marked.length) return marked;
     if (root.id === 'view-chat') return [...$$('.req-card, .qrow, .hero-kicker, .hero h1, .hero-sub, .chips, #thread > .msg, #thread > .phase', root), $('#composer-wrap')];
     return [...root.children];
   }
@@ -407,7 +429,7 @@
       const d = document.createElement('i');
       d.className = 'droplet';
       document.body.append(d);
-      const NSTEP = 24, kf = [];
+      const NSTEP = 28, kf = [];
       for (let i = 0; i <= NSTEP; i++) {
         const t = i / NSTEP, u = 1 - t;
         const x = u * u * x0 + 2 * u * t * cx + t * t * x1;
@@ -418,7 +440,7 @@
         const stretch = 1 + Math.sin(t * Math.PI) * 0.9, sc = 1 - t * 0.35;
         kf.push({ offset: t, transform: `translate(${x}px,${y}px) rotate(${ang}deg) scale(${stretch * sc},${sc / Math.sqrt(stretch)})` });
       }
-      const an = d.animate(kf, { duration: N.REDUCED ? 1 : 820 * N.motionScale(), easing: 'cubic-bezier(.55,0,.25,.09)' });
+      const an = d.animate(kf, { duration: N.REDUCED ? 1 : 820 * N.motionScale(), easing: 'cubic-bezier(.55,0,.25,1)' });
       an.onfinish = () => { d.remove(); res(); };
     });
   }
@@ -525,7 +547,7 @@
   }
 
   /* ---------------------------------------------------------------- 运行状态 */
-  const SCENES = [['idle', '空闲'], ['running', '回应中'], ['working', '工作推进'], ['attention', '待你处理']];
+  const SCENES = [['idle', '空闲'], ['running', '回复中'], ['working', '工作推进'], ['attention', '待处理']];
   function sceneKey() {
     if (state.requests?.length) return 'attention';
     if (state.replying) return 'running';
@@ -592,7 +614,7 @@
     if (t.dataset.act === 'pause-all') N.pauseAll();
     if (t.dataset.act === 'all-works') go('work');
     if (t.dataset.act === 'resume-held') {
-      N.api.resume().then(() => syncAll('已请求继续待恢复的输入')).catch(error => {
+      N.api.resume().then(() => syncAll('已恢复暂停的输入')).catch(error => {
         N.notify(error?.message || '恢复失败', 'cinnabar', 4000);
       });
     }
@@ -624,7 +646,9 @@
     ];
     N.menu(e.currentTarget, items, { title: '灵 · 枢 界面' });
   });
-  scrim.addEventListener('click', () => morphIsland('compact'));
+  scrim.addEventListener('click', () => {
+    if (island.mode === 'overview' || island.mode === 'detail') morphIsland('compact');
+  });
   $('#scene-btn')?.addEventListener('click', e => {
     const key = sceneKey();
     const items = [
@@ -644,8 +668,8 @@
       const focusable = $$('button:not([disabled]), a[href], input, textarea, select, summary', islandInner).filter(el => el.getClientRects().length);
       const first = focusable[0], last = focusable.at(-1);
       if (!first) { e.preventDefault(); island.focus(); }
-      else if (e.shiftKey && (document.activeElement === first || !island.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && (document.activeElement === last || !island.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+      else if (e.shiftKey && (document.activeElement === first || document.activeElement === island || !island.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || document.activeElement === island || !island.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
     }
     if (e.key === 'Escape') {
       if ($('#menu') && !$('#menu').hidden) { N.closeMenu(); return; }

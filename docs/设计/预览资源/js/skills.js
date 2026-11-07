@@ -25,7 +25,7 @@
     const list = effectiveList();
     view.innerHTML = `<div class="page">
       <header class="page-head" data-s>
-        <div><h1>技能</h1><p>项目技能会覆盖同名的个人技能；内置技能只读。</p></div>
+        <div><h1>技能</h1><p>管理可复用的方法与领域说明，供对话与工作按需调用。</p></div>
         <div class="row" style="gap:8px"><button class="btn ghost" data-act="skills-refresh">${icon('refresh', 'i xs')}刷新</button>${list.length ? `<button class="btn solid" data-act="new-skill">${icon('plus', 'i xs')}新建技能</button>` : ''}</div>
       </header>
       <div class="skills-toolbar" data-s><span class="count">${list.length ? list.length + ' 个技能' : ''}</span><span class="skill-status" id="skills-status"></span></div>
@@ -42,7 +42,7 @@
         </div>`).join('')}
         ${list.length ? '' : `<div class="card skill-empty" data-s><h2>还没有技能</h2><p>添加个人或项目技能，在这里查看用途、生效状态与覆盖关系。</p><button class="btn solid" data-act="new-skill">${icon('plus', 'i xs')}新建技能</button></div>`}
       </div>
-      <p class="foot-note" data-s>技能按名称匹配；项目技能覆盖同名个人技能，内置技能始终只读。</p>
+      <p class="foot-note" data-s>同名技能按「项目 &gt; 个人 &gt; 内置」优先级生效；内置技能始终只读。</p>
     </div>`;
     view.scrollTop = keep;
   }

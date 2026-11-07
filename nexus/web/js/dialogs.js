@@ -24,9 +24,9 @@
     const current = getComputedStyle(menu);
     const from = { opacity: current.opacity, transform: current.transform };
     menu._surfaceMotion?.cancel();
-    N.exitItems([...menu.children], menu);
-    const motion = animateSurface(menu, from, { opacity: 0, transform: 'translateY(8px) scale(.97)' },
-      { duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });
+    N.cancelMotion(menu);
+    const motion = animateSurface(menu, from, { opacity: 0, transform: 'translateY(6px) scale(.94)' },
+      { duration: 140, easing: 'ease-in', fill: 'forwards' });
     menu._surfaceMotion = motion;
     motion.onfinish = () => { if (!menuAnchor && menu._surfaceMotion === motion) { menu.hidden = true; N.cancelMotion(menu); menu._surfaceFade?.cancel(); motion.cancel(); } };
   }
@@ -45,8 +45,10 @@
       </button>`;
     }).join('');
     menu.innerHTML = (opts.title ? `<p class="m-title">${esc(opts.title)}</p>` : '') + rows;
-    menu._surfaceMotion = animateSurface(menu, previous || { opacity: N.REDUCED ? 1 : 0, transform: N.REDUCED ? 'none' : 'translateY(12px) scale(.97)' }, { opacity: 1, transform: 'none' },
-      { duration: N.DUR.content, easing: N.EASE_ENTER, fill: 'backwards' }, N.SP.settle.e);
+    menu._surfaceMotion = animateSurface(menu,
+      previous || { opacity: N.REDUCED ? 1 : 0, transform: N.REDUCED ? 'none' : 'translateY(10px) scale(.86)' },
+      { opacity: 1, transform: 'none' },
+      { duration: N.SP.bouncy.d, easing: N.EASE_OUT, fill: 'backwards' }, N.SP.bouncy.e);
     menu.hidden = false;
     menu.inert = false;
     const r = anchor.getBoundingClientRect();
@@ -220,15 +222,13 @@
   function openDialog(d) {
     if (!d || d.open && !d._closing) return;
     const from = d.open ? { opacity: getComputedStyle(d).opacity, transform: getComputedStyle(d).transform }
-      : { opacity: N.REDUCED ? 1 : 0, transform: N.REDUCED ? 'none' : 'translateY(24px) scale(.96)' };
+      : { opacity: N.REDUCED ? 1 : 0, transform: N.REDUCED ? 'none' : 'translateY(24px) scale(.92)' };
     d._surfaceMotion?.cancel();
     d._closing = false;
     d.classList.remove('is-closing');
     d._surfaceMotion = animateSurface(d, from, { opacity: 1, transform: 'none' },
-      { duration: N.DUR.enter, easing: N.EASE_ENTER, fill: 'backwards' }, N.SP.settle.e);
+      { duration: N.SP.bouncy.d, easing: N.EASE_OUT, fill: 'backwards' }, N.SP.bouncy.e);
     if (!d.open) d.showModal();
-    const body = $('.sheet-body', d) || $('form', d) || d;
-    N.enterItems([...body.children], d, { profile: 'float' });
   }
 
   function closeDialog(d) {
@@ -239,10 +239,9 @@
     const current = getComputedStyle(d);
     const from = { opacity: current.opacity, transform: current.transform };
     d._surfaceMotion?.cancel();
-    const body = $('.sheet-body', d) || $('form', d) || d;
-    N.exitItems([...body.children], d);
-    const motion = animateSurface(d, from, { opacity: 0, transform: 'translateY(8px) scale(.97)' },
-      { duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });
+    N.cancelMotion(d);
+    const motion = animateSurface(d, from, { opacity: 0, transform: 'translateY(12px) scale(.95)' },
+      { duration: 160, easing: 'ease-in', fill: 'forwards' });
     d._surfaceMotion = motion;
     motion.onfinish = () => {
       if (d._surfaceMotion !== motion) return;

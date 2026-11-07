@@ -61,7 +61,7 @@
 
   async function upload(name, blob) {
     const sid = state.sessionId;
-    if (!sid) throw new Error('交流记录尚未就绪，请稍后再试');
+    if (!sid) throw new Error('对话尚未就绪，请稍后再试');
     const res = await fetch(`${BASE}/api/sessions/${encodeURIComponent(sid)}/attachments?name=${encodeURIComponent(name)}`, {
       method: 'POST',
       headers: { 'Content-Type': blob.type || 'application/octet-stream' },

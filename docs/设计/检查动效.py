@@ -26,7 +26,7 @@ def verify_context_count(browser, url):
     }''')
     page.wait_for_function('countSamples.length===1 && countSamples[0].values.at(-1)===24')
     sample = page.evaluate('countSamples[0]')
-    assert sample['initial'] == '0' and sample['dur'] == 560, sample
+    assert sample['initial'] == '0' and sample['dur'] == 620, sample
     assert any(0 < n < 24 for n in sample['values']), sample
     assert sample['values'] == sorted(sample['values']), sample
     page.evaluate('N.state.context.messages+=12000;N.renderContext()')
@@ -39,7 +39,7 @@ def verify_context_count(browser, url):
     assert page.locator('.ctx-big strong').inner_text() == '24'
     for speed, factor in [('0.5', .68), ('1.5', 1.32)]:
         page.evaluate('s=>{N.setMotion(s,true);N.markEnter("context");N.renderContext()}', speed)
-        assert abs(page.evaluate('countSamples.at(-1).dur') - 560 * factor) < .01
+        assert abs(page.evaluate('countSamples.at(-1).dur') - 620 * factor) < .01
         page.wait_for_function('countSamples.at(-1).values.at(-1)===24')
     page.evaluate('Preview.selectScene("context","empty")')
     assert page.locator('.ctx-big strong').inner_text() == '—'
@@ -63,7 +63,7 @@ def verify(browser, url):
             (not r.url.startswith(origin + '/') or '/api/' in r.url) else None)
     page.goto(url, wait_until='networkidle')
     page.evaluate('document.fonts.ready')
-    assert page.evaluate('N.DUR.enter === 560 && N.DUR.content === 420 && N.DUR.text === 200')
+    assert page.evaluate('N.DUR.enter === 620 && N.DUR.content === 440 && N.DUR.text === 420 && N.SP.soft.d > 500 && N.SP.bouncy.d > 450 && N.SP.island.d > 450')
 
     def scene(view, name='overview'):
         page.evaluate('([v,s])=>Preview.selectScene(v,s)', [view, name])
@@ -82,8 +82,8 @@ def verify(browser, url):
         }''')
         assert len(timings) >= 2, (view, timings)
         assert len({a['delay'] for a in timings}) >= 2, (view, timings)
-        assert all(a['easing'] != 'linear' and a['duration'] == 560 for a in timings)
-        assert max(a['delay'] + a['duration'] for a in timings) <= 1000, (view, timings)
+        assert all(a['easing'] != 'linear' and a['duration'] == page.evaluate('N.SP.soft.d') for a in timings)
+        assert max(a['delay'] + a['duration'] for a in timings) <= 1050, (view, timings)
         assert all('filter' not in f or f['filter'] is None for a in timings for f in a['frames'])
         evidence[view] = timings
         page.evaluate('document.querySelectorAll(".view:not([hidden]) *").forEach(e=>e._enterMotion?.finish())')
@@ -99,7 +99,7 @@ def verify(browser, url):
     }''')
     deltas = [curve[i] - curve[i+1] for i in range(4)]
     assert max(deltas) - min(deltas) > 2, curve
-    assert abs(curve[-1]) < .1 and 23.9 < curve[0] < 24.1, curve
+    assert abs(curve[-1]) < .1 and 17.9 < curve[0] < 18.1, curve
     evidence['curve'] = curve
     page.evaluate('N.cancelMotion(document.querySelector("#view-work"));N.stagger(document.querySelector("#view-work"));document.querySelectorAll("#view-work *").forEach(e=>e._enterMotion?.pause())')
     for t in [0, 140, 280, 560, 840]:
@@ -113,7 +113,7 @@ def verify(browser, url):
       });
     }''')
     phases = page.evaluate('[...document.querySelectorAll("#island-inner *")].filter(e=>e._enterMotion).map(e=>e._enterMotion.effect.getTiming().delay)')
-    assert all(delay in phases for delay in [70, 140, 210]), phases
+    assert len(phases) >= 3 and phases[0] == 90 and phases[1] == 122, phases
     for t in [0, 70, 140, 280, 560, 840]:
         page.evaluate('''t=>document.querySelector('#island').getAnimations({subtree:true}).forEach(a=>{
           if(a.effect.getTiming().iterations!==Infinity)a.currentTime=t;
@@ -135,13 +135,13 @@ def verify(browser, url):
                   for(let i=0;i<=20;i++){a.currentTime=a.effect.getTiming().duration*i/20;const r=e.getBoundingClientRect();rows.push([r.width,r.height])}
                   a.finish();return rows;
                 }''')
-                assert all(shape[i+1][j] >= shape[i][j] - .1 for i in range(20) for j in range(2)), shape
-                page.wait_for_timeout(850)
+                assert shape[-1][0] > shape[0][0] and shape[-1][1] > shape[0][1] and max(r[1] for r in shape) >= shape[-1][1], shape
+                page.wait_for_timeout(1050)
                 assert page.evaluate('[...document.querySelectorAll("#island-inner *")].filter(e=>e._enterMotion).length') == 0
                 page.evaluate('N.morphIsland("detail",{id:N.state.works[0].id})')
                 page.wait_for_timeout(100)
                 page.evaluate('N.morphIsland("compact")')
-                page.wait_for_timeout(400)
+                page.wait_for_timeout(500)
                 assert page.locator('.island-ghost').count() == 0
                 assert page.evaluate('getComputedStyle(document.querySelector("#island")).height') == '46px'
     print('PASS four themes and desktop/mobile: island monotonic geometry and interrupted cleanup', flush=True)
@@ -150,7 +150,7 @@ def verify(browser, url):
     for speed, factor in [('0.5', .68), ('1', 1), ('1.5', 1.32)]:
         page.evaluate('s=>N.setMotion(s,true)', speed)
         timings = page.evaluate('N.enterItems([document.querySelector("#island")], document.documentElement).map(a=>a.effect.getTiming())')
-        assert abs(timings[0]['duration'] - 560 * factor) < .01
+        assert abs(timings[0]['duration'] - page.evaluate('N.SP.soft.d') * factor) < 1
         page.evaluate('N.cancelMotion(document.querySelector("#island"))')
     page.evaluate('N.setMotion("1",true)')
 

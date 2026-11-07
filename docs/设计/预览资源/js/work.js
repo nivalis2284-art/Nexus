@@ -99,7 +99,7 @@
       <header class="page-head" data-s>
         <div><h1>工作</h1><p>查看工作记录与结果，在对话中补充要求或调整工作状态。</p></div>
         <div class="work-head-actions">
-          <span class="pill">${buckets.active.length} 项进行 · ${waiting} 项待你处理</span>
+          <span class="pill">${buckets.active.length} 项进行中 · ${waiting} 项待处理</span>
           ${buckets.active.length ? `<button class="btn ghost sm" data-act="pause-all">${icon('pause', 'i xs')}全部挂起</button>` : ''}
         </div>
       </header>
@@ -132,12 +132,12 @@
     if (next) body.hidden = false;
     const to = next ? body.scrollHeight : 0;
     body.style.overflow = 'hidden';
-    if (next) N.enterItems([...body.children], section, { profile: 'content', delay: N.MOTION.stagger });
+    if (next) N.enterItems([...body.children], section, { profile: 'content', delay: 0 });
     else N.exitItems([...body.children], section);
     body._foldMotion = N.anim(body, [
       { height: from + 'px' },
       { height: to + 'px' },
-    ], { duration: next ? N.DUR.move : N.DUR.exit, easing: N.EASE_MOVE });
+    ], { duration: next ? N.SP.soft.d : 220, easing: next ? N.SP.soft.e : N.EASE_OUT });
     body._foldMotion.onfinish = () => {
       body.style.height = '';
       body.style.overflow = '';
@@ -154,10 +154,10 @@
       return '这项工作刚被改动过，列表已刷新，请再试一次';
     }
     if (/active task|still owns execution/i.test(text)) {
-      return '这项还在运行，先停止它再操作';
+      return '这项工作仍在运行，请先停止后再操作';
     }
     if (/child work records/i.test(text)) {
-      return '先删掉它下面的子工作，再删这一项';
+      return '请先删除下属的子工作，再删除此项';
     }
     return text || '操作失败';
   }
