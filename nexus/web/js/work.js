@@ -7,7 +7,7 @@
   const { $, $$, esc, icon, state } = N;
 
   const GROUPS = [
-    { id: 'active', title: '进行中', hint: '独立推进，不需要你盯着', open: true, locked: true },
+    { id: 'active', title: '进行中', hint: '独立执行，进展自动更新', open: true, locked: true },
     { id: 'paused', title: '已挂起', hint: '需要时恢复', open: true },
     { id: 'ended', title: '已结束', hint: '过程与结果保留', open: true },
     { id: 'archived', title: '已归档', hint: '记录与结果保留，不占主视图', open: false },
@@ -76,8 +76,8 @@
       if (group.locked) {
         const inner = list.length
           ? `<div class="work-group-body">${list.map(workCard).join('')}</div>`
-          : `<div class="work-quiet" data-s>${icon('orbit', 'i sm')}<span>现在没有正在进行的工作。在主交流里交代一件具体的事，它会出现在这里。</span></div>`;
-        const hint = list.length ? group.hint : '等待新的交代';
+          : `<div class="work-quiet" data-s>${icon('orbit', 'i sm')}<span>暂无进行中的工作。可在对话中安排新工作。</span></div>`;
+        const hint = list.length ? group.hint : '暂无工作';
         return `<section class="work-group" data-g="${group.id}">
           <div class="work-group-h static" data-s><h3>${group.title}</h3><span>${list.length} 项 · ${hint}</span></div>
           ${inner}
@@ -93,18 +93,18 @@
       </section>`;
     }).join('');
 
-    const content = sections.trim() || `<div class="card work-empty" data-s><span class="orb-mini"></span><b>还没有工作</b><span>在主交流里交代一件具体的事，它会独立推进。</span></div>`;
+    const content = sections.trim() || `<div class="card work-empty" data-s><span class="orb-mini"></span><b>还没有工作</b><span>可在对话中安排新工作。</span></div>`;
 
     view.innerHTML = `<div class="page work-page">
       <header class="page-head" data-s>
-        <div><h1>工作</h1><p>每项工作的过程、证据与结果都留在这里；补充和控制从主交流交代。</p></div>
+        <div><h1>工作</h1><p>查看工作记录与结果，在对话中补充要求或调整工作状态。</p></div>
         <div class="work-head-actions">
           <span class="pill">${buckets.active.length} 项进行 · ${waiting} 项待你处理</span>
           ${buckets.active.length ? `<button class="btn ghost sm" data-act="pause-all">${icon('pause', 'i xs')}全部挂起</button>` : ''}
         </div>
       </header>
       ${content}
-      <p class="foot-note" data-s>工作记录只读。开始、挂起、恢复或取消通过主交流交代；归档与删除只整理这里的列表。</p>
+      <p class="foot-note" data-s>开始、挂起、恢复或取消工作，请在对话中提出。归档保留记录，删除会移除工作记录与对话历史。</p>
     </div>`;
     view.scrollTop = keep;
     if (!entering) $$('.work-item', view).forEach(card => {
@@ -257,7 +257,7 @@
       const label = args.path || args.pattern || args.command || args.task || '';
       return `<details class="step tool-step ${item.ok === false ? 'error' : 'done'}"><summary><span class="sicon">${item.ok === false ? icon('close', 'i xxs') : icon('check', 'i xxs')}</span><span class="sname">${esc(item.name || 'tool')}</span>${label ? `<span class="sargs">${esc(N.truncate(String(label), 70))}</span>` : ''}<span class="sstate ${item.ok === false ? 'bad' : 'good'}">${item.ok === false ? '失败' : '完成'}</span></summary><div class="sbody"><pre class="tool-output">${esc(item.text || '')}</pre></div></details>`;
     }
-    return `<article class="msg msg-ling"><header class="ling-head"><span class="orb-mini"></span><b>灵</b><time>${esc(item.at || '')}</time></header>
+    return `<article class="msg msg-ling"><header class="ling-head"><span class="orb-mini"></span><b>助手</b><time>${esc(item.at || '')}</time></header>
       <div class="ling-body"><div class="md">${N.md(item.text || '')}</div></div>${item.elapsed ? `<div class="msg-meta">用时 ${item.elapsed} 秒</div>` : ''}</article>`;
   }
 
@@ -267,7 +267,7 @@
     const parent = w.parent_id && state.works.find(x => x.id === w.parent_id);
     const kv = [];
     if (parent) kv.push(['归属', `父工作 · ${esc(parent.title)}`]);
-    else if (w.parent_kind === 'session') kv.push(['归属', '主交流']);
+    else if (w.parent_kind === 'session') kv.push(['归属', '对话']);
     if (w.goal) kv.push(['目标', esc(w.goal)]);
     if (w.constraints) kv.push(['约束', esc(w.constraints)]);
     if (w.work_summary) kv.push([w.state === 'completed' ? '结果' : '进展', esc(w.work_summary)]);
@@ -290,7 +290,7 @@
         const p = i.payload || {};
         const text = p.questions ? p.questions.map(q => q.question || q.text).join(' / ') : p.tool ? '需要批准 ' + p.tool : '需要你的确认';
         return `<div class="isl-inter-row">${i.kind === 'approval' ? '审批' : '问题'} · ${esc(text)}</div>`;
-      }).join('')}</div><p class="isl-detail-note" style="margin-top:8px">回答入口在主交流上方，回答后会作用到这项工作。</p>`
+      }).join('')}</div><p class="isl-detail-note" style="margin-top:8px">前往对话页回答这项工作的请求。</p>`
       : '';
 
     const children = (w.children || []).length
@@ -323,18 +323,22 @@
         ${inter ? `<div class="isl-sec"><div class="isl-sec-h">待处理请求</div>${inter}</div>` : ''}
       </div>
       <div class="isl-foot2">
-        <p>这里的记录只读。补充要求和状态控制通过主交流交代。</p>
-        ${w.state !== 'completed' && w.state !== 'cancelled' ? `<button class="ibtn-solid" data-isl="supplement" data-id="${esc(w.id)}">在主交流中补充</button>` : ''}
+        <p>记录仅供查看。补充要求或调整工作状态，请在对话中提出。</p>
+        ${w.state !== 'completed' && w.state !== 'cancelled' ? `<button class="ibtn-solid" data-isl="supplement" data-id="${esc(w.id)}">在对话中补充</button>` : ''}
       </div>
     </div>`;
   }
 
+  let detailVersion = 0;
   async function openWork(id) {
+    const version = ++detailVersion, view = state.view;
     try {
       await N.sync.taskDetail(id);
+      if (version !== detailVersion || state.view !== view) return;
       N.morphIsland('detail', { id });
       N.refreshRefs?.(id);
     } catch (error) {
+      if (version !== detailVersion || state.view !== view) return;
       N.notify(error?.message || '读取工作详情失败', 'cinnabar', 4000);
     }
   }

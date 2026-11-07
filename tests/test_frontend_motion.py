@@ -11,6 +11,157 @@ from nexus.web import server as web
 playwright = pytest.importorskip("playwright.sync_api")
 
 
+def test_popup_first_frames_and_interruption(live):
+    base, _, _, _, _ = live
+    with playwright.sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport={"width": 1440, "height": 1000})
+        page.route("https://fonts.googleapis.com/**", lambda route: route.fulfill(body=""))
+        page.goto(base, wait_until="domcontentloaded")
+        page.wait_for_function('N.state.sessionId && N.state.connected')
+        page.evaluate("""() => {
+          const show=HTMLDialogElement.prototype.showModal;
+          window.popupFirstFrames=[];
+          HTMLDialogElement.prototype.showModal=function(){
+            popupFirstFrames.push({id:this.id,opacity:getComputedStyle(this).opacity,
+              armed:!!this._surfaceMotion,fill:this._surfaceMotion?.effect.getTiming().fill});
+            return show.call(this);
+          };
+        }""")
+        ids = page.locator("dialog").evaluate_all("elements=>elements.map(e=>e.id)")
+        for width, height in [(1440, 1000), (390, 844)]:
+            page.set_viewport_size({"width": width, "height": height})
+            for dialog_id in ids:
+                samples = page.evaluate("""id=>{
+                  const d=document.getElementById(id);N.openDialog(d);
+                  const a=d._surfaceMotion,t=a.effect.getTiming(),samples=[];a.pause();d._surfaceFade.pause();
+                  for(const progress of [0,.25,.5,1]){
+                    a.currentTime=t.duration*progress;
+                    d._surfaceFade.currentTime=t.duration*progress;
+                    samples.push({opacity:+getComputedStyle(d).opacity,y:new DOMMatrixReadOnly(getComputedStyle(d).transform).m42});
+                  }
+                  N.cancelMotion(d);a.cancel();d._surfaceFade.cancel();d.close();return samples;
+                }""", dialog_id)
+                first = page.evaluate("popupFirstFrames.at(-1)")
+                assert first["armed"] and first["fill"] == "backwards" and first["opacity"] == "0", first
+                assert samples[0] == {"opacity": 0, "y": 24}, (dialog_id, samples)
+                assert 0 < samples[1]["opacity"] < samples[2]["opacity"] < 1, (dialog_id, samples)
+                assert any(s["y"] < -2 for s in samples), (dialog_id, samples)
+                assert samples[-1] == {"opacity": 1, "y": 0}, (dialog_id, samples)
+
+        page.set_viewport_size({"width": 1440, "height": 1000})
+        continuity = page.evaluate("""async()=>{
+          const d=document.querySelector('#provider-dialog');N.openDialog(d);
+          d._surfaceMotion.pause();d._surfaceFade.pause();d._surfaceMotion.currentTime=d._surfaceFade.currentTime=180;N.closeDialog(d);
+          d._surfaceMotion.pause();d._surfaceFade.pause();d._surfaceMotion.currentTime=d._surfaceFade.currentTime=90;
+          const before=getComputedStyle(d).opacity;N.openDialog(d);
+          const after=getComputedStyle(d).opacity;
+          await new Promise(requestAnimationFrame);
+          return {before,after,frame:getComputedStyle(d).opacity};
+        }""")
+        assert abs(float(continuity["before"]) - float(continuity["after"])) < .001, continuity
+        assert float(continuity["frame"]) < 1, continuity
+        page.wait_for_timeout(1050)
+        assert page.locator("#provider-dialog").is_visible()
+        assert page.evaluate('getComputedStyle(document.querySelector("#provider-dialog")).opacity') == "1"
+        page.keyboard.press("Escape")
+        page.wait_for_function('!document.querySelector("#provider-dialog").open')
+
+        opacity = page.evaluate("""()=>{
+          N.menu(document.querySelector('#model-btn'),[{label:'首帧检查'}]);
+          return getComputedStyle(document.querySelector('#menu')).opacity;
+        }""")
+        assert opacity == "0"
+        page.evaluate('N.closeMenu(true)')
+        page.emulate_media(reduced_motion="reduce")
+        page.wait_for_function("N.REDUCED")
+        page.evaluate('N.openDialog(document.querySelector("#provider-dialog"))')
+        assert page.evaluate('getComputedStyle(document.querySelector("#provider-dialog")).opacity') == "1"
+        assert page.evaluate('getComputedStyle(document.querySelector("#provider-dialog")).transform') in ["none", "matrix(1, 0, 0, 1, 0, 0)"]
+        page.keyboard.press("Escape")
+        assert page.locator("dialog[open]").count() == 0
+        browser.close()
+
+
+def test_stronger_spring_keeps_sizes_and_opacity_stable(live):
+    base, _, _, _, _ = live
+    with playwright.sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport={"width": 1440, "height": 1000})
+        page.route("https://fonts.googleapis.com/**", lambda route: route.fulfill(body=""))
+        page.goto(base, wait_until="domcontentloaded")
+        page.wait_for_function('N.state.sessionId && N.state.connected')
+        page.wait_for_timeout(800)
+        page.evaluate("""() => {
+          const button=document.createElement('button');button.className='btn';button.id='spring-button';
+          button.textContent='回弹检查';Object.assign(button.style,{position:'fixed',top:'200px',left:'100px',zIndex:100});
+          document.body.append(button);
+        }""")
+        page.locator("#spring-button").hover()
+        page.mouse.down()
+        page.wait_for_timeout(140)
+        page.mouse.up()
+        button = page.evaluate("""() => {
+          const e=document.querySelector('#spring-button'),a=e.getAnimations().find(a=>a.transitionProperty==='transform');
+          a.pause();const duration=a.effect.getTiming().duration,scales=[];
+          for(let i=0;i<=40;i++){a.currentTime=duration*i/40;scales.push(new DOMMatrixReadOnly(getComputedStyle(e).transform).m11)}
+          e.remove();return {duration,scales};
+        }""")
+        assert button["duration"] == 420, button
+        assert 1.005 < max(button["scales"]) < 1.01, button
+        assert abs(button["scales"][-1] - 1) < .0001
+
+        tabs = page.evaluate("""() => {
+          const tabs=document.createElement('div');tabs.className='tabs';
+          tabs.innerHTML='<span class="tab-ink"></span><button>概览</button><button>详细设置内容</button>';
+          document.body.append(tabs);const ink=tabs.firstElementChild,target=tabs.lastElementChild;
+          N.moveInk(ink,tabs.children[1],'x',true);N.moveInk(ink,target);
+          const animations=ink.getAnimations();animations.forEach(a=>a.pause());const samples=[];
+          for(let i=0;i<=40;i++){
+            animations.forEach(a=>a.currentTime=560*i/40);
+            const s=getComputedStyle(ink);samples.push({x:new DOMMatrixReadOnly(s.transform).m41,width:parseFloat(s.width)});
+          }
+          const to=target.offsetLeft;tabs.remove();return {samples,to};
+        }""")
+        assert 1 < max(s["x"] for s in tabs["samples"]) - tabs["to"] < 4, tabs
+        widths = [s["width"] for s in tabs["samples"]]
+        assert all(a <= b + .02 for a, b in zip(widths, widths[1:])), widths
+
+        dock = page.evaluate("""() => {
+          N.state.view='chat';N.syncDock(true);N.state.view='settings';N.syncDock();
+          const ink=document.querySelector('#dock-ink'),a=ink.getAnimations()[0],values=[];a.pause();
+          for(const p of [0,.25,.5,.75,1]){
+            a.currentTime=560*p;const s=getComputedStyle(ink);values.push(new DOMMatrixReadOnly(s.transform).m42+parseFloat(s.height)/2);
+          }
+          N.state.view='chat';N.syncDock(true);return values;
+        }""")
+        assert .80 < (dock[2] - dock[0]) / (dock[-1] - dock[0]) < .93, dock
+
+        island = page.evaluate("""() => {
+          N.morphIsland('overview');const el=document.querySelector('#island'),inner=document.querySelector('#island-inner');
+          const animations=el.getAnimations({subtree:true}).filter(a=>a.effect.getTiming().iterations!==Infinity);
+          animations.forEach(a=>a.pause());const samples=[];
+          for(let i=0;i<=40;i++){
+            animations.forEach(a=>a.currentTime=560*i/40);
+            const s=getComputedStyle(el);samples.push({width:parseFloat(s.width),height:parseFloat(s.height),scale:new DOMMatrixReadOnly(getComputedStyle(inner).transform).m11});
+          }
+          N.morphIsland('compact');return samples;
+        }""")
+        assert max(s["scale"] for s in island) > 1.003, island
+        for key in ["width", "height"]:
+            values = [s[key] for s in island]
+            assert all(a <= b + .02 for a, b in zip(values, values[1:])), (key, values)
+        page.wait_for_timeout(80)
+        page.evaluate('N.morphIsland("overview")')
+        page.wait_for_timeout(80)
+        page.evaluate('N.morphIsland("compact")')
+        page.wait_for_timeout(400)
+        assert page.locator(".island-ghost").count() == 0
+        assert page.evaluate('getComputedStyle(document.querySelector("#island")).height') == "46px"
+        assert page.evaluate('getComputedStyle(document.querySelector("#island-inner")).transform') == "none"
+        browser.close()
+
+
 def test_formal_motion_keeps_backend_and_preferences(live, tmp_path, request):
     base, workspace, store, tasks, _ = live
     store.save_preferences(workspace=str(workspace), permission="yolo")
@@ -141,8 +292,11 @@ def test_formal_motion_keeps_backend_and_preferences(live, tmp_path, request):
                     page.evaluate('([p,t])=>{N.applyPalette(p);N.applyTheme(t);N.morphIsland("overview")}', [palette, theme])
                     page.wait_for_timeout(80)
                     page.evaluate('N.morphIsland("compact")')
-                    page.wait_for_timeout(350)
-                    assert page.locator(".island-ghost").count() == 0
+                    page.wait_for_function('!document.querySelector(".island-ghost")')
+                    assert page.locator(".island-ghost").count() == 0, (palette, theme, width, page.evaluate('''() => ({
+                      mode:document.querySelector('#island').mode,
+                      animations:document.querySelector('#island').getAnimations().map(a=>({time:a.currentTime,state:a.playState,timing:a.effect.getTiming()}))
+                    })'''))
                     assert page.evaluate('getComputedStyle(document.querySelector("#island")).height') == "46px"
         page.screenshot(path=str(tmp_path / "formal-mobile.png"))
 
@@ -157,7 +311,7 @@ def test_formal_motion_keeps_backend_and_preferences(live, tmp_path, request):
         assert page.locator("#provider-dialog").is_visible()
         assert page.evaluate('[...document.querySelectorAll("#provider-dialog *")].every(e=>getComputedStyle(e).filter==="none")')
         page.keyboard.press("Escape")
-        page.wait_for_timeout(300)
+        page.wait_for_function('!document.querySelector("dialog[open]")')
         assert page.locator("dialog[open]").count() == 0
 
         page.evaluate('N.applyPalette("jade");N.applyTheme("night");N.setMotion("1.5");N.save()')

@@ -97,12 +97,12 @@ class Page:
         rows = [v for v in all_items if v['status'] != 'deleted']
         page = min(max(1, int(ctx.get('page', 1))), max(1, math.ceil(len(rows) / 20)))
         ctx['page'] = page
-        components = [{'id': 'intro', 'type': 'text', 'text': '约定到时执行，关注有事再说。系统时区：' + str(self.engine.zone())},
+        components = [{'id': 'intro', 'type': 'text', 'text': '按时间或工作事件执行，按设定条件汇报。系统时区：' + str(self.engine.zone())},
                       {'id': 'toolbar', 'type': 'row', 'children': [button('new', '新建安排', 'new', variant='primary'),
                        button('refresh', '刷新', 'refresh'), button('archive', '已删除记录', 'archive')]}]
         if self.engine.last_error:
             components.append({'id': 'scheduler-error', 'type': 'text', 'tone': 'error', 'text': self.engine.last_error})
-        components.append({'id': 'arrangements', 'type': 'list', 'empty': '还没有安排。可以在这里新建，也可以直接交代给灵。',
+        components.append({'id': 'arrangements', 'type': 'list', 'empty': '暂无安排。点击「新建安排」，或在对话中说明执行时间与要求。',
                            'items': [self.item(v) for v in rows[(page - 1) * 20:page * 20]]})
         components.append({'id': 'pages', 'type': 'pagination', 'page': page, 'total_pages': max(1, math.ceil(len(rows) / 20)), 'action': 'page'})
         if action == 'archive':
@@ -172,9 +172,9 @@ class Page:
             if kind == 'monthly':
                 children.append(field('day', '每月日期（0 表示最后一天）', trigger.get('day', 1), 'number', min=0, max=31, step=1, required=True))
         children += [field('report_mode', '汇报方式', item.get('report_mode', 'changes'), 'select',
-                           options=options([('changes', '首轮基线，之后有事再汇报'), ('always', '每次汇报')])),
-                     field('report_when', '哪些情况值得告诉我', item.get('report_when', ''), 'textarea'),
-                     field('end_when', '何时结束关注', item.get('end_when', ''), 'textarea'),
+                           options=options([('changes', '首次汇报，之后按条件汇报'), ('always', '每次汇报')])),
+                     field('report_when', '汇报条件', item.get('report_when', ''), 'textarea'),
+                     field('end_when', '结束条件', item.get('end_when', ''), 'textarea'),
                      field('workspace', '项目目录', item.get('workspace', defaults['workspace']), required=True),
                      field('model', '模型', selected_model, 'select',
                            options=[{'value': json_model(m['provider_id'], m['model_id']), 'label': m['provider'] + ' / ' + m['model_id']} for m in models], required=True),

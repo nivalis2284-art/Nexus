@@ -371,7 +371,7 @@ body[data-mood="waiting"] { --aura-a: #9ef2db; --aura-b: #ffc2ad; --aura-c: #ffd
 }
 .pc-tag { padding: 0 var(--space-2) 0 var(--space-2); color: var(--ink-3); letter-spacing: .08em; font-size: var(--text-caption); }
 .seg { position: relative; display: flex; padding: 3px; border-radius: var(--r-pill); background: var(--paper-2); }
-.seg button { position: relative; z-index: 1; height: 28px; padding: 0 12px; border-radius: var(--r-pill); color: var(--ink-3); transition: color var(--d-2); }
+.seg button { position: relative; z-index: 1; height: 28px; padding: 0 12px; border-radius: var(--r-pill); color: var(--ink-2); transition: color var(--d-2); }
 .seg button.active { color: var(--ink); }
 .seg-ink, .tab-ink { position: absolute; top: 3px; left: 0; height: calc(100% - 6px); border-radius: var(--r-pill); background: var(--seg-ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .1); pointer-events: none; }
 .pc-theme { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-2); position: relative; overflow: hidden; transition: background var(--d-2), color var(--d-2), transform var(--d-2) var(--sp-settle); }
@@ -604,11 +604,11 @@ body[data-mood="waiting"] { --aura-a: #9ef2db; --aura-b: #ffc2ad; --aura-c: #ffd
 .chip:active { transform: scale(.95); }
 
 .view-chat.is-empty { justify-content: center; }
-.view-chat.is-empty .conversation { flex: 0 0 auto; overflow: visible; -webkit-mask-image: none; mask-image: none; padding-top: var(--space-10); padding-bottom: var(--space-3); }
+.view-chat.is-empty .conversation { flex: 0 1 auto; min-height: 0; overflow-y: auto; -webkit-mask-image: none; mask-image: none; padding-top: var(--space-10); padding-bottom: var(--space-3); }
 .view-chat.is-empty .composer-hint { opacity: 0; }
 
 /* ----------------------------------------------------------------- 输入舱 */
-.composer-wrap { position: relative; padding: 0 var(--space-6) var(--space-4); }
+.composer-wrap { position: relative; flex-shrink: 0; padding: 0 var(--space-6) var(--space-4); }
 .composer {
   position: relative; max-width: var(--measure-field); margin: 0 auto; padding: var(--space-3) var(--space-3) var(--space-3);
   border-radius: var(--r-composer); background: var(--card);

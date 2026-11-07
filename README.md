@@ -82,7 +82,7 @@ Nexus 是由所有者掌握的个人 Agent 底座。当前版本收敛到一个�
 
 Windows 默认使用 `powershell` 和 `powershell_background` 命令工具，支持 PowerShell 内建命令、脚本和管道；每次从工作目录启动新的进程。已有的 `bash` 和 `bash_background` 保留按程序及参数直接执行的行为；需要 Bash 语法时，可显式调用安装的 Bash 可执行文件。命令工具遵循现有权限模式；自定义允许规则需使用新的工具名称，旧工具的询问与拒绝规则仍适用。
 
-插件独立发布，不属于 Nexus 本体的交付内容。Nexus 提供插件宿主接口、管理页面和公共 UI 资源；插件程序、SDK 示例、手机端 APK 及其构建验收由各自的发布维护。仓库中 `mobile-bridge/` 的既有资料不构成 Nexus 本体的安装或测试前提。
+发行版预置“网页搜索与阅读”和“浏览器控制”两个普通插件，启动后可在插件管理中启用，无需手动导入 ZIP；首次启用时安装各自依赖。其源码分别位于 `plugin-dev/web-research/` 和 `plugin-dev/browser-control/`，发行时放入根目录 `plugins/` 下的同名目录。其他插件、SDK 示例和手机端独立发布；仓库中 `mobile-bridge/` 的既有资料不构成 Nexus 本体的安装或测试前提。
 
 公共插件 SDK 1.2.0 提供 `work` v1：插件可独立启动标准后台工作，读取状态和事件，暂停／恢复／取消所属工作，并选择静默完成或向主交流回报。执行沿用 Nexus 的工具、权限审批和项目协调；业务调度与条件留在插件。接口、Python／Node 示例及旧入口兼容说明见 [插件 SDK](nexus-plugin-sdk/SDK.md)。使用新能力的电脑须更新并重启实际运行的 Nexus，再导入插件；插件 ZIP 不包含宿主更新。
 
@@ -140,8 +140,13 @@ Nexus 本体使用 [MIT License](LICENSE)。随包分发的第三方网页库和
 `start.bat`、`pyproject.toml`、`LICENSE` 和 `.gitignore`，并将
 [发行版说明](docs/发行版README.md) 放为发行区的 `README.md`。
 
+另从已提交版本复制 `plugin-dev/web-research/` 和 `plugin-dev/browser-control/` 的
+`plugin.json`、`backend.py`、`worker.py`、`README.md` 及已有的 `LICENSE`，分别放入
+发行区 `plugins/web-research/` 和 `plugins/browser-control/`。插件由现有宿主自动发现，
+默认未启用；不复制开发区已安装插件的配置、依赖环境、浏览器资料或其他运行数据。
+
 保留 `nexus/` 中运行所需的网页、字体、第三方库及各自许可。发行区不放 `docs/`、
-`tests/`、独立插件或手机端发布包、开发工具、虚拟环境、构建缓存、模型配置与凭据、
+`tests/`、其他插件或手机端发布包、开发工具、虚拟环境、构建缓存、模型配置与凭据、
 会话、附件和其他运行数据。发行区用于对外复制，实际使用后生成的数据不再属于干净
 发行文件；再次发布时从开发区的已提交版本重新整理。
 

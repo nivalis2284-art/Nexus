@@ -121,7 +121,7 @@ button:disabled:hover { transform: none; }
 .qmore { font-size: var(--text-caption); color: var(--ink-3); padding: 2px var(--space-3); }
 
 .requests { max-width: var(--measure); margin: 0 auto; max-height: min(42vh, 420px); overflow: auto; padding: 2px 2px var(--space-3); scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
-.req-kicker { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-caption); color: var(--ink-3); margin: 2px var(--space-1) var(--space-2); letter-spacing: .02em; }
+.req-kicker { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-caption); color: var(--ink-2); margin: 2px var(--space-1) var(--space-2); letter-spacing: .02em; }
 .req-kicker::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--cinnabar); box-shadow: 0 0 0 3px var(--cinnabar-soft); }
 .req-card {
   position: relative; overflow: hidden; padding: var(--space-4) var(--space-5) var(--space-4) var(--space-5); margin-bottom: var(--space-2);
@@ -451,7 +451,7 @@ button:disabled:hover { transform: none; }
 .ctx-ov-main .ctx-state { display: inline-flex; align-items: center; gap: var(--space-2); margin-top: var(--space-1); font-size: var(--text-caption); color: var(--ink-3); }
 .ctx-ov-main .ctx-state i { width: 6px; height: 6px; border-radius: 50%; background: var(--jade); }
 .ctx-ov-main .ctx-state.locked i { background: var(--cinnabar); }
-.ctx-window { font: var(--text-caption) var(--mono); color: var(--ink-3); padding: var(--space-1) var(--space-3); border-radius: var(--r-ctrl); background: var(--paper-2); white-space: nowrap; }
+.ctx-window { font: var(--text-caption) var(--mono); color: var(--ink-2); padding: var(--space-1) var(--space-3); border-radius: var(--r-ctrl); background: var(--paper-2); white-space: nowrap; }
 .ctx-meter { display: flex; height: 12px; border-radius: var(--r-tag); overflow: hidden; gap: 2px; background: var(--paper-2); margin-top: var(--space-4); }
 .ctx-meter i { height: 100%; border-radius: var(--r-inline); transform-origin: left; }
 .ctx-legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-top: var(--space-3); font-size: var(--text-caption); color: var(--ink-2); }
@@ -540,8 +540,8 @@ button:disabled:hover { transform: none; }
 .skill .glyph { font-size: var(--text-body); width: 38px; height: 38px; border-radius: var(--r-ctrl); }
 .skill .src { display: inline-flex; align-items: center; height: 22px; padding: 0 var(--space-2); border-radius: var(--r-pill); font-size: var(--text-caption); font-weight: 500; background: var(--paper-2); color: var(--ink-2); }
 .skill .src.personal { background: var(--jade-soft); color: var(--jade-ink); }
-.skill .src.project { background: var(--tool-soft); color: var(--tool-ink); }
-.skill .src.builtin { background: var(--paper-2); color: var(--ink-3); }
+.skill .src.project { background: var(--tool-soft); color: var(--ink-2); }
+.skill .src.builtin { background: var(--paper-2); color: var(--ink-2); }
 .skill .meta-line { font-size: var(--text-caption); color: var(--ink-3); }
 .skill .meta-line.over { color: var(--cinnabar-deep); }
 .skill footer .acts { display: flex; gap: 2px; margin-left: auto; }
@@ -572,7 +572,7 @@ button:disabled:hover { transform: none; }
 .plug-item-calls { margin-top: var(--space-1); font-size: var(--text-caption); color: var(--jade-ink); }
 .pstate { font-size: var(--text-caption); padding: 1px var(--space-2); border-radius: var(--r-tag); white-space: nowrap; margin-left: auto; }
 .pstate.ok { background: var(--jade-soft); color: var(--jade-ink); }
-.pstate.off { background: var(--paper-2); color: var(--ink-3); }
+.pstate.off { background: var(--paper-2); color: var(--ink-2); }
 .pstate.busy { background: var(--busy-soft); color: var(--busy); }
 .pstate.err { background: var(--cinnabar-soft); color: var(--cinnabar-deep); }
 #plug-detail-slot { height: min(640px, 72dvh); min-width: 0; }
@@ -791,6 +791,7 @@ button:disabled:hover { transform: none; }
   .ctx-metrics { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 760px) {
+  .plug-list { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: minmax(0, 1fr); overflow-x: visible; }
   .chat-top { padding: 0 var(--space-3); }
   .view-chat.has-top .chat-top { padding-top: var(--space-16); }
   .requests { max-height: 46vh; }
@@ -827,7 +828,6 @@ button:disabled:hover { transform: none; }
 @media (max-width: 420px) {
   .ctx-metrics { grid-template-columns: 1fr; }
   .req-actions .btn { height: 36px; padding: 0 var(--space-3); }
-  .plug-list { grid-auto-columns: 210px; }
 }
 
 /* 减少动效时不要留下位移 */
@@ -838,12 +838,12 @@ button:disabled:hover { transform: none; }
 /* ----------------------------------------------------------------- 补充组件 */
 .row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
 .eyebrow { font: 500 var(--text-caption) var(--mono); letter-spacing: .16em; color: var(--ink-3); margin-bottom: var(--space-2); }
-.tab-count { margin-left: var(--space-2); font: var(--text-caption) var(--mono); color: var(--ink-4); }
-.tabs button.active .tab-count { color: var(--ink-3); }
+.tab-count { margin-left: var(--space-2); font: var(--text-caption) var(--mono); color: var(--ink-2); }
 .spin { display: inline-flex; animation: spin 1s linear infinite; }
 .isl-queue-count { font-size: var(--text-caption); color: var(--ink-3); white-space: nowrap; padding: 0 2px; }
 .req-opt.picked { background: var(--cinnabar); color: var(--on-accent); }
 .req-opt.picked:hover { background: var(--cinnabar); color: var(--on-accent); }
+[data-theme="day"] :is(.req-allow, .req-opt.picked) { background: var(--cinnabar-deep); }
 
 .ctx-head-acts { display: flex; align-items: center; gap: var(--space-2); }
 .ctx-card { padding: var(--card-padding); margin-bottom: var(--card-gap); }
@@ -1026,19 +1026,19 @@ body.background-only .pivot-core .orb-stage { pointer-events: auto; }
 .lift:active { transform: scale(.988); transition-duration: var(--d-0); }
 .composer { transition: box-shadow var(--d-2) var(--ease-move), transform var(--d-2) var(--ease-move); }
 .composer:focus-within { transform: translateY(-2px); }
-.send { transition: transform var(--d-2) var(--sp-settle), background var(--d-2) var(--ease-move), opacity var(--d-2) var(--ease-move); }
+.send { transition: transform calc(var(--duration-content) * var(--motion)) var(--sp-settle), background var(--d-2) var(--ease-move), opacity var(--d-2) var(--ease-move); }
 .send:hover { transform: scale(1.05); }
 .send:active { transform: scale(.9); }
-.btn { transition: transform var(--d-2) var(--sp-settle), background var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move); }
+.btn { transition: transform calc(var(--duration-content) * var(--motion)) var(--sp-settle), background var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move); }
 .btn:active { transform: scale(.95); }
-.chip { transition: transform var(--d-2) var(--sp-settle), box-shadow var(--d-2) var(--ease-move), background var(--d-2) var(--ease-move); }
+.chip { transition: transform calc(var(--duration-content) * var(--motion)) var(--sp-settle), box-shadow var(--d-2) var(--ease-move), background var(--d-2) var(--ease-move); }
 .chip:hover { transform: translateY(-2px); }
-.dock-btn { transition: color var(--d-2) var(--ease-move), transform var(--d-2) var(--sp-settle); }
+.dock-btn { transition: color var(--d-2) var(--ease-move), transform calc(var(--duration-content) * var(--motion)) var(--sp-settle); }
 .ic-btn, .c-btn, .c-pill, .isl-ibtn, .target, .req-opt { transition-duration: var(--d-2); }
 .work-item { transition: transform var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move); }
 .plug-item { transition: transform var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move), background var(--d-2) var(--ease-move); }
 .skill { transition: transform var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move); }
-.switch::after { transition: left var(--d-2) var(--sp-settle), width var(--d-2) var(--ease-move); }
+.switch::after { transition: left calc(var(--duration-content) * var(--motion)) var(--sp-settle), width var(--d-2) var(--ease-move); }
 .send:active, .btn:active, .chip:active, .dock-btn:active { transition-duration: var(--d-0); }
 
 /* 气场换色在 body 上过渡，子元素继承插值后的颜色 */

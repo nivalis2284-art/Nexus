@@ -12,11 +12,13 @@ test('followup host page, forms and drafts fit both palettes and narrow screens'
   const python = process.env.NEXUS_TEST_PYTHON || path.join(root, '.venv/Scripts/python.exe');
   const views = JSON.parse(execFileSync(python, [path.join(__dirname, 'preview.py')], {cwd:root, encoding:'utf8'}));
   const web = path.join(root, 'nexus/web');
+  let actionGate = null;
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname === '/api/plugins/followup/pages/main') {
       let raw = ''; for await (const chunk of req) raw += chunk;
       const request = JSON.parse(raw || '{}');
+      if (actionGate && request.event === 'action') await actionGate;
       res.writeHead(200, {'Content-Type':'application/json'});
       return res.end(JSON.stringify(views[request.action || 'open'] || views.open));
     }
@@ -57,14 +59,37 @@ test('followup host page, forms and drafts fit both palettes and narrow screens'
         }
       }
     }
-    await outer.getByRole('button', {name:'新建安排', exact:true}).click();
-    await page.waitForTimeout(250);
-    assert.deepEqual(errors, []);
+    await page.emulateMedia({reducedMotion:'no-preference'});
+    const geometry = () => page.evaluate(() => {
+      const dialog = document.querySelector('.hui-dialog[open]') || document.querySelector('#plugin-page-dialog');
+      const content = dialog.querySelector('.hui-components');
+      const d = dialog.getBoundingClientRect(), c = content.getBoundingClientRect();
+      return {top:d.top, height:d.height, contentTop:c.top, scroll:dialog.querySelector('.sheet-body')?.scrollTop || 0};
+    });
+    const pendingAction = async button => {
+      const stable = await geometry();
+      let release;
+      actionGate = new Promise(resolve => { release = resolve; });
+      let pending;
+      try {
+        await button.click();
+        await page.waitForFunction(() => document.querySelector('.hui-page').getAttribute('aria-busy') === 'true');
+        pending = await geometry();
+        assert.equal(await button.getAttribute('aria-busy'), 'true');
+        const otherButton = outer.getByRole('button', {name:'刷新', exact:true});
+        assert.equal(await otherButton.evaluate(node => getComputedStyle(node).opacity), '1');
+      } finally { release(); actionGate = null; }
+      assert.deepEqual(pending, stable, 'pending actions must not move or resize the page or editor');
+    };
+    await pendingAction(outer.getByRole('button', {name:'新建安排', exact:true}));
     const editor = page.locator('.hui-dialog[open]');
+    await editor.waitFor();
+    assert.deepEqual(errors, []);
     assert.equal(await editor.count(), 1, await outer.innerText());
     assert.equal(await editor.getByLabel('触发方式').count(), 1);
+    await editor.evaluate(async node => { await Promise.all(node.getAnimations({subtree:true}).map(a => a.finished.catch(() => {}))); });
     await editor.getByLabel('触发方式').selectOption({label:'每周'});
-    await editor.getByRole('button', {name:'更新触发字段', exact:true}).click();
+    await pendingAction(editor.getByRole('button', {name:'更新触发字段', exact:true}));
     await editor.getByLabel('周一', {exact:true}).waitFor();
     await editor.getByLabel('名称', {exact:true}).fill('保留的草稿');
     await editor.getByRole('button', {name:'保存安排', exact:true}).click();
@@ -84,6 +109,11 @@ test('followup host page, forms and drafts fit both palettes and narrow screens'
     if (process.env.NEXUS_UI_ARTIFACTS) await page.screenshot({path:path.join(process.env.NEXUS_UI_ARTIFACTS,'followup-editor-mobile.png')});
     const box = await editor.boundingBox();
     assert.ok(box.x >= 0 && box.x + box.width <= 391 && box.y >= 0 && box.y + box.height <= 845, JSON.stringify(box));
+    await page.keyboard.press('Escape');
+    await editor.waitFor({state:'detached'});
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await pendingAction(outer.getByRole('button', {name:'新建安排', exact:true}));
+    await editor.getByLabel('触发方式').waitFor();
     assert.deepEqual(errors, []);
   } finally {
     await browser?.close();

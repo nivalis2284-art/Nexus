@@ -8,7 +8,7 @@
   const ctx = { tab: 'system', selected: new Set(), undo: null, canUndo: false, busy: false, enteredAt: 0 };
 
   const ROLE_CAPTION = { main: '持续交流与工作监督', work: '围绕目标持续执行', subagent: '聚焦独立的委派范围' };
-  const MSG_LABEL = { user: '所有者', assistant: '灵', tool: '工具', notice: '记录' };
+  const MSG_LABEL = { user: '所有者', assistant: '助手', tool: '工具', notice: '记录' };
   const SEGS = [
     ['系统提示词', () => state.context.system, 'var(--ink)'],
     ['工具定义', () => state.context.tools, 'var(--cinnabar)'],
@@ -78,7 +78,7 @@
     const sel = [...ctx.selected].filter(i => turns[i]);
     return `<div class="ctx-panel" data-panel="history">
       ${ctx.canUndo ? `<div class="ctx-undo" data-s>已修改交流记录<button data-act="ctx-undo" ${locked() ? 'disabled' : ''}>撤销最近一次修改</button></div>` : ''}
-      ${locked() ? '<div class="ctx-lock" data-s>灵正在处理当前输入，请先停止后再编辑或删除历史。</div>' : ''}
+      ${locked() ? '<div class="ctx-lock" data-s>正在处理当前消息，请先停止处理，再编辑或删除历史。</div>' : ''}
       <section class="card ctx-card" data-s>
         <div class="ctx-card-head"><div><h2>已压缩上下文</h2><p>此前交流收束为摘要；编辑会替换当前摘要。</p></div><button class="btn ghost sm" data-act="edit-summary" ${!sum || locked() ? 'disabled' : ''}>${icon('edit', 'i xs')}编辑摘要</button></div>
         ${sum ? `<div class="ctx-summary"><div class="ctx-summary-meta"><span>覆盖此前 ${Number(sum.through) + 1} 条记录</span><span>编辑后影响后续请求</span></div><p>${esc(sum.text)}</p></div>` : '<p class="ctx-hint">当前还没有压缩摘要。</p>'}
@@ -155,7 +155,7 @@
     const d = state.contextData;
     view.innerHTML = `<div class="page ctx-page">
       <header class="page-head" data-s>
-        <div><h1>上下文</h1><p>查看灵正在参考的信息，让指令与历史各归其位。</p></div>
+        <div><h1>上下文</h1><p>查看和管理指令、摘要与对话历史。</p></div>
         <div class="ctx-head-acts"><button class="btn ghost sm" data-act="ctx-refresh">${icon('refresh', 'i xs')}刷新</button></div>
       </header>
 
@@ -163,7 +163,7 @@
         <div class="ctx-ov-top">
           <div class="ctx-big"><strong${pct === null ? ' class="unknown"' : ''}>${pct === null ? '—' : pct}</strong>${pct === null ? '' : '<small>%</small>'}</div>
           <div class="ctx-ov-main"><p>请求上下文估算<br>随模型请求更新</p>
-            <span class="ctx-state ${locked() ? 'locked' : ''}"><i></i>${locked() ? '灵正在处理，历史修改需先停止' : '灵当前空闲，可调整后续请求参考的上下文'}</span></div>
+            <span class="ctx-state ${locked() ? 'locked' : ''}"><i></i>${locked() ? '正在处理消息，修改历史前请先停止处理。' : '当前空闲，可调整后续请求使用的上下文。'}</span></div>
           <span class="ctx-window">模型窗口 ${N.fmtNum(c.window)} tok</span>
         </div>
         <div class="ctx-composition-label">已用内容构成<span>占本轮已用上下文</span></div>
@@ -229,36 +229,28 @@
 
   /* ---------------------------------------------------------------- 操作 */
   async function saveOwners(items, message) {
-    try {
-      await N.api.saveContext('owners', { items });
-      await N.sync.contextOnly();
-      renderContext(); N.notify(message, 'jade');
-    } catch (error) {
-      N.notify(error?.message || '保存指令失败', 'cinnabar', 4200);
-      await N.sync.contextOnly().catch(() => {});
-      renderContext();
-    }
+    await N.api.saveContext('owners', { items });
+    await N.sync.contextOnly();
+    renderContext(); N.notify(message, 'jade');
   }
 
   async function addRule() {
-    const value = await N.ask({
+    await N.ask({
       title: '添加所有者指令', text: '', submitLabel: '添加指令',
       description: '保存后用于后续请求；新指令追加在现有指令之后。',
-    });
-    if (value === null) return;
-    await saveOwners([...(state.contextData.owner_instructions || []), String(value).trim()], '已添加指令');
+    }, value => saveOwners([...(state.contextData.owner_instructions || []), String(value).trim()], '已添加指令'));
   }
 
   async function editRule(i) {
     const list = state.contextData.owner_instructions || [];
-    const value = await N.ask({
+    await N.ask({
       title: `编辑所有者指令 ${i + 1}`, text: list[i],
       description: '保存后用于后续请求；取消不会修改现有指令。',
+    }, value => {
+      const items = list.slice();
+      items[i] = String(value).trim();
+      return saveOwners(items, '已保存指令');
     });
-    if (value === null) return;
-    const items = list.slice();
-    items[i] = String(value).trim();
-    await saveOwners(items, '已保存指令');
   }
 
   async function delRule(i) {
@@ -274,36 +266,35 @@
     }
     const items = list.slice();
     items.splice(i, 1);
-    await saveOwners(items, '已删除指令');
+    try { await saveOwners(items, '已删除指令'); }
+    catch (error) {
+      N.notify(error?.message || '删除指令失败', 'cinnabar', 4200);
+      await N.sync.contextOnly().catch(() => {});
+      renderContext();
+    }
   }
 
   async function editRole(id) {
     const role = (state.contextData.roles || []).find(r => r.id === id);
     if (!role) return;
-    const value = await N.ask({
+    await N.ask({
       title: `编辑${role.title}规则`, text: role.text,
       description: '保存后用于后续请求；取消不会修改现有规则。',
-    });
-    if (value === null) return;
-    try {
+    }, async value => {
       await N.api.saveContext('roles', { id, text: String(value).trim() });
       await N.sync.contextOnly();
       renderContext(); N.notify('角色规则已保存', 'jade');
-    } catch (error) {
-      N.notify(error?.message || '保存角色规则失败', 'cinnabar', 4200);
-    }
+    });
   }
 
   async function editSummary() {
     const sum = state.contextData.summary;
     if (!sum) return;
-    if (locked()) { N.notify('请先停止灵的当前输入再修改摘要', 'cinnabar'); return; }
-    const value = await N.ask({
+    if (locked()) { N.notify('请先停止处理当前消息，再修改摘要。', 'cinnabar'); return; }
+    await N.ask({
       title: '编辑已压缩上下文', text: sum.text,
       description: '摘要会替代此前记录；最新的所有者要求仍然优先。',
-    });
-    if (value === null) return;
-    try {
+    }, async value => {
       await N.api.saveContext('summary', {
         text: String(value).trim(),
         version: state.contextData.version,
@@ -312,16 +303,14 @@
       await N.sync.contextOnly();
       ctx.canUndo = true;
       renderContext(); N.notify('历史摘要已保存', 'jade');
-    } catch (error) {
-      N.notify(error?.message || '保存摘要失败', 'cinnabar', 4200);
-    }
+    });
   }
 
   async function delTurns() {
     const turns = state.contextData.turns || [];
     const picked = [...ctx.selected].filter(i => turns[i]).sort((a, b) => a - b);
     if (!picked.length) return;
-    if (locked()) { N.notify('请先停止灵的当前输入再删除历史', 'cinnabar'); return; }
+    if (locked()) { N.notify('请先停止处理当前消息，再删除历史。', 'cinnabar'); return; }
     const indices = [...new Set(picked.flatMap(i => turns[i].indices))].sort((a, b) => a - b);
     const ok = await N.confirmEdit({
       title: `删除 ${picked.length} 轮对话？`,

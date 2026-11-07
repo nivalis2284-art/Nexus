@@ -433,18 +433,16 @@ class ConfigStore:
 
     def remove_provider(self, provider_id: str) -> None:
         providers = [p for p in self.providers() if p.id != provider_id]
-        if not providers:
-            raise ValueError("at least one provider is required")
         self.save_providers(providers)
         self.write_credential(provider_id, "")
         raw = self.read_config()
         current = raw.get("current") if isinstance(raw.get("current"), dict) else {}
-        if current.get("provider") == provider_id:
-            first = providers[0]
+        if current.get("provider") == provider_id or not providers:
+            first = providers[0] if providers else None
             raw["current"] = {
                 "provider": first.id,
                 "model": first.models[0].get("id") if first.models else "",
-            }
+            } if first else {}
             self.write_config(raw)
 
     def has_key(self, provider_id: str) -> bool:

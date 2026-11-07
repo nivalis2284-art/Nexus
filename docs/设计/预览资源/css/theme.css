@@ -409,7 +409,7 @@ body[data-mood="waiting"],
 .seal, .req-allow, .opt .tick { color: var(--on-accent); }
 .summary-card::before, .ctx-summary::before { color: var(--on-primary); }
 .theme-check { color: var(--on-primary); }
-.skill .glyph { color: var(--on-primary); }
+.skill .glyph { color: var(--jade-ink); }
 
 /* ---------------------------------------------------------------- 浑仪星枢与多面琢玉核心绑定 */
 .og0 { stop-color: color-mix(in srgb, var(--jade-hi) 26%, #fff); }

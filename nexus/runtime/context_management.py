@@ -17,7 +17,7 @@ from ..session.presentation import transcript
 from ..tools import build
 from .history import effective_checkpoint, history_version
 
-ROLE_TITLES = {"main": "主交流", "work": "工作", "subagent": "子代理"}
+ROLE_TITLES = {"main": "对话", "work": "工作", "subagent": "子代理"}
 SECTION_TITLES = {"environment": "运行环境", "priority": "指令来源与优先级",
                   "project": "项目指令", "skills": "可用技能", "interaction": "当前交流与工作状态",
                   "task": "工作状态", "permission": "有效权限", "tools": "当前可用工具"}

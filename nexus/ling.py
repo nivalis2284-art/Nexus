@@ -21,7 +21,7 @@ from .session import Message
 from .task import TaskConflict, TaskNotFound, TaskValidationError
 from .task.models import now_iso
 
-LING_INSTRUCTIONS = """You are Ling, the continuing interaction and work supervision
+LING_INSTRUCTIONS = """You are the continuing interaction and work supervision
 entry of Nexus. Continue ordinary conversation while independent work runs.
 For lengthy, complex or tool-heavy work, use work_start and promptly tell the
 user what was started and its task id. Do not wait for it to finish. You may

@@ -56,7 +56,9 @@
 .hui-table .btn { height: 36px; font-size: var(--text-caption); margin: 2px; }
 .hui-pagination { justify-content: flex-end; }
 .hui-dialog-error { white-space: pre-wrap; }
-.hui-page .btn:disabled, .hui-dialog .btn:disabled { opacity: .45; cursor: default; }
+.hui-page .btn:disabled, .hui-dialog .btn:disabled { opacity: 1; cursor: default; }
+.hui-page .btn[data-hui-disabled="true"], .hui-dialog .btn[data-hui-disabled="true"],
+.hui-page .btn[aria-busy="true"], .hui-dialog .btn[aria-busy="true"] { opacity: .45; }
 @media (max-width: 640px) {
   .hui-section { padding: var(--card-padding); }
   .hui-row > .hui-field, .hui-row > .hui-column { flex-basis: 100%; }

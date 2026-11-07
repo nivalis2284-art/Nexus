@@ -46,7 +46,8 @@ def test_add_edit_remove_provider(tmp_path):
     assert created.id not in store.read_credentials()
 
 
-def test_removing_the_selected_provider_reselects(tmp_path):
+@pytest.mark.parametrize("selected", ["first", "second"])
+def test_removing_provider_preserves_a_valid_selection(tmp_path, selected):
     store = ConfigStore(tmp_path)
     store.ensure()
     first = store.providers()[0]
@@ -54,11 +55,34 @@ def test_removing_the_selected_provider_reselects(tmp_path):
         {"name": "B", "family": "anthropic_messages", "base_url": "https://b.test",
          "models": [{"id": "b-model"}]}
     )
-    store.select(second.id, "b-model", "high")
+    store.select(first.id if selected == "first" else second.id,
+                 first.models[0]["id"] if selected == "first" else "b-model", "high")
     store.remove_provider(first.id)
     settings = store.load()
     assert settings.provider.id == second.id
     assert settings.model["id"] == "b-model"
+
+
+def test_removing_last_provider_clears_selection_and_survives_restart(tmp_path):
+    store = ConfigStore(tmp_path)
+    store.ensure()
+    provider = store.providers()[0]
+    store.write_credential(provider.id, "test-key")
+
+    store.remove_provider(provider.id)
+
+    assert store.providers() == []
+    assert store.read_config()["current"] == {}
+    assert not store.has_key(provider.id)
+    reopened = ConfigStore(tmp_path)
+    reopened.ensure()
+    assert reopened.providers() == []
+    added = reopened.add_provider({
+        "name": "New", "family": "openai_chat_completions",
+        "base_url": "https://new.test", "models": [{"id": "new-model"}],
+    })
+    assert reopened.load().provider.id == added.id
+    assert reopened.load().model["id"] == "new-model"
 
 
 def test_select_persists_effort_and_rejects_unknown(tmp_path):

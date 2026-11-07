@@ -162,7 +162,7 @@ class Application:
 
         inbox = self.inbox()
         if not self.busy.acquire(blocking=False):
-            raise TaskConflict("主交流正在处理输入，请先停止或等待完成后再修改历史。")
+            raise TaskConflict("正在处理当前消息，请先停止处理或等待完成，再修改历史。")
         try:
             with inbox._condition, inbox.store._lock, self.state["sessions"]._lock:
                 with inbox.store._transaction() as connection:
@@ -229,7 +229,7 @@ class Application:
             self.state["tasks"].get(target)
         words = text.lower().strip().rstrip("。.!！ ")
         if not images and not body.get("attachments") and words in ("停一下", "先停一下", "暂停", "停止", "stop", "stop now"):
-            notice = "已请求挂起所选工作；其余工作继续。" if target else "已停止当前主交流；后台工作继续。"
+            notice = "已请求挂起所选工作；其余工作继续。" if target else "已停止回复，后台工作继续。"
             accepted = inbox.enqueue(text, [], [], request_id, target, control=notice)
             if not accepted.get("duplicate"):
                 if target:
@@ -304,7 +304,7 @@ class Application:
     def delete_session(self, session_id):
         state = self.state
         if session_id == ling_session_id(state.get("tasks")):
-            raise TaskConflict("灵的持续记录由统一入口管理，不能作为普通会话删除。")
+            raise TaskConflict("不能删除对话本身；如需整理记录，请在上下文中删除对话历史。")
         removed = state["sessions"].delete(session_id)
         if removed:
             AttachmentStore(state["store"].home).delete_owner("sessions", session_id)

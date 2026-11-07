@@ -8,6 +8,7 @@
   const island = $('#island'), islandInner = $('#island-inner');
   island.mode = 'compact'; island.data = null;
   let islandAnim = null;
+  let islandPosition = null;
   let toastTimer = null;
   let islandTrigger = null;
   const scrim = $('#island-scrim');
@@ -39,10 +40,10 @@
   function statusText() {
     if (state.connectionError) return '连接暂时中断，稍后自动重试';
     if (state.replying) return '正在回应…';
-    if (state.requests.length) return '灵在等你处理请求';
+    if (state.requests.length) return '有待处理请求';
     if (state.held) return '有输入等待恢复';
     const a = activeWorks();
-    if (!a.length) return '执行位空闲';
+    if (!a.length) return '暂无进行中的工作';
     const r = a.filter(w => w.state === 'running').length;
     const w = a.filter(w => w.state === 'waiting_user').length;
     return [r ? `${r} 项进行` : '', w ? `<em>${w} 项待你决定</em>` : ''].filter(Boolean).join(' · ');
@@ -62,10 +63,10 @@
   function slotBtn(w) {
     return w
       ? `<button class="slot" data-state="${w.state}" data-isl="detail" data-id="${esc(w.id)}" aria-label="${esc(w.title)} · ${esc(N.stateLabel(w))}"><i class="core"></i></button>`
-      : `<button class="slot" data-state="empty" data-isl="overview" aria-label="空闲执行位"><i class="core"></i></button>`;
+      : `<button class="slot" data-state="empty" data-isl="overview" aria-label="空闲"><i class="core"></i></button>`;
   }
   function workRow(w) {
-    if (!w) return `<div class="wrow empty"><span class="slot" data-state="empty"><i class="core"></i></span><span><b>空闲执行位</b><span class="sub">在主交流中交代新工作</span></span><span></span></div>`;
+    if (!w) return `<div class="wrow empty"><span class="slot" data-state="empty"><i class="core"></i></span><span><b>空闲</b><span class="sub">在对话中安排新工作</span></span><span></span></div>`;
     const sub = w.state === 'waiting_user'
       ? esc(w.pending_interactions?.[0]?.payload?.questions?.[0]?.question || w.wait_reason || '等待你处理')
       : `${esc(N.progressText(w))}`;
@@ -86,7 +87,7 @@
     const held = state.held;
     const active = activeWorks();
     return `<div class="isl-panel">
-      <div class="isl-head"><span class="orb-mini"></span><h2>后台工作<small>执行位 ${active.length}/3</small></h2><button class="isl-ibtn" data-isl="compact" aria-label="收起">${icon('close')}</button></div>
+      <div class="isl-head"><span class="orb-mini"></span><h2>后台工作<small>工作 ${active.length}/3</small></h2><button class="isl-ibtn" data-isl="compact" aria-label="收起">${icon('close')}</button></div>
       <div class="slot-meter">${slots.map(w => `<i class="${w ? w.state : ''}"></i>`).join('')}</div>
       ${state.queue.length ? (() => {
         const stuck = state.queue.some(q => ['interrupted', 'held', 'failed'].includes(q.status));
@@ -100,7 +101,7 @@
         ${active.length ? `<button class="ibtn-soft" data-act="pause-all">全部工作挂起</button>` : ''}
         <button class="ibtn-soft" data-act="all-works">查看全部工作</button>
       </div>
-      <p class="isl-foot">补充、挂起、恢复或取消，都在主交流里交代。</p></div>`;
+      <p class="isl-foot">补充要求、挂起、恢复或取消工作，请在对话中提出。</p></div>`;
   }
 
   function renderIsland(mode, data) {
@@ -124,17 +125,20 @@
     if ((mode === 'overview' || mode === 'detail') && !island.hasAttribute('aria-modal')) islandTrigger = document.activeElement;
     const prev = island.mode;
     const from = island.getBoundingClientRect();
+    const innerTransform = getComputedStyle(islandInner).transform;
+    const shapeFrom = islandInner._shapeMotion && !['finished', 'idle'].includes(islandInner._shapeMotion.playState) ? innerTransform : 'scale(.97)';
     const fromRadius = Math.min(parseFloat(getComputedStyle(island).borderTopLeftRadius), from.height / 2, from.width / 2);
     const ghost = islandInner.cloneNode(true);
     const sources = [islandInner, ...islandInner.querySelectorAll('*')];
     const copies = [ghost, ...ghost.querySelectorAll('*')];
     sources.forEach((source, i) => {
-      if (!source._enterMotion && !source._exitMotion) return;
+      if (!source._enterMotion && !source._exitMotion && !source._shapeMotion) return;
       const style = getComputedStyle(source);
       for (const key of ['opacity', 'transform', 'filter']) copies[i].style[key] = style[key];
     });
     ghost.removeAttribute('id');
     ghost.className = 'island-inner island-ghost';
+    ghost.style.transform = 'translateX(-50%)' + (innerTransform === 'none' ? '' : ' ' + innerTransform);
     ghost.style.width = from.width + 'px';
     ghost.setAttribute('aria-hidden', 'true'); ghost.inert = true;
     $$('[id]', ghost).forEach(n => n.removeAttribute('id'));
@@ -142,6 +146,7 @@
       islandAnim.onfinish = islandAnim.oncancel = null;
       islandAnim.cancel(); islandAnim = null;
     }
+    islandPosition?.cancel(); islandInner._shapeMotion?.cancel();
     N.cancelMotion(islandInner);
     $$('.island-ghost', island).forEach(g => g.remove());
     island.style.width = island.style.height = '';
@@ -168,9 +173,13 @@
     islandInner.style.width = to.width + 'px';
     // 收起态的窄屏 max-width 不能提前截断外壳；宽高与上边缘沿同一进度到位。
     islandAnim = island.animate([
-      { width: from.width + 'px', maxWidth: from.width + 'px', height: from.height + 'px', top: from.top + 'px', borderRadius: fromRadius + 'px' },
-      { width: to.width + 'px', maxWidth: to.width + 'px', height: to.height + 'px', top: to.top + 'px', borderRadius: Math.min(parseFloat(getComputedStyle(island).borderTopLeftRadius), to.height / 2) + 'px' },
+      { width: from.width + 'px', maxWidth: from.width + 'px', height: from.height + 'px', borderRadius: fromRadius + 'px' },
+      { width: to.width + 'px', maxWidth: to.width + 'px', height: to.height + 'px', borderRadius: Math.min(parseFloat(getComputedStyle(island).borderTopLeftRadius), to.height / 2) + 'px' },
     ], { duration: (closing ? N.DUR.exit : N.DUR.move) * N.motionScale(), easing: N.EASE_MOVE });
+    islandPosition = anim(island, [{ top: from.top + 'px' }, { top: to.top + 'px' }],
+      { duration: closing ? N.DUR.exit : N.DUR.move, easing: N.SP.settle.e });
+    islandInner._shapeMotion = anim(islandInner, [{ transform: shapeFrom }, { transform: 'none' }],
+      { duration: closing ? N.DUR.exit : N.DUR.move, easing: N.SP.settle.e, fill: 'backwards' });
     const oldPanel = ghost.firstElementChild;
     N.exitItems(oldPanel?.children.length ? [...oldPanel.children] : [ghost], ghost);
     anim(ghost, [{ filter: 'blur(0px)' }, { filter: 'blur(4px)' }],
@@ -179,6 +188,8 @@
     if (closing) N.enterItems([panel], islandInner, { profile: 'content', delay: 60, duration: N.DUR.micro });
     else N.enterItems(panel?.children.length ? [...panel.children] : [panel], islandInner, { profile: 'float' });
     const clean = () => {
+      islandPosition?.cancel(); islandPosition = null;
+      islandInner._shapeMotion?.cancel(); islandInner._shapeMotion = null;
       islandInner.style.width = islandInner.style.marginLeft = '';
       islandInner.style.willChange = '';
       island.style.willChange = '';
@@ -201,7 +212,7 @@
       const b = btns[i];
       b.dataset.state = w ? w.state : 'empty';
       if (w) { b.dataset.isl = 'detail'; b.dataset.id = w.id; b.setAttribute('aria-label', `${w.title} · ${N.stateLabel(w)}`); }
-      else { b.dataset.isl = 'overview'; delete b.dataset.id; b.setAttribute('aria-label', '空闲执行位'); }
+      else { b.dataset.isl = 'overview'; delete b.dataset.id; b.setAttribute('aria-label', '空闲'); }
     });
     const status = $('#isl-status');
     if (status) status.innerHTML = statusText();
@@ -601,7 +612,7 @@
     const nextModeLabel = state.theme === 'night' ? '白昼' : '黑夜';
     const items = [
       { label: '重新同步状态', icon: 'refresh', onPick: () => syncAll('已重新读取') },
-      { label: `切换意境：${nextMeta ? nextMeta.name : nextPal}`, icon: 'palette', onPick: () => setPalette(nextPal, $('#preview-more')) },
+      { label: `切换主题：${nextMeta ? nextMeta.name : nextPal}`, icon: 'palette', onPick: () => setPalette(nextPal, $('#preview-more')) },
       { label: `切换至：${nextModeLabel}`, icon: 'moon', onPick: () => toggleTheme($('#preview-more')) },
       { sep: true },
       { label: '恢复默认界面偏好', icon: 'undo', onPick: () => reveal(() => {

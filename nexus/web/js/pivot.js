@@ -106,8 +106,11 @@
     let y = el.offsetHeight * 0.5;
     let cur = el;
     while (cur && cur !== document.body && cur !== document.documentElement) {
-      y += cur.offsetTop - (cur.scrollTop || 0);
+      y += cur.offsetTop;
       cur = cur.offsetParent;
+    }
+    for (cur = el.parentElement; cur && cur !== document.body && cur !== document.documentElement; cur = cur.parentElement) {
+      y -= cur.scrollTop || 0;
     }
     return y;
   }
@@ -1150,6 +1153,7 @@
 
   const threadEl = $('#thread');
   if (threadEl) new MutationObserver(() => { mountPivot(); scheduleHubSync(); }).observe(threadEl, { childList: true });
+  $('#conversation')?.addEventListener('scroll', scheduleHubSync, { passive: true });
 
   N.syncPivot = () => {
     mountPivot();

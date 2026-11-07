@@ -248,7 +248,7 @@
     return {
       id: raw.id || raw.token, token: raw.id || raw.token,
       kind: raw.kind || 'question', status: raw.status || 'pending',
-      payload: raw.payload || {}, owner: raw.owner || '灵',
+      payload: raw.payload || {}, owner: raw.owner || '助手',
       workId: raw.task_id || raw.workId || null,
       created_at: raw.created_at || '',
     };

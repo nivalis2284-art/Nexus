@@ -6,6 +6,12 @@
 (function (N) {
   const { $, $$, esc, icon, anim } = N;
 
+  function animateSurface(el, from, to, options, transformEasing = options.easing) {
+    el._surfaceMotion?.cancel(); el._surfaceFade?.cancel();
+    el._surfaceFade = anim(el, [{ opacity: from.opacity }, { opacity: to.opacity }], options);
+    return anim(el, [{ transform: from.transform }, { transform: to.transform }], { ...options, easing: transformEasing });
+  }
+
   /* ---------------------------------------------------------------- 通用菜单 */
   const menu = $('#menu');
   let menuAnchor = null;
@@ -13,15 +19,16 @@
     if (!menuAnchor && !instant) return;
     menuAnchor?.setAttribute('aria-expanded', 'false');
     menuAnchor = null;
-    if (instant || N.REDUCED) { menu._surfaceMotion?.cancel(); N.cancelMotion(menu); menu.hidden = true; return; }
+    menu.inert = true;
+    if (instant || N.REDUCED) { menu._surfaceMotion?.cancel(); menu._surfaceFade?.cancel(); N.cancelMotion(menu); menu.hidden = true; return; }
     const current = getComputedStyle(menu);
     const from = { opacity: current.opacity, transform: current.transform };
     menu._surfaceMotion?.cancel();
     N.exitItems([...menu.children], menu);
-    const motion = anim(menu, [from, { opacity: 0, transform: 'translateY(8px) scale(.98)' }],
+    const motion = animateSurface(menu, from, { opacity: 0, transform: 'translateY(8px) scale(.97)' },
       { duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });
     menu._surfaceMotion = motion;
-    motion.onfinish = () => { if (!menuAnchor && menu._surfaceMotion === motion) { menu.hidden = true; N.cancelMotion(menu); motion.cancel(); } };
+    motion.onfinish = () => { if (!menuAnchor && menu._surfaceMotion === motion) { menu.hidden = true; N.cancelMotion(menu); menu._surfaceFade?.cancel(); motion.cancel(); } };
   }
   function openMenu(anchor, items, opts = {}) {
     if (menuAnchor === anchor) { closeMenu(); return; }
@@ -32,13 +39,16 @@
     const rows = items.map((it, i) => {
       if (it.group) return `<p class="m-group">${esc(it.group)}</p>`;
       if (it.sep) return '<div class="m-sep"></div>';
-      return `<button role="menuitemradio" aria-checked="${!!it.on}" data-i="${i}">
+      return `<button role="${it.on === undefined ? 'menuitem' : 'menuitemradio'}"${it.on === undefined ? '' : ` aria-checked="${!!it.on}"`} tabindex="-1" data-i="${i}">
         ${it.icon ? icon(it.icon, 'i sm') : it.dot ? '<i class="m-dot"></i>' : '<svg class="i chk"><use href="#i-check"/></svg>'}
         ${it.html || esc(it.label)}${it.sub ? `<small class="m-sub">${esc(it.sub)}</small>` : ''}
       </button>`;
     }).join('');
     menu.innerHTML = (opts.title ? `<p class="m-title">${esc(opts.title)}</p>` : '') + rows;
+    menu._surfaceMotion = animateSurface(menu, previous || { opacity: N.REDUCED ? 1 : 0, transform: N.REDUCED ? 'none' : 'translateY(12px) scale(.97)' }, { opacity: 1, transform: 'none' },
+      { duration: N.DUR.content, easing: N.EASE_ENTER, fill: 'backwards' }, N.SP.settle.e);
     menu.hidden = false;
+    menu.inert = false;
     const r = anchor.getBoundingClientRect();
     const mw = menu.offsetWidth, mh = menu.offsetHeight;
     const left = Math.max(8, Math.min(r.left, innerWidth - mw - 12));
@@ -48,19 +58,33 @@
     menu.style.top = top + 'px';
     menu.style.setProperty('--ox', (r.left + r.width / 2 - left) + 'px');
     menu.style.setProperty('--oy', (top > r.top ? '0%' : '100%') );
-    menu._surfaceMotion = anim(menu, [previous || { opacity: 1, transform: 'translateY(12px) scale(.98)' }, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.content, easing: N.EASE_ENTER });
     N.enterItems([...menu.children], menu, { profile: 'float' });
+    ($('button[aria-checked="true"]', menu) || $('button', menu))?.focus({ preventScroll: true });
     menu.onclick = e => {
       const b = e.target.closest('button[data-i]');
       if (!b) return;
       const item = items[+b.dataset.i];
+      const trigger = menuAnchor;
       closeMenu();
+      trigger?.focus({ preventScroll: true });
       item.onPick?.();
     };
   }
   document.addEventListener('pointerdown', e => {
     if (menuAnchor && !menu.contains(e.target) && !menuAnchor.contains(e.target)) closeMenu();
+  });
+  menu.addEventListener('keydown', e => {
+    const buttons = $$('button:not([disabled])', menu);
+    const index = buttons.indexOf(document.activeElement);
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+      e.preventDefault(); e.stopPropagation();
+      const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : (index + (e.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+      buttons[next]?.focus({ preventScroll: true });
+    } else if (e.key === 'Escape' || e.key === 'Tab') {
+      const trigger = menuAnchor;
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); }
+      closeMenu(); trigger?.focus({ preventScroll: true });
+    }
   });
 
   /* ---------------------------------------------------------------- 通用编辑 */
@@ -115,10 +139,12 @@
   dlg.addEventListener('close', () => dlg.getAnimations().forEach(a => a.cancel()));
 
   function ask(options, save) {
+    if (resolveEdit) return Promise.resolve(null);
     edit._save = save;
     return edit(options);
   }
   function confirmEdit({ title, description, submitLabel = '删除', signal }) {
+    if (resolveEdit) return Promise.resolve(false);
     if (signal?.aborted) return Promise.resolve(false);
     edit._save = null;
     const promise = edit({ title, text: '', description, submitLabel, confirm: true });
@@ -130,7 +156,10 @@
 
   /* ---------------------------------------------------------------- 文件预览 */
   const fp = $('#file-preview'), fpBody = $('#fp-body');
+  let previewVersion = 0;
+  fp.addEventListener('close', () => { if (!fp.open) previewVersion++; });
   async function openFile(path, line = 0) {
+    const version = ++previewVersion;
     const label = String(path).split(/[\\/]/).pop() || '文件预览';
     $('#fp-title').textContent = label;
     $('#fp-meta').textContent = path + (line ? ` · 第 ${line} 行` : '');
@@ -149,12 +178,14 @@
         line: String(line || 1),
       });
       const value = await N.api.get('/api/workspace-file?' + query.toString());
+      if (version !== previewVersion || !fp.open || fp._closing) return;
       text = value?.text || '';
       $('#fp-meta').textContent = (value?.path || path) + (line ? ` · 第 ${line} 行` : '') + (value?.truncated ? ' · 已截断' : '');
     } catch (error) {
       text = `无法读取这个文件。\n\n${error?.message || error}`;
     }
 
+    if (version !== previewVersion || !fp.open || fp._closing) return;
     const lines = text.split('\n');
     if (line > lines.length) line = lines.length;
     fpBody.replaceChildren();
@@ -169,10 +200,11 @@
     });
     fpBody.appendChild(pre);
     N.cascade?.(fpBody);
-    if (line) setTimeout(() => $('.fp-line.target', fpBody)?.scrollIntoView({ block: 'center' }), 40);
+    if (line) setTimeout(() => { if (version === previewVersion && fp.open && !fp._closing) $('.fp-line.target', fpBody)?.scrollIntoView({ block: 'center' }); }, 40);
   }
 
   function openImage(url, name = '图片') {
+    previewVersion++;
     $('#fp-title').textContent = name;
     $('#fp-meta').textContent = '图片预览';
     fpBody.replaceChildren();
@@ -188,20 +220,20 @@
   function openDialog(d) {
     if (!d || d.open && !d._closing) return;
     const from = d.open ? { opacity: getComputedStyle(d).opacity, transform: getComputedStyle(d).transform }
-      : { opacity: 1, transform: 'translateY(24px) scale(.97)' };
+      : { opacity: N.REDUCED ? 1 : 0, transform: N.REDUCED ? 'none' : 'translateY(24px) scale(.96)' };
     d._surfaceMotion?.cancel();
     d._closing = false;
     d.classList.remove('is-closing');
+    d._surfaceMotion = animateSurface(d, from, { opacity: 1, transform: 'none' },
+      { duration: N.DUR.enter, easing: N.EASE_ENTER, fill: 'backwards' }, N.SP.settle.e);
     if (!d.open) d.showModal();
-    d._surfaceMotion = anim(d, [from, { opacity: 1, transform: 'none' }],
-      { duration: N.DUR.enter, easing: N.EASE_ENTER });
     const body = $('.sheet-body', d) || $('form', d) || d;
     N.enterItems([...body.children], d, { profile: 'float' });
   }
 
   function closeDialog(d) {
     if (!d || !d.open || d._closing) return;
-    if (N.REDUCED) { d._surfaceMotion?.cancel(); N.cancelMotion(d); d.close(); return; }
+    if (N.REDUCED) { d._surfaceMotion?.cancel(); d._surfaceFade?.cancel(); N.cancelMotion(d); d.close(); return; }
     d._closing = true;
     d.classList.add('is-closing');
     const current = getComputedStyle(d);
@@ -209,7 +241,7 @@
     d._surfaceMotion?.cancel();
     const body = $('.sheet-body', d) || $('form', d) || d;
     N.exitItems([...body.children], d);
-    const motion = anim(d, [from, { opacity: 0, transform: 'translateY(8px) scale(.98)' }],
+    const motion = animateSurface(d, from, { opacity: 0, transform: 'translateY(8px) scale(.97)' },
       { duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });
     d._surfaceMotion = motion;
     motion.onfinish = () => {
@@ -218,6 +250,7 @@
       d.classList.remove('is-closing');
       d.close();
       N.cancelMotion(d);
+      d._surfaceFade?.cancel();
       motion.cancel();
     };
   }

@@ -1682,7 +1682,7 @@
     },
     {
       "name": "color",
-      "value": "var(--ink-3)",
+      "value": "var(--ink-2)",
       "selector": ".req-kicker",
       "file": "预览资源/css/app.css",
       "line": 124
@@ -7870,7 +7870,7 @@
     },
     {
       "name": "color",
-      "value": "var(--ink-3)",
+      "value": "var(--ink-2)",
       "selector": ".ctx-window",
       "file": "预览资源/css/app.css",
       "line": 454
@@ -9900,7 +9900,7 @@
     },
     {
       "name": "color",
-      "value": "var(--tool-ink)",
+      "value": "var(--ink-2)",
       "selector": ".skill .src.project",
       "file": "预览资源/css/app.css",
       "line": 543
@@ -9914,7 +9914,7 @@
     },
     {
       "name": "color",
-      "value": "var(--ink-3)",
+      "value": "var(--ink-2)",
       "selector": ".skill .src.builtin",
       "file": "预览资源/css/app.css",
       "line": 544
@@ -10572,7 +10572,7 @@
     },
     {
       "name": "color",
-      "value": "var(--ink-3)",
+      "value": "var(--ink-2)",
       "selector": ".pstate.off",
       "file": "预览资源/css/app.css",
       "line": 575
@@ -15093,331 +15093,352 @@
       "line": 791
     },
     {
+      "name": "grid-auto-flow",
+      "value": "row",
+      "selector": "@media (max-width: 760px) → .plug-list",
+      "file": "预览资源/css/app.css",
+      "line": 794
+    },
+    {
+      "name": "grid-auto-columns",
+      "value": "auto",
+      "selector": "@media (max-width: 760px) → .plug-list",
+      "file": "预览资源/css/app.css",
+      "line": 794
+    },
+    {
+      "name": "grid-template-columns",
+      "value": "minmax(0, 1fr)",
+      "selector": "@media (max-width: 760px) → .plug-list",
+      "file": "预览资源/css/app.css",
+      "line": 794
+    },
+    {
+      "name": "overflow-x",
+      "value": "visible",
+      "selector": "@media (max-width: 760px) → .plug-list",
+      "file": "预览资源/css/app.css",
+      "line": 794
+    },
+    {
       "name": "padding",
       "value": "0 var(--space-3)",
       "selector": "@media (max-width: 760px) → .chat-top",
       "file": "预览资源/css/app.css",
-      "line": 794
+      "line": 795
     },
     {
       "name": "padding-top",
       "value": "var(--space-16)",
       "selector": "@media (max-width: 760px) → .view-chat.has-top .chat-top",
       "file": "预览资源/css/app.css",
-      "line": 795
+      "line": 796
     },
     {
       "name": "max-height",
       "value": "46vh",
       "selector": "@media (max-width: 760px) → .requests",
       "file": "预览资源/css/app.css",
-      "line": 796
+      "line": 797
     },
     {
       "name": "font-size",
       "value": "var(--text-ui)",
       "selector": "@media (max-width: 760px) → .req-q",
       "file": "预览资源/css/app.css",
-      "line": 797
+      "line": 798
     },
     {
       "name": "margin-bottom",
       "value": "var(--space-2)",
       "selector": "@media (max-width: 760px) → .queue",
       "file": "预览资源/css/app.css",
-      "line": 798
+      "line": 799
     },
     {
       "name": "display",
       "value": "none",
       "selector": "@media (max-width: 760px) → .qstatus",
       "file": "预览资源/css/app.css",
-      "line": 799
+      "line": 800
     },
     {
       "name": "width",
       "value": "calc(100vw - 20px)",
       "selector": "@media (max-width: 760px) → .isl-panel.wide",
       "file": "预览资源/css/app.css",
-      "line": 800
+      "line": 801
     },
     {
       "name": "top",
       "value": "8px",
       "selector": "@media (max-width: 760px) → .island[data-mode=\"detail\"]",
       "file": "预览资源/css/app.css",
-      "line": 801
+      "line": 802
     },
     {
       "name": "max-height",
       "value": "calc(100dvh - 16px)",
       "selector": "@media (max-width: 760px) → .island[data-mode=\"detail\"] .isl-panel",
       "file": "预览资源/css/app.css",
-      "line": 802
+      "line": 803
     },
     {
       "name": "max-height",
       "value": "calc(100dvh - 132px)",
       "selector": "@media (max-width: 760px) → .isl-scroll",
       "file": "预览资源/css/app.css",
-      "line": 803
+      "line": 804
     },
     {
       "name": "font-size",
       "value": "var(--text-title)",
       "selector": "@media (max-width: 760px) → .isl-title",
       "file": "预览资源/css/app.css",
-      "line": 804
+      "line": 805
     },
     {
       "name": "grid-template-columns",
       "value": "1fr 1fr",
       "selector": "@media (max-width: 760px) → .isl-meta",
       "file": "预览资源/css/app.css",
-      "line": 805
+      "line": 806
     },
     {
       "name": "grid-template-columns",
       "value": "34px 1fr",
       "selector": "@media (max-width: 760px) → .work-item",
       "file": "预览资源/css/app.css",
-      "line": 806
+      "line": 807
     },
     {
       "name": "gap",
       "value": "var(--space-3)",
       "selector": "@media (max-width: 760px) → .work-item",
       "file": "预览资源/css/app.css",
-      "line": 806
+      "line": 807
     },
     {
       "name": "padding",
       "value": "var(--card-padding)",
       "selector": "@media (max-width: 760px) → .work-item",
       "file": "预览资源/css/app.css",
-      "line": 806
+      "line": 807
     },
     {
       "name": "width",
       "value": "34px",
       "selector": "@media (max-width: 760px) → .work-item .wico",
       "file": "预览资源/css/app.css",
-      "line": 807
+      "line": 808
     },
     {
       "name": "height",
       "value": "36px",
       "selector": "@media (max-width: 760px) → .work-item .wico",
       "file": "预览资源/css/app.css",
-      "line": 807
+      "line": 808
     },
     {
       "name": "border-radius",
       "value": "var(--r-ctrl)",
       "selector": "@media (max-width: 760px) → .work-item .wico",
       "file": "预览资源/css/app.css",
-      "line": 807
+      "line": 808
     },
     {
       "name": "grid-column",
       "value": "2",
       "selector": "@media (max-width: 760px) → .work-item .wend",
       "file": "预览资源/css/app.css",
-      "line": 808
+      "line": 809
     },
     {
       "name": "flex-direction",
       "value": "row",
       "selector": "@media (max-width: 760px) → .work-item .wend",
       "file": "预览资源/css/app.css",
-      "line": 808
+      "line": 809
     },
     {
       "name": "align-items",
       "value": "center",
       "selector": "@media (max-width: 760px) → .work-item .wend",
       "file": "预览资源/css/app.css",
-      "line": 808
+      "line": 809
     },
     {
       "name": "justify-content",
       "value": "flex-start",
       "selector": "@media (max-width: 760px) → .work-item .wend",
       "file": "预览资源/css/app.css",
-      "line": 808
+      "line": 809
     },
     {
       "name": "margin-left",
       "value": "auto",
       "selector": "@media (max-width: 760px) → .work-item .go",
       "file": "预览资源/css/app.css",
-      "line": 809
+      "line": 810
     },
     {
       "name": "grid-column",
       "value": "2",
       "selector": "@media (max-width: 760px) → .work-item .wacts",
       "file": "预览资源/css/app.css",
-      "line": 810
+      "line": 811
     },
     {
       "name": "justify-content",
       "value": "flex-start",
       "selector": "@media (max-width: 760px) → .work-item .wacts",
       "file": "预览资源/css/app.css",
-      "line": 810
+      "line": 811
     },
     {
       "name": "height",
       "value": "28px",
       "selector": "@media (max-width: 760px) → .work-item .wacts button",
       "file": "预览资源/css/app.css",
-      "line": 811
+      "line": 812
     },
     {
       "name": "padding",
       "value": "0 var(--space-2)",
       "selector": "@media (max-width: 760px) → .work-item .wacts button",
       "file": "预览资源/css/app.css",
-      "line": 811
+      "line": 812
     },
     {
       "name": "font-size",
       "value": "var(--text-caption)",
       "selector": "@media (max-width: 760px) → .work-item .wacts button",
       "file": "预览资源/css/app.css",
-      "line": 811
+      "line": 812
     },
     {
       "name": "width",
       "value": "26px",
       "selector": "@media (max-width: 760px) → .work-item .wacts .more",
       "file": "预览资源/css/app.css",
-      "line": 812
+      "line": 813
     },
     {
       "name": "align-items",
       "value": "flex-start",
       "selector": "@media (max-width: 760px) → .work-page .page-head",
       "file": "预览资源/css/app.css",
-      "line": 813
+      "line": 814
     },
     {
       "name": "padding",
       "value": "var(--card-padding)",
       "selector": "@media (max-width: 760px) → .ctx-overview",
       "file": "预览资源/css/app.css",
-      "line": 814
+      "line": 815
     },
     {
       "name": "font-size",
       "value": "var(--text-page)",
       "selector": "@media (max-width: 760px) → .ctx-big strong",
       "file": "预览资源/css/app.css",
-      "line": 815
+      "line": 816
     },
     {
       "name": "padding",
       "value": "var(--space-3) var(--space-4)",
       "selector": "@media (max-width: 760px) → .ctx-role",
       "file": "预览资源/css/app.css",
-      "line": 816
+      "line": 817
     },
     {
       "name": "padding",
       "value": "var(--card-padding)",
       "selector": "@media (max-width: 760px) → .plug-detail",
       "file": "预览资源/css/app.css",
-      "line": 817
+      "line": 818
     },
     {
       "name": "height",
       "value": "300px",
       "selector": "@media (max-width: 760px) → .plug-frame iframe",
       "file": "预览资源/css/app.css",
-      "line": 818
+      "line": 819
     },
     {
       "name": "padding",
       "value": "var(--card-padding)",
       "selector": "@media (max-width: 760px) → .sheet .sheet-body",
       "file": "预览资源/css/app.css",
-      "line": 819
+      "line": 820
     },
     {
       "name": "grid-template-columns",
       "value": "1fr",
       "selector": "@media (max-width: 760px) → .sheet .fields",
       "file": "预览资源/css/app.css",
-      "line": 820
+      "line": 821
     },
     {
       "name": "grid-column",
       "value": "auto",
       "selector": "@media (max-width: 760px) → .span-2",
       "file": "预览资源/css/app.css",
-      "line": 821
+      "line": 822
     },
     {
       "name": "font-size",
       "value": "var(--text-heading)",
       "selector": "@media (max-width: 760px) → .sheet .sheet-head h2",
       "file": "预览资源/css/app.css",
-      "line": 822
+      "line": 823
     },
     {
       "name": "display",
       "value": "none",
       "selector": "@media (max-width: 760px) → .composer-hint .hint-kbd",
       "file": "预览资源/css/app.css",
-      "line": 823
+      "line": 824
     },
     {
       "name": "justify-content",
       "value": "flex-start",
       "selector": "@media (max-width: 760px) → .composer-hint",
       "file": "预览资源/css/app.css",
-      "line": 824
+      "line": 825
     },
     {
       "name": "gap",
       "value": "var(--space-2)",
       "selector": "@media (max-width: 760px) → .composer-hint",
       "file": "预览资源/css/app.css",
-      "line": 824
+      "line": 825
     },
     {
       "name": "margin",
       "value": "0 0 var(--space-2)",
       "selector": "@media (max-width: 760px) → .history-undo",
       "file": "预览资源/css/app.css",
-      "line": 825
+      "line": 826
     },
     {
       "name": "grid-template-columns",
       "value": "1fr",
       "selector": "@media (max-width: 420px) → .ctx-metrics",
       "file": "预览资源/css/app.css",
-      "line": 828
+      "line": 829
     },
     {
       "name": "height",
       "value": "36px",
       "selector": "@media (max-width: 420px) → .req-actions .btn",
       "file": "预览资源/css/app.css",
-      "line": 829
+      "line": 830
     },
     {
       "name": "padding",
       "value": "0 var(--space-3)",
       "selector": "@media (max-width: 420px) → .req-actions .btn",
-      "file": "预览资源/css/app.css",
-      "line": 829
-    },
-    {
-      "name": "grid-auto-columns",
-      "value": "210px",
-      "selector": "@media (max-width: 420px) → .plug-list",
       "file": "预览资源/css/app.css",
       "line": 830
     },
@@ -15500,85 +15521,85 @@
     },
     {
       "name": "color",
-      "value": "var(--ink-4)",
+      "value": "var(--ink-2)",
       "selector": ".tab-count",
       "file": "预览资源/css/app.css",
       "line": 841
-    },
-    {
-      "name": "color",
-      "value": "var(--ink-3)",
-      "selector": ".tabs button.active .tab-count",
-      "file": "预览资源/css/app.css",
-      "line": 842
     },
     {
       "name": "display",
       "value": "inline-flex",
       "selector": ".spin",
       "file": "预览资源/css/app.css",
-      "line": 843
+      "line": 842
     },
     {
       "name": "animation",
       "value": "spin 1s linear infinite",
       "selector": ".spin",
       "file": "预览资源/css/app.css",
-      "line": 843
+      "line": 842
     },
     {
       "name": "font-size",
       "value": "var(--text-caption)",
       "selector": ".isl-queue-count",
       "file": "预览资源/css/app.css",
-      "line": 844
+      "line": 843
     },
     {
       "name": "color",
       "value": "var(--ink-3)",
       "selector": ".isl-queue-count",
       "file": "预览资源/css/app.css",
-      "line": 844
+      "line": 843
     },
     {
       "name": "white-space",
       "value": "nowrap",
       "selector": ".isl-queue-count",
       "file": "预览资源/css/app.css",
-      "line": 844
+      "line": 843
     },
     {
       "name": "padding",
       "value": "0 2px",
       "selector": ".isl-queue-count",
       "file": "预览资源/css/app.css",
+      "line": 843
+    },
+    {
+      "name": "background",
+      "value": "var(--cinnabar)",
+      "selector": ".req-opt.picked",
+      "file": "预览资源/css/app.css",
+      "line": 844
+    },
+    {
+      "name": "color",
+      "value": "var(--on-accent)",
+      "selector": ".req-opt.picked",
+      "file": "预览资源/css/app.css",
       "line": 844
     },
     {
       "name": "background",
       "value": "var(--cinnabar)",
-      "selector": ".req-opt.picked",
+      "selector": ".req-opt.picked:hover",
       "file": "预览资源/css/app.css",
       "line": 845
     },
     {
       "name": "color",
       "value": "var(--on-accent)",
-      "selector": ".req-opt.picked",
+      "selector": ".req-opt.picked:hover",
       "file": "预览资源/css/app.css",
       "line": 845
     },
     {
       "name": "background",
-      "value": "var(--cinnabar)",
-      "selector": ".req-opt.picked:hover",
-      "file": "预览资源/css/app.css",
-      "line": 846
-    },
-    {
-      "name": "color",
-      "value": "var(--on-accent)",
-      "selector": ".req-opt.picked:hover",
+      "value": "var(--cinnabar-deep)",
+      "selector": "[data-theme=\"day\"] :is(.req-allow, .req-opt.picked)",
       "file": "预览资源/css/app.css",
       "line": 846
     },
@@ -17068,7 +17089,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-2) var(--sp-settle), background var(--d-2) var(--ease-move), opacity var(--d-2) var(--ease-move)",
+      "value": "transform calc(var(--duration-content) * var(--motion)) var(--sp-settle), background var(--d-2) var(--ease-move), opacity var(--d-2) var(--ease-move)",
       "selector": ".send",
       "file": "预览资源/css/app.css",
       "line": 1029
@@ -17089,7 +17110,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-2) var(--sp-settle), background var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move)",
+      "value": "transform calc(var(--duration-content) * var(--motion)) var(--sp-settle), background var(--d-2) var(--ease-move), box-shadow var(--d-2) var(--ease-move)",
       "selector": ".btn",
       "file": "预览资源/css/app.css",
       "line": 1032
@@ -17103,7 +17124,7 @@
     },
     {
       "name": "transition",
-      "value": "transform var(--d-2) var(--sp-settle), box-shadow var(--d-2) var(--ease-move), background var(--d-2) var(--ease-move)",
+      "value": "transform calc(var(--duration-content) * var(--motion)) var(--sp-settle), box-shadow var(--d-2) var(--ease-move), background var(--d-2) var(--ease-move)",
       "selector": ".chip",
       "file": "预览资源/css/app.css",
       "line": 1034
@@ -17117,7 +17138,7 @@
     },
     {
       "name": "transition",
-      "value": "color var(--d-2) var(--ease-move), transform var(--d-2) var(--sp-settle)",
+      "value": "color var(--d-2) var(--ease-move), transform calc(var(--duration-content) * var(--motion)) var(--sp-settle)",
       "selector": ".dock-btn",
       "file": "预览资源/css/app.css",
       "line": 1036
@@ -17152,7 +17173,7 @@
     },
     {
       "name": "transition",
-      "value": "left var(--d-2) var(--sp-settle), width var(--d-2) var(--ease-move)",
+      "value": "left calc(var(--duration-content) * var(--motion)) var(--sp-settle), width var(--d-2) var(--ease-move)",
       "selector": ".switch::after",
       "file": "预览资源/css/app.css",
       "line": 1041
@@ -22976,7 +22997,7 @@
     },
     {
       "name": "color",
-      "value": "var(--ink-3)",
+      "value": "var(--ink-2)",
       "selector": ".seg button",
       "file": "预览资源/css/ling.css",
       "line": 374
@@ -27211,14 +27232,21 @@
     },
     {
       "name": "flex",
-      "value": "0 0 auto",
+      "value": "0 1 auto",
       "selector": ".view-chat.is-empty .conversation",
       "file": "预览资源/css/ling.css",
       "line": 607
     },
     {
-      "name": "overflow",
-      "value": "visible",
+      "name": "min-height",
+      "value": "0",
+      "selector": ".view-chat.is-empty .conversation",
+      "file": "预览资源/css/ling.css",
+      "line": 607
+    },
+    {
+      "name": "overflow-y",
+      "value": "auto",
       "selector": ".view-chat.is-empty .conversation",
       "file": "预览资源/css/ling.css",
       "line": 607
@@ -27261,6 +27289,13 @@
     {
       "name": "position",
       "value": "relative",
+      "selector": ".composer-wrap",
+      "file": "预览资源/css/ling.css",
+      "line": 611
+    },
+    {
+      "name": "flex-shrink",
+      "value": "0",
       "selector": ".composer-wrap",
       "file": "预览资源/css/ling.css",
       "line": 611
@@ -33777,7 +33812,7 @@
     },
     {
       "name": "opacity",
-      "value": ".45",
+      "value": "1",
       "selector": ".hui-page .btn:disabled, .hui-dialog .btn:disabled",
       "file": "预览资源/css/plugin-pages.css",
       "line": 59
@@ -33790,18 +33825,25 @@
       "line": 59
     },
     {
+      "name": "opacity",
+      "value": ".45",
+      "selector": ".hui-page .btn[data-hui-disabled=\"true\"], .hui-dialog .btn[data-hui-disabled=\"true\"],\n.hui-page .btn[aria-busy=\"true\"], .hui-dialog .btn[aria-busy=\"true\"]",
+      "file": "预览资源/css/plugin-pages.css",
+      "line": 61
+    },
+    {
       "name": "padding",
       "value": "var(--card-padding)",
       "selector": "@media (max-width: 640px) → .hui-section",
       "file": "预览资源/css/plugin-pages.css",
-      "line": 61
+      "line": 63
     },
     {
       "name": "flex-basis",
       "value": "100%",
       "selector": "@media (max-width: 640px) → .hui-row > .hui-field, .hui-row > .hui-column",
       "file": "预览资源/css/plugin-pages.css",
-      "line": 62
+      "line": 64
     },
     {
       "name": "--paper",
@@ -37200,7 +37242,7 @@
     },
     {
       "name": "color",
-      "value": "var(--on-primary)",
+      "value": "var(--jade-ink)",
       "selector": ".skill .glyph",
       "file": "预览资源/css/theme.css",
       "line": 412
@@ -39116,7 +39158,7 @@
       "value": "@media (max-width: 420px) {",
       "selector": "app",
       "file": "预览资源/css/app.css",
-      "line": 827
+      "line": 828
     },
     {
       "name": "CSS 条件／关键帧",
@@ -39368,7 +39410,7 @@
       "value": "@media (max-width: 640px) {",
       "selector": "plugin-pages",
       "file": "预览资源/css/plugin-pages.css",
-      "line": 60
+      "line": 62
     },
     {
       "name": "CSS 条件／关键帧",
@@ -39647,157 +39689,171 @@
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.content, easing: N.EASE_ENTER });",
+      "value": "const from = panel.hidden ? { opacity: 0, transform: 'translateY(9px) scale(.93)' }",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 963
+      "line": 959
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' }).onfinish = done;",
+      "value": "{ duration: N.DUR.content, easing: N.EASE_ENTER, fill: 'backwards' });",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
       "line": 969
     },
     {
       "name": "动效／局部常量",
+      "value": "const motion = N.anim(panel, [from, { opacity: 0, transform: 'translateY(6px) scale(.97)' }],",
+      "selector": "chat",
+      "file": "预览资源/js/chat.js",
+      "line": 975
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });",
+      "selector": "chat",
+      "file": "预览资源/js/chat.js",
+      "line": 976
+    },
+    {
+      "name": "动效／局部常量",
       "value": "{ duration: N.DUR.content, easing: N.EASE_ENTER });",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 983
+      "line": 993
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.micro, easing: 'ease-in', fill: 'forwards' })).onfinish = done;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 990
+      "line": 1000
     },
     {
       "name": "动效／局部常量",
       "value": "const h = Math.min(200, Math.ceil(Math.max(parseFloat(style.minHeight) || 0, inputMeasure.scrollHeight) / 4) * 4);",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1052
+      "line": 1062
     },
     {
       "name": "动效／局部常量",
       "value": "const blobToBase64 = blob => new Promise((resolve, reject) => {",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1077
+      "line": 1087
     },
     {
       "name": "动效／局部常量",
-      "value": "anim(sendBtn, [{ transform: 'scale(.88)' }, { transform: 'scale(1)' }], { duration: N.DUR.base, easing: SP.settle.e });",
+      "value": "anim(sendBtn, [{ transform: 'scale(.88)' }, { transform: 'scale(1)' }], { duration: N.DUR.content, easing: SP.settle.e });",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1158
+      "line": 1168
     },
     {
       "name": "动效／局部常量",
       "value": "setTimeout(async () => {",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1182
+      "line": 1192
     },
     {
       "name": "动效／局部常量",
       "value": "const cx = r.left + r.width / 2, cy = r.top + r.height / 2;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1229
+      "line": 1239
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.enter, easing: EASE_OUT }).onfinish = () => i.remove();",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1237
+      "line": 1247
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT }).onfinish = () => ghost.remove();",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1250
+      "line": 1260
     },
     {
       "name": "动效／局部常量",
       "value": "node._sendMotion = anim(node, [{ transform: `translateY(${from.y - to.y}px)` }, { transform: 'none' }], { duration: N.DUR.move, easing: N.EASE_MOVE });",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1275
+      "line": 1285
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.move, easing: N.EASE_MOVE }).onfinish = () => ghost.remove();",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1284
+      "line": 1294
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.content, delay: N.MOTION.stagger * 2, easing: EASE_OUT, fill: 'backwards' });",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1287
+      "line": 1297
     },
     {
       "name": "动效／局部常量",
       "value": "let seq = 0;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1291
+      "line": 1301
     },
     {
       "name": "动效／局部常量",
       "value": "const MAX_FILES = 8;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1292
+      "line": 1302
     },
     {
       "name": "动效／局部常量",
       "value": "if (state.files.length >= MAX_FILES) { N.notify('每次最多 8 个附件', 'cinnabar'); break; }",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1295
+      "line": 1305
     },
     {
       "name": "动效／局部常量",
       "value": "if (isImage && file.size > 5 * 1024 * 1024) { N.notify('图片超过 5 MiB：' + file.name, 'cinnabar'); continue; }",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1297
+      "line": 1307
     },
     {
       "name": "动效／局部常量",
       "value": "if (!isImage && file.size > 25 * 1024 * 1024) { N.notify('文件超过 25 MiB：' + file.name, 'cinnabar'); continue; }",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1298
+      "line": 1308
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT }).onfinish = () => { node.style.overflow = ''; renderChat(); };",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1411
+      "line": 1421
     },
     {
       "name": "动效／局部常量",
       "value": "const done = () => { state.files.splice(i, 1); renderFiles(); updateSend(); N.save(); };",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1490
+      "line": 1496
     },
     {
       "name": "动效／局部常量",
       "value": "if (chip && !N.REDUCED) N.anim(chip, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.6)' }], { duration: N.DUR.micro, easing: 'ease-in' }).onfinish = done;",
       "selector": "chat",
       "file": "预览资源/js/chat.js",
-      "line": 1491
+      "line": 1497
     },
     {
       "name": "动效／局部常量",
@@ -39895,14 +39951,14 @@
       "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' }).finished;",
       "selector": "context",
       "file": "预览资源/js/context.js",
-      "line": 273
+      "line": 265
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.micro, delay: Math.min(k * 20, 60), easing: N.EASE_EXIT, fill: 'forwards' }).finished));",
       "selector": "context",
       "file": "预览资源/js/context.js",
-      "line": 336
+      "line": 325
     },
     {
       "name": "动效／局部常量",
@@ -40046,7 +40102,7 @@
     },
     {
       "name": "动效／局部常量",
-      "value": "settle: spring({ stiffness: 490, damping: 34 }),",
+      "value": "settle: spring({ stiffness: 490, damping: 24 }),",
       "selector": "core",
       "file": "预览资源/js/core.js",
       "line": 71
@@ -40158,7 +40214,7 @@
     },
     {
       "name": "动效／局部常量",
-      "value": "const stretch = Math.min(Math.abs(pos - p0) * .3, size * .52);",
+      "value": "const stretch = Math.min(Math.abs(pos - p0) * .4, size * .65);",
       "selector": "core",
       "file": "预览资源/js/core.js",
       "line": 181
@@ -40186,14 +40242,14 @@
     },
     {
       "name": "动效／局部常量",
-      "value": "const progress = (1 - (1 + 9 * t) * Math.exp(-9 * t)) / (1 - 10 * Math.exp(-9));",
+      "value": "const progress = (1 - (1 + 7 * t) * Math.exp(-7 * t)) / (1 - 8 * Math.exp(-7));",
       "selector": "core",
       "file": "预览资源/js/core.js",
       "line": 191
     },
     {
       "name": "动效／局部常量",
-      "value": "const tension = Math.sin(Math.PI * t) * (1 - t) * 1.7;",
+      "value": "const tension = Math.sin(Math.PI * t) * (1 - t) * 2;",
       "selector": "core",
       "file": "预览资源/js/core.js",
       "line": 192
@@ -40207,7 +40263,7 @@
     },
     {
       "name": "动效／局部常量",
-      "value": "const center = p0 + s0 / 2 + (pos + size / 2 - p0 - s0 / 2) * progress + direction * stretch * tension * .2;",
+      "value": "const center = p0 + s0 / 2 + (pos + size / 2 - p0 - s0 / 2) * progress + direction * stretch * tension * .3;",
       "selector": "core",
       "file": "预览资源/js/core.js",
       "line": 194
@@ -40221,185 +40277,220 @@
     },
     {
       "name": "动效／局部常量",
-      "value": "], { duration: DUR.move * motionScale(), easing: EASE_MOVE });",
+      "value": "const positionSpring = spring({ stiffness: 490, damping: Math.min(40, 24 + Math.abs(pos - p0) * .1) });",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 209
+      "line": 206
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "], { duration: DUR.move * motionScale(), easing: positionSpring.e });",
+      "selector": "core",
+      "file": "预览资源/js/core.js",
+      "line": 210
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "{ duration: DUR.move * motionScale(), easing: EASE_MOVE });",
+      "selector": "core",
+      "file": "预览资源/js/core.js",
+      "line": 212
     },
     {
       "name": "动效／局部常量",
       "value": "const nowHM = () => new Date().toTimeString().slice(0, 5);",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 213
+      "line": 216
     },
     {
       "name": "动效／局部常量",
       "value": "return size >= 1024 * 1024 ? (size / (1024 * 1024)).toFixed(1) + ' MiB' : Math.ceil(size / 1024) + ' KiB';",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 216
+      "line": 219
     },
     {
       "name": "动效／局部常量",
       "value": "const fmtNum = n => Number(n || 0).toLocaleString('en-US');",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 218
+      "line": 221
     },
     {
       "name": "动效／局部常量",
       "value": "const t = clamp((now - start) / dur, 0, 1);",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 240
+      "line": 243
     },
     {
       "name": "动效／局部常量",
       "value": "const chart = `<rect x=\"18\" y=\"120\" width=\"26\" height=\"58\" rx=\"6\" fill=\"#bfe9dd\"/>",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 257
+      "line": 260
     },
     {
       "name": "动效／局部常量",
       "value": "const ui = `<rect x=\"18\" y=\"22\" width=\"90\" height=\"10\" rx=\"5\" fill=\"#cfd8d5\"/>",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 262
+      "line": 265
     },
     {
       "name": "动效／局部常量",
       "value": "const svg = `<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"224\" height=\"212\" viewBox=\"0 0 224 212\">",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 268
+      "line": 271
     },
     {
       "name": "动效／局部常量",
       "value": "const lang = [...code.classList].find(c => c.startsWith('language-'))?.slice(9) || '';",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 313
+      "line": 316
     },
     {
       "name": "动效／局部常量",
       "value": "setTimeout(() => { e.target.textContent = '复制'; }, 1200);",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 327
+      "line": 330
     },
     {
       "name": "动效／局部常量",
       "value": "version: 2,",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 389
+      "line": 392
     },
     {
       "name": "动效／局部常量",
       "value": "liveRevision: 0,",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 405
+      "line": 408
     },
     {
       "name": "动效／局部常量",
       "value": "turns: 0,",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 410
+      "line": 413
     },
     {
       "name": "动效／局部常量",
       "value": "contextWindow: 0,",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 421
+      "line": 424
     },
     {
       "name": "动效／局部常量",
       "value": "N.later = (fn, ms) => { const t = setTimeout(() => { N.timers.delete(t); fn(); }, ms); N.timers.add(t); return t; };",
       "selector": "core",
       "file": "预览资源/js/core.js",
-      "line": 452
+      "line": 455
     },
     {
       "name": "动效／局部常量",
-      "value": "const motion = anim(menu, [from, { opacity: 0, transform: 'translateY(8px) scale(.98)' }],",
+      "value": "const motion = animateSurface(menu, from, { opacity: 0, transform: 'translateY(8px) scale(.97)' },",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 21
+      "line": 28
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 22
+      "line": 29
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "{ duration: N.DUR.content, easing: N.EASE_ENTER, fill: 'backwards' }, N.SP.settle.e);",
+      "selector": "dialogs",
+      "file": "预览资源/js/dialogs.js",
+      "line": 49
     },
     {
       "name": "动效／局部常量",
       "value": "const left = Math.max(8, Math.min(r.left, innerWidth - mw - 12));",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 44
+      "line": 54
     },
     {
       "name": "动效／局部常量",
       "value": "let top = r.top - mh - 8;",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 45
+      "line": 55
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.content, easing: N.EASE_ENTER });",
+      "value": "const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : (index + (e.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 52
+      "line": 81
     },
     {
       "name": "动效／局部常量",
-      "value": "if (line) setTimeout(() => $('.fp-line.target', fpBody)?.scrollIntoView({ block: 'center' }), 40);",
+      "value": "let previewVersion = 0;",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 172
+      "line": 159
     },
     {
       "name": "动效／局部常量",
-      "value": "{ duration: N.DUR.enter, easing: N.EASE_ENTER });",
+      "value": "if (line) setTimeout(() => { if (version === previewVersion && fp.open && !fp._closing) $('.fp-line.target', fpBody)?.scrollIntoView({ block: 'center' }); }, 40);",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 197
+      "line": 203
     },
     {
       "name": "动效／局部常量",
-      "value": "const motion = anim(d, [from, { opacity: 0, transform: 'translateY(8px) scale(.98)' }],",
+      "value": "{ duration: N.DUR.enter, easing: N.EASE_ENTER, fill: 'backwards' }, N.SP.settle.e);",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 212
+      "line": 228
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const motion = animateSurface(d, from, { opacity: 0, transform: 'translateY(8px) scale(.97)' },",
+      "selector": "dialogs",
+      "file": "预览资源/js/dialogs.js",
+      "line": 244
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });",
       "selector": "dialogs",
       "file": "预览资源/js/dialogs.js",
-      "line": 213
+      "line": 245
     },
     {
       "name": "动效／局部常量",
-      "value": "try{const r=await request(`/api/plugins/${encodeURIComponent(owner)}/runtime`);const text=v=>esc(JSON.stringify(v,null,2));",
+      "value": "const {$,esc}=N;let owner=null,version=0;",
       "selector": "host-sdk",
       "file": "预览资源/js/host-sdk.js",
-      "line": 9
+      "line": 4
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "try{const r=await request(`/api/plugins/${encodeURIComponent(pluginId)}/runtime`);if(current!==version||pluginId!==owner)return;const text=v=>esc(JSON.stringify(v,null,2));",
+      "selector": "host-sdk",
+      "file": "预览资源/js/host-sdk.js",
+      "line": 10
     },
     {
       "name": "动效／局部常量",
       "value": "if(b.dataset.hostMethod){b.disabled=true;const method=b.dataset.hostMethod;const params=method.startsWith('jobs.')?{job_id:b.dataset.resource}:{dialogue_id:b.dataset.resource};const r=await request(`/api/plugins/${encodeURIComponent(owner)}/runtime`,{method,params});if(method==='dialogues.history'){const box=document.createElement('pre');box.className='host-runtime-json';box.textContent=JSON.stringify(r,null,2);b.parentElement.append(box);}else await runtime();}",
       "selector": "host-sdk",
       "file": "预览资源/js/host-sdk.js",
-      "line": 18
+      "line": 19
     },
     {
       "name": "动效／局部常量",
@@ -40553,980 +40644,980 @@
       "value": "const starCount = Math.round(Math.max(60, cw * ch / 10000));",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 133
+      "line": 136
     },
     {
       "name": "动效／局部常量",
       "value": "const orbital = i < Math.round(starCount * .35);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 135
+      "line": 138
     },
     {
       "name": "动效／局部常量",
       "value": "rRatio: orbital ? (0.14 + (i / Math.max(1, Math.round(starCount * .35))) * 0.44 + (Math.random() - 0.5) * 0.025) : 0,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 138
+      "line": 141
     },
     {
       "name": "动效／局部常量",
       "value": "tilt: 0.5 + Math.random() * 0.36,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 143
+      "line": 146
     },
     {
       "name": "动效／局部常量",
       "value": "alpha: 0.32 + Math.random() * 0.44,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 146
+      "line": 149
     },
     {
       "name": "动效／局部常量",
       "value": "twinkleFreq: .35 + Math.random() * 1.1,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 147
+      "line": 150
     },
     {
       "name": "动效／局部常量",
       "value": "ox: 0, oy: 0, moveBoost: 0,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 151
+      "line": 154
     },
     {
       "name": "动效／局部常量",
       "value": "const span = Math.min(cw, ch) || 900;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 157
+      "line": 160
     },
     {
       "name": "动效／局部常量",
       "value": "let idx = 0;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 163
+      "line": 166
     },
     {
       "name": "动效／局部常量",
       "value": "for (let band = 0; band < BANDS.length; band++) {",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 164
+      "line": 167
     },
     {
       "name": "动效／局部常量",
       "value": "for (let j = 0; j < b.count; j++, idx++) {",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 166
+      "line": 169
     },
     {
       "name": "动效／局部常量",
       "value": "const u = (j + 0.5) / b.count;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 168
+      "line": 171
     },
     {
       "name": "动效／局部常量",
       "value": "const rBase = b.rMin + ((j * 0.618034) % 1) * (b.rMax - b.rMin);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 169
+      "line": 172
     },
     {
       "name": "动效／局部常量",
       "value": "const tier = idx % 7 === 0 ? 1.22 : (idx % 2 === 0 ? 0.96 : 0.75);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 170
+      "line": 173
     },
     {
       "name": "动效／局部常量",
       "value": "rRatio: rBase,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 176
+      "line": 179
     },
     {
       "name": "动效／局部常量",
       "value": "rotOffset: 0,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 178
+      "line": 181
     },
     {
       "name": "动效／局部常量",
       "value": "bobAmp: .35 + Math.random() * .5,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 184
+      "line": 187
     },
     {
       "name": "动效／局部常量",
       "value": "bobFreq: 0.52 + Math.random() * 0.48,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 185
+      "line": 188
     },
     {
       "name": "动效／局部常量",
       "value": "spinSpeed: .035 * (idx % 2 ? 1 : -1),",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 188
+      "line": 191
     },
     {
       "name": "动效／局部常量",
       "value": "ox: 0, oy: 0, moveBoost: 0,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 191
+      "line": 194
     },
     {
       "name": "动效／局部常量",
       "value": "const nextDpr = Math.min(window.devicePixelRatio || 1, 2);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 200
+      "line": 203
     },
     {
       "name": "动效／局部常量",
       "value": "for (let i = 0; i <= sides; i++) {",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 231
+      "line": 234
     },
     {
       "name": "动效／局部常量",
       "value": "const a = rot + (i / sides) * Math.PI * 2;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 232
+      "line": 235
     },
     {
       "name": "动效／局部常量",
       "value": "const baseR = Math.min(cw, ch) * 0.36;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 242
+      "line": 245
     },
     {
       "name": "动效／局部常量",
       "value": "const rot12 = lusterAngle * 0.12;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 261
+      "line": 264
     },
     {
       "name": "动效／局部常量",
       "value": "for (let i = 0; i < 12; i++) {",
-      "selector": "pivot",
-      "file": "预览资源/js/pivot.js",
-      "line": 270
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "const a = rot12 + (i / 12) * Math.PI * 2;",
-      "selector": "pivot",
-      "file": "预览资源/js/pivot.js",
-      "line": 271
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "const rIn = baseR * 0.84;",
-      "selector": "pivot",
-      "file": "预览资源/js/pivot.js",
-      "line": 272
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "const rOut = baseR + (i % 3 === 0 ? 5 : 2);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
       "line": 273
     },
     {
       "name": "动效／局部常量",
+      "value": "const a = rot12 + (i / 12) * Math.PI * 2;",
+      "selector": "pivot",
+      "file": "预览资源/js/pivot.js",
+      "line": 274
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const rIn = baseR * 0.84;",
+      "selector": "pivot",
+      "file": "预览资源/js/pivot.js",
+      "line": 275
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const rOut = baseR + (i % 3 === 0 ? 5 : 2);",
+      "selector": "pivot",
+      "file": "预览资源/js/pivot.js",
+      "line": 276
+    },
+    {
+      "name": "动效／局部常量",
       "value": "const rot8 = -lusterAngle * 0.08;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 281
+      "line": 284
     },
     {
       "name": "动效／局部常量",
       "value": "for (let i = 0; i < 12; i++) {",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 329
+      "line": 332
     },
     {
       "name": "动效／局部常量",
       "value": "const a = (i / 12) * Math.PI * 2;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 330
+      "line": 333
     },
     {
       "name": "动效／局部常量",
       "value": "const r0 = baseR - (i % 3 === 0 ? 10 : 4.5);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 331
+      "line": 334
     },
     {
       "name": "动效／局部常量",
       "value": "let targetOx = 0, targetOy = 0, holdDampen = 1;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 350
+      "line": 353
     },
     {
       "name": "动效／局部常量",
       "value": "const w = Math.pow(1 - dist / 265, 1.45);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 356
+      "line": 359
     },
     {
       "name": "动效／局部常量",
       "value": "const pull = Math.min(dist * 0.46, 58 * w);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 357
+      "line": 360
     },
     {
       "name": "动效／局部常量",
       "value": "holdDampen = 1 - 0.85 * w;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 361
+      "line": 364
     },
     {
       "name": "动效／局部常量",
       "value": "const w = Math.pow(1 - dist / 125, 1.6);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 363
+      "line": 366
     },
     {
       "name": "动效／局部常量",
       "value": "const push = 13 * w;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 364
+      "line": 367
     },
     {
       "name": "动效／局部常量",
       "value": "const rate = Math.min(1, dt * (bgPointer.down ? 5.6 : 4.6));",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 369
+      "line": 372
     },
     {
       "name": "动效／局部常量",
       "value": "const stepSpeed = Math.hypot(m.ox - prevOx, m.oy - prevOy) / Math.max(0.008, dt);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 373
+      "line": 376
     },
     {
       "name": "动效／局部常量",
       "value": "m.moveBoost = Math.min(0.28, stepSpeed * 0.0022 + (1 - holdDampen) * 0.16);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 374
+      "line": 377
     },
     {
       "name": "动效／局部常量",
       "value": "return holdDampen;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 375
+      "line": 378
     },
     {
       "name": "动效／局部常量",
       "value": "const tSec = now * 0.001;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 381
+      "line": 384
     },
     {
       "name": "动效／局部常量",
       "value": "const rx = span * m.rRatio;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 386
+      "line": 389
     },
     {
       "name": "动效／局部常量",
       "value": "const holdDampen = applyPointerField(m, estX, estY, dt);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 397
+      "line": 400
     },
     {
       "name": "动效／局部常量",
       "value": "m.angle += m.speed * holdDampen * dt * (state.replying ? 1.8 : 1);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 401
+      "line": 404
     },
     {
       "name": "动效／局部常量",
       "value": "const rx = span * m.rRatio;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 402
+      "line": 405
     },
     {
       "name": "动效／局部常量",
       "value": "m.ny = (m.ny + m.speed * holdDampen * dt + 1) % 1;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 410
+      "line": 413
     },
     {
       "name": "动效／局部常量",
       "value": "const twinkle = 0.62 + 0.38 * Math.sin(tSec * m.twinkleFreq + m.twinklePhase);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 418
+      "line": 421
     },
     {
       "name": "动效／局部常量",
       "value": "const boost = m.moveBoost || 0;",
-      "selector": "pivot",
-      "file": "预览资源/js/pivot.js",
-      "line": 419
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "const alpha = Math.min(0.92, m.alpha * twinkle + boost);",
-      "selector": "pivot",
-      "file": "预览资源/js/pivot.js",
-      "line": 420
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "const r = m.size + boost * 1.2;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
       "line": 422
     },
     {
       "name": "动效／局部常量",
-      "value": "const haloR = r * 3.4;",
+      "value": "const alpha = Math.min(0.92, m.alpha * twinkle + boost);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 424
+      "line": 423
     },
     {
       "name": "动效／局部常量",
-      "value": "const g = ctx.createRadialGradient(px, py, 0, px, py, haloR);",
+      "value": "const r = m.size + boost * 1.2;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
       "line": 425
     },
     {
       "name": "动效／局部常量",
+      "value": "const haloR = r * 3.4;",
+      "selector": "pivot",
+      "file": "预览资源/js/pivot.js",
+      "line": 427
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const g = ctx.createRadialGradient(px, py, 0, px, py, haloR);",
+      "selector": "pivot",
+      "file": "预览资源/js/pivot.js",
+      "line": 428
+    },
+    {
+      "name": "动效／局部常量",
       "value": "const arm = r * 3.1;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 439
+      "line": 442
     },
     {
       "name": "动效／局部常量",
       "value": "const haloR = s * (night ? 2.8 + flash * .65 : 1.8 + flash * .45);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 459
+      "line": 462
     },
     {
       "name": "动效／局部常量",
       "value": "const g = ctx.createRadialGradient(px, py, s * 0.1, px, py, haloR);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 460
+      "line": 463
     },
     {
       "name": "动效／局部常量",
       "value": "const litStr = flash > 0.35",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 476
+      "line": 479
     },
     {
       "name": "动效／局部常量",
       "value": "const midStr = `rgba(${mid[0]},${mid[1]},${mid[2]},${alpha * 0.94})`;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 479
+      "line": 482
     },
     {
       "name": "动效／局部常量",
       "value": "const shadeStr = `rgba(${shade[0]},${shade[1]},${shade[2]},${alpha * (night ? 0.88 : 0.92)})`;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 480
+      "line": 483
     },
     {
       "name": "动效／局部常量",
       "value": "const outerEdgeStr = `rgba(${edge[0]},${edge[1]},${edge[2]},${alpha * (night ? 0.72 : 0.66)})`;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 481
+      "line": 484
     },
     {
       "name": "动效／局部常量",
       "value": "const ridgeStr = `rgba(${rgb.hi[0]},${rgb.hi[1]},${rgb.hi[2]},${alpha * (0.62 + flash * 0.32)})`;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 482
+      "line": 485
     },
     {
       "name": "动效／局部常量",
       "value": "const L = s * 1.76, W = s * 0.88, waist = L * 0.08;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 486
+      "line": 489
     },
     {
       "name": "动效／局部常量",
       "value": "const L = s * 1.68, W = s * 0.75, shoulder = L * 0.45;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 515
+      "line": 518
     },
     {
       "name": "动效／局部常量",
       "value": "const L = s * 1.6, W = s * 0.85;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 545
+      "line": 548
     },
     {
       "name": "动效／局部常量",
       "value": "const glintLen = s * (1.3 + flash * 1.05);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 566
+      "line": 569
     },
     {
       "name": "动效／局部常量",
       "value": "const tSec = now * 0.001;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 582
+      "line": 585
     },
     {
       "name": "动效／局部常量",
       "value": "const perspective = Math.min(1, 750 / span);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 583
+      "line": 586
     },
     {
       "name": "动效／局部常量",
       "value": "const speedBoost = 1 + pv.grasp * 1.5 + pv.keyBoost * 1.2 + (state.replying ? 0.8 : 0);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 585
+      "line": 588
     },
     {
       "name": "动效／局部常量",
       "value": "for (const [radius, width, alpha] of [[.399, 9, night ? .06 : .035], [.399, .8, night ? .28 : .15]]) {",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 590
+      "line": 593
     },
     {
       "name": "动效／局部常量",
       "value": "const rot = ringRotation + m.rotOffset + pv.curX * 0.0035;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 599
+      "line": 602
     },
     {
       "name": "动效／局部常量",
       "value": "const tilt = Math.max(.08, Math.min(.62, m.tilt * perspective + pv.curY * .003));",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 600
+      "line": 603
     },
     {
       "name": "动效／局部常量",
       "value": "const rx = span * m.rRatio;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 602
+      "line": 605
     },
     {
       "name": "动效／局部常量",
       "value": "const bob0 = Math.sin(tSec * m.bobFreq + m.phase) * m.bobAmp;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 606
+      "line": 609
     },
     {
       "name": "动效／局部常量",
       "value": "const lx0 = Math.cos(m.angle) * rx;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 607
+      "line": 610
     },
     {
       "name": "动效／局部常量",
       "value": "const ly0 = Math.sin(m.angle) * ry + m.bandDz + bob0;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 608
+      "line": 611
     },
     {
       "name": "动效／局部常量",
       "value": "const estX = m.distant ? m.nx * cw : centerX + lx0 * cr - ly0 * sr;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 609
+      "line": 612
     },
     {
       "name": "动效／局部常量",
       "value": "const estY = m.distant ? m.ny * ch : centerY + lx0 * sr + ly0 * cr;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 610
+      "line": 613
     },
     {
       "name": "动效／局部常量",
       "value": "const holdDampen = applyPointerField(m, estX, estY, dt);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 611
+      "line": 614
     },
     {
       "name": "动效／局部常量",
       "value": "m.angle = (m.angle + m.speed * speedBoost * holdDampen * dt) % (Math.PI * 2);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 613
+      "line": 616
     },
     {
       "name": "动效／局部常量",
       "value": "m.spin += m.spinSpeed * holdDampen * dt;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 614
+      "line": 617
     },
     {
       "name": "动效／局部常量",
       "value": "const persp = 0.84 + 0.24 * ((depth + 1) * 0.5);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 626
+      "line": 629
     },
     {
       "name": "动效／局部常量",
       "value": "const behindCore = (hubOnHero && depth < 0 && distFromCore < 46)",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 628
+      "line": 631
     },
     {
       "name": "动效／局部常量",
       "value": "const boost = m.moveBoost || 0;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 632
+      "line": 635
     },
     {
       "name": "动效／局部常量",
       "value": "const flash = Math.pow(Math.max(0, Math.cos(m.spin * 2 + m.phase)), 10);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 633
+      "line": 636
     },
     {
       "name": "动效／局部常量",
       "value": "const alpha = Math.min(0.95,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 634
+      "line": 637
     },
     {
       "name": "动效／局部常量",
       "value": "const s = (m.size + boost * 0.4) * persp * (night ? 1 : 1.1);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 639
+      "line": 642
     },
     {
       "name": "动效／局部常量",
       "value": "const dt = Math.min(0.05, lastFieldTime ? (now - lastFieldTime) / 1000 : 0.016);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 647
+      "line": 650
     },
     {
       "name": "动效／局部常量",
       "value": "const centerX = hubX + pv.curX * 0.45;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 655
+      "line": 658
     },
     {
       "name": "动效／局部常量",
       "value": "const centerY = hubY + pv.curY * 0.45;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 656
+      "line": 659
     },
     {
       "name": "动效／局部常量",
       "value": "const charge = Math.min(1, bgPointer.holdTime / 1.1);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 667
+      "line": 670
     },
     {
       "name": "动效／局部常量",
       "value": "const col = cool ? (charge > 0.55 ? rgb.a : rgb.p) : rgb.goldMid;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 668
+      "line": 671
     },
     {
       "name": "动效／局部常量",
       "value": "const pulseR = 18 + charge * 40 + Math.sin(now * 0.006) * 2.5;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 669
+      "line": 672
     },
     {
       "name": "动效／局部常量",
       "value": "const g = ctx.createRadialGradient(bgPointer.x, bgPointer.y, 0, bgPointer.x, bgPointer.y, pulseR * 1.5);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 670
+      "line": 673
     },
     {
       "name": "动效／局部常量",
       "value": "for (let i = waves.length - 1; i >= 0; i--) {",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 698
+      "line": 701
     },
     {
       "name": "动效／局部常量",
       "value": "const ease = w.crystalWave ? (1 - Math.pow(1 - t, 2.7)) : (1 - Math.pow(1 - t, 2.4));",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 702
+      "line": 705
     },
     {
       "name": "动效／局部常量",
       "value": "const fade = Math.pow(1 - t, 1.5) * w.strength;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 704
+      "line": 707
     },
     {
       "name": "动效／局部常量",
       "value": "const c2 = w.colors.a;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 729
+      "line": 732
     },
     {
       "name": "动效／局部常量",
       "value": "r0: 4,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 801
+      "line": 804
     },
     {
       "name": "动效／局部常量",
       "value": "strength: 0.5,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 803
+      "line": 806
     },
     {
       "name": "动效／局部常量",
       "value": "r0: 14,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 817
+      "line": 820
     },
     {
       "name": "动效／局部常量",
       "value": "let spotRAF = 0, spotX = 0, spotY = 0, spotTarget = null, lastSpotEl = null;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 835
+      "line": 838
     },
     {
       "name": "动效／局部常量",
       "value": "let pivotRAF = 0;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 854
+      "line": 857
     },
     {
       "name": "动效／局部常量",
       "value": "const ns = 'http://www.w3.org/2000/svg';",
-      "selector": "pivot",
-      "file": "预览资源/js/pivot.js",
-      "line": 864
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "for (let i = 0; i < 24; i++) {",
-      "selector": "pivot",
-      "file": "预览资源/js/pivot.js",
-      "line": 865
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "const a = (i / 24) * Math.PI * 2;",
-      "selector": "pivot",
-      "file": "预览资源/js/pivot.js",
-      "line": 866
-    },
-    {
-      "name": "动效／局部常量",
-      "value": "const major = i % 6 === 0;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
       "line": 867
     },
     {
       "name": "动效／局部常量",
-      "value": "const mid = i % 3 === 0;",
+      "value": "for (let i = 0; i < 24; i++) {",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
       "line": 868
     },
     {
       "name": "动效／局部常量",
-      "value": "const r1 = major ? 85 : mid ? 87.5 : 89.2;",
+      "value": "const a = (i / 24) * Math.PI * 2;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
       "line": 869
     },
     {
       "name": "动效／局部常量",
-      "value": "const r2 = major ? 95.5 : 92.5;",
+      "value": "const major = i % 6 === 0;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
       "line": 870
     },
     {
       "name": "动效／局部常量",
+      "value": "const mid = i % 3 === 0;",
+      "selector": "pivot",
+      "file": "预览资源/js/pivot.js",
+      "line": 871
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const r1 = major ? 85 : mid ? 87.5 : 89.2;",
+      "selector": "pivot",
+      "file": "预览资源/js/pivot.js",
+      "line": 872
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const r2 = major ? 95.5 : 92.5;",
+      "selector": "pivot",
+      "file": "预览资源/js/pivot.js",
+      "line": 873
+    },
+    {
+      "name": "动效／局部常量",
       "value": "let settleTimer = 0;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 904
+      "line": 907
     },
     {
       "name": "动效／局部常量",
       "value": "settleTimer = setTimeout(updateHubCenter, 360);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 909
+      "line": 912
     },
     {
       "name": "动效／局部常量",
       "value": "const ns = 'http://www.w3.org/2000/svg';",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 939
+      "line": 942
     },
     {
       "name": "动效／局部常量",
       "value": "const beads = [0, 1, 2, 3].map(idx => {",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 942
+      "line": 945
     },
     {
       "name": "动效／局部常量",
       "value": "pv.holdTimer = setTimeout(() => {",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 973
+      "line": 976
     },
     {
       "name": "动效／局部常量",
       "value": "r0: 32,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1001
+      "line": 1004
     },
     {
       "name": "动效／局部常量",
       "value": "strength: 0.9 + power * 0.32,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1005
+      "line": 1008
     },
     {
       "name": "动效／局部常量",
       "value": "let merAngle = 0, breathePhase = 0, swayPhase = 0, coreScale = 1, coreAngle = 0;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1015
+      "line": 1018
     },
     {
       "name": "动效／局部常量",
       "value": "const dt = Math.min(0.05, pv.lastT ? (now - pv.lastT) / 1000 : 0.016);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1018
+      "line": 1021
     },
     {
       "name": "动效／局部常量",
       "value": "const tempo = N.REDUCED ? 0 : (cool ? 1.18 : 0.88) / Math.max(0.65, N.motionScale());",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1022
+      "line": 1025
     },
     {
       "name": "动效／局部常量",
       "value": "const targetGrasp = pv.engaged ? 1 : 0;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1023
+      "line": 1026
     },
     {
       "name": "动效／局部常量",
       "value": "const damp = Math.min(1, dt * (cool ? 9.5 : 7.5));",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1027
+      "line": 1030
     },
     {
       "name": "动效／局部常量",
       "value": "const sc = 1 + pv.grasp * 0.045;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1032
+      "line": 1035
     },
     {
       "name": "动效／局部常量",
       "value": "const breathe = 1 + Math.sin(breathePhase) * (cool ? 0.032 : 0.028) + pv.grasp * 0.05;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1047
+      "line": 1050
     },
     {
       "name": "动效／局部常量",
       "value": "const sway = cool ? 0 : Math.sin(swayPhase) * 2.4 + pv.curX * 0.16;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1048
+      "line": 1051
     },
     {
       "name": "动效／局部常量",
       "value": "const blend = Math.min(1, dt * 8);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1049
+      "line": 1052
     },
     {
       "name": "动效／局部常量",
       "value": "const speedMul = tempo * (1 + pv.grasp * 2.8 + pv.keyBoost * 2.4 + (state.replying ? 1.15 : 0));",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1056
+      "line": 1059
     },
     {
       "name": "动效／局部常量",
       "value": "const rot = orb.baseRot + pv.curX * (0.45 - idx * 0.18) - pv.grasp * (idx === 1 ? 8 : -5);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1060
+      "line": 1063
     },
     {
       "name": "动效／局部常量",
       "value": "const tiltScale = Math.max(0.45, Math.min(1.45, 1 + pv.curY * 0.018 * (idx % 2 ? -1 : 1)));",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1061
+      "line": 1064
     },
     {
       "name": "动效／局部常量",
       "value": "const tf = `rotate(${rot.toFixed(2)}) scale(1, ${tiltScale.toFixed(3)})`;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1062
+      "line": 1065
     },
     {
       "name": "动效／局部常量",
       "value": "const inFront = Math.sin(theta) >= 0;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1077
+      "line": 1080
     },
     {
       "name": "动效／局部常量",
       "value": "const depthScale = 0.84 + 0.24 * ((Math.sin(theta) + 1) * 0.5);",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1078
+      "line": 1081
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.move, easing: N.SP.settle.e });",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1106
+      "line": 1109
     },
     {
       "name": "动效／局部常量",
       "value": "let lastKeyWave = 0;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1110
+      "line": 1113
     },
     {
       "name": "动效／局部常量",
       "value": "r0: 6, maxR: 76, dur: 900, strength: 0.4,",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1122
+      "line": 1125
     },
     {
       "name": "动效／局部常量",
       "value": "const y = detail.y ?? window.innerHeight * 0.82;",
       "selector": "pivot",
       "file": "预览资源/js/pivot.js",
-      "line": 1132
+      "line": 1135
     },
     {
       "name": "动效／局部常量",
       "value": "const title = document.createElement('h2'); title.id = titleId;",
       "selector": "plugin-pages",
       "file": "预览资源/js/plugin-pages.js",
-      "line": 146
+      "line": 148
     },
     {
       "name": "动效／局部常量",
       "value": "if (fresh && spec.animate && !N.REDUCED) N.anim(node, [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], { duration: N.DUR.content, easing: N.EASE_ENTER });",
       "selector": "plugin-pages",
       "file": "预览资源/js/plugin-pages.js",
-      "line": 288
+      "line": 290
     },
     {
       "name": "动效／局部常量",
       "value": "const animation = N.anim(node, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-8px)' }], { duration: N.DUR.micro, easing: N.EASE_EXIT });",
       "selector": "plugin-pages",
       "file": "预览资源/js/plugin-pages.js",
-      "line": 294
+      "line": 296
     },
     {
       "name": "动效／局部常量",
@@ -41579,10 +41670,17 @@
     },
     {
       "name": "动效／局部常量",
+      "value": "let requestVersion = 0;",
+      "selector": "plugins",
+      "file": "预览资源/js/plugins.js",
+      "line": 438
+    },
+    {
+      "name": "动效／局部常量",
       "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });",
       "selector": "plugins",
       "file": "预览资源/js/plugins.js",
-      "line": 504
+      "line": 508
     },
     {
       "name": "动效／局部常量",
@@ -41593,290 +41691,325 @@
     },
     {
       "name": "动效／局部常量",
+      "value": "let providerVersion = 0, mcpVersion = 0;",
+      "selector": "settings",
+      "file": "预览资源/js/settings.js",
+      "line": 11
+    },
+    {
+      "name": "动效／局部常量",
       "value": "{ duration: N.DUR.enter, delay: i * N.MOTION.stagger, easing: N.EASE_ENTER });",
       "selector": "settings",
       "file": "预览资源/js/settings.js",
-      "line": 58
+      "line": 59
     },
     {
       "name": "动效／局部常量",
       "value": "setTimeout(() => $('#p-name').focus(), 40);",
       "selector": "settings",
       "file": "预览资源/js/settings.js",
-      "line": 263
+      "line": 266
     },
     {
       "name": "动效／局部常量",
       "value": "const first = state.providers[0];",
       "selector": "settings",
       "file": "预览资源/js/settings.js",
-      "line": 313
+      "line": 317
     },
     {
       "name": "动效／局部常量",
       "value": "const model = first && (first.models || [])[0];",
       "selector": "settings",
       "file": "预览资源/js/settings.js",
-      "line": 314
+      "line": 318
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.base, easing: N.SP.settle.e });",
       "selector": "settings",
       "file": "预览资源/js/settings.js",
-      "line": 359
+      "line": 364
     },
     {
       "name": "动效／局部常量",
       "value": "setTimeout(() => { if (!scrim.classList.contains('show')) scrim.hidden = true; }, N.DUR.exit * N.motionScale() + 20);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 31
+      "line": 32
     },
     {
       "name": "动效／局部常量",
       "value": "const pendingReq = () => state.requests.length + state.works.reduce((n, w) => n + (w.pending_interactions?.length || 0), 0);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 36
+      "line": 37
     },
     {
       "name": "动效／局部常量",
       "value": "const a = activeWorks().slice(0, 3);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 58
+      "line": 59
     },
     {
       "name": "动效／局部常量",
       "value": "const done = state.works.filter(w => w.state === 'completed').slice(0, 4);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 85
+      "line": 86
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "const shapeFrom = islandInner._shapeMotion && !['finished', 'idle'].includes(islandInner._shapeMotion.playState) ? innerTransform : 'scale(.97)';",
+      "selector": "shell",
+      "file": "预览资源/js/shell.js",
+      "line": 129
     },
     {
       "name": "动效／局部常量",
       "value": "const fromRadius = Math.min(parseFloat(getComputedStyle(island).borderTopLeftRadius), from.height / 2, from.width / 2);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 127
+      "line": 130
     },
     {
       "name": "动效／局部常量",
       "value": "], { duration: (closing ? N.DUR.exit : N.DUR.move) * N.motionScale(), easing: N.EASE_MOVE });",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 173
+      "line": 178
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "{ duration: closing ? N.DUR.exit : N.DUR.move, easing: N.SP.settle.e });",
+      "selector": "shell",
+      "file": "预览资源/js/shell.js",
+      "line": 180
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "{ duration: closing ? N.DUR.exit : N.DUR.move, easing: N.SP.settle.e, fill: 'backwards' });",
+      "selector": "shell",
+      "file": "预览资源/js/shell.js",
+      "line": 182
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.micro, easing: N.EASE_EXIT, fill: 'forwards' });",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 177
+      "line": 186
     },
     {
       "name": "动效／局部常量",
       "value": "if (closing) N.enterItems([panel], islandInner, { profile: 'content', delay: 60, duration: N.DUR.micro });",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 179
+      "line": 188
     },
     {
       "name": "动效／局部常量",
       "value": "islandAnim = anim(island, [{ width: from + 'px' }, { width: to + 'px' }], { duration: N.DUR.move, easing: N.EASE_MOVE });",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 211
+      "line": 222
     },
     {
       "name": "动效／局部常量",
       "value": "const keepTop = sc ? sc.scrollTop : 0;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 239
+      "line": 250
     },
     {
       "name": "动效／局部常量",
       "value": "const keepThreadTop = tSc ? tSc.scrollTop : 0;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 241
+      "line": 252
     },
     {
       "name": "动效／局部常量",
       "value": "const ico = tone === 'jade' ? icon('check', 'i sm') : '<span class=\"orb-mini\" style=\"--s:16px\" aria-hidden=\"true\"></span>';",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 266
+      "line": 277
     },
     {
       "name": "动效／局部常量",
       "value": "island._noticeMotion = anim(island, [{ height: island.getBoundingClientRect().height + 'px' }, { height: '46px' }], { duration: N.DUR.move, easing: N.EASE_MOVE });",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 271
+      "line": 282
     },
     {
       "name": "动效／局部常量",
       "value": "toastTimer = setTimeout(() => { if (island.mode === 'toast') morphIsland('compact'); }, ms);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 273
+      "line": 284
     },
     {
       "name": "动效／局部常量",
       "value": "toastTimer = setTimeout(() => t.classList.remove('show'), ms);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 278
+      "line": 289
     },
     {
       "name": "动效／局部常量",
       "value": "let viewVersion = 0;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 304
+      "line": 315
     },
     {
       "name": "动效／局部常量",
       "value": "const x0 = a.left + a.width / 2, y0 = a.top + a.height / 2, x1 = b.left + b.width / 2, y1 = b.top + b.height / 2;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 394
+      "line": 405
     },
     {
       "name": "动效／局部常量",
       "value": "const cx = x0 + (x1 - x0) * 0.25, cy = Math.min(y0, y1) + (Math.max(y0, y1) - Math.min(y0, y1)) * 0.15 - 60;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 395
+      "line": 406
     },
     {
       "name": "动效／局部常量",
       "value": "const NSTEP = 24, kf = [];",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 399
+      "line": 410
     },
     {
       "name": "动效／局部常量",
       "value": "for (let i = 0; i <= NSTEP; i++) {",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 400
+      "line": 411
     },
     {
       "name": "动效／局部常量",
       "value": "const t = i / NSTEP, u = 1 - t;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 401
+      "line": 412
     },
     {
       "name": "动效／局部常量",
       "value": "const x = u * u * x0 + 2 * u * t * cx + t * t * x1;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 402
+      "line": 413
     },
     {
       "name": "动效／局部常量",
       "value": "const y = u * u * y0 + 2 * u * t * cy + t * t * y1;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 403
+      "line": 414
     },
     {
       "name": "动效／局部常量",
       "value": "const dx = 2 * u * (cx - x0) + 2 * t * (x1 - cx);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 404
+      "line": 415
     },
     {
       "name": "动效／局部常量",
       "value": "const dy = 2 * u * (cy - y0) + 2 * t * (y1 - cy);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 405
+      "line": 416
     },
     {
       "name": "动效／局部常量",
       "value": "const ang = Math.atan2(dy, dx) * 180 / Math.PI;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 406
+      "line": 417
     },
     {
       "name": "动效／局部常量",
       "value": "const stretch = 1 + Math.sin(t * Math.PI) * 0.9, sc = 1 - t * 0.35;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 407
+      "line": 418
     },
     {
       "name": "动效／局部常量",
       "value": "const an = d.animate(kf, { duration: N.REDUCED ? 1 : 820 * N.motionScale(), easing: 'cubic-bezier(.55,0,.25,.09)' });",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 410
+      "line": 421
     },
     {
       "name": "动效／局部常量",
       "value": "const x = r ? r.left + r.width / 2 : innerWidth / 2;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 422
+      "line": 433
     },
     {
       "name": "动效／局部常量",
       "value": "const y = r ? r.top + r.height / 2 : 42;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 423
+      "line": 434
     },
     {
       "name": "动效／局部常量",
       "value": "const frames = { '--theme-reveal-radius': ['-24px', (rad + 24) + 'px'] };",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 451
+      "line": 462
     },
     {
       "name": "动效／局部常量",
       "value": "const timing = { duration: N.MOTION.theme * N.motionScale(), easing: 'ease-in-out', fill: 'both' };",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 452
+      "line": 463
     },
     {
       "name": "动效／局部常量",
       "value": "if (island.mode === 'toast') toastTimer = setTimeout(() => island.mode === 'toast' && morphIsland('compact'), 1200);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 571
+      "line": 582
     },
     {
       "name": "动效／局部常量",
       "value": "const first = focusable[0], last = focusable.at(-1);",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 634
+      "line": 645
     },
     {
       "name": "动效／局部常量",
       "value": "let rz = 0;",
       "selector": "shell",
       "file": "预览资源/js/shell.js",
-      "line": 657
+      "line": 668
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "let editorVersion = 0;",
+      "selector": "skills",
+      "file": "预览资源/js/skills.js",
+      "line": 11
     },
     {
       "name": "动效／局部常量",
       "value": "{ duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' }).finished;",
       "selector": "skills",
       "file": "预览资源/js/skills.js",
-      "line": 132
+      "line": 139
     },
     {
       "name": "动效／局部常量",
@@ -41940,6 +42073,13 @@
       "selector": "work",
       "file": "预览资源/js/work.js",
       "line": 212
+    },
+    {
+      "name": "动效／局部常量",
+      "value": "let detailVersion = 0;",
+      "selector": "work",
+      "file": "预览资源/js/work.js",
+      "line": 332
     }
   ],
   "icons": [

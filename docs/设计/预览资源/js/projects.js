@@ -106,15 +106,18 @@
     event.preventDefault();
     if (saving || picking || !selectedPath || !name.value.trim()) return;
     saving = true;
+    const version = generation;
     updateSave();
     $('#project-editor-error').textContent = '';
     try {
       await change({ action: editing ? 'rename' : 'save', path: selectedPath, name: name.value.trim() });
-      N.closeDialog(editor);
-      if (!editing) N.closeDialog(dialog);
+      if (version === generation) {
+        N.closeDialog(editor);
+        if (!editing) N.closeDialog(dialog);
+      }
       N.notify(editing ? '项目名称已更新' : '已切换到项目', 'jade');
     } catch (error) {
-      $('#project-editor-error').textContent = error.message;
+      if (version === generation) $('#project-editor-error').textContent = error.message;
     } finally {
       saving = false;
       updateSave();

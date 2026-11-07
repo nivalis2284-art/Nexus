@@ -94,7 +94,7 @@
 | `color` | `var(--on-accent)` | `.seal, .req-allow, .opt .tick` | 预览资源/css/theme.css:409 |
 | `color` | `var(--on-primary)` | `.summary-card::before, .ctx-summary::before` | 预览资源/css/theme.css:410 |
 | `color` | `var(--on-primary)` | `.theme-check` | 预览资源/css/theme.css:411 |
-| `color` | `var(--on-primary)` | `.skill .glyph` | 预览资源/css/theme.css:412 |
+| `color` | `var(--jade-ink)` | `.skill .glyph` | 预览资源/css/theme.css:412 |
 | `stop-color` | `color-mix(in srgb, var(--jade-hi) 26%, #fff)` | `.og0` | 预览资源/css/theme.css:415 |
 | `stop-color` | `var(--jade-hi)` | `.og1` | 预览资源/css/theme.css:416 |
 | `stop-color` | `var(--jade)` | `.og2` | 预览资源/css/theme.css:417 |

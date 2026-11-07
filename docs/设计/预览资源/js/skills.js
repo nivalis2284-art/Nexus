@@ -8,6 +8,7 @@
   const SOURCE = { personal: '个人', project: '项目', builtin: '内置' };
   let editing = null;
   let saving = false;
+  let editorVersion = 0;
 
   function effectiveList() {
     const list = state.skills;
@@ -39,7 +40,7 @@
             ${s.read_only ? '' : `<button type="button" class="del" data-act="del-skill" data-i="${i}">删除</button>`}
           </div></footer>
         </div>`).join('')}
-        ${list.length ? '' : `<div class="card skill-empty" data-s><h2>让灵获得一项专长</h2><p>添加个人或项目技能，在这里查看用途、生效状态与覆盖关系。</p><button class="btn solid" data-act="new-skill">${icon('plus', 'i xs')}新建技能</button></div>`}
+        ${list.length ? '' : `<div class="card skill-empty" data-s><h2>还没有技能</h2><p>添加个人或项目技能，在这里查看用途、生效状态与覆盖关系。</p><button class="btn solid" data-act="new-skill">${icon('plus', 'i xs')}新建技能</button></div>`}
       </div>
       <p class="foot-note" data-s>技能按名称匹配；项目技能覆盖同名个人技能，内置技能始终只读。</p>
     </div>`;
@@ -56,6 +57,8 @@
   /* ---------------------------------------------------------------- 编辑器 */
   const dlg = $('#skill-dialog');
   function openEditor(skill, readonly) {
+    editorVersion++;
+    saving = false;
     editing = skill ? { source: skill.source, name: skill.name, path: skill.path } : null;
     $('#skill-dialog-title').textContent = readonly ? '查看技能' : skill ? '编辑技能' : '新建技能';
     $('#skill-name').value = skill?.name || '';
@@ -97,6 +100,7 @@
     if (!['personal', 'project'].includes(source)) { error('请选择个人或项目来源。'); return; }
     error('');
     saving = true;
+    const version = editorVersion;
     $('#skill-save').disabled = true;
     $('#skill-save').textContent = '保存中…';
     try {
@@ -105,12 +109,15 @@
         path: editing ? editing.path : '',
       });
       await N.sync.skillsOnly();
-      saving = false;
-      N.closeDialog(dlg);
-      editing = null;
+      if (version === editorVersion) {
+        saving = false;
+        N.closeDialog(dlg);
+        editing = null;
+      }
       renderSkills();
       N.notify('技能已保存', 'jade');
     } catch (failure) {
+      if (version !== editorVersion) return;
       saving = false;
       $('#skill-save').disabled = false;
       $('#skill-save').textContent = '保存技能';

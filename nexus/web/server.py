@@ -367,10 +367,12 @@ class Handler(BaseHTTPRequestHandler):
         if plugin_api.route(self, STATE, _json, "DELETE"):
             return
         path = urlparse(self.path).path
+        # Consume JSON even when unused so keep-alive requests stay aligned.
+        body = _read_json(self)
         if path.startswith("/api/tasks/"):
             task_id = path.rsplit("/", 1)[-1]
             try:
-                return _task_http().delete(self, task_id, _read_json(self))
+                return _task_http().delete(self, task_id, body)
             except (OSError, ValueError) as error:
                 return _task_error(self, error)
         if path.startswith("/api/sessions/"):
@@ -608,8 +610,8 @@ class Handler(BaseHTTPRequestHandler):
         return {
             "providers": providers,
             "current": {
-                "provider": settings.provider.id,
-                "model": settings.model.get("id", ""),
+                "provider": settings.provider.id if providers else "",
+                "model": settings.model.get("id", "") if providers else "",
                 "effort": settings.effort,
             },
             "effort": {

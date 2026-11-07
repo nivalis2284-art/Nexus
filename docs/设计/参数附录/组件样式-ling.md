@@ -575,7 +575,7 @@
 | `height` | `28px` | `.seg button` | 预览资源/css/ling.css:374 |
 | `padding` | `0 12px` | `.seg button` | 预览资源/css/ling.css:374 |
 | `border-radius` | `var(--r-pill)` | `.seg button` | 预览资源/css/ling.css:374 |
-| `color` | `var(--ink-3)` | `.seg button` | 预览资源/css/ling.css:374 |
+| `color` | `var(--ink-2)` | `.seg button` | 预览资源/css/ling.css:374 |
 | `transition` | `color var(--d-2)` | `.seg button` | 预览资源/css/ling.css:374 |
 | `color` | `var(--ink)` | `.seg button.active` | 预览资源/css/ling.css:375 |
 | `position` | `absolute` | `.seg-ink, .tab-ink` | 预览资源/css/ling.css:376 |
@@ -1180,14 +1180,16 @@
 | `background` | `var(--card)` | `.chip:hover` | 预览资源/css/ling.css:603 |
 | `transform` | `scale(.95)` | `.chip:active` | 预览资源/css/ling.css:604 |
 | `justify-content` | `center` | `.view-chat.is-empty` | 预览资源/css/ling.css:606 |
-| `flex` | `0 0 auto` | `.view-chat.is-empty .conversation` | 预览资源/css/ling.css:607 |
-| `overflow` | `visible` | `.view-chat.is-empty .conversation` | 预览资源/css/ling.css:607 |
+| `flex` | `0 1 auto` | `.view-chat.is-empty .conversation` | 预览资源/css/ling.css:607 |
+| `min-height` | `0` | `.view-chat.is-empty .conversation` | 预览资源/css/ling.css:607 |
+| `overflow-y` | `auto` | `.view-chat.is-empty .conversation` | 预览资源/css/ling.css:607 |
 | `-webkit-mask-image` | `none` | `.view-chat.is-empty .conversation` | 预览资源/css/ling.css:607 |
 | `mask-image` | `none` | `.view-chat.is-empty .conversation` | 预览资源/css/ling.css:607 |
 | `padding-top` | `var(--space-10)` | `.view-chat.is-empty .conversation` | 预览资源/css/ling.css:607 |
 | `padding-bottom` | `var(--space-3)` | `.view-chat.is-empty .conversation` | 预览资源/css/ling.css:607 |
 | `opacity` | `0` | `.view-chat.is-empty .composer-hint` | 预览资源/css/ling.css:608 |
 | `position` | `relative` | `.composer-wrap` | 预览资源/css/ling.css:611 |
+| `flex-shrink` | `0` | `.composer-wrap` | 预览资源/css/ling.css:611 |
 | `padding` | `0 var(--space-6) var(--space-4)` | `.composer-wrap` | 预览资源/css/ling.css:611 |
 | `position` | `relative` | `.composer` | 预览资源/css/ling.css:613 |
 | `max-width` | `var(--measure-field)` | `.composer` | 预览资源/css/ling.css:613 |

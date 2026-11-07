@@ -1,7 +1,7 @@
 'use strict';
 (function (P, N) {
   const { $, $$, state: s } = N;
-  const pages = { chat: '主交流', work: '工作', context: '上下文', skills: '技能', plugins: '插件', settings: '设置' };
+  const pages = { chat: '对话', work: '工作', context: '上下文', skills: '技能', plugins: '插件', settings: '设置' };
   const scenes = {
     chat: [['conversation', '已有会话'], ['empty', '空态'], ['stream', '思考→工具→流式回复'], ['attention', '审批与提问'], ['details', '关联工作／附件／压缩'], ['error', '错误与排队'], ['long', '长历史／阅读锚点']],
     work: [['overview', '全部工作状态'], ['empty', '空态'], ['progress', '工作推进与状态变化']],
@@ -57,7 +57,7 @@
       s.baseItems[0] = { ...s.baseItems[0], attachments: [{ name: '设计说明.md', size: 2048, kind: 'file', url: 'README.md' }], images: [N.demoImage()] };
       s.baseItems.push({ key: 'dispatch-sample', role: 'assistant', text: '已派发一项后台工作。', workId: 'work-1', compressed: true, at: '10:22' }, { key: 'result-sample', role: 'assistant', text: '工作结果已整理。', workId: 'work-4', card: 'result', spine: [['整理', '梳理已有规则'], ['核对', '检查设计样张']], at: '10:23', elapsed: 8 });
     }
-    if (scene === 'attention') s.requests = [{ id: 'approval-preview', token: 'approval-preview', kind: 'approval', owner: '灵', payload: { name: 'write', arguments: { path: '示例/说明.md' }, reason: '审批动效与按钮状态演示，不会写入文件。' } }, { id: 'question-preview', token: 'question-preview', kind: 'question', owner: '灵', payload: { questions: [{ question: '你更倾向哪种布局？', options: ['均衡', '紧凑'] }] } }];
+    if (scene === 'attention') s.requests = [{ id: 'approval-preview', token: 'approval-preview', kind: 'approval', owner: '助手', payload: { name: 'write', arguments: { path: '示例/说明.md' }, reason: '审批动效与按钮状态演示，不会写入文件。' } }, { id: 'question-preview', token: 'question-preview', kind: 'question', owner: '助手', payload: { questions: [{ question: '你更倾向哪种布局？', options: ['均衡', '紧凑'] }] } }];
     if (scene === 'error') {
       if (page === 'chat') { s.baseItems.push({ key: 'failed-tool', role: 'tool', name: 'read', ok: false, error: '演示工具失败', text: '无法读取示例内容。', arguments: { path: '示例/缺失.md' } }, { key: 'error', role: 'notice', text: '演示：回复中断，已显示的内容仍保留。' }); s.queue = [{ id: 101, text: '稍后继续这个话题', status: 'failed', error: '示例失败' }, { id: 102, text: '另一条待处理输入', status: 'held' }]; }
       if (page === 'skills') s.skills.push({ name: 'unreadable-skill', source: 'project', path: 'error', error: '示例读取失败', effective: false, description: '错误卡片不会修改原文件。' });

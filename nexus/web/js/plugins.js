@@ -6,7 +6,7 @@
 (function (N) {
   const { $, $$, esc, icon, state } = N;
   const pv = { tab: 'plugins', selected: null, req: null, owner: '', kind: '', plugin_id: '', dialogue_id: '', job_id: '', purpose: '', more: false, dirty: false, busy: false, frame: null, notice: null };
-  const KIND_LABEL = { ling: '主交流', task: '工作', subagent: '子代理', chat: '交流' };
+  const KIND_LABEL = { ling: '对话', task: '工作', subagent: '子代理', chat: '交流' };
   const managerDialog = $('#plugin-manager-dialog');
   let managerScrollTop = 0;
   managerDialog.addEventListener('scroll', e => {
@@ -173,7 +173,7 @@
           return `<button class="plug-item${x.id === pv.selected ? ' is-selected' : ''}" data-s data-act="plug-select" data-id="${esc(x.id)}">
             <span class="plug-item-top"><span class="plug-item-name">${esc(x.name)}</span><span class="pstate ${st.tone}">${st.label}</span></span>
             <span class="plug-item-sub"><span>v${esc(x.version || '?')}</span><span>${esc(x.id)}</span></span>
-            ${x.active_calls ? `<span class="plug-item-calls">在途 ${x.active_calls}</span>` : ''}
+            ${x.active_calls ? `<span class="plug-item-calls">进行中 ${x.active_calls}</span>` : ''}
           </button>`;
         }).join('') : '<p class="plug-empty-line">暂无插件。</p>'}
       </div>
@@ -202,8 +202,8 @@
       ${p.error ? `<div class="plug-error" data-s>插件错误：${esc(p.error)}</div>` : ''}
       <div class="plug-status-row" data-s>
         <div class="plug-meta">
-        <span>在途调用 ${Number(p.active_calls || 0)}</span>
-        <span>运行态 ${esc(p.status || '—')}</span>
+        <span>当前调用 ${Number(p.active_calls || 0)}</span>
+        <span>运行状态 ${esc(p.status || '—')}</span>
         ${caps.length ? `<span>能力 ${caps.length} 项</span>` : ''}
         </div>
         <div class="plug-enable"><span>启用插件</span><button type="button" class="switch" role="switch" aria-label="启用 ${esc(p.name)}" aria-checked="${!!p.enabled || loading}" aria-busy="${pv.busy || draining || loading}" data-act="plug-op" data-op="${p.enabled || loading ? 'unload' : 'load'}" data-id="${esc(p.id)}" ${pv.busy || draining ? 'disabled' : ''}></button></div>
@@ -213,7 +213,7 @@
         <div class="plug-action-row">
           ${!draining && !loading && p.enabled ? `<div class="plug-action-group">
                <button class="btn ghost sm" data-act="plug-op" data-op="restart" data-id="${esc(p.id)}" ${pv.busy ? 'disabled' : ''}>重载</button>
-               <button class="btn ghost sm" data-act="plug-op" data-op="stop" data-id="${esc(p.id)}">停止在途</button>
+               <button class="btn ghost sm" data-act="plug-op" data-op="stop" data-id="${esc(p.id)}">停止当前调用</button>
              </div>` : ''}
           <div class="plug-action-group plug-action-secondary">
             <button class="btn ghost sm" data-act="plug-readme" data-id="${esc(p.id)}">查看介绍</button>
@@ -435,7 +435,9 @@
     }
   }
 
+  let requestVersion = 0;
   async function loadRequests(append = false) {
+    const version = ++requestVersion;
     const query = new URLSearchParams();
     if (pv.owner) query.set('owner_id', pv.owner);
     if (pv.kind) query.set('kind', pv.kind);
@@ -444,10 +446,12 @@
     if (append) query.set('before', state.modelRequestsNext);
     try {
       const value = await N.api.modelRequests(query.toString());
+      if (version !== requestVersion) return;
       if (append) value.requests = [...state.modelRequests, ...value.requests];
       N.sync.modelRequests(value);
       renderPlugins();
     } catch (error) {
+      if (version !== requestVersion) return;
       N.notify(error?.message || '查询请求记录失败', 'cinnabar', 4000);
     }
   }
@@ -480,7 +484,7 @@
       renderPlugins();
       const after = (state.plugins || []).find(x => x.id === id);
       if (after && BUSY.includes(after.status)) watchPlugin(id);
-      else N.notify({ load: `已加载 ${p.name}`, restart: `已重载 ${p.name}`, unload: `已停用 ${p.name}`, stop: '已停止在途调用' }[action] || '操作完成', 'jade');
+      else N.notify({ load: `已加载 ${p.name}`, restart: `已重载 ${p.name}`, unload: `已停用 ${p.name}`, stop: '已停止当前调用' }[action] || '操作完成', 'jade');
     } catch (error) {
       pv.busy = false;
       await N.sync.pluginsOnly().catch(() => {});

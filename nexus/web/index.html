@@ -167,7 +167,7 @@ try {
 <!-- 悬浮导航胶囊：整合主导航与境象切换 -->
 <nav class="dock" id="dock" aria-label="主导航">
  <span class="dock-ink-clip" aria-hidden="true"><span class="dock-ink" id="dock-ink"></span></span>
- <button class="dock-btn active" data-view="chat" aria-label="主交流" data-tip="主交流  ⌘1"><svg class="i"><use href="#i-chat"/></svg></button>
+ <button class="dock-btn active" data-view="chat" aria-label="对话" data-tip="对话  ⌘1"><svg class="i"><use href="#i-chat"/></svg></button>
  <button class="dock-btn" data-view="work" aria-label="工作" data-tip="工作  ⌘2"><svg class="i"><use href="#i-work"/></svg><i class="dock-badge" id="dock-work-badge" hidden></i></button>
  <button class="dock-btn" data-view="context" aria-label="上下文" data-tip="上下文  ⌘3"><svg class="i"><use href="#i-layers"/></svg></button>
  <button class="dock-btn" data-view="skills" aria-label="技能" data-tip="技能  ⌘4"><svg class="i"><use href="#i-spark"/></svg></button>
@@ -186,9 +186,9 @@ try {
  <section class="view view-chat" id="view-chat" data-view-name="chat">
   <div class="chat-top" id="chat-top">
    <div class="queue" id="ling-inputs" hidden aria-label="输入异常提示"></div>
-   <div class="requests" id="ling-requests" hidden aria-label="灵在等待你处理的事项"></div>
+   <div class="requests" id="ling-requests" hidden aria-label="待处理请求"></div>
   </div>
-  <div class="conversation" id="conversation" tabindex="0" aria-label="与灵的交流记录" aria-live="polite"><div class="thread" id="thread"></div></div>
+  <div class="conversation" id="conversation" tabindex="0" aria-label="对话记录" aria-live="polite"><div class="thread" id="thread"></div></div>
   <div class="composer-wrap" id="composer-wrap">
    <div class="ret-chip" id="jump-latest" hidden><button type="button" data-act="jump-latest"><svg class="i"><use href="#i-down"/></svg>最新</button></div>
    <form class="composer" id="composer" autocomplete="off">
@@ -300,7 +300,7 @@ try {
 
 <dialog class="sheet" id="mcp-dialog" data-size="medium" aria-labelledby="mcp-dialog-title">
  <div class="sheet-body">
-  <header class="sheet-head"><div><h2 id="mcp-dialog-title">添加 MCP 服务</h2><p class="sheet-note">连接本地 stdio 进程或 HTTP 服务，供灵调用其中的工具。</p></div><button class="ic-btn" type="button" data-close="mcp-dialog" aria-label="关闭"><svg class="i"><use href="#i-close"/></svg></button></header>
+  <header class="sheet-head"><div><h2 id="mcp-dialog-title">添加 MCP 服务</h2><p class="sheet-note">通过本地 stdio 进程或 HTTP 服务接入工具。</p></div><button class="ic-btn" type="button" data-close="mcp-dialog" aria-label="关闭"><svg class="i"><use href="#i-close"/></svg></button></header>
   <div class="fields">
    <label class="field">名称<input id="mcp-name" type="text" autocomplete="off" placeholder="例如：filesystem"></label>
    <label class="field">类型<select id="mcp-transport"><option value="stdio">本地进程（stdio）</option><option value="http">HTTP</option></select></label>

@@ -178,7 +178,7 @@ class WorkOperations:
     def _report_edit(self):
         busy = getattr(self.state.get("ling"), "busy", None)
         if busy is not None and not busy.acquire(blocking=False):
-            raise TaskConflict("主交流正在处理输入，请等待结束后再整理工作记录。")
+            raise TaskConflict("正在处理当前消息，请等待处理结束后再整理工作记录。")
         try:
             yield
         finally:

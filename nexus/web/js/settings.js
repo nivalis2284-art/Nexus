@@ -8,6 +8,7 @@
   let editingProvider = null;
   let editingModels = [];
   let editingMcp = null;
+  let providerVersion = 0, mcpVersion = 0;
   let hookSnapshot = [];
   let hooksBusy = false;
 
@@ -74,9 +75,9 @@
       </header>
 
       <section class="card set-sec" data-s>
-        <h3>界面<span class="setting-scope">即时生效</span></h3><p>动效速度与四象境象即时生效；「灵玉」与「星枢」各自皆备白昼与黑夜。</p>
+        <h3>界面<span class="setting-scope">即时生效</span></h3><p>主题与动效设置即时生效；「灵玉」与「星枢」均可切换白昼与黑夜。</p>
         <div class="ui-row" data-s>
-          <div><b>动效速度</b><small>统一影响页面切换、消息入场、灵岛形变与流式节奏。</small></div>
+          <div><b>动效速度</b><small>调整界面动效与文字呈现的速度。</small></div>
           <div class="ui-controls">
             <div class="motion-slider">
               <input type="range" id="motion-range" min="0" max="4" step="1" value="${Math.max(0, N.MOTION_LEVELS.indexOf(state.motion))}" aria-label="动效速度">
@@ -89,13 +90,13 @@
           </div>
         </div>
         <div class="ui-row" data-s>
-          <div><b>昼夜模式</b><small>白昼清朗分明，黑夜幽邃沉浸；切换时自枢钮向外扩散。</small></div>
+          <div><b>昼夜模式</b><small>白昼清朗，黑夜静谧。</small></div>
           <div class="seg ui-seg mode-seg" role="radiogroup" aria-label="昼夜模式"><span class="seg-ink"></span>
             ${[['day', '白昼'], ['night', '黑夜']].map(([k, l]) => `<button role="radio" aria-checked="${mode === k}" class="${mode === k ? 'active' : ''}" data-act="mode" data-v="${k}">${l}</button>`).join('')}
           </div>
         </div>
         <div class="theme-picker" data-s>
-          <div class="theme-copy"><b>主题意境</b><small>同一灵枢，两重天地：「灵玉」温润沉稳，金晶环枢；「星枢」轻盈灵动，群星环绕。</small></div>
+          <div class="theme-copy"><b>主题</b><small>「灵玉」温润如玉，「星枢」清澈如星。</small></div>
           <div class="theme-grid">
             ${N.THEMES.map(t => {
               const on = state.palette === t.id;
@@ -110,7 +111,7 @@
       </section>
 
       <section class="card set-sec" data-s>
-        <h3>模型提供商</h3><p>填入各提供商的 API 密钥即可使用其模型；主交流与后台工作共用当前选择。</p>
+        <h3>模型提供商</h3><p>填入各提供商的 API 密钥即可使用其模型；对话与后台工作共用当前选择。</p>
         <div class="provider-list">
           ${state.providers.length ? state.providers.map(x => `<div class="provider-row" data-s>
             <span class="pdot${x.has_key ? ' on' : ''}" title="${x.has_key ? '已配置密钥' : '未配置密钥'}"></span>
@@ -123,7 +124,7 @@
       </section>
 
       <section class="card set-sec" data-s>
-        <h3>基本原则</h3><p>这些原则会随每次请求交给灵；与权限一起，通过底部「保存设置」生效。</p>
+        <h3>基本原则</h3><p>这些原则用于每次模型请求；修改后点击底部「保存设置」生效。</p>
         <label class="field"><span class="sr">原则与交流偏好</span><textarea id="instructions" rows="5" placeholder="例如：先说明关键取舍，再执行；遇到不确定的外部影响时先停下确认。">${esc(instructions)}</textarea></label>
       </section>
 
@@ -161,7 +162,7 @@
       </section>
 
       <div class="save-bar" data-s><button class="btn ghost" data-act="reset-settings">重新读取</button><button class="btn solid" data-act="save-settings">保存设置</button></div>
-      <p class="foot-note" data-s>当前模型：${esc(p?.name || '—')} · ${esc(m?.id || '—')}。切换模型请使用主交流输入舱的模型按钮。</p>
+      <p class="foot-note" data-s>当前模型：${esc(p?.name || '—')} · ${esc(m?.id || '—')}。可在对话输入框下方切换模型。</p>
     </div>`;
     requestAnimationFrame(() => N.syncSettingsUi?.(true));
     view.scrollTop = keep;
@@ -245,6 +246,8 @@
     </div>`).join('');
   }
   function openProvider(provider) {
+    providerVersion++;
+    $('#p-save').disabled = false;
     editingProvider = provider || null;
     editingModels = provider ? N.clone(provider.models || []) : [];
     $('#provider-title').textContent = provider ? '编辑提供商' : '添加提供商';
@@ -273,6 +276,7 @@
     $('#p-model-new').focus();
   }
   async function saveProvider() {
+    const version = providerVersion;
     const err = $('#provider-error');
     err.textContent = '';
     const name = $('#p-name').value.trim();
@@ -318,17 +322,18 @@
         }
       }
       N.renderModelLabel(); N.renderEffortLabel();
-      N.closeDialog($('#provider-dialog'));
+      if (version === providerVersion) N.closeDialog($('#provider-dialog'));
       renderSettings(); N.notify('提供商已保存', 'jade');
     } catch (failure) {
-      err.textContent = failure?.message || '保存提供商失败';
+      if (version === providerVersion) err.textContent = failure?.message || '保存提供商失败';
     } finally {
-      button.disabled = false;
+      if (version === providerVersion) button.disabled = false;
     }
   }
 
   async function deleteProvider() {
     if (!editingProvider) return;
+    const provider = editingProvider, version = providerVersion;
     const ok = await N.confirmEdit({
       title: `删除提供商「${editingProvider.name}」？`,
       description: '会同时移除它的密钥与模型列表；正在使用它的交流需要重新选择模型。',
@@ -336,13 +341,13 @@
     });
     if (!ok) return;
     try {
-      await N.api.deleteProvider(editingProvider.id);
+      await N.api.deleteProvider(provider.id);
       await N.sync.settingsOnly();
       N.renderModelLabel(); N.renderEffortLabel();
-      N.closeDialog($('#provider-dialog'));
+      if (version === providerVersion) N.closeDialog($('#provider-dialog'));
       renderSettings(); N.notify('提供商已删除', 'jade');
     } catch (failure) {
-      $('#provider-error').textContent = failure?.message || '删除提供商失败';
+      if (version === providerVersion) $('#provider-error').textContent = failure?.message || '删除提供商失败';
     }
   }
 
@@ -366,6 +371,8 @@
     if (clear) $('#mcp-token').value = '';
   }
   function openMcp(server) {
+    mcpVersion++;
+    $('#mcp-save').disabled = false;
     editingMcp = server || null;
     $('#mcp-dialog-title').textContent = server ? '编辑 MCP 服务' : '添加 MCP 服务';
     $('#mcp-name').value = server?.name || '';
@@ -387,6 +394,7 @@
     N.openDialog(dlg);
   }
   async function saveMcp() {
+    const version = mcpVersion;
     const err = $('#mcp-error');
     err.textContent = '';
     const name = $('#mcp-name').value.trim();
@@ -425,12 +433,12 @@
     try {
       await N.api.saveMcp(payload);
       await N.sync.mcpOnly();
-      N.closeDialog($('#mcp-dialog'));
+      if (version === mcpVersion) N.closeDialog($('#mcp-dialog'));
       renderSettings(); N.notify('MCP 服务已保存', 'jade');
     } catch (failure) {
-      err.textContent = failure?.message || '保存 MCP 服务失败';
+      if (version === mcpVersion) err.textContent = failure?.message || '保存 MCP 服务失败';
     } finally {
-      button.disabled = false;
+      if (version === mcpVersion) button.disabled = false;
     }
   }
   async function deleteMcp(i) {

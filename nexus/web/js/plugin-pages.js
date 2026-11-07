@@ -38,7 +38,9 @@
     setBusy(value) {
       this.busy = value;
       this.root.setAttribute('aria-busy', String(value));
+      this.status.classList.toggle('sr-only', !!this.view);
       this.status.textContent = value ? (this.view ? '正在处理…' : '正在读取…') : '';
+      this.trigger?.setAttribute('aria-busy', String(value));
       if (this.dialog) {
         this.dialog.setAttribute('aria-busy', String(value));
         this.dialog.querySelector('.hui-dialog-status').textContent = value ? '正在处理…' : '';
@@ -152,7 +154,7 @@
         header.append(heading, close);
         const error = document.createElement('p'); error.className = 'sheet-error hui-dialog-error';
         error.setAttribute('role', 'alert'); error.hidden = true;
-        const status = document.createElement('p'); status.className = 'help hui-dialog-status'; status.setAttribute('role', 'status');
+        const status = document.createElement('p'); status.className = 'help hui-dialog-status sr-only'; status.setAttribute('role', 'status');
         const content = document.createElement('div'); content.className = 'hui-components';
         body.append(header, error, status, content); d.append(body);
         d.addEventListener('click', this.click);

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import threading
 import time
@@ -122,6 +123,60 @@ def live(tmp_path: Path, monkeypatch):
     controller.close()
     httpd.shutdown()
     httpd.server_close()
+
+
+@pytest.mark.parametrize("kind", ["provider", "last_provider", "session"])
+def test_delete_consumes_body_before_next_request(live, kind):
+    base, _, store, _, _ = live
+    if kind == "provider":
+        provider = store.add_provider({
+            "name": "delete test", "base_url": "https://fake.test",
+            "family": APIFamily.OPENAI_CHAT_COMPLETIONS.value,
+            "models": [{"id": "fake"}], "api_key": "delete-test-key",
+        })
+        path, expected = f"/api/providers/{provider.id}", 200
+    elif kind == "last_provider":
+        provider = store.providers()[0]
+        path, expected = f"/api/providers/{provider.id}", 200
+    else:
+        session = web.STATE["sessions"].create("fake")
+        path, expected = f"/api/sessions/{session.id}", 200
+
+    connection = http.client.HTTPConnection(base.removeprefix("http://"), timeout=5)
+    try:
+        for index in range(2):
+            connection.request("DELETE", path, body=b"{}", headers={"Content-Type": "application/json"})
+            response = connection.getresponse()
+            body = response.read()
+            assert response.status == (404 if kind == "session" and index else expected), body
+            json.loads(body)
+        connection.request("GET", "/api/state")
+        response = connection.getresponse()
+        value = json.loads(response.read())
+        assert response.status == 200, value
+        if kind == "provider":
+            assert provider.id not in {p["id"] for p in value["providers"]}
+            assert not store.has_key(provider.id)
+        elif kind == "last_provider":
+            assert value["providers"] == []
+            assert value["current"]["provider"] == value["current"]["model"] == ""
+            assert value["profile"] is None
+            assert not store.has_key(provider.id)
+            connection.request("POST", "/api/providers", body=json.dumps({
+                "name": "New", "base_url": "https://new.test",
+                "family": APIFamily.OPENAI_CHAT_COMPLETIONS.value,
+                "models": [{"id": "new-model"}],
+            }), headers={"Content-Type": "application/json"})
+            response = connection.getresponse()
+            body = response.read()
+            assert response.status == 201, body
+            added = json.loads(body)
+            assert added["current"]["provider"] == added["providers"][0]["id"]
+            assert added["current"]["model"] == "new-model"
+        else:
+            assert web.STATE["sessions"].load(session.id) is None
+    finally:
+        connection.close()
 
 
 def test_full_turn_over_http(live):

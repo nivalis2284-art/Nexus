@@ -68,7 +68,7 @@ window.N = window.N || {};
       soft: spring({ stiffness: 230, damping: 20 }),
       island: spring({ stiffness: 410, damping: 24 }),
       pop: spring({ stiffness: 590, damping: 25 }),
-      settle: spring({ stiffness: 490, damping: 34 }),
+      settle: spring({ stiffness: 490, damping: 24 }),
     };
     for (const k in base) SP[k] = { e: base[k].e, d: base[k].d };
     if (REDUCED) for (const k in SP) SP[k] = { e: 'ease', d: 1 };
@@ -178,7 +178,7 @@ window.N = window.N || {};
     if (instant || p0 == null || REDUCED || (p0 === pos && s0 === size)) return;
     if (ink.id === 'dock-ink') {
       const direction = Math.sign(pos - p0);
-      const stretch = Math.min(Math.abs(pos - p0) * .3, size * .52);
+      const stretch = Math.min(Math.abs(pos - p0) * .4, size * .65);
       const parent = ink.parentElement;
       const limit = axis === 'x' ? parent.clientWidth : parent.clientHeight;
       const crossPosition = axis === 'x' ? 'top' : 'left';
@@ -188,10 +188,10 @@ window.N = window.N || {};
       // 一条轨迹同时控制前缘、尾部与横向收束，打断时从当前轮廓继续。
       for (let i = 0; i <= 48; i++) {
         const t = i / 48;
-        const progress = (1 - (1 + 9 * t) * Math.exp(-9 * t)) / (1 - 10 * Math.exp(-9));
-        const tension = Math.sin(Math.PI * t) * (1 - t) * 1.7;
+        const progress = (1 - (1 + 7 * t) * Math.exp(-7 * t)) / (1 - 8 * Math.exp(-7));
+        const tension = Math.sin(Math.PI * t) * (1 - t) * 2;
         const length = s0 + (size - s0) * progress + stretch * tension;
-        const center = p0 + s0 / 2 + (pos + size / 2 - p0 - s0 / 2) * progress + direction * stretch * tension * .2;
+        const center = p0 + s0 / 2 + (pos + size / 2 - p0 - s0 / 2) * progress + direction * stretch * tension * .3;
         frames.push({
           offset: t,
           transform: `${P}(${Math.max(6, Math.min(limit - 6 - length, center - length / 2))}px)`,
@@ -203,10 +203,13 @@ window.N = window.N || {};
       anim(ink, frames, { duration: DUR.move, easing: 'linear' });
       return;
     }
+    const positionSpring = spring({ stiffness: 490, damping: Math.min(40, 24 + Math.abs(pos - p0) * .1) });
     ink.animate([
-      { transform: `${P}(${p0}px)`, [S]: s0 + 'px' },
-      { transform: `${P}(${pos}px)`, [S]: size + 'px' },
-    ], { duration: DUR.move * motionScale(), easing: EASE_MOVE });
+      { transform: `${P}(${p0}px)` },
+      { transform: `${P}(${pos}px)` },
+    ], { duration: DUR.move * motionScale(), easing: positionSpring.e });
+    ink.animate([{ [S]: s0 + 'px' }, { [S]: size + 'px' }],
+      { duration: DUR.move * motionScale(), easing: EASE_MOVE });
   }
 
   /* ---------------------------------------------------------------- 格式 */
@@ -364,18 +367,18 @@ window.N = window.N || {};
     {
       id: 'jade',
       name: '灵玉',
-      sub: '温润沉稳 · 琢玉含光与鎏金环带',
+      sub: '琢玉含光 · 鎏金相映',
       tag: '温玉 · 鎏金',
-      desc: '暖境 · 温润琢玉、中枢鎏金晶环、金玉追光与柔韧回弹',
+      desc: '温润玉色，鎏金环绕，光泽流转。',
       day: { p: '#078c70', a: '#d99416' },
       night: { p: '#28d8b2', a: '#f5b83d' },
     },
     {
       id: 'cool',
       name: '星枢',
-      sub: '轻盈灵动 · 群星层叠与星轨微芒',
-      tag: '群星 · 星轨',
-      desc: '冷境 · 晴空星穹、寒星闪烁、棱镜追光与鲜活弹簧',
+      sub: '群星层叠 · 星轨微芒',
+      tag: '星枢 · 群星',
+      desc: '清冷星空，群星环绕，微光交映。',
       day: { p: '#3568f0', a: '#855cf2' },
       night: { p: '#82a8ff', a: '#c0a6ff' },
     },

@@ -44,7 +44,7 @@
     return out;
   }
 
-  const head = (item, busy) => `<header class="ling-head"><span class="orb-mini${busy ? ' busy' : ''}"></span><b>灵</b>${item.src ? `<span class="src">· ${esc(item.src)}</span>` : ''}<time>${esc(item.at || '')}</time></header>`;
+  const head = (item, busy) => `<header class="ling-head"><span class="orb-mini${busy ? ' busy' : ''}"></span><b>助手</b>${item.src ? `<span class="src">· ${esc(item.src)}</span>` : ''}<time>${esc(item.at || '')}</time></header>`;
   const tools = item => `<footer class="msg-tools">
     <button data-act="copy" data-key="${esc(item.key)}" aria-label="复制">${icon('copy')}</button>
     ${item.role === 'user' && !item.live ? `<button data-act="resend" data-key="${esc(item.key)}" aria-label="编辑并重新发送">${icon('edit')}</button>` : ''}
@@ -368,9 +368,9 @@
 
   function phaseSummary(node, entry) {
     node.classList.toggle('live', entry.live);
-    $('.plabel', node).textContent = entry.live ? '正在运转' : '处理轨迹';
+    $('.plabel', node).textContent = entry.live ? '正在处理' : '处理过程';
     const names = entry.steps
-      .map(s => s.role === 'thinking' ? '思索' : (s.name || '工具'))
+      .map(s => s.role === 'thinking' ? '思考' : (s.name || '工具'))
       .filter((v, i, a) => i === 0 || v !== a[i - 1])
       .slice(0, 3);
     const trail = $('.ptrail', node);
@@ -572,10 +572,10 @@
   }
 
   const heroHTML = () => `<div class="hero">
-    <div class="orb-anchor" id="pivot-grip" role="img" aria-label="灵·枢 浑仪星枢（长按鼠标左键可执掌偏转）"></div>
+    <div class="orb-anchor" id="pivot-grip" role="img" aria-label="灵·枢"></div>
     <p class="hero-kicker">灵 · 枢</p>
     <h1>有什么需要处理？</h1>
-    <p class="hero-sub">直接对话，或交代一项工作交由中枢并行推进。</p>
+    <p class="hero-sub">直接对话，也可以让多项工作在后台同时进行。</p>
     <div class="chips">
       <button class="chip" type="button" data-act="projects" aria-haspopup="dialog">${icon('folder')}<span data-project-name>${esc(state.project?.name || 'Work')}</span></button>
       <button class="chip" data-act="overview">${icon('orbit')}查看后台工作进展</button>
@@ -592,7 +592,7 @@
     reqSig = sig;
     beginLayoutChange();
     const groups = [
-      ['ling', '灵在等你', state.requests.map(r => ({ id: r.id, value: r, owner: r.owner || '灵', build: () => requestCard(r) }))],
+      ['ling', '待处理请求', state.requests.map(r => ({ id: r.id, value: r, owner: r.owner || '助手', build: () => requestCard(r) }))],
       ['work', '工作请求', works.flatMap(w => w.pending_interactions.map(inter => ({ id: 'task:' + w.id + ':' + inter.id, value: inter, owner: w.title, build: () => workRequestCard(w, inter) })))],
     ];
     let added = 0;
@@ -654,7 +654,7 @@
     const approval = r.kind === 'approval';
     const p = r.payload || {};
     const unknown = r.status === 'unknown';
-    card.innerHTML = `<div class="req-head"><span class="orb-mini req-orb" aria-hidden="true"></span><span class="req-owner">${esc(r.owner || '灵')}</span><span class="req-title">${approval ? '需要你确认' : '需要你回答'}</span>${unknown ? '<span class="req-state">结果待核对</span>' : ''}</div>`;
+    card.innerHTML = `<div class="req-head"><span class="orb-mini req-orb" aria-hidden="true"></span><span class="req-owner">${esc(r.owner || '助手')}</span><span class="req-title">${approval ? '需要你确认' : '需要你回答'}</span>${unknown ? '<span class="req-state">结果待核对</span>' : ''}</div>`;
     if (approval) {
       card.insertAdjacentHTML('beforeend', `<div class="req-tool">${icon('tool', 'i xs')}${esc(p.tool || '请求确认')}</div>`);
       if (p.arguments && Object.keys(p.arguments).length) {
@@ -954,21 +954,31 @@
 
   function toggleUsage(anchor) {
     const panel = $('#usage-panel');
-    if (panel.hidden) {
+    if (!anchor && (panel.hidden || panel._closing)) return;
+    const opening = !!anchor && (panel.hidden || panel._closing);
+    const from = panel.hidden ? { opacity: 0, transform: 'translateY(9px) scale(.93)' }
+      : { opacity: getComputedStyle(panel).opacity, transform: getComputedStyle(panel).transform };
+    panel._usageMotion?.cancel();
+    panel._closing = !opening;
+    if (opening) {
       panel._anchor = anchor;
       panel.hidden = false;
       renderUsage();
       if (!N.REDUCED) {
-        N.anim(panel, [{ opacity: 0, transform: 'translateY(9px) scale(.93)' }, { opacity: 1, transform: 'none' }],
-          { duration: N.DUR.content, easing: N.EASE_ENTER });
+        panel._usageMotion = N.anim(panel, [from, { opacity: 1, transform: 'none' }],
+          { duration: N.DUR.content, easing: N.EASE_ENTER, fill: 'backwards' });
       }
     } else {
-      const done = () => { panel.hidden = true; panel.getAnimations().forEach(a => a.cancel()); };
+      const done = () => { panel.hidden = true; panel._closing = false; panel.getAnimations().forEach(a => a.cancel()); };
       if (N.REDUCED) done();
-      else N.anim(panel, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(6px) scale(.97)' }],
-        { duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' }).onfinish = done;
+      else {
+        const motion = N.anim(panel, [from, { opacity: 0, transform: 'translateY(6px) scale(.97)' }],
+          { duration: N.DUR.exit, easing: N.EASE_EXIT, fill: 'forwards' });
+        panel._usageMotion = motion;
+        motion.onfinish = () => { if (panel._usageMotion === motion) done(); };
+      }
     }
-    $$('#stat-tokens').forEach(b => b.setAttribute('aria-expanded', String(!panel.hidden && b === anchor)));
+    $$('#stat-tokens').forEach(b => b.setAttribute('aria-expanded', String(opening && b === anchor)));
   }
 
   function setJumpLatest(on) {
@@ -993,11 +1003,11 @@
   /* ---------------------------------------------------------------- 输入舱 */
   function syncTargets(instant) {
     const box = $('#targets'), ink = $('.target-ink', box);
-    const list = [{ id: null, label: '灵' }, ...activeWorks().map(w => ({ id: w.id, label: w.title, state: w.state }))];
+    const list = [{ id: null, label: '对话' }, ...activeWorks().map(w => ({ id: w.id, label: w.title, state: w.state }))];
     const sig = list.map(x => x.id + ':' + (x.state || '')).join('|');
     if (box._sig !== sig) {
       $$('.target', box).forEach(n => n.remove());
-      box.insertAdjacentHTML('beforeend', list.map(t => `<button type="button" class="target${(t.id || null) === state.target ? ' active' : ''}" role="radio" aria-checked="${(t.id || null) === state.target}" data-target="${t.id || ''}">${t.id ? `<i class="wd ${t.state}"></i>${esc(t.label)}` : '<span class="orb-mini"></span>灵 · 主交流'}</button>`).join(''));
+      box.insertAdjacentHTML('beforeend', list.map(t => `<button type="button" class="target${(t.id || null) === state.target ? ' active' : ''}" role="radio" aria-checked="${(t.id || null) === state.target}" data-target="${t.id || ''}">${t.id ? `<i class="wd ${t.state}"></i>${esc(t.label)}` : '<span class="orb-mini"></span>对话'}</button>`).join(''));
       box._sig = sig;
     }
     if (state.target && !byId(state.target)) state.target = null;
@@ -1133,7 +1143,7 @@
       N.renderRequests(); N.renderQueue(); N.updateStats(); N.syncTargets(true);
       N.refreshIsland?.(); N.updateSend?.();
     } catch (error) {
-      if (accepted) { N.notify('已发送，但记录刷新稍后补上', 'jade', 2600); return; }
+      if (accepted) { N.notify('消息已发送，记录暂未刷新。', 'jade', 2600); return; }
       retryDraft = draft;
       state.pending = state.pending.filter(item => item !== pending);
       state.files = [...files.filter(file => !state.files.includes(file)), ...state.files];
@@ -1155,7 +1165,7 @@
     sendRipple();
     const sendBtn = $('#send');
     if (sendBtn && !N.REDUCED) {
-      anim(sendBtn, [{ transform: 'scale(.88)' }, { transform: 'scale(1)' }], { duration: N.DUR.base, easing: SP.settle.e });
+      anim(sendBtn, [{ transform: 'scale(.88)' }, { transform: 'scale(1)' }], { duration: N.DUR.content, easing: SP.settle.e });
     }
     if ($('#view-chat').classList.contains('is-empty')) leaveEmpty();
     const target = state.target;
@@ -1175,7 +1185,7 @@
     if (!state.replying) return;
     try {
       await N.api.stop();
-      N.notify('已停止当前回应，后台工作保持独立', 'cinnabar');
+      N.notify('已停止回复，后台工作继续。', 'cinnabar');
     } catch (error) {
       N.notify(error?.message || '停止失败', 'cinnabar');
     }
@@ -1355,7 +1365,7 @@
       }
     }
     if (!items.length) items.push({ label: '还没有配置提供商', onPick: () => N.go('settings') });
-    N.menu(e.currentTarget, items, { title: '主交流模型' });
+    N.menu(e.currentTarget, items, { title: '选择模型' });
   });
   $('#effort-btn').addEventListener('click', e => {
     const pick = async level => {
@@ -1367,7 +1377,7 @@
         N.notify(error?.message || '切换思考强度失败', 'cinnabar', 4000);
       }
     };
-    const items = [{ group: '思考强度' }, { label: '提供商默认', sub: '不发字段', on: !state.current.effort,
+    const items = [{ group: '思考强度' }, { label: '提供商默认', sub: '使用服务端默认设置', on: !state.current.effort,
       onPick: () => pick(null) }];
     for (const lv of state.effort.levels) {
       items.push({
@@ -1432,14 +1442,12 @@
     if (!item) return;
     if (typeof item.index !== 'number') { N.notify('这条记录不能重新发送', 'cinnabar'); return; }
     const later = state.items.filter(i => i.role === 'user' && state.items.indexOf(i) > state.items.indexOf(item)).length;
-    const value = await N.ask({
+    await N.ask({
       title: '编辑并重新发送',
       text: item.text || '',
       description: `从这条消息重新继续，将替换后续 ${later} 条交流消息。保留本条附件与工作归属；已执行的工具和后台工作不会回滚。`,
       submitLabel: '重新发送',
-    });
-    if (value === null) return;
-    try {
+    }, async value => {
       await N.api.history({
         operation: 'resend', version: state.historyVersion,
         indices: [item.index], text: String(value).trim(), request_id: N.uid('req'),
@@ -1447,9 +1455,7 @@
       state.historyUndo = true;
       await freshHistory();
       N.notify('已重新发送', 'jade');
-    } catch (error) {
-      N.notify(error?.message || '重新发送失败', 'cinnabar', 4200);
-    }
+    });
   }
 
   async function undoHistory() {

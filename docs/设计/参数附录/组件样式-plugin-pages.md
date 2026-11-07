@@ -130,7 +130,8 @@
 | `margin` | `2px` | `.hui-table .btn` | 预览资源/css/plugin-pages.css:56 |
 | `justify-content` | `flex-end` | `.hui-pagination` | 预览资源/css/plugin-pages.css:57 |
 | `white-space` | `pre-wrap` | `.hui-dialog-error` | 预览资源/css/plugin-pages.css:58 |
-| `opacity` | `.45` | `.hui-page .btn:disabled, .hui-dialog .btn:disabled` | 预览资源/css/plugin-pages.css:59 |
+| `opacity` | `1` | `.hui-page .btn:disabled, .hui-dialog .btn:disabled` | 预览资源/css/plugin-pages.css:59 |
 | `cursor` | `default` | `.hui-page .btn:disabled, .hui-dialog .btn:disabled` | 预览资源/css/plugin-pages.css:59 |
-| `padding` | `var(--card-padding)` | `@media (max-width: 640px) → .hui-section` | 预览资源/css/plugin-pages.css:61 |
-| `flex-basis` | `100%` | `@media (max-width: 640px) → .hui-row > .hui-field, .hui-row > .hui-column` | 预览资源/css/plugin-pages.css:62 |
+| `opacity` | `.45` | `.hui-page .btn[data-hui-disabled="true"], .hui-dialog .btn[data-hui-disabled="true"], .hui-page .btn[aria-busy="true"], .hui-dialog .btn[aria-busy="true"]` | 预览资源/css/plugin-pages.css:61 |
+| `padding` | `var(--card-padding)` | `@media (max-width: 640px) → .hui-section` | 预览资源/css/plugin-pages.css:63 |
+| `flex-basis` | `100%` | `@media (max-width: 640px) → .hui-row > .hui-field, .hui-row > .hui-column` | 预览资源/css/plugin-pages.css:64 |
